@@ -1,0 +1,78 @@
+{% extends 'base.html' %} 
+{% load static %}
+{% load custom_format %}
+{% block title %} Pages Due {% endblock title %} 
+
+{% block style %} 
+ {{block.super}} 
+   <link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
+  
+ {% endblock style %} 
+
+ {% block content %}
+
+
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+    <center>
+        <h6 class="m-0 font-weight-bold text-primary">
+        {{student}} - Pages Due for Revision Today 
+        </h6>
+        </center>
+    </div>
+    <div class="card-body">
+    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
+  <div class="form-group mx-sm-3 mb-2">
+    <input type="number" class="form-control" name="page" required>
+  </div>
+  <button type="submit" class="btn btn-primary mb-2" >Enter New Page</button>
+</form>
+        <div class="table-responsive">
+            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                {% for page, page_summary in pages_due.items %}
+                 {% if forloop.first %}
+            <thead>
+                <tr>
+                    {% comment %} <td>#</td> {% endcomment %}
+                    
+                    <td>Page</td>
+                    {% for key in page_summary.keys %}
+                    <td>{{key | format_header}}</td>
+                    {% endfor %}
+                </tr>
+                </thead>
+                {% endif %}
+                <tr>
+                    {% comment %} <td>{{forloop.counter}}</td> {% endcomment %}
+                    <td>
+                        <a href="{% url 'page_entry' student_id=student.id page=page %}">{{page}}</a>
+                    </td>
+
+                    {% for key,value in page_summary.items %}
+                    {% if 'date' in key %} <td>{{value | date:"d M D"}}</td> 
+                    {% else %}
+                    <td>{{value}}</td> 
+                    {% endif %}    
+                                    
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock content %} 
+
+{% block script %} 
+{{block.super}}
+<script src="{% static 'js/jquery.dataTables.js' %}">
+</script>
+<script src="{% static 'js/dataTables.bootstrap4.js' %}">
+</script>
+
+<script>
+$(document).ready(function() {
+  $('#dataTable').DataTable();
+});
+</script>
+{% endblock script %}

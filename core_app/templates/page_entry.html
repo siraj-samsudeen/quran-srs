@@ -1,0 +1,57 @@
+{% extends 'base.html' %} 
+{% load static %}
+{% load custom_format %}
+{% block title %} Enter Revision Data {% endblock title %} {% block content %}
+
+    
+  <p>
+  
+
+
+    </p>
+    <div class="card shadow mb-4">
+        <div class="row card-header py-3">
+        <p class="col align-self-start">
+  <a href="{% url 'page_due' student_id=student_id %}" class="btn btn-light btn-icon-split">
+                    Go to All Pages Due
+                  </a>
+                  </p>
+            <h6 class="col align-self-center m-0 font-weight-bold text-primary">Page Summary for {{page}}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            {% for item in page_summary %}
+                            <td>{{item | format_header}}</td>
+                            {% endfor %} </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+               {% for key,value in page_summary.items %}
+                    {% if 'date' in key %} <td>{{value | date:"d M D"}}</td> 
+                    {% else %}
+                    <td>{{value}}</td> 
+                    {% endif %}    
+                                    
+                    {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+    <form action="." method="POST">
+        {% csrf_token %} {{ form }}
+        <p><button>Update</button></p>
+    </form>
+
+    {% if interval_form %}
+    <form action="." method="POST">
+        {% csrf_token %} {{ interval_form }}
+        <p><button>Save</button></p>
+    </form>
+    {% endif %} {% endblock content %}

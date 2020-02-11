@@ -1,0 +1,32 @@
+"""project URL Configuration
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/3.0/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
+from django.contrib import admin
+from django.urls import path
+import core_app.views as view
+from django.contrib.auth.views import LoginView, LogoutView
+
+urlpatterns = [
+    path("accounts/login/", LoginView.as_view(template_name="admin/login.html")),
+    path("accounts/logout/", LogoutView.as_view(), name="logout"),
+    path("", view.home, name="home"),
+    path("summary/", view.page_summary, name="test_summary"),
+    path("revision_dummy/", view.page_revision),
+    path("student/<int:student_id>/due/", view.page_due, name="page_due"),
+    path(
+        "student/<int:student_id>/page/<int:page>/", view.page_entry, name="page_entry"
+    ),
+    path("student/<int:student_id>/new/", view.page_new, name="page_new"),
+]

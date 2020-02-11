@@ -1,0 +1,36 @@
+{% extends 'base.html' %} {% block title %} Page Summary {% endblock title %}
+
+{% block content %}
+<h1>Page Summary</h1>
+<table>
+    <thead>
+        <tr>
+            <td>Page</td>
+            <td>Interval</td>
+            <td>Revision Count</td>
+            <td>Line Mistakes</td>
+            <td>Word Mistakes</td>
+            <td>Score</td>
+        </tr>
+    </thead>
+    <tbody>
+        {% for page in pages_list %}
+        <tr>
+            <td>{{page.page}}</td>
+            <td>{{page.interval}}</td>
+            <td>{{page.revision_count}}</td>
+            <td>{{page.line_mistakes}}</td>
+            <td>{{page.word_mistakes}}</td>
+            <td>{{page.score}}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<form action="." method="POST">
+    {% csrf_token %} {{ form }}
+    <tr>
+        <td><button>Submit</button></td>
+    </tr>
+</form>
+{% endblock content %}
