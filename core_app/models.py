@@ -22,5 +22,4 @@ class PageRevision(models.Model):
     date = models.DateTimeField(default=datetime.datetime.utcnow)
     word_mistakes = models.PositiveSmallIntegerField(default=0)
     line_mistakes = models.PositiveSmallIntegerField(default=0)
-    current_interval = models.PositiveSmallIntegerField(default=0)
-
+    current_interval = models.SmallIntegerField(default=0)

@@ -114,3 +114,6 @@ settings_prod.py
 .vscode
 .DS_Store
 # End of https://www.gitignore.io/api/python
+src/credentials-sheets.json
+src/token-drive.pickle
+src/token-sheets.pickle

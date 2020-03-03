@@ -1,6 +1,16 @@
+from itertools import groupby
+from collections import defaultdict
+import datetime
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
+from django.forms.models import model_to_dict
+
+
+from rest_framework import viewsets
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
 
 from core_app.forms import (
     PageForm,
@@ -9,26 +19,42 @@ from core_app.forms import (
     StudentForm,
 )
 from core_app.models import PageRevision, Student
-import quran_review_scheduler as qrs
-from itertools import groupby
-from collections import defaultdict
-import datetime
+import lib.quran_srs as qrs
+
+
+from core_app.serializers import StudentSerializer
+
+
+class StudentViewSet(viewsets.ModelViewSet):
+
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(account=self.request.user)
+
+
+def get_last_student(request):
+    last_student = request.session.get("last_student")
+    if last_student is None:
+        last_student = request.user.student_set.all().first()
+        last_student = model_to_dict(last_student)
+        request.session["last_student"] = last_student
+    return last_student
+
 
 # this is an end point
 @login_required
 def home(request):
+    return redirect("page_due", student_id=get_last_student(request)["id"])
 
-    students = request.user.student_set.all()
 
-    form = StudentForm(request.POST or None)
-
-    if form.is_valid():
-        student = form.save(commit=False)
-        student.account = request.user
-        student.save()
-
-        return redirect("home")
-    return render(request, "home.html", {"students": students, "form": form})
+@api_view(["GET", "PUT"])
+def last_student(request):
+    if request.method == "PUT":
+        return Response({"message": "Got some data!", "data": request.data})
+    else:
+        return Response(get_last_student(request))
 
 
 def page_summary(request):
@@ -63,6 +89,8 @@ def page_due(request, student_id):
         return HttpResponseForbidden(
             f"{student.name} is not a student of {request.user.username}"
         )
+
+    request.session["last_student"] = model_to_dict(student)
 
     revisions = (
         PageRevision.objects.filter(student=student_id).order_by("page").values()
@@ -158,4 +186,3 @@ def page_entry(request, student_id, page):
             "student_id": student_id,
         },
     )
-

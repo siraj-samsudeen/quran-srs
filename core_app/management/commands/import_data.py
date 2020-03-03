@@ -1,4 +1,4 @@
-from quran_review_scheduler import using_revision_data, expand_revision_data
+from lib.quran_srs import using_revision_data, expand_revision_data
 from django.core.management.base import BaseCommand
 from core_app.models import PageRevision, Student
 import pytz
@@ -34,4 +34,3 @@ class Command(BaseCommand):
                     ).save()
 
             # pprint.pprint(rev_data)
-
