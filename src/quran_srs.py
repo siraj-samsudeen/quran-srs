@@ -1,18 +1,23 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# List standard libaries first in alphabetical order
 import datetime
+import os
 import pprint
+import sys
 from collections import defaultdict
+from contextlib import contextmanager
+from pathlib import Path
+from collections import namedtuple
+
 import dateparser
 
 # ezsheets is the easy way to connect to Google sheets written by Al Sweigart
 import ezsheets
-import os
-import sys
-from pathlib import Path
-from contextlib import contextmanager
+
+
+class PAGE_REVISION:
+    revision_date = "revision_date"
+    word_mistakes = "word_mistakes"
+    line_mistakes = "line_mistakes"
+    current_interval = "current_interval"
 
 
 @contextmanager
@@ -29,18 +34,7 @@ def download_revision_data():
 
     # Get the first sheet that contains the form responses for Quran Review data
     input_sheet = google_sheet[0]
-
-    # TODO sometimes the calls to Google sheets fails and if I retry it works -
-    # how do I make my program recover from the error?
-    # TOPO is the connection closed automatically?
-    # Error - # URL/ID wasn't found, so check if this is the title of a spreadsheet
-    # returned by listSpreadsheets()
-
-    # For some reason, Google sheets always insert 100 empty rows at the bottom
-    # Hence, if the actual rows is 10, rowCount will return 110.
-    # Hence, to get the data excluding the header row till the last non-empty row
-    # we have to subtract 100 from the rowCount. Add 1 to include the last row
-    return input_sheet.getRows(2, input_sheet.rowCount - 100 + 1)
+    return input_sheet.getRows(2, input_sheet.rowCount - +1)
 
 
 def expand_revision_data(revision_data):
@@ -54,46 +48,51 @@ def expand_revision_data(revision_data):
         line_mistakes,
         current_interval,
     ) in revision_data:
+        # exit when an empty row is encountered
+        if revision_date == "":
+            break
+
         # Assign the columns to proper variable names
-        # revision_date = datetime.datetime.strptime(revision_date, "%d/%m/%Y %H:%M:%S")
-        # revision_date = datetime.datetime(*map(int,re.split(r'[ /:]',revision_date)))
         revision_date = dateparser.parse(revision_date)
 
         # since each of these column can have an empty string,
         # we can ask int function to return 0 if it finds an empty string
         word_mistakes = int(word_mistakes or 0)
         line_mistakes = int(line_mistakes or 0)
-
         current_interval = int(current_interval or 0)
 
         # A single page number is entered directly
         if page.isdecimal():
             revision_list_by_page[page].append(
                 {
-                    "revision_date": revision_date,
-                    "word_mistakes": word_mistakes,
-                    "line_mistakes": line_mistakes,
-                    "current_interval": current_interval,
+                    PAGE_REVISION.revision_date: revision_date,
+                    PAGE_REVISION.word_mistakes: word_mistakes,
+                    PAGE_REVISION.line_mistakes: line_mistakes,
+                    PAGE_REVISION.current_interval: current_interval,
                 }
             )
 
         # More than one page is entered using this format p1-p2
         # (p1 is the starting page, p2 is ending page) e.g."420-425"
         else:
-            # Get the start and end page number from the combined string and convert them into a number
-            start_page, end_page = page.split("-")
-            start_page = int(start_page or 0)
-            end_page = int(end_page or 0)
+            if "-" in page:
+                # Get the start and end page number from the combined string and
+                # convert them into a number
+                start_page, end_page = page.split("-")
+                start_page = int(start_page or 0)
+                end_page = int(end_page or 0)
+                # Convert the page to a string for consistency
+                page_list = [str(i) for i in range(start_page, end_page + 1)]
+            else:  # the list is comma-separated p1,p2,p3, etc.
+                page_list = page.split(",")
 
-            for i in range(start_page, end_page + 1):
-                # Convert the number to string for consistency with the if part
-                page = str(i)
+            for page in page_list:
                 revision_list_by_page[page].append(
                     {
-                        "revision_date": revision_date,
-                        "word_mistakes": word_mistakes,
-                        "line_mistakes": line_mistakes,
-                        "current_interval": current_interval,
+                        PAGE_REVISION.revision_date: revision_date,
+                        PAGE_REVISION.word_mistakes: word_mistakes,
+                        PAGE_REVISION.line_mistakes: line_mistakes,
+                        PAGE_REVISION.current_interval: current_interval,
                     }
                 )
     return revision_list_by_page
@@ -151,10 +150,10 @@ def get_next_interval(current_interval, interval_delta, max_interval):
 
 def extract_record(revision):
     return (
-        revision["revision_date"],
-        revision["word_mistakes"],
-        revision["line_mistakes"],
-        revision["current_interval"],
+        revision[PAGE_REVISION.revision_date],
+        revision[PAGE_REVISION.word_mistakes],
+        revision[PAGE_REVISION.line_mistakes],
+        revision[PAGE_REVISION.current_interval],
     )
 
 
@@ -182,6 +181,10 @@ def process_page(page, revision_list, extract_record):
             scheduled_due_date = page_summary_dict.get("8.scheduled_due_date")
             last_score = page_summary_dict.get("3.score")
 
+            # class REVESION_TIMING(Enum):
+            #     ON_TIME_REVISION =0
+            #     LATE_REVISION =1
+            #     EARLY_REVISION=-1
             # ideally the page should be revised on the due date, not before or after
             if scheduled_due_date == revision_date:
                 revision_timing = "ON_TIME_REVISION"
@@ -199,8 +202,7 @@ def process_page(page, revision_list, extract_record):
             # Otherwise use the last interval - No need to do anything as it is already set above
             if revision_timing == "LATE_REVISION" and 60 - score >= 60 - last_score:
                 current_interval = (
-                    scheduled_interval +
-                    (revision_date - scheduled_due_date).days
+                    scheduled_interval + (revision_date - scheduled_due_date).days
                 )
                 # print("page ", page, revision_timing, 'IMPROVED','score =', score, "last_score", last_score)
 
@@ -210,8 +212,7 @@ def process_page(page, revision_list, extract_record):
             if revision_timing == "EARLY_REVISION":
                 if 60 - score < 60 - last_score:
                     current_interval = (
-                        scheduled_interval -
-                        (scheduled_due_date - revision_date).days
+                        scheduled_interval - (scheduled_due_date - revision_date).days
                     )
                     # print("page ", page, revision_timing, 'DECLINE','score =', score, "last_score", last_score)
                 else:
@@ -236,6 +237,9 @@ def process_page(page, revision_list, extract_record):
             "6.max_interval": max_interval,
             "7.scheduled_interval": next_interval,
             "8.scheduled_due_date": due_date,
+            "page_strength": round(
+                next_interval / (index + 1), 1
+            ),  # Interval per revision
         }
     return page_summary
 
@@ -259,6 +263,7 @@ def calculate_due_pages(summary_by_page):
         scheduled_due_date = page_summary_dict.get("8.scheduled_due_date")
         page_by_due_date[str(scheduled_due_date)].append(page)
         if scheduled_due_date.date() <= datetime.date.today():
+            # + datetime.timedelta(    days=1       ):
             due_pages_list.append(page)
 
     return page_by_due_date, due_pages_list
@@ -279,53 +284,53 @@ def write_output_due(due_pages_list, summary_by_page):
         output_sheet.updateColumn(i + 1, [])
     row = 1
 
-    column_names = [
-        "page",
-        "interval",
-        "revision#",
-        "last revision",
-        "score",
-        "last interval",
-        "due date",
-    ]
+    column_names = ["page", "due", "interval", "revision#", "score", "rating"]
     output_sheet.updateRow(row, column_names)
 
-    for due_page in sorted(due_pages_list, key=int):
+    for due_page in sorted(
+        due_pages_list,
+        key=lambda page: int(page)
+        # (
+        #     round(
+        #         summary_by_page[page]["7.scheduled_interval"]
+        #         / summary_by_page[page]["1.revision_number"],
+        #         0,
+        #     ),
+        #     int(page),
+        # ),
+    ):
         summary = summary_by_page[due_page]
         columns = [
             due_page,
+            (summary["8.scheduled_due_date"].date() - datetime.date.today()).days,
             summary["7.scheduled_interval"],
             summary["1.revision_number"],
-            str(summary["2.revision date"]),
             summary["3.score"],
-            summary["4.current_interval"],
-            str(summary["8.scheduled_due_date"]),
+            summary["7.scheduled_interval"] / summary["1.revision_number"],
         ]
         print(row, columns)
         row += 1
         output_sheet.updateRow(row, columns)
 
     output_sheet.updateRow(
-        row + 1, ["Done", "", "",
-                  datetime.datetime.now().strftime("%d-%m %H:%M")]
+        row + 1,
+        ["Done", "", "", "", "", "", datetime.datetime.now().strftime("%d-%m %H:%M")],
     )
 
 
-def process_data(rev_data_original):
-    rev_data = expand_revision_data(rev_data_original)
-    summary_by_page = process_revision_data(rev_data, extract_record)
-    _, due_pages_list = calculate_due_pages(summary_by_page)
-    return due_pages_list, summary_by_page
-
-
 if __name__ == "__main__":
+    # Google sheets needs the credentials files to be in the same folder as the program
+    # If the python file is in a different location than credentials, then the path of the credentials file should be passed
+    # as an argument. If nothing is passed, we assume that the credentials is in the same folder as the python program
     try:
         directory = sys.argv[1]
     except IndexError:
         directory = Path(__file__).absolute().parent
 
     with using_revision_data(directory) as data:
-        due_pages_list, summary_by_page = process_data(data)
+        rev_data = expand_revision_data(data)
+        summary_by_page = process_revision_data(rev_data, extract_record)
+        _, due_pages_list = calculate_due_pages(summary_by_page)
         write_output_due(due_pages_list, summary_by_page)
 
     print("SRS Done")

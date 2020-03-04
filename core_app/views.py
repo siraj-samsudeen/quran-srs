@@ -19,7 +19,7 @@ from core_app.forms import (
     StudentForm,
 )
 from core_app.models import PageRevision, Student
-import lib.quran_srs as qrs
+import src.quran_srs as qrs
 
 
 from core_app.serializers import StudentSerializer
@@ -97,14 +97,22 @@ def page_due(request, student_id):
     )
     revisions = groupby(revisions, lambda rev: rev["page"])
     pages_all = qrs.process_revision_data(revisions, extract_record)
-
+    keys_map = {
+        "8.scheduled_due_date": "Due On",
+        "7.scheduled_interval": "Interval",
+        "3.score": "Last Score",
+        "1.revision_number": "Revision #",
+        "page_strength": "Page Strength",
+    }
     pages_due = {
         page: page_summary
         for page, page_summary in pages_all.items()
         if page_summary["8.scheduled_due_date"].date() <= datetime.date.today()
     }
     return render(
-        request, "due.html", {"pages_due": dict(pages_due), "student": student}
+        request,
+        "due.html",
+        {"pages_due": dict(pages_due), "student": student, "keys_map": keys_map},
     )
 
 
@@ -114,7 +122,6 @@ def page_new(request, student_id):
 
 @login_required
 def page_entry(request, student_id, page):
-
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
         return HttpResponseForbidden(
@@ -143,37 +150,37 @@ def page_entry(request, student_id, page):
     form = RevisionEntryForm(
         request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
     )
-    interval_form = None
+    # interval_form = None
 
     if form.is_valid():
         word_mistakes = form.cleaned_data["word_mistakes"]
         line_mistakes = form.cleaned_data["line_mistakes"]
 
-        interval_delta = qrs.INTERVAL_DELTAS[
-            qrs.get_page_score(word_mistakes, line_mistakes)
-        ]
+        # interval_delta = qrs.INTERVAL_DELTAS[
+        #     qrs.get_page_score(word_mistakes, line_mistakes)
+        # ]
 
-        next_interval = page_summary["7.scheduled_interval"] + interval_delta
-        next_due_date = datetime.date.today() + datetime.timedelta(days=next_interval)
-        default_values_dict = {
-            "word_mistakes": word_mistakes,
-            "line_mistakes": line_mistakes,
-            "next_interval": next_interval,
-            "next_due_date": next_due_date,
-            "sent": True,
-        }
-        data = request.POST if "sent" in request.POST else None
-        interval_form = RevisionIntervalForm(data, initial=default_values_dict)
+        # next_interval = page_summary["7.scheduled_interval"] + interval_delta
+        # next_due_date = datetime.date.today() + datetime.timedelta(days=next_interval)
+        # default_values_dict = {
+        #     "word_mistakes": word_mistakes,
+        #     "line_mistakes": line_mistakes,
+        #     "next_interval": next_interval,
+        #     "next_due_date": next_due_date,
+        #     "sent": True,
+        # }
+        # data = request.POST if "sent" in request.POST else None
+        # interval_form = RevisionIntervalForm(data, initial=default_values_dict)
 
-        if interval_form.is_valid():
-            PageRevision(
-                student=student,
-                page=page,
-                word_mistakes=word_mistakes,
-                line_mistakes=line_mistakes,
-                current_interval=interval_form.cleaned_data["next_interval"],
-            ).save()
-            return redirect("page_due", student_id=student.id)
+        # if interval_form.is_valid():
+        PageRevision(
+            student=student,
+            page=page,
+            word_mistakes=word_mistakes,
+            line_mistakes=line_mistakes,
+            # current_interval=interval_form.cleaned_data["next_interval"],
+        ).save()
+        return redirect("page_due", student_id=student.id)
 
     return render(
         request,
@@ -182,7 +189,7 @@ def page_entry(request, student_id, page):
             "page": page,
             "page_summary": page_summary,
             "form": form,
-            "interval_form": interval_form,
+            # "interval_form": interval_form,
             "student_id": student_id,
         },
     )

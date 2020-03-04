@@ -12,8 +12,8 @@ class PageForm(forms.Form):
 
 
 class RevisionEntryForm(forms.Form):
-    line_mistakes = forms.IntegerField(min_value=0, max_value=15)
     word_mistakes = forms.IntegerField(min_value=0)
+    line_mistakes = forms.IntegerField(min_value=0, max_value=15)
 
 
 class RevisionIntervalForm(forms.Form):
@@ -28,4 +28,3 @@ class StudentForm(forms.ModelForm):
     class Meta:
         model = Student
         exclude = ["id", "account"]
-

@@ -1,13 +1,13 @@
-{% extends 'base.html' %} 
+{% extends 'base.html' %}
 {% load static %}
 {% load custom_format %}
-{% block title %} Pages Due {% endblock title %} 
+{% block title %} Pages Due {% endblock title %}
 
-{% block style %} 
- {{block.super}} 
+{% block style %}
+ {{block.super}}
    <link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
-  
- {% endblock style %} 
+
+ {% endblock style %}
 
  {% block content %}
 
@@ -16,7 +16,7 @@
     <div class="card-header py-3">
     <center>
         <h6 class="m-0 font-weight-bold text-primary">
-        {{student}} - Pages Due for Revision Today 
+        {{student}} - Pages Due for Revision Today
         </h6>
         </center>
     </div>
@@ -33,11 +33,11 @@
                  {% if forloop.first %}
             <thead>
                 <tr>
-                    {% comment %} <td>#</td> {% endcomment %}
-                    
                     <td>Page</td>
-                    {% for key in page_summary.keys %}
-                    <td>{{key | format_header}}</td>
+                    {% for key,key_display_name in keys_map.items %}
+                    <td>
+                      {{key_display_name}}
+                    </td>
                     {% endfor %}
                 </tr>
                 </thead>
@@ -48,12 +48,20 @@
                         <a href="{% url 'page_entry' student_id=student.id page=page %}">{{page}}</a>
                     </td>
 
-                    {% for key,value in page_summary.items %}
-                    {% if 'date' in key %} <td>{{value | date:"d M D"}}</td> 
-                    {% else %}
-                    <td>{{value}}</td> 
-                    {% endif %}    
-                                    
+                    {% comment %} {% for key,value in page_summary.items %}
+                      {% if key in keys_list %}
+                        {% if 'date' in key %} <td>{{value | date:"d M D"}}</td>
+                        {% else %}
+                        <td>{{value}}</td>
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %} {% endcomment %}
+                    {% for key in keys_map.keys   %}
+                    {% if 'date' in key %} <td>{{page_summary|get_item:key | date:"d M D"}}</td>
+                        {% else %}
+                        <td>{{ page_summary|get_item:key }}</td>
+                        {% endif %}
+
                     {% endfor %}
                 </tr>
                 {% endfor %}
@@ -61,9 +69,9 @@
         </div>
     </div>
 </div>
-{% endblock content %} 
+{% endblock content %}
 
-{% block script %} 
+{% block script %}
 {{block.super}}
 <script src="{% static 'js/jquery.dataTables.js' %}">
 </script>
