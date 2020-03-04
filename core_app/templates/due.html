@@ -13,20 +13,14 @@
 
 
 <div class="card shadow mb-4">
-    <div class="card-header py-3">
+    {% comment %} <div class="card-header py-3">
     <center>
         <h6 class="m-0 font-weight-bold text-primary">
         {{student}} - Pages Due for Revision Today
         </h6>
         </center>
-    </div>
+    </div> {% endcomment %}
     <div class="card-body">
-    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-  <div class="form-group mx-sm-3 mb-2">
-    <input type="number" class="form-control" name="page" required>
-  </div>
-  <button type="submit" class="btn btn-primary mb-2" >Enter New Page</button>
-</form>
         <div class="table-responsive">
             <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                 {% for page, page_summary in pages_due.items %}
@@ -67,6 +61,13 @@
                 {% endfor %}
             </table>
         </div>
+      <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
+    <div class="form-group mx-sm-3 mb-2">
+      <input type="number" class="form-control" name="page" required>
+    </div>
+    <button type="submit" class="btn btn-primary mb-2" >Enter New Page</button>
+    </form>
+
     </div>
 </div>
 {% endblock content %}
