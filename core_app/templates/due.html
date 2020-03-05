@@ -42,16 +42,8 @@
                         <a href="{% url 'page_entry' student_id=student.id page=page %}">{{page}}</a>
                     </td>
 
-                    {% comment %} {% for key,value in page_summary.items %}
-                      {% if key in keys_list %}
-                        {% if 'date' in key %} <td>{{value | date:"d M D"}}</td>
-                        {% else %}
-                        <td>{{value}}</td>
-                        {% endif %}
-                      {% endif %}
-                    {% endfor %} {% endcomment %}
                     {% for key in keys_map.keys   %}
-                    {% if 'date' in key %} <td>{{page_summary|get_item:key | date:"d M D"}}</td>
+                    {% if 'date' in key %} <td>{{page_summary|get_item:key | date:"dD"}}</td>
                         {% else %}
                         <td>{{ page_summary|get_item:key }}</td>
                         {% endif %}
