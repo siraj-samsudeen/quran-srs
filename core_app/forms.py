@@ -12,8 +12,8 @@ class PageForm(forms.Form):
 
 
 class RevisionEntryForm(forms.Form):
-    word_mistakes = forms.IntegerField(min_value=0)
-    line_mistakes = forms.IntegerField(min_value=0, max_value=15)
+    word_mistakes = forms.IntegerField(min_value=0, required=False)
+    line_mistakes = forms.IntegerField(min_value=0, max_value=15, required=False)
 
 
 class RevisionIntervalForm(forms.Form):

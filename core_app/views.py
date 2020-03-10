@@ -148,7 +148,9 @@ def page_entry(request, student_id, page):
         page_summary = qrs.process_page(page, revision_list, extract_record)
 
     form = RevisionEntryForm(
-        request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
+        # request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
+        request.POST or None,
+        initial={},  # Removed initial default values
     )
     # interval_form = None
 
@@ -176,8 +178,8 @@ def page_entry(request, student_id, page):
         PageRevision(
             student=student,
             page=page,
-            word_mistakes=word_mistakes,
-            line_mistakes=line_mistakes,
+            word_mistakes=word_mistakes if word_mistakes else 0,
+            line_mistakes=line_mistakes if line_mistakes else 0,
             # current_interval=interval_form.cleaned_data["next_interval"],
         ).save()
         return redirect("page_due", student_id=student.id)
