@@ -16,14 +16,6 @@ class RevisionEntryForm(forms.Form):
     line_mistakes = forms.IntegerField(min_value=0, max_value=15, required=False)
 
 
-class RevisionIntervalForm(forms.Form):
-    next_interval = forms.IntegerField()
-    next_due_date = forms.DateField(disabled=True)
-    line_mistakes = forms.IntegerField(widget=forms.HiddenInput())
-    word_mistakes = forms.IntegerField(widget=forms.HiddenInput())
-    sent = forms.BooleanField(widget=forms.HiddenInput())
-
-
 class StudentForm(forms.ModelForm):
     class Meta:
         model = Student

@@ -37,16 +37,12 @@
                 </thead>
                 {% endif %}
                 <tr>
-                    {% comment %} <td>{{forloop.counter}}</td> {% endcomment %}
                     <td>
                         <a href="{% url 'page_entry' student_id=student.id page=page %}">{{page}}</a>
                     </td>
 
                     {% for key in keys_map.keys   %}
-                    {% if 'date' in key %} <td>{{page_summary|get_item:key | date:"dD"}}</td>
-                        {% else %}
-                        <td>{{ page_summary|get_item:key }}</td>
-                        {% endif %}
+                    <td>{{ page_summary|get_item:key }}</td>
 
                     {% endfor %}
                 </tr>
@@ -55,7 +51,7 @@
         </div>
       <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
     <div class="form-group mx-sm-3 mb-2">
-      <input type="number" class="form-control" name="page" required>
+      <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
     </div>
     <button type="submit" class="btn btn-primary mb-2" >Enter New Page</button>
     </form>

@@ -228,6 +228,17 @@ def process_page(page, revision_list, extract_record):
         else:
             due_date = revision_date + datetime.timedelta(days=next_interval)
 
+        # More readable mistakes string
+        mistakes_text = "-"
+        if line_mistakes != 0:
+            mistakes_text = str(line_mistakes) + "L "
+
+        if word_mistakes != 0:
+            if line_mistakes != 0:
+                mistakes_text += str(word_mistakes) + "W"
+            else:
+                mistakes_text = str(word_mistakes) + "W"
+
         page_summary = {
             "1.revision_number": index + 1,
             "2.revision date": revision_date,
@@ -240,8 +251,19 @@ def process_page(page, revision_list, extract_record):
             "page_strength": round(
                 next_interval / (index + 1), 1
             ),  # Interval per revision
+            "is_due": due_date.date() <= datetime.date.today(),
+            "days_due": (due_date.date() - datetime.date.today()).days,
+            "mistakes": mistakes_text,
         }
-    return page_summary
+
+    # Since this dict will be stored in session,
+    # we need to convert datetime objects into a string representation
+    new_page_summary = {
+        key: value.strftime("%d %b") if type(value) == datetime.datetime else value
+        for key, value in page_summary.items()
+    }
+
+    return new_page_summary
 
 
 def process_revision_data(revision_list_by_page, extract_record):

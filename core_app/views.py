@@ -15,7 +15,6 @@ from rest_framework.decorators import api_view
 from core_app.forms import (
     PageForm,
     RevisionEntryForm,
-    RevisionIntervalForm,
     StudentForm,
 )
 from core_app.models import PageRevision, Student
@@ -82,6 +81,32 @@ def extract_record(revision):
     )
 
 
+keys_map = {
+    "7.scheduled_interval": "Interval",
+    "1.revision_number": "Rev Count",
+    "mistakes": "Mistakes",
+    "3.score": "Score",
+    "page_strength": "Strength",
+    "8.scheduled_due_date": "Due On",
+    "2.revision date": "Last Touch",
+    "days_due": "Days Due",
+}
+
+
+def get_pages_due(student_id):
+    revisions = (
+        PageRevision.objects.filter(student=student_id).order_by("page").values()
+    )
+    revisions = groupby(revisions, lambda rev: rev["page"])
+    pages_all = qrs.process_revision_data(revisions, extract_record)
+    pages_due = {
+        page: page_summary
+        for page, page_summary in pages_all.items()
+        if page_summary["is_due"]
+    }
+    return dict(pages_due)
+
+
 @login_required
 def page_due(request, student_id):
     student = Student.objects.get(id=student_id)
@@ -92,27 +117,18 @@ def page_due(request, student_id):
 
     request.session["last_student"] = model_to_dict(student)
 
-    revisions = (
-        PageRevision.objects.filter(student=student_id).order_by("page").values()
-    )
-    revisions = groupby(revisions, lambda rev: rev["page"])
-    pages_all = qrs.process_revision_data(revisions, extract_record)
-    keys_map = {
-        "8.scheduled_due_date": "Due On",
-        "7.scheduled_interval": "Interval",
-        "3.score": "Last Score",
-        "1.revision_number": "Revision #",
-        "page_strength": "Page Strength",
-    }
-    pages_due = {
-        page: page_summary
-        for page, page_summary in pages_all.items()
-        if page_summary["8.scheduled_due_date"].date() <= datetime.date.today()
-    }
+    pages_due = get_pages_due(student_id)
+    # Cache this so that revision entry page can automatically move to the next due page
+    request.session["pages_due"] = pages_due
     return render(
         request,
         "due.html",
-        {"pages_due": dict(pages_due), "student": student, "keys_map": keys_map},
+        {
+            "pages_due": pages_due,
+            "student": student,
+            "keys_map": keys_map,
+            "next_new_page": request.session.get("next_new_page"),
+        },
     )
 
 
@@ -133,19 +149,12 @@ def page_entry(request, student_id, page):
         .order_by("date")
         .values()
     )
-    page_summary = {
-        "1.revision_number": 1,
-        "2.revision date": datetime.date.today(),
-        "3.score": None,
-        "4.current_interval": None,
-        "5.interval_delta": None,
-        "6.max_interval": None,
-        "7.scheduled_interval": 0,
-        "8.scheduled_due_date": None,
-    }
-
     if revision_list:
         page_summary = qrs.process_page(page, revision_list, extract_record)
+        new_page = False
+    else:
+        page_summary = {}
+        new_page = True
 
     form = RevisionEntryForm(
         # request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
@@ -158,23 +167,6 @@ def page_entry(request, student_id, page):
         word_mistakes = form.cleaned_data["word_mistakes"]
         line_mistakes = form.cleaned_data["line_mistakes"]
 
-        # interval_delta = qrs.INTERVAL_DELTAS[
-        #     qrs.get_page_score(word_mistakes, line_mistakes)
-        # ]
-
-        # next_interval = page_summary["7.scheduled_interval"] + interval_delta
-        # next_due_date = datetime.date.today() + datetime.timedelta(days=next_interval)
-        # default_values_dict = {
-        #     "word_mistakes": word_mistakes,
-        #     "line_mistakes": line_mistakes,
-        #     "next_interval": next_interval,
-        #     "next_due_date": next_due_date,
-        #     "sent": True,
-        # }
-        # data = request.POST if "sent" in request.POST else None
-        # interval_form = RevisionIntervalForm(data, initial=default_values_dict)
-
-        # if interval_form.is_valid():
         PageRevision(
             student=student,
             page=page,
@@ -182,7 +174,18 @@ def page_entry(request, student_id, page):
             line_mistakes=line_mistakes if line_mistakes else 0,
             # current_interval=interval_form.cleaned_data["next_interval"],
         ).save()
-        return redirect("page_due", student_id=student.id)
+
+        if new_page:
+            next_page = page + 1
+            request.session["next_new_page"] = next_page
+        else:
+            pages_due = request.session.get("pages_due")
+            pages_due.pop(str(page), None)
+            request.session["pages_due"] = pages_due
+
+            next_page = int(sorted(pages_due.keys(), key=int)[0])
+        # return redirect("page_due", student_id=student.id)
+        return redirect("page_entry", student_id=student.id, page=next_page)
 
     return render(
         request,
@@ -193,5 +196,7 @@ def page_entry(request, student_id, page):
             "form": form,
             # "interval_form": interval_form,
             "student_id": student_id,
+            "keys_map": keys_map,
+            "new_page": new_page,
         },
     )
