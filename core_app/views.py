@@ -83,13 +83,13 @@ def extract_record(revision):
 
 keys_map = {
     "7.scheduled_interval": "Interval",
-    "1.revision_number": "Rev Count",
+    "1.revision_number": "Revision Count",
     "mistakes": "Mistakes",
-    "3.score": "Score",
-    "page_strength": "Strength",
-    "8.scheduled_due_date": "Due On",
+    "3.score": "Mistake Score",
+    "page_strength": "Page Strength",
     "2.revision date": "Last Touch",
     "days_due": "Days Due",
+    # "8.scheduled_due_date": "Due On",
 }
 
 
