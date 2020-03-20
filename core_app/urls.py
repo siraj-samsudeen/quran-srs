@@ -22,17 +22,21 @@ from rest_framework import routers
 
 
 router = routers.DefaultRouter()
-router.register('students', view.StudentViewSet)
+router.register("students", view.StudentViewSet)
 
 
 urlpatterns = [
-    path('api/students/last/', view.last_student),
-    path('api/', include(router.urls)),
+    path("api/students/last/", view.last_student),
+    path("api/", include(router.urls)),
     path("accounts/login/", LoginView.as_view(template_name="admin/login.html")),
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("", view.home, name="home"),
-    path("summary/", view.page_summary, name="test_summary"),
-    path("revision_dummy/", view.page_revision),
+    path("student/<int:student_id>/all/", view.page_all, name="page_all"),
+    path(
+        "student/<int:student_id>/page/<int:page>/revision/",
+        view.page_revision,
+        name="page_revision",
+    ),
     path("student/<int:student_id>/due/", view.page_due, name="page_due"),
     path(
         "student/<int:student_id>/page/<int:page>/", view.page_entry, name="page_entry"

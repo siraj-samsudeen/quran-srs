@@ -259,7 +259,9 @@ def process_page(page, revision_list, extract_record):
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
-        key: value.strftime("%d %b") if type(value) == datetime.datetime else value
+        key: value.strftime("%Y-%m-%d %H:%M")
+        if type(value) == datetime.datetime
+        else value
         for key, value in page_summary.items()
     }
 

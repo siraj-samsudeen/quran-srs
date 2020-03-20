@@ -9,15 +9,24 @@
 
 
     </p>
-    <div class="card shadow mb-4">
-        <div class="row card-header py-3">
-        <p class="col align-self-start">
-  <a href="{% url 'page_due' student_id=student_id %}" class="btn btn-light btn-icon-split">
-                    Go Back
-                  </a>
-                  </p>
-            <h6 class="col align-self-center m-0 font-weight-bold text-primary">Page {{page}}</h6>
-        </div>
+<div class="card shadow mb-4">
+    <div class="row card-header py-3">
+    <table width="100%">
+      <tr>
+      <td>
+      <h6 class="m-0">
+      <a href="{% url 'page_due' student_id=student_id %}">View Due Pages</a>
+      </h6>
+      </td>
+      <td>
+        <h6 class="m-0 font-weight-bold text-primary">
+        Enter Mistakes in Page {{page}}
+        </h6>
+      </td>
+      </tr>
+      </table>
+    </div>
+</div>
         {% if not new_page %}
         <div class="card-body">
             <div class="table-responsive">

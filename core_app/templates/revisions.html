@@ -1,24 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_format %}
+{% block title %} Pages Due {% endblock title %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
+{% block style %}
+ {{block.super}}
+   <link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
 
-<body>
-    <table>
-        {% for rev in revisions%}
+ {% endblock style %}
+
+ {% block content %}
+
+
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+       <table width="100%">
+      <tr>
+      <td width="20%">
+      {% comment %} TODO if I put student_id here, it leads to this error
+        NoReverseMatch at /student/1/page/157/revision/
+        Reverse for 'page_due' with keyword arguments '{'student_id': ''}' not found.
+        1 pattern(s) tried: ['student/(?P<student_id>[0-9]+)/due/$']
+      {% endcomment %}
+      <h6 class="m-0">
+       <a href="{% url 'page_all' student_id=student_id %}">View All Pages</a>
+      </h6>
+      </td>
+      <td width="60%">
+      <center>
+       <h6 class="m-0 font-weight-bold text-primary">
+        Page {{page}} - Revisions
+        </h6>
+        </center>
+      </td>
+      <td width="20%">
+       <h6 class="m-0">
+       <a href="{% url 'page_due' student_id=student_id %}">View Due Pages</a>
+      </h6>
+
+      </td>
+      </tr>
+      </table>
+
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+    <table class="table table-bordered" id="dataTable">
+        <thead>
         <tr>
-            <td>{{rev.page}}</td>
+            <td>Revision</td>
+            <td>Date</td>
+            <td>Line Mistakes</td>
+            <td>Word Mistakes</td>
+        </tr>
+        </thead>
+
+        {% for rev in revision_list%}
+        <tr>
+            <td>{{ forloop.counter }}</td>
             <td>{{rev.date}}</td>
             <td>{{rev.line_mistakes}}</td>
             <td>{{rev.word_mistakes}}</td>
-            <td>{{rev.current_interval}}</td>
         </tr>
         {% endfor%}
     </table>
-</body>
+        </div>
 
-</html>
+    </div>
+</div>
+{% endblock content %}
+
+{% block script %}
+{{block.super}}
+<script src="{% static 'js/jquery.dataTables.js' %}">
+</script>
+<script src="{% static 'js/dataTables.bootstrap4.js' %}">
+</script>
+
+<script>
+$(document).ready(function() {
+  $('#dataTable').DataTable();
+});
+</script>
+{% endblock script %}

@@ -13,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 
 from core_app.forms import (
-    PageForm,
     RevisionEntryForm,
     StudentForm,
 )
@@ -45,7 +44,7 @@ def get_last_student(request):
 # this is an end point
 @login_required
 def home(request):
-    return redirect("page_due", student_id=get_last_student(request)["id"])
+    return redirect("page_all", student_id=get_last_student(request)["id"])
 
 
 @api_view(["GET", "PUT"])
@@ -56,20 +55,25 @@ def last_student(request):
         return Response(get_last_student(request))
 
 
-def page_summary(request):
-    form = PageForm(request.POST or None)
-    pages_list = request.session.get("pages", [])
+def page_all(request, student_id):
+    student = Student.objects.get(id=student_id)
+    if request.user != student.account:
+        return HttpResponseForbidden(
+            f"{student.name} is not a student of {request.user.username}"
+        )
 
-    if form.is_valid():
-        context = dict(request.POST.items())
-        pages_list.append(context)
-        request.session["pages"] = pages_list
-    return render(request, "summary.html", {"pages_list": pages_list, "form": form})
+    request.session["last_student"] = model_to_dict(student)
 
-
-def page_revision(request):
-    revisions = PageRevision.objects.all()
-    return render(request, "revisions.html", {"revisions": revisions})
+    return render(
+        request,
+        "all.html",
+        {
+            "pages_all": dict(get_pages_all(student_id)),
+            "student": student,
+            "keys_map": keys_map_all,
+            "next_new_page": request.session.get("next_new_page"),
+        },
+    )
 
 
 def extract_record(revision):
@@ -83,22 +87,39 @@ def extract_record(revision):
 
 keys_map = {
     "7.scheduled_interval": "Interval",
-    "1.revision_number": "Revision Count",
+    "1.revision_number": "Revisions",
     "mistakes": "Mistakes",
-    "3.score": "Mistake Score",
+    # "3.score": "Mistake Score",
     "page_strength": "Page Strength",
     "2.revision date": "Last Touch",
     "days_due": "Days Due",
-    # "8.scheduled_due_date": "Due On",
+    "8.scheduled_due_date": "Due On",
+}
+
+keys_map_all = {
+    key: value for key, value in keys_map.items() if key not in ["days_due"]
+}
+keys_map_due = {
+    key: value for key, value in keys_map.items() if key not in ["8.scheduled_due_date"]
+}
+
+keys_map_revision_entry = {
+    key: value
+    for key, value in keys_map.items()
+    if key not in ["8.scheduled_due_date", "page_strength", "days_due"]
 }
 
 
-def get_pages_due(student_id):
+def get_pages_all(student_id):
     revisions = (
         PageRevision.objects.filter(student=student_id).order_by("page").values()
     )
     revisions = groupby(revisions, lambda rev: rev["page"])
-    pages_all = qrs.process_revision_data(revisions, extract_record)
+    return qrs.process_revision_data(revisions, extract_record)
+
+
+def get_pages_due(student_id):
+    pages_all = get_pages_all(student_id)
     pages_due = {
         page: page_summary
         for page, page_summary in pages_all.items()
@@ -120,13 +141,14 @@ def page_due(request, student_id):
     pages_due = get_pages_due(student_id)
     # Cache this so that revision entry page can automatically move to the next due page
     request.session["pages_due"] = pages_due
+
     return render(
         request,
         "due.html",
         {
             "pages_due": pages_due,
             "student": student,
-            "keys_map": keys_map,
+            "keys_map": keys_map_due,
             "next_new_page": request.session.get("next_new_page"),
         },
     )
@@ -134,6 +156,27 @@ def page_due(request, student_id):
 
 def page_new(request, student_id):
     return redirect("page_entry", student_id=student_id, page=request.GET.get("page"))
+
+
+def page_revision(request, student_id, page):
+    student = Student.objects.get(id=student_id)
+    if request.user != student.account:
+        return HttpResponseForbidden(
+            f"{student.name} is not a student of {request.user.username}"
+        )
+
+    revision_list = (
+        PageRevision.objects.filter(student=student_id, page=page)
+        .order_by("date")
+        .values()
+    )
+
+    # revisions = PageRevision.objects.all()
+    return render(
+        request,
+        "revisions.html",
+        {"revision_list": revision_list, "student_id": student_id, "page": page},
+    )
 
 
 @login_required
@@ -159,9 +202,8 @@ def page_entry(request, student_id, page):
     form = RevisionEntryForm(
         # request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
         request.POST or None,
-        initial={},  # Removed initial default values
+        initial={"word_mistakes": 0},  # Removed initial default value for line mistake
     )
-    # interval_form = None
 
     if form.is_valid():
         word_mistakes = form.cleaned_data["word_mistakes"]
@@ -172,7 +214,6 @@ def page_entry(request, student_id, page):
             page=page,
             word_mistakes=word_mistakes if word_mistakes else 0,
             line_mistakes=line_mistakes if line_mistakes else 0,
-            # current_interval=interval_form.cleaned_data["next_interval"],
         ).save()
 
         if new_page:
@@ -188,7 +229,7 @@ def page_entry(request, student_id, page):
                 next_page = int(sorted(pages_due.keys(), key=int)[0])
                 return redirect("page_entry", student_id=student.id, page=next_page)
             else:
-                return redirect("page_due", student_id=student.id)
+                return redirect("page_all", student_id=student.id)
 
     return render(
         request,
@@ -196,10 +237,10 @@ def page_entry(request, student_id, page):
         {
             "page": page,
             "page_summary": page_summary,
+            "revision_list": revision_list,
             "form": form,
-            # "interval_form": interval_form,
             "student_id": student_id,
-            "keys_map": keys_map,
+            "keys_map": keys_map_revision_entry,
             "new_page": new_page,
         },
     )
