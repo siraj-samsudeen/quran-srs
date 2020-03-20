@@ -48,7 +48,7 @@
                 {% endif %}
                 <tr>
                     <td>
-                        <a href="{% url 'page_entry' student_id=student.id page=page %}">{{page}}</a>
+                        <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
                     </td>
 
                     {% for key in keys_map.keys   %}

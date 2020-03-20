@@ -66,9 +66,4 @@
         <p><button>Update</button></p>
     </form>
 
-    {% if interval_form %}
-    <form action="." method="POST">
-        {% csrf_token %} {{ interval_form }}
-        <p><button>Save</button></p>
-    </form>
-    {% endif %} {% endblock content %}
+ {% endblock content %}

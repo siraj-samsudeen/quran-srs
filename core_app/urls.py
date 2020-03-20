@@ -39,7 +39,9 @@ urlpatterns = [
     ),
     path("student/<int:student_id>/due/", view.page_due, name="page_due"),
     path(
-        "student/<int:student_id>/page/<int:page>/", view.page_entry, name="page_entry"
+        "student/<int:student_id>/page/<int:page>/<int:due_page>/",
+        view.page_entry,
+        name="page_entry",
     ),
     path("student/<int:student_id>/new/", view.page_new, name="page_new"),
 ]

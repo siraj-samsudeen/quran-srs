@@ -155,7 +155,9 @@ def page_due(request, student_id):
 
 
 def page_new(request, student_id):
-    return redirect("page_entry", student_id=student_id, page=request.GET.get("page"))
+    return redirect(
+        "page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0
+    )
 
 
 def page_revision(request, student_id, page):
@@ -180,7 +182,8 @@ def page_revision(request, student_id, page):
 
 
 @login_required
-def page_entry(request, student_id, page):
+def page_entry(request, student_id, page, due_page):
+    print("***********" * 4, due_page)
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
         return HttpResponseForbidden(
@@ -216,9 +219,12 @@ def page_entry(request, student_id, page):
             line_mistakes=line_mistakes if line_mistakes else 0,
         ).save()
 
-        if new_page:
+        if due_page == 0:
             next_page = page + 1
             request.session["next_new_page"] = next_page
+            return redirect(
+                "page_entry", student_id=student.id, page=next_page, due_page=0
+            )
         else:
             pages_due = request.session.get("pages_due")
             pages_due.pop(str(page), None)
@@ -227,9 +233,11 @@ def page_entry(request, student_id, page):
             # if there are no more due pages, redirect to the main page.
             if pages_due:
                 next_page = int(sorted(pages_due.keys(), key=int)[0])
-                return redirect("page_entry", student_id=student.id, page=next_page)
+                return redirect(
+                    "page_entry", student_id=student.id, page=next_page, due_page=1
+                )
             else:
-                return redirect("page_all", student_id=student.id)
+                return redirect("page_due", student_id=student.id)
 
     return render(
         request,
