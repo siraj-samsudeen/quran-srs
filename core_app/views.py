@@ -183,9 +183,12 @@ def page_entry(request, student_id, page):
             pages_due.pop(str(page), None)
             request.session["pages_due"] = pages_due
 
-            next_page = int(sorted(pages_due.keys(), key=int)[0])
-        # return redirect("page_due", student_id=student.id)
-        return redirect("page_entry", student_id=student.id, page=next_page)
+            # if there are no more due pages, redirect to the main page.
+            if pages_due:
+                next_page = int(sorted(pages_due.keys(), key=int)[0])
+                return redirect("page_entry", student_id=student.id, page=next_page)
+            else:
+                return redirect("page_due", student_id=student.id)
 
     return render(
         request,
