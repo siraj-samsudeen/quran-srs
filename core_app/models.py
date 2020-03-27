@@ -23,3 +23,4 @@ class PageRevision(models.Model):
     word_mistakes = models.PositiveSmallIntegerField(default=0)
     line_mistakes = models.PositiveSmallIntegerField(default=0)
     current_interval = models.SmallIntegerField(default=0)
+    difficulty_level = models.CharField(max_length=1, null=True)

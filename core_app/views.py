@@ -183,7 +183,6 @@ def page_revision(request, student_id, page):
 
 @login_required
 def page_entry(request, student_id, page, due_page):
-    print("***********" * 4, due_page)
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
         return HttpResponseForbidden(
@@ -204,19 +203,21 @@ def page_entry(request, student_id, page, due_page):
 
     form = RevisionEntryForm(
         # request.POST or None, initial={"word_mistakes": 0, "line_mistakes": 0}
-        request.POST or None,
-        initial={"word_mistakes": 0},  # Removed initial default value for line mistake
+        request.POST
+        or None
     )
 
     if form.is_valid():
         word_mistakes = form.cleaned_data["word_mistakes"]
         line_mistakes = form.cleaned_data["line_mistakes"]
+        difficulty_level = form.cleaned_data["difficulty_level"]
 
         PageRevision(
             student=student,
             page=page,
             word_mistakes=word_mistakes if word_mistakes else 0,
             line_mistakes=line_mistakes if line_mistakes else 0,
+            difficulty_level=difficulty_level,
         ).save()
 
         if due_page == 0:

@@ -3,15 +3,17 @@ from core_app.models import PageRevision, Student
 
 
 class PageRevisionAdmin(admin.ModelAdmin):
+    # TODO How to exclude
     list_display = [
+        "date",
         "student",
         "page",
-        "date",
         "word_mistakes",
         "line_mistakes",
         "current_interval",
+        "difficulty_level",
     ]
-    list_filter = ["page"]
+    list_filter = ["student", "date", "page"]
 
 
 class StudentAdmin(admin.ModelAdmin):
