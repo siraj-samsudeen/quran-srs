@@ -168,6 +168,10 @@ def process_page(page, revision_list, extract_record):
         ) = extract_record(revision)
         score = get_page_score(word_mistakes, line_mistakes)
 
+        # Since revision_date was a datetime object, it was causing a subtle bug
+        # in determining revision timings. Even on the due date,
+        # it is flagging some revisions as EARLY based on the timestamp
+        revision_date = revision_date.date()
         interval_delta = INTERVAL_DELTAS[score]
 
         # This is first revision - Hence, the page can be new or can have a current interval
@@ -251,17 +255,15 @@ def process_page(page, revision_list, extract_record):
             "page_strength": round(
                 next_interval / (index + 1), 1
             ),  # Interval per revision
-            "is_due": due_date.date() <= datetime.date.today(),
-            "days_due": (due_date.date() - datetime.date.today()).days,
+            "is_due": due_date <= datetime.date.today(),
+            "days_due": (due_date - datetime.date.today()).days,
             "mistakes": mistakes_text,
         }
 
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
-        key: value.strftime("%Y-%m-%d %H:%M")
-        if type(value) == datetime.datetime
-        else value
+        key: value.strftime("%Y-%m-%d %H:%M") if type(value) == datetime.date else value
         for key, value in page_summary.items()
     }
 
