@@ -118,3 +118,7 @@ src/credentials-sheets.json
 src/token-drive.pickle
 src/token-sheets.pickle
 src/temp.py
+
+#Excel temp files
+~$*.xlsx
+vandelay-py.js

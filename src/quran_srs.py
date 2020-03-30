@@ -178,12 +178,14 @@ def process_page(page, revision_list, extract_record):
         # Take the current interval in the input data or make it zero
         if index == 0:
             current_interval = int(current_interval or 0)
+            score_cumulative = score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
             page_summary_dict = page_summary
             scheduled_interval = page_summary_dict.get("7.scheduled_interval")
             scheduled_due_date = page_summary_dict.get("8.scheduled_due_date")
             last_score = page_summary_dict.get("3.score")
+            score_cumulative = page_summary_dict.get("score_cumulative") + score
 
             # class REVESION_TIMING(Enum):
             #     ON_TIME_REVISION =0
@@ -256,14 +258,16 @@ def process_page(page, revision_list, extract_record):
                 next_interval / (index + 1), 1
             ),  # Interval per revision
             "is_due": due_date <= datetime.date.today(),
-            "days_due": (due_date - datetime.date.today()).days,
+            "overdue_days": (datetime.date.today() - due_date).days,
             "mistakes": mistakes_text,
+            "score_cumulative": score_cumulative,
+            "score_average": round(score_cumulative / (index + 1), 2),
         }
 
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
-        key: value.strftime("%Y-%m-%d %H:%M") if type(value) == datetime.date else value
+        key: value.strftime("%Y-%m-%d") if type(value) == datetime.date else value
         for key, value in page_summary.items()
     }
 
@@ -334,7 +338,6 @@ def write_output_due(due_pages_list, summary_by_page):
             summary["3.score"],
             summary["7.scheduled_interval"] / summary["1.revision_number"],
         ]
-        print(row, columns)
         row += 1
         output_sheet.updateRow(row, columns)
 
