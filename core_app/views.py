@@ -215,7 +215,8 @@ def page_due(request, student_id):
         + df.rank_interval_per_revision
         + df.rank_overdue_days
     )
-    df["risk_rank"] = df["rank_overall"].rank(ascending=False, method="min")
+    # Need a unique rank for each item even if there are ties
+    df["risk_rank"] = df["rank_overall"].rank(ascending=False, method="first")
 
     for index, row in df.iterrows():
         risk_rank = row["risk_rank"]
