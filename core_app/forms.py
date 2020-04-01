@@ -12,7 +12,7 @@ class RevisionEntryForm(forms.Form):
         ("h", "Hard"),
     ]
 
-    difficulty_level = forms.ChoiceField(choices=CHOICES, initial="o")
+    difficulty_level = forms.ChoiceField(choices=CHOICES, initial="e")
 
 
 class StudentForm(forms.ModelForm):
