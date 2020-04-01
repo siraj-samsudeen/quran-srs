@@ -4,77 +4,77 @@
 {% block title %} Pages Due {% endblock title %}
 
 {% block style %}
- {{block.super}}
-   <link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
+{{block.super}}
+<link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
 
- {% endblock style %}
+{% endblock style %}
 
- {% block content %}
+{% block content %}
 
 
 <div class="card shadow mb-4">
-    <div class="card-header py-3">
-       <table width="100%">
+  <div class="card-header py-3">
+    <table width="100%">
       <tr>
-      <td>
-      <h6 class="m-0">
-      <a href="{% url 'page_due' student_id=student.id %}">View Due Pages</a>
-      </h6>
-      </td>
-      <td>
-        <h6 class="m-0 font-weight-bold text-primary">
-        {{student}} - All Pages
-        </h6>
-      </td>
+        <td>
+          <h6 class="m-0">
+            <a href="{% url 'page_due' student_id=student.id %}">View Due Pages</a>
+          </h6>
+        </td>
+        <td>
+          <h6 class="m-0 font-weight-bold text-primary">
+            {{student}} - All Pages
+          </h6>
+        </td>
       </tr>
+    </table>
+
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+        {% for page, page_summary in pages_all.items %}
+        {% if forloop.first %}
+        <thead>
+          <tr>
+            <td>Page</td>
+            {% for key,key_display_name in keys_map.items %}
+            <td>
+              {{key_display_name}}
+            </td>
+            {% endfor %}
+          </tr>
+        </thead>
+        {% endif %}
+        <tr>
+          <td>
+            <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
+          </td>
+
+          {% for key in keys_map.keys   %}
+          {% if  key == "1.revision_number" %}
+          <td>
+            <a href="{% url 'page_revision' student_id=student.id page=page %}">
+              {{ page_summary|get_item:key }}
+            </a>
+          </td>
+          {% else %}
+          <td>{{ page_summary|get_item:key }}</td>
+          {% endif %}
+
+          {% endfor %}
+        </tr>
+        {% endfor %}
       </table>
-
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                {% for page, page_summary in pages_all.items %}
-                 {% if forloop.first %}
-            <thead>
-                <tr>
-                    <td>Page</td>
-                    {% for key,key_display_name in keys_map.items %}
-                    <td>
-                      {{key_display_name}}
-                    </td>
-                    {% endfor %}
-                </tr>
-                </thead>
-                {% endif %}
-                <tr>
-                    <td>
-                   <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
-                    </td>
-
-                    {% for key in keys_map.keys   %}
-                      {% if  key == "1.revision_number" %}
-                        <td>
-                        <a href="{% url 'page_revision' student_id=student.id page=page %}">
-                        {{ page_summary|get_item:key }}
-                        </a>
-                        </td>
-                      {% else %}
-                        <td>{{ page_summary|get_item:key }}</td>
-                      {% endif %}
-
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-      <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-    <div class="form-group mx-sm-3 mb-2">
-      <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
-    </div>
-    <button type="submit" class="btn btn-primary mb-2" >Enter New Page</button>
+    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
+      <div class="form-group mx-sm-3 mb-2">
+        <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
+      </div>
+      <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
     </form>
 
-    </div>
+  </div>
 </div>
 {% endblock content %}
 
@@ -86,8 +86,8 @@
 </script>
 
 <script>
-$(document).ready(function() {
-  $('#dataTable').DataTable();
-});
+  $(document).ready(function () {
+    $('#dataTable').DataTable();
+  });
 </script>
 {% endblock script %}

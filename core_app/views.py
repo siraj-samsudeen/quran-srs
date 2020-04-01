@@ -258,7 +258,7 @@ def page_revision(request, student_id, page):
     return render(
         request,
         "revisions.html",
-        {"revision_list": revision_list, "student_id": student_id, "page": page},
+        {"revision_list": revision_list, "student": student, "page": page},
     )
 
 
@@ -345,7 +345,7 @@ def page_entry(request, student_id, page, due_page):
             "page_summary": page_summary,
             "revision_list": revision_list,
             "form": form,
-            "student_id": student_id,
+            "student": student,
             "keys_map": keys_map_revision_entry,
             "new_page": new_page,
             "next_page_set": next_page_set,
