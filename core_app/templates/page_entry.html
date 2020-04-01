@@ -15,12 +15,12 @@
             <tr>
                 <td>
                     <h6 class="m-0">
-                        <a href="{% url 'page_due' student_id=student_id %}">View Due Pages</a>
+                        <a href="{% url 'page_due' student_id=student.id %}">View Due Pages</a>
                     </h6>
                 </td>
                 <td>
                     <h6 class="m-0 font-weight-bold text-primary">
-                        Enter Mistakes in Page {{page}}
+                        {{student.name}} - Page {{page}}
                     </h6>
                 </td>
             </tr>
