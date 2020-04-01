@@ -48,7 +48,7 @@ def get_last_student(request):
 # this is an end point
 @login_required
 def home(request):
-    return redirect("page_all", student_id=get_last_student(request)["id"])
+    return redirect("page_due", student_id=get_last_student(request)["id"])
 
 
 @api_view(["GET", "PUT"])
@@ -100,14 +100,12 @@ keys_map = {
     "8.scheduled_due_date": "Due On",
     "overdue_days": "Overdue Days",
     "risk_rank": "Risk Rank",
-    "sort_order": "Sort Order",
 }
 
 keys_map_all = {
-    key: value
-    for key, value in keys_map.items()
-    if key not in ["risk_rank", "sort_order",]
+    key: value for key, value in keys_map.items() if key not in ["risk_rank",]
 }
+
 keys_map_due = {
     key: value
     for key, value in keys_map.items()
@@ -118,7 +116,7 @@ keys_map_revision_entry = {
     key: value
     for key, value in keys_map.items()
     if key
-    not in ["2.revision date", "8.scheduled_due_date", "page_strength", "sort_order",]
+    not in ["2.revision date", "8.scheduled_due_date", "page_strength", "risk_rank",]
 }
 
 
@@ -214,15 +212,15 @@ def page_due(request, student_id):
 
     for index, row in df.iterrows():
         risk_rank = row["risk_rank"]
-
-        # Group pages into bins of 10 so that they can be tackled together
-        bin = math.ceil(risk_rank / 10)
-        # Now order the pages based on page number within each bin; page = index in the data frame
-        sort_order = round(bin + (index / 1000), 3)
         pages_due[index].update({"risk_rank": int(row["risk_rank"])})
-        pages_due[index].update({"sort_order": sort_order})
 
-    # Cache this so that revision entry page can automatically move to the next due page
+        # # Group pages into bins of 10 so that they can be tackled together
+        # bin = math.ceil(risk_rank / 10)
+        # # Now order the pages based on page number within each bin; page = index in the data frame
+        # sort_order = round(bin + (index / 1000), 3)
+        # pages_due[index].update({"sort_order": sort_order})
+
+        # Cache this so that revision entry page can automatically move to the next due page
     request.session["pages_due"] = pages_due
 
     return render(
@@ -317,7 +315,7 @@ def page_entry(request, student_id, page, due_page):
             # if there are no more due pages, redirect to the main page.
             if pages_due:
                 pages_due_sorted = sorted(
-                    pages_due.items(), key=lambda key_value: key_value[1]["sort_order"],
+                    pages_due.items(), key=lambda key_value: key_value[1]["risk_rank"],
                 )
                 next_page = int(pages_due_sorted[0][0])
 
@@ -331,7 +329,7 @@ def page_entry(request, student_id, page, due_page):
 
     if pages_due:
         pages_due_sorted = sorted(
-            pages_due.items(), key=lambda key_value: key_value[1]["sort_order"],
+            pages_due.items(), key=lambda key_value: key_value[1]["risk_rank"],
         )
 
         next_page_set = []

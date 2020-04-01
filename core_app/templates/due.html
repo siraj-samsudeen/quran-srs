@@ -33,7 +33,7 @@
   <div class="card-body">
     <div class="table-responsive">
       {% comment %} Set the sorting column {% endcomment %}
-      <table class="table table-bordered" id="dataTable" data-order='[[ 8, "asc" ]]'>
+      <table class="table table-bordered" id="dataTable">
         {% for page, page_summary in pages_due.items %}
         {% if forloop.first %}
         <thead>
@@ -91,20 +91,12 @@
 <script>
   $(document).ready(function () {
     $('#dataTable').DataTable({
-      stateSave: false,
+      stateSave: true,
       paging: true,
       searching: false,
-      "columnDefs": [{
-          //Hide the interval / revision column
-          "targets": [5],
-          "visible": false,
-        },
-        //Hide the sort order column
-        {
-          "targets": [8],
-          "visible": false
-        }
-      ],
+      "order": [
+        [4, "asc"]
+      ]
     });
   });
 </script>
