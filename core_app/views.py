@@ -86,6 +86,7 @@ def extract_record(revision):
         revision["word_mistakes"],
         revision["line_mistakes"],
         revision["current_interval"],
+        revision["difficulty_level"],
     )
 
 
@@ -131,7 +132,7 @@ def get_pages_all(student_id):
         PageRevision.objects.filter(student=student_id).order_by("page").values()
     )
     revisions = groupby(revisions, lambda rev: rev["page"])
-    return qrs.process_revision_data(revisions, extract_record)
+    return qrs.process_revision_data(revisions, extract_record, student_id)
 
 
 def get_pages_due(student_id):
@@ -282,7 +283,7 @@ def page_entry(request, student_id, page, due_page):
         .values()
     )
     if revision_list:
-        page_summary = qrs.process_page(page, revision_list, extract_record)
+        page_summary = qrs.process_page(page, revision_list, extract_record, student_id)
         new_page = False
     else:
         page_summary = {}

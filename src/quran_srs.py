@@ -157,7 +157,7 @@ def extract_record(revision):
     )
 
 
-def process_page(page, revision_list, extract_record):
+def process_page(page, revision_list, extract_record, student_id):
     page_summary = {}
     for index, revision in enumerate(revision_list):
         (
@@ -165,6 +165,7 @@ def process_page(page, revision_list, extract_record):
             word_mistakes,
             line_mistakes,
             current_interval,
+            difficulty_level,
         ) = extract_record(revision)
         score = get_page_score(word_mistakes, line_mistakes)
 
@@ -178,6 +179,19 @@ def process_page(page, revision_list, extract_record):
         # Take the current interval in the input data or make it zero
         if index == 0:
             current_interval = int(current_interval or 0)
+
+            # Temp hack to reduce too-many due pages for Safwan and Hanan
+            if student_id == 4:
+                if score == 0:
+                    current_interval = 15
+                else:
+                    current_interval = 7
+            if student_id == 3:
+                if score == 0:
+                    current_interval = 10
+                else:
+                    current_interval = 5
+
             score_cumulative = score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
@@ -224,9 +238,26 @@ def process_page(page, revision_list, extract_record):
                 else:
                     interval_delta = 0
         max_interval = MAX_INTERVALS[score]
+
         next_interval = get_next_interval(
             current_interval, interval_delta, max_interval
         )
+
+        if difficulty_level == "e":
+            if next_interval <= 15:
+                next_interval += 5
+            elif next_interval <= 30:
+                next_interval += 3
+            else:
+                next_interval += 1
+
+        elif difficulty_level == "h":
+            if next_interval >= 20:
+                next_interval -= 5
+            elif next_interval >= 10:
+                next_interval -= 3
+            elif next_interval >= 3:
+                next_interval -= 1
 
         # If the interval is negative or zero, we want to revise the next day
         if next_interval <= 0:
@@ -264,6 +295,11 @@ def process_page(page, revision_list, extract_record):
             "score_average": round(score_cumulative / (index + 1), 2),
         }
 
+    # Issue #13 - Stop pages from coming for revision on 2 consecutive days
+    if (due_date - revision_date).days == 1:
+        due_date = due_date + datetime.timedelta(days=1)
+        page_summary["8.scheduled_due_date"] = due_date
+
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
@@ -274,14 +310,14 @@ def process_page(page, revision_list, extract_record):
     return new_page_summary
 
 
-def process_revision_data(revision_list_by_page, extract_record):
+def process_revision_data(revision_list_by_page, extract_record, student_id):
     # we want to store the summary information about each page as we process revision data in a dict
     summary_by_page = defaultdict(dict)
 
     if hasattr(revision_list_by_page, "items"):
         revision_list_by_page = revision_list_by_page.items()
     for page, revision_list in revision_list_by_page:
-        page_summary = process_page(page, revision_list, extract_record)
+        page_summary = process_page(page, revision_list, extract_record, student_id)
         summary_by_page[page] = page_summary
     return summary_by_page
 
