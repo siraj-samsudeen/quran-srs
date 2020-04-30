@@ -110,19 +110,19 @@ keys_map_all = {
 keys_map_due = {
     key: value
     for key, value in keys_map.items()
-    if key in ["7.scheduled_interval", "1.revision_number", "mistakes", "risk_rank"]
+    if key in ["7.scheduled_interval", "1.revision_number", "mistakes", "sort_order",]
 }
 
 keys_map_revision_entry = {
     key: value
     for key, value in keys_map.items()
     if key
-    not in [
+    in [
+        "7.scheduled_interval",
         "2.revision date",
-        "8.scheduled_due_date",
-        "page_strength",
-        "risk_rank",
+        "1.revision_number",
         "overdue_days",
+        "mistakes",
     ]
 }
 

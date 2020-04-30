@@ -57,6 +57,29 @@
         </table>
 
     </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered" id="dataTable">
+            <thead>
+                <tr>
+                    <td>Revision</td>
+                    <td>Date</td>
+                    <td>Line Mistakes</td>
+                    <td>Word Mistakes</td>
+                </tr>
+            </thead>
+
+            {% for rev in revision_list%}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{rev.date |date:'d-M'}}</td>
+                <td>{{rev.line_mistakes | display_zero}}</td>
+                <td>{{rev.word_mistakes | display_zero}}</td>
+            </tr>
+            {% endfor%}
+        </table>
+    </div>
+
 </div>
 {% endif %}
 </div>
@@ -66,8 +89,16 @@
     <p><button>Update</button></p>
 
     {% if due_page %}
-    <p>Next 3 Due Pages: {{next_page_set}} </p>
-    {% endif %}
+    <p>Due Pages:
+        {% for page in next_page_set %}
+
+        <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}} </a>
+        {% if not forloop.last %}
+        ,
+        {% endif %}
+
+        {% endfor %}
+        {% endif %}
 </form>
 
 {% endblock content %}

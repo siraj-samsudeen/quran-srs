@@ -11,5 +11,10 @@ def format_header(value):
 
 
 @register.filter
+def display_zero(value):
+    return "" if value == 0 else value
+
+
+@register.filter
 def get_item(dictionary, key):
     return dictionary.get(key)
