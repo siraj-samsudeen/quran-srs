@@ -89,7 +89,8 @@
     <p><button>Update</button></p>
 
     {% if due_page %}
-    <p>Due Pages:
+    <p>Due Pages in <b>Groups of 10</b>:
+
         {% for page in next_page_set %}
 
         <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}} </a>
@@ -98,7 +99,20 @@
         {% endif %}
 
         {% endfor %}
+    </p>
+    <p>Due Pages <b>All in Order</b>:
+
+        {% for page in next_page_set_sorted %}
+
+        <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}} </a>
+        {% if not forloop.last %}
+        ,
         {% endif %}
+
+        {% endfor %}
+    </p>
+
+    {% endif %}
 </form>
 
 {% endblock content %}
