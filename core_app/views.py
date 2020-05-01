@@ -145,7 +145,7 @@ def get_pages_due(student_id):
 
     counter = dict(sorted(counter.items())[:7])
 
-    return dict(pages_due), counter
+    return dict(pages_due), counter, len(pages_all)
 
 
 @login_required
@@ -158,7 +158,7 @@ def page_due(request, student_id):
 
     request.session["last_student"] = model_to_dict(student)
 
-    pages_due, counter = get_pages_due(student_id)
+    pages_due, counter, total_page_count = get_pages_due(student_id)
 
     if pages_due:
         # Implement the algorithm to computer page risk
@@ -246,6 +246,7 @@ def page_due(request, student_id):
             "keys_map": keys_map_due,
             "next_new_page": request.session.get(next_page_key),
             "due_date_summary": counter,
+            "total_page_count": total_page_count,
         },
     )
 
