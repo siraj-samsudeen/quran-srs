@@ -1,5 +1,5 @@
 from itertools import groupby
-from collections import defaultdict
+from collections import defaultdict, Counter
 import datetime
 import math
 
@@ -138,7 +138,14 @@ def get_pages_due(student_id):
         for page, page_summary in pages_all.items()
         if page_summary["is_due"]
     }
-    return dict(pages_due)
+
+    counter = Counter()
+    for page, page_summary in pages_all.items():
+        counter.update({page_summary["8.scheduled_due_date"]: 1})
+
+    counter = dict(sorted(counter.items())[:7])
+
+    return dict(pages_due), counter
 
 
 @login_required
@@ -151,7 +158,7 @@ def page_due(request, student_id):
 
     request.session["last_student"] = model_to_dict(student)
 
-    pages_due = get_pages_due(student_id)
+    pages_due, counter = get_pages_due(student_id)
 
     if pages_due:
         # Implement the algorithm to computer page risk
@@ -238,6 +245,7 @@ def page_due(request, student_id):
             "student": student,
             "keys_map": keys_map_due,
             "next_new_page": request.session.get(next_page_key),
+            "due_date_summary": counter,
         },
     )
 
