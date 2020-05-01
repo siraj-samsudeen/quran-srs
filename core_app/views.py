@@ -118,13 +118,7 @@ keys_map_revision_entry = {
     key: value
     for key, value in keys_map.items()
     if key
-    in [
-        "7.scheduled_interval",
-        "2.revision date",
-        "1.revision_number",
-        "overdue_days",
-        "mistakes",
-    ]
+    in ["7.scheduled_interval", "2.revision date", "1.revision_number", "overdue_days",]
 }
 
 
@@ -346,7 +340,6 @@ def page_entry(request, student_id, page, due_page):
 
         for i in range(0, len(pages_due.keys())):
             next_page_set.append(int(pages_due_sorted[i][0]))
-
 
     return render(
         request,

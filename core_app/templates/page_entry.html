@@ -62,16 +62,14 @@
         <table class="table table-bordered" id="dataTable">
             <thead>
                 <tr>
-                    <td>Revision</td>
                     <td>Date</td>
-                    <td>Line Mistakes</td>
-                    <td>Word Mistakes</td>
+                    <td>Line M</td>
+                    <td>Word M</td>
                 </tr>
             </thead>
 
             {% for rev in revision_list%}
             <tr>
-                <td>{{ forloop.counter }}</td>
                 <td>{{rev.date |date:'d-M'}}</td>
                 <td>{{rev.line_mistakes | display_zero}}</td>
                 <td>{{rev.word_mistakes | display_zero}}</td>
@@ -100,6 +98,10 @@
 
         {% endfor %}
     </p>
+
+    {% if next_page_set|length > 10 %}
+
+
     <p>Due Pages <b>All in Order</b>:
 
         {% for page in next_page_set_sorted %}
@@ -111,7 +113,7 @@
 
         {% endfor %}
     </p>
-
+    {% endif %}
     {% endif %}
 </form>
 
