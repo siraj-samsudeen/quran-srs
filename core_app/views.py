@@ -67,6 +67,7 @@ def page_all(request, student_id):
         )
 
     request.session["last_student"] = model_to_dict(student)
+    next_page_key = "next_new_page" + str(student_id)
 
     return render(
         request,
@@ -75,7 +76,7 @@ def page_all(request, student_id):
             "pages_all": dict(get_pages_all(student_id)),
             "student": student,
             "keys_map": keys_map_all,
-            "next_new_page": request.session.get("next_new_page"),
+            "next_new_page": request.session.get(next_page_key),
         },
     )
 
@@ -227,6 +228,7 @@ def page_due(request, student_id):
 
         # Cache this so that revision entry page can automatically move to the next due page
     request.session["pages_due"] = pages_due
+    next_page_key = "next_new_page" + str(student_id)
 
     return render(
         request,
@@ -235,7 +237,7 @@ def page_due(request, student_id):
             "pages_due": pages_due,
             "student": student,
             "keys_map": keys_map_due,
-            "next_new_page": request.session.get("next_new_page"),
+            "next_new_page": request.session.get(next_page_key),
         },
     )
 
@@ -308,7 +310,8 @@ def page_entry(request, student_id, page, due_page):
 
         if due_page == 0:
             next_page = page + 1
-            request.session["next_new_page"] = next_page
+            next_page_key = "next_new_page" + str(student_id)
+            request.session[next_page_key] = next_page
             return redirect(
                 "page_entry", student_id=student.id, page=next_page, due_page=0
             )
