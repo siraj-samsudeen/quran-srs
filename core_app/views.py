@@ -100,9 +100,9 @@ keys_map = {
     "page_strength": "Interval / Revision",
     "2.revision date": "Last Touch",
     "8.scheduled_due_date": "Due On",
-    "overdue_days": "Overdue Days",
-    "risk_rank": "Risk Rank",
     "sort_order": "Sort Order",
+    "overdue_days": "OverDue",
+    "risk_rank": "Risk Rank",
 }
 
 keys_map_all = {
@@ -112,14 +112,20 @@ keys_map_all = {
 keys_map_due = {
     key: value
     for key, value in keys_map.items()
-    if key in ["7.scheduled_interval", "1.revision_number", "mistakes", "sort_order",]
+    if key
+    in [
+        "7.scheduled_interval",
+        "1.revision_number",
+        "mistakes",
+        "sort_order",
+        "overdue_days",
+    ]
 }
 
 keys_map_revision_entry = {
     key: value
     for key, value in keys_map.items()
-    if key
-    in ["7.scheduled_interval", "2.revision date", "1.revision_number", "overdue_days",]
+    if key in ["7.scheduled_interval", "1.revision_number", "mistakes", "overdue_days",]
 }
 
 
