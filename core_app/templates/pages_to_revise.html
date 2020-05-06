@@ -28,7 +28,7 @@
       {% for rev in revision_list%}
       <tr>
         <td>{{ rev.page }}</td>
-        <td>{{rev.date}}</td>
+        <td>{{rev.date |date:'d-H:m'}}</td>
         <td>{{rev.line_mistakes}}</td>
         <td>{{rev.word_mistakes}}</td>
         <td>{{rev.score}}</td>
