@@ -44,4 +44,5 @@ urlpatterns = [
         name="page_entry",
     ),
     path("student/<int:student_id>/new/", view.page_new, name="page_new"),
+    path("student/<int:student_id>/revise/", view.page_revise, name="pages_to_revise"),
 ]

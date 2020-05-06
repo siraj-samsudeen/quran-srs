@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_format %}
+{% block title %} Pages Due {% endblock title %}
+
+{% block style %}
+{{block.super}}
+<link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
+
+{% endblock style %}
+
+{% block content %}
+
+
+<div class="card shadow mb-4">
+  <div class="table-responsive">
+    <table class="table table-bordered" id="dataTable">
+      <thead>
+        <tr>
+          <td>Revision</td>
+          <td>Date</td>
+          <td>Line</td>
+          <td>Word</td>
+          <td>Score</td>
+        </tr>
+      </thead>
+
+      {% for rev in revision_list%}
+      <tr>
+        <td>{{ rev.page }}</td>
+        <td>{{rev.date}}</td>
+        <td>{{rev.line_mistakes}}</td>
+        <td>{{rev.word_mistakes}}</td>
+        <td>{{rev.score}}</td>
+      </tr>
+      {% endfor%}
+    </table>
+  </div>
+</div>
+{% endblock content %}
+
+{% block script %}
+{{block.super}}
+<script src="{% static 'js/jquery.dataTables.js' %}">
+</script>
+<script src="{% static 'js/dataTables.bootstrap4.js' %}">
+</script>
+
+
+<script>
+  $(document).ready(function () {
+    $('#dataTable').DataTable({
+      stateSave: true,
+      paging: false,
+      searching: false,
+    });
+  });
+</script>
+{% endblock script %}
