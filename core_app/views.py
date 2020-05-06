@@ -92,13 +92,13 @@ def extract_record(revision):
 
 
 keys_map = {
-    "7.scheduled_interval": "Interval",
-    "1.revision_number": "Revisions",
+    "7.scheduled_interval": "Int",
+    "1.revision_number": "Rev",
     "mistakes": "Latest Mistakes",
-    "3.score": "Latest Score",
-    "score_average": "Average Score",
-    "page_strength": "Interval / Revision",
-    "2.revision date": "Last Touch",
+    "3.score": "LScore",
+    "score_average": "AScore",
+    "page_strength": "Int/Rev",
+    "2.revision date": "Touched",
     "8.scheduled_due_date": "Due On",
     "sort_order": "Sort Order",
     "overdue_days": "OverDue",
@@ -106,7 +106,16 @@ keys_map = {
 }
 
 keys_map_all = {
-    key: value for key, value in keys_map.items() if key not in ["risk_rank",]
+    key: value
+    for key, value in keys_map.items()
+    if key
+    in [
+        "7.scheduled_interval",
+        "1.revision_number",
+        "3.score",
+        "score_average",
+        "page_strength",
+    ]
 }
 
 keys_map_due = {
