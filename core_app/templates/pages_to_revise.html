@@ -17,10 +17,9 @@
     <table class="table table-bordered" id="dataTable">
       <thead>
         <tr>
-          <td>Revision</td>
+          <td>Page</td>
           <td>Date</td>
-          <td>Line</td>
-          <td>Word</td>
+          <td>Mist</td>
           <td>Score</td>
         </tr>
       </thead>
@@ -29,8 +28,9 @@
       <tr>
         <td>{{ rev.page }}</td>
         <td>{{rev.date |date:'d-H:m'}}</td>
-        <td>{{rev.line_mistakes}}</td>
-        <td>{{rev.word_mistakes}}</td>
+        <td>{% if rev.score %}
+          {{rev.line_mistakes}}L-{{rev.word_mistakes}}W
+          {% endif %}</td>
         <td>{{rev.score}}</td>
       </tr>
       {% endfor%}
@@ -51,7 +51,7 @@
   $(document).ready(function () {
     $('#dataTable').DataTable({
       stateSave: true,
-      paging: false,
+      paging: true,
       searching: false,
     });
   });
