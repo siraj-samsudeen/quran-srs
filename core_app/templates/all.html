@@ -87,7 +87,13 @@
 
 <script>
   $(document).ready(function () {
-    $('#dataTable').DataTable();
+    $('#dataTable').DataTable({
+      paging: true,
+      searching: false,
+      "order": [
+        [4, "desc"] //Latest Score column
+      ]
+    });
   });
 </script>
 {% endblock script %}

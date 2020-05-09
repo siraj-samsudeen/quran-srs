@@ -111,11 +111,11 @@
   <script>
     $(document).ready(function () {
       $('#dataTable').DataTable({
-        stateSave: true,
+        stateSave: false,
         paging: true,
         searching: false,
         "order": [
-          [4, "asc"]
+          [6, "asc"] //Sort order column
         ]
       });
     });
