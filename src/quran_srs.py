@@ -160,15 +160,16 @@ def process_page(page, revision_list, extract_record, student_id):
                 )
 
             # For Early Revisions
-            # If the score has fallen since last time, decrease the interval by the left-over days
-            # Otherwise don't change the interval, just postpone the due date
+            # If more than 1 line mistake and the score has fallen since last time,
+            # decrease the interval by the left-over days
+            # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
             if revision_timing == "EARLY_REVISION":
-                if 60 - score < 60 - last_score:
+                if line_mistakes > 1 and 60 - score < 60 - last_score:
                     current_interval = (
                         scheduled_interval - (scheduled_due_date - revision_date).days
                     )
                 else:
-                    interval_delta = 0
+                    interval_delta = 1
         max_interval = MAX_INTERVALS[score]
 
         next_interval = get_next_interval(
@@ -219,7 +220,7 @@ def process_page(page, revision_list, extract_record, student_id):
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
-        key: value.strftime("%m-%d") if type(value) == datetime.date else value
+        key: value.strftime("%Y-%m-%d") if type(value) == datetime.date else value
         for key, value in page_summary.items()
     }
 
