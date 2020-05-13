@@ -1,5 +1,5 @@
 from itertools import groupby
-from collections import defaultdict, Counter
+from collections import Counter
 import datetime
 import math
 
@@ -16,10 +16,7 @@ from rest_framework.decorators import api_view
 import pandas as pd
 import numpy as np
 
-from core_app.forms import (
-    RevisionEntryForm,
-    StudentForm,
-)
+from core_app.forms import RevisionEntryForm
 from core_app.models import PageRevision, Student
 import src.quran_srs as qrs
 
@@ -101,8 +98,8 @@ keys_map = {
     "sort_order": "Sort Order",
     "risk_rank": "Risk Rank",
     "page_strength": "Int/Rev",
-    "2.revision date": "Touch",
     "8.scheduled_due_date": "Due",
+    "2.revision date": "Touch",
 }
 
 keys_map_all = {
@@ -121,7 +118,15 @@ keys_map_due = {
 keys_map_revision_entry = {
     key: value
     for key, value in keys_map.items()
-    if key in ["7.scheduled_interval", "1.revision_number", "mistakes", "overdue_days",]
+    if key
+    in [
+        "7.scheduled_interval",
+        "1.revision_number",
+        "mistakes",
+        "overdue_days",
+        "8.scheduled_due_date",
+        "2.revision date",
+    ]
 }
 
 
@@ -145,7 +150,7 @@ def get_pages_due(student_id):
     for page, page_summary in pages_all.items():
         counter.update({page_summary["8.scheduled_due_date"]: 1})
 
-    counter = dict(sorted(counter.items())[:7])
+    counter = dict(sorted(counter.items()))
 
     return dict(pages_due), counter, len(pages_all)
 
