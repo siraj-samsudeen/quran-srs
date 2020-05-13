@@ -50,8 +50,24 @@ MAX_INTERVALS = defaultdict(
 )
 
 
-def get_next_interval(current_interval, interval_delta, max_interval):
+def get_next_interval(current_interval, interval_delta, max_interval, difficulty_level):
     next_interval = current_interval + interval_delta
+
+    if difficulty_level == "e":
+        if next_interval <= 15:
+            next_interval += 5
+        elif next_interval <= 30:
+            next_interval += 3
+        else:
+            next_interval += 1
+
+    elif difficulty_level == "h":
+        if next_interval >= 20:
+            next_interval -= 5
+        elif next_interval >= 10:
+            next_interval -= 3
+        elif next_interval >= 3:
+            next_interval -= 1
 
     # Restrict the next interval to max interval if is smaller
     if max_interval is None or max_interval > next_interval:
@@ -66,6 +82,35 @@ def extract_record(revision):
         revision[PAGE_REVISION.line_mistakes],
         revision[PAGE_REVISION.current_interval],
     )
+
+
+def update_current_interval(current_interval, student_id, score):
+    current_interval = int(current_interval or 0)
+
+    # Temp hack to reduce too-many due pages for Safwan and Hanan
+    if student_id == 4:
+        if score == 0:
+            current_interval = 15
+        else:
+            current_interval = 7
+    if student_id == 3:
+        if score == 0:
+            current_interval = 10
+        else:
+            current_interval = 5
+
+    return current_interval
+
+
+def get_revision_timing(scheduled_due_date, revision_date):
+    # ideally the page should be revised on the due date, not before or after
+    if scheduled_due_date == revision_date:
+        revision_timing = "ON_TIME_REVISION"
+    elif scheduled_due_date < revision_date:
+        revision_timing = "LATE_REVISION"
+    else:
+        revision_timing = "EARLY_REVISION"
+    return revision_timing
 
 
 def process_page(page, revision_list, extract_record, student_id):
@@ -89,40 +134,18 @@ def process_page(page, revision_list, extract_record, student_id):
         # This is first revision - Hence, the page can be new or can have a current interval
         # Take the current interval in the input data or make it zero
         if index == 0:
-            current_interval = int(current_interval or 0)
-
-            # Temp hack to reduce too-many due pages for Safwan and Hanan
-            if student_id == 4:
-                if score == 0:
-                    current_interval = 15
-                else:
-                    current_interval = 7
-            if student_id == 3:
-                if score == 0:
-                    current_interval = 10
-                else:
-                    current_interval = 5
-
+            current_interval = update_current_interval(
+                current_interval, student_id, score
+            )
             score_cumulative = score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
-            page_summary_dict = page_summary
-            scheduled_interval = page_summary_dict.get("7.scheduled_interval")
-            scheduled_due_date = page_summary_dict.get("8.scheduled_due_date")
-            last_score = page_summary_dict.get("3.score")
-            score_cumulative = page_summary_dict.get("score_cumulative") + score
+            scheduled_interval = page_summary.get("7.scheduled_interval")
+            scheduled_due_date = page_summary.get("8.scheduled_due_date")
+            last_score = page_summary.get("3.score")
+            score_cumulative = page_summary.get("score_cumulative") + score
 
-            # class REVESION_TIMING(Enum):
-            #     ON_TIME_REVISION =0
-            #     LATE_REVISION =1
-            #     EARLY_REVISION=-1
-            # ideally the page should be revised on the due date, not before or after
-            if scheduled_due_date == revision_date:
-                revision_timing = "ON_TIME_REVISION"
-            elif scheduled_due_date < revision_date:
-                revision_timing = "LATE_REVISION"
-            else:
-                revision_timing = "EARLY_REVISION"
+            revision_timing = get_revision_timing(scheduled_due_date, revision_date)
 
             # By default, we take the scheduled interval from the last revision.
             # And then we will adjust it if the revision is late or early
@@ -135,7 +158,6 @@ def process_page(page, revision_list, extract_record, student_id):
                 current_interval = (
                     scheduled_interval + (revision_date - scheduled_due_date).days
                 )
-                # print("page ", page, revision_timing, 'IMPROVED','score =', score, "last_score", last_score)
 
             # For Early Revisions
             # If the score has fallen since last time, decrease the interval by the left-over days
@@ -145,30 +167,13 @@ def process_page(page, revision_list, extract_record, student_id):
                     current_interval = (
                         scheduled_interval - (scheduled_due_date - revision_date).days
                     )
-                    # print("page ", page, revision_timing, 'DECLINE','score =', score, "last_score", last_score)
                 else:
                     interval_delta = 0
         max_interval = MAX_INTERVALS[score]
 
         next_interval = get_next_interval(
-            current_interval, interval_delta, max_interval
+            current_interval, interval_delta, max_interval, difficulty_level
         )
-
-        if difficulty_level == "e":
-            if next_interval <= 15:
-                next_interval += 5
-            elif next_interval <= 30:
-                next_interval += 3
-            else:
-                next_interval += 1
-
-        elif difficulty_level == "h":
-            if next_interval >= 20:
-                next_interval -= 5
-            elif next_interval >= 10:
-                next_interval -= 3
-            elif next_interval >= 3:
-                next_interval -= 1
 
         # If the interval is negative or zero, we want to revise the next day
         if next_interval <= 0:
