@@ -13,6 +13,7 @@
 
 
 <div class="card shadow mb-4">
+
   <div class="card-header py-3">
     <table width="100%">
       <tr>
@@ -30,6 +31,7 @@
     </table>
 
   </div>
+
   <div class="card-body">
     <div class="table-responsive">
       <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
@@ -67,12 +69,6 @@
         {% endfor %}
       </table>
     </div>
-    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-      <div class="form-group mx-sm-3 mb-2">
-        <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
-      </div>
-      <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
-    </form>
 
   </div>
 </div>
@@ -88,8 +84,8 @@
 <script>
   $(document).ready(function () {
     $('#dataTable').DataTable({
-      paging: true,
-      searching: false,
+      stateSave: true,
+      responsive: true,
       "order": [
         [4, "desc"] //Latest Score column
       ]

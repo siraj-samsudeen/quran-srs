@@ -34,10 +34,18 @@
       </tr>
     </table>
   </div>
+  <p>
+    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
+      <div class="form-group mx-sm-3 mb-2">
+        <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
+      </div>
+      <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
+    </form>
+  </p>
   <div class="card-body">
 
     <div class="table-responsive">
-      <table class="table table-bordered" id="dataTable">
+      <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
         {% for page, page_summary in pages_due.items %}
         {% if forloop.first %}
         <thead>
@@ -73,30 +81,25 @@
         {% endfor %}
       </table>
     </div>
-    <div class="table-responsive">
-      <table class="table table-bordered" id="summaryTable" width="100%" cellspacing="0">
-        <thead>
+    <p>
+      <div class="table-responsive">
+        <table class="table table-bordered" id="summaryTable" width="100%" cellspacing="0">
+          <thead>
+            <tr>
+              <td>Date</td>
+              <td>Number of Due Pages</td>
+            </tr>
+          </thead>
+          {% for due_date,count in due_date_summary.items %}
           <tr>
-            <td>Date</td>
-            <td>Number of Due Pages</td>
+            <td>{{due_date}}</td>
+            <td>{{count}}</td>
           </tr>
-        </thead>
-        {% for due_date,count in due_date_summary.items %}
-        <tr>
-          <td>{{due_date}}</td>
-          <td>{{count}}</td>
-        </tr>
-        {% endfor %}
-      </table>
+          {% endfor %}
+        </table>
 
-      <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-        <div class="form-group mx-sm-3 mb-2">
-          <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
-        </div>
-        <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
-      </form>
 
-    </div>
+      </div>
   </div>
   {% endblock content %}
 
@@ -111,12 +114,15 @@
   <script>
     $(document).ready(function () {
       $('#dataTable').DataTable({
-        stateSave: false,
-        paging: true,
-        searching: false,
+        stateSave: true,
+        responsive: true,
         "order": [
           [6, "asc"] //Sort order column
         ]
+      });
+      $('#summaryTable').DataTable({
+        stateSave: true,
+        searching: false,
       });
     });
   </script>
