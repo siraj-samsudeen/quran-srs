@@ -206,7 +206,7 @@ def process_page(page, revision_list, extract_record, student_id):
                 next_interval / (index + 1), 1
             ),  # Interval per revision
             "is_due": due_date <= datetime.date.today(),
-            "overdue_days": (datetime.date.today() - due_date).days,
+            "overdue_days": (due_date - datetime.date.today()).days,
             "mistakes": mistakes_text,
             "score_cumulative": score_cumulative,
             "score_average": round(score_cumulative / (index + 1), 2),
