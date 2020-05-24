@@ -54,8 +54,8 @@
 
                     <td>No</td>
                     <td>Date</td>
-                    <td>Line</td>
                     <td>Word</td>
+                    <td>Line</td>
                 </tr>
             </thead>
 
@@ -63,8 +63,8 @@
             <tr>
                 <td>{{forloop.counter}}</td>
                 <td>{{rev.date |date:'d-M'}}</td>
-                <td>{{rev.line_mistakes | display_zero}}</td>
                 <td>{{rev.word_mistakes | display_zero}}</td>
+                <td>{{rev.line_mistakes | display_zero}}</td>
             </tr>
             {% endfor%}
         </table>
