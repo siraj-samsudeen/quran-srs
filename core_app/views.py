@@ -3,7 +3,7 @@ from collections import Counter
 import datetime
 import math
 
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
 from django.forms.models import model_to_dict
@@ -162,7 +162,8 @@ def get_pages_due(student_id):
 
 @login_required
 def page_due(request, student_id):
-    student = Student.objects.get(id=student_id)
+    # student = Student.objects.get(id=student_id)
+    student = get_object_or_404(Student, id=student_id)
     if request.user != student.account:
         return HttpResponseForbidden(
             f"{student.name} is not a student of {request.user.username}"
