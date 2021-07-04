@@ -53,8 +53,8 @@
             <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
           </td>
 
-          {% for key in keys_map.keys   %}
-          {% if  key == "1.revision_number" %}
+          {% for key in keys_map.keys %}
+          {% if key == "1.revision_number" %}
           <td>
             <a href="{% url 'page_revision' student_id=student.id page=page %}">
               {{ page_summary|get_item:key }}
@@ -87,7 +87,7 @@
       stateSave: true,
       responsive: true,
       "order": [
-        [4, "desc"] //Latest Score column
+        [8, "asc"] //Due date ascending
       ]
     });
   });

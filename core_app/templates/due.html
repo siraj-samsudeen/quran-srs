@@ -35,12 +35,12 @@
     </table>
   </div>
   <p>
-    <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-      <div class="form-group mx-sm-3 mb-2">
-        <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
-      </div>
-      <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
-    </form>
+  <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
+    <div class="form-group mx-sm-3 mb-2">
+      <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
+    </div>
+    <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
+  </form>
   </p>
   <div class="card-body">
 
@@ -64,8 +64,8 @@
             <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
           </td>
 
-          {% for key in keys_map.keys   %}
-          {% if  key == "1.revision_number" %}
+          {% for key in keys_map.keys %}
+          {% if key == "1.revision_number" %}
           <td>
             <a href="{% url 'page_revision' student_id=student.id page=page %}">
               {{ page_summary|get_item:key }}
@@ -82,24 +82,24 @@
       </table>
     </div>
     <p>
-      <div class="table-responsive">
-        <table class="table table-bordered" id="summaryTable" width="100%" cellspacing="0">
-          <thead>
-            <tr>
-              <td>Date</td>
-              <td>Number of Due Pages</td>
-            </tr>
-          </thead>
-          {% for due_date,count in due_date_summary.items %}
+    <div class="table-responsive">
+      <table class="table table-bordered" id="summaryTable" width="100%" cellspacing="0">
+        <thead>
           <tr>
-            <td>{{due_date}}</td>
-            <td>{{count}}</td>
+            <td>Date</td>
+            <td>Number of Due Pages</td>
           </tr>
-          {% endfor %}
-        </table>
+        </thead>
+        {% for due_date,count in due_date_summary.items %}
+        <tr>
+          <td>{{due_date}}</td>
+          <td>{{count}}</td>
+        </tr>
+        {% endfor %}
+      </table>
 
 
-      </div>
+    </div>
   </div>
   {% endblock content %}
 
@@ -117,7 +117,7 @@
         stateSave: true,
         responsive: true,
         "order": [
-          [6, "asc"] //Sort order column
+          [8, "asc"] //Sort order column
         ]
       });
       $('#summaryTable').DataTable({
