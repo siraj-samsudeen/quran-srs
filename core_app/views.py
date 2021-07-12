@@ -1,26 +1,21 @@
-from itertools import groupby
-from collections import Counter
 import datetime
 import math
+from collections import Counter
+from itertools import groupby
 
-from django.shortcuts import get_object_or_404, render, redirect
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseForbidden
-from django.forms.models import model_to_dict
-
-
-from rest_framework import viewsets
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-
-import pandas as pd
 import numpy as np
+import pandas as pd
+from django.contrib.auth.decorators import login_required
+from django.forms.models import model_to_dict
+from django.http import HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from rest_framework import viewsets
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
+import core_app.quran_srs as qrs
 from core_app.forms import RevisionEntryForm
 from core_app.models import PageRevision, Student
-import src.quran_srs as qrs
-
-
 from core_app.serializers import StudentSerializer
 
 
@@ -146,7 +141,7 @@ def get_pages_due(student_id):
     }
 
     counter = Counter()
-    for page, page_summary in pages_all.items():
+    for _, page_summary in pages_all.items():
         counter.update({page_summary["8.scheduled_due_date"]: 1})
 
     counter = dict(sorted(counter.items()))
@@ -235,9 +230,9 @@ def page_due(request, student_id):
             pages_due[index].update({"risk_rank": int(row["risk_rank"])})
 
             # Group pages into bins of 10 so that they can be tackled together
-            bin = math.ceil(risk_rank / 10)
+            page_bin = math.ceil(risk_rank / 10)
             # Now order the pages based on page number within each bin; page = index in the data frame
-            sort_order = round(bin + (index / 1000), 3)
+            sort_order = round(page_bin + (index / 1000), 3)
             pages_due[index].update({"sort_order": sort_order})
 
         # Cache this so that revision entry page can automatically move to the next due page
@@ -312,8 +307,6 @@ def page_revise(request, student_id):
         "pages_to_revise.html",
         {"revision_list": rev_list, "student": student},
     )
-
-    return HttpResponse(revision_list)
 
 
 @login_required
