@@ -2,6 +2,7 @@ import datetime
 from collections import defaultdict
 
 
+# TODO change score to a negative
 def get_page_score(word_mistakes, line_mistakes):
     # each page has 15 lines - each line is worth 4 points. So, max point is 15*4 = 60
     # Each word mistake takes away 1 point, and each line mistake 4 points.
@@ -10,37 +11,49 @@ def get_page_score(word_mistakes, line_mistakes):
     return word_mistakes * 1 + line_mistakes * 4
 
 
-INTERVAL_DELTAS = defaultdict(
-    lambda: -7,
-    {
-        0: 3,
-        1: 2,
-        **{x: 1 for x in (2, 3)},
-        4: 0,
-        **{x: -1 for x in (5, 6, 7, 8)},
-        # Just a different way of doing to learn
-        **dict.fromkeys((9, 10, 11, 12), -2),
-        **{x: -3 for x in range(13, 21)},
-        **{x: -5 for x in range(21, 31)},
-    },
-)
+def get_interval_delta(score):
+    # Convert score into an interval delta
+    if score == 0:  # Perfect page
+        interval_delta = +3
+    elif score == 1:  # 1 Word Mistake
+        interval_delta = +2
+    elif score <= 3:  # 3 Word Mistakes
+        interval_delta = +1
+    elif score == 4:  # 1 Line Mistake
+        interval_delta = 0
+    elif score <= 8:  # 2 Line Mistakes
+        interval_delta = -1
+    elif score <= 12:  # 3 Line Mistakes
+        interval_delta = -2
+    elif score <= 20:  # 5 Line Mistakes
+        interval_delta = -3
+    elif score <= 30:  # 7.5 Line Mistakes - Half a page
+        interval_delta = -5
+    else:  # More than half a page
+        interval_delta = -7
 
-MAX_INTERVALS = defaultdict(
-    lambda: 3,  # More than half a page - 3 days max
-    {
-        **{x: None for x in range(0, 4)},
-        # 1 Line Mistake - 40 days max
-        4: 40,
-        # 2 Line Mistakes - 30 days/1 month max
-        **{x: 30 for x in range(5, 9)},
-        # 3 Line Mistakes - 3 weeks max
-        **{x: 21 for x in range(9, 13)},
-        # 5 Line Mistakes - 2 weeks ma
-        **{x: 14 for x in range(13, 21)},
-        # 7.5 Line Mistakes - Half a page - 1 week max
-        **{x: 7 for x in range(21, 31)},
-    },
-)
+    return interval_delta
+
+
+def get_max_interval(score):
+
+    # If Score is 8 or more (2 line mistakes or more), then we have to restrict the max Interval
+    if score < 4:
+        max_interval = None
+    elif score == 4:  # 1 Line Mistake - 40 days max
+        max_interval = 40
+    elif score <= 8:  # 2 Line Mistakes - 30 days/1 month max
+        max_interval = 30
+    elif score <= 12:  # 3 Line Mistakes - 3 weeks max
+        max_interval = 21
+    elif score <= 20:  # 5 Line Mistakes - 2 weeks max
+        max_interval = 14
+    elif score <= 30:  # 7.5 Line Mistakes - Half a page - 1 week max
+        max_interval = 7
+    else:  # More than half a page - 3 days max
+        max_interval = 3
+
+    return max_interval
 
 
 def get_next_interval(current_interval, interval_delta, max_interval, difficulty_level):
@@ -68,7 +81,7 @@ def get_next_interval(current_interval, interval_delta, max_interval, difficulty
     return max_interval
 
 
-def update_current_interval(current_interval, student_id, score):
+def update_current_interval_hack(current_interval, student_id, score):
     current_interval = int(current_interval or 0)
 
     # Temp hack to reduce too-many due pages for Safwan and Hanan
@@ -111,12 +124,12 @@ def process_page(revision_list, student_id):
 
         score = get_page_score(word_mistakes, line_mistakes)
 
-        interval_delta = INTERVAL_DELTAS[score]
+        interval_delta = get_interval_delta(score)
 
         # This is first revision - Hence, the page can be new or can have a current interval
         # Take the current interval in the input data or make it zero
         if index == 0:
-            current_interval = update_current_interval(
+            current_interval = update_current_interval_hack(
                 current_interval, student_id, score
             )
             score_cumulative = score
@@ -152,7 +165,7 @@ def process_page(revision_list, student_id):
                     )
                 else:
                     interval_delta = 1
-        max_interval = MAX_INTERVALS[score]
+        max_interval = get_max_interval(score)
 
         next_interval = get_next_interval(
             current_interval, interval_delta, max_interval, difficulty_level
