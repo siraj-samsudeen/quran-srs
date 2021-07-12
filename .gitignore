@@ -122,3 +122,10 @@ src/temp.py
 #Excel temp files
 ~$*.xlsx
 vandelay-py.js
+src/quran_review_scheduler.ipynb
+src/quran_review_scheduler.py
+src/quranSRS copy.py
+project/settings_dev.py
+Temp
+all_pages.yaml
+TODO

@@ -29,12 +29,12 @@ class StudentViewSet(viewsets.ModelViewSet):
 
 
 def get_last_student(request):
-    last_student = request.session.get("last_student")
-    if last_student is None:
-        last_student = request.user.student_set.all().first()
-        last_student = model_to_dict(last_student)
-        request.session["last_student"] = last_student
-    return last_student
+    last_student_local = request.session.get("last_student")
+    if last_student_local is None:
+        last_student_local = request.user.student_set.all().first()
+        last_student_local = model_to_dict(last_student_local)
+        request.session["last_student"] = last_student_local
+    return last_student_local
 
 
 # this is an end point
@@ -70,16 +70,6 @@ def page_all(request, student_id):
             "keys_map": keys_map_all,
             "next_new_page": request.session.get(next_page_key),
         },
-    )
-
-
-def extract_record(revision):
-    return (
-        revision["date"],
-        revision["word_mistakes"],
-        revision["line_mistakes"],
-        revision["current_interval"],
-        revision["difficulty_level"],
     )
 
 
@@ -129,7 +119,7 @@ def get_pages_all(student_id):
         PageRevision.objects.filter(student=student_id).order_by("page").values()
     )
     revisions = groupby(revisions, lambda rev: rev["page"])
-    return qrs.process_revision_data(revisions, extract_record, student_id)
+    return qrs.process_revision_data(revisions, student_id)
 
 
 def get_pages_due(student_id):
@@ -323,7 +313,7 @@ def page_entry(request, student_id, page, due_page):
         .values()
     )
     if revision_list:
-        page_summary = qrs.process_page(page, revision_list, extract_record, student_id)
+        page_summary = qrs.process_page(revision_list, student_id)
         new_page = False
     else:
         page_summary = {}

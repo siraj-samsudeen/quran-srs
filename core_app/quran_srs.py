@@ -2,13 +2,6 @@ import datetime
 from collections import defaultdict
 
 
-class PAGE_REVISION:
-    revision_date = "revision_date"
-    word_mistakes = "word_mistakes"
-    line_mistakes = "line_mistakes"
-    current_interval = "current_interval"
-
-
 def get_page_score(word_mistakes, line_mistakes):
     # each page has 15 lines - each line is worth 4 points. So, max point is 15*4 = 60
     # Each word mistake takes away 1 point, and each line mistake 4 points.
@@ -75,15 +68,6 @@ def get_next_interval(current_interval, interval_delta, max_interval, difficulty
     return max_interval
 
 
-def extract_record(revision):
-    return (
-        revision[PAGE_REVISION.revision_date],
-        revision[PAGE_REVISION.word_mistakes],
-        revision[PAGE_REVISION.line_mistakes],
-        revision[PAGE_REVISION.current_interval],
-    )
-
-
 def update_current_interval(current_interval, student_id, score):
     current_interval = int(current_interval or 0)
 
@@ -113,22 +97,20 @@ def get_revision_timing(scheduled_due_date, revision_date):
     return revision_timing
 
 
-def process_page(page, revision_list, extract_record, student_id):
+def process_page(revision_list, student_id):
     page_summary = {}
     for index, revision in enumerate(revision_list):
-        (
-            revision_date,
-            word_mistakes,
-            line_mistakes,
-            current_interval,
-            difficulty_level,
-        ) = extract_record(revision)
-        score = get_page_score(word_mistakes, line_mistakes)
-
         # Since revision_date was a datetime object, it was causing a subtle bug
         # in determining revision timings. Even on the due date,
         # it is flagging some revisions as EARLY based on the timestamp
-        revision_date = revision_date.date()
+        revision_date = revision["date"].date()
+        word_mistakes = revision["word_mistakes"]
+        line_mistakes = revision["line_mistakes"]
+        current_interval = revision["current_interval"]
+        difficulty_level = revision["difficulty_level"]
+
+        score = get_page_score(word_mistakes, line_mistakes)
+
         interval_delta = INTERVAL_DELTAS[score]
 
         # This is first revision - Hence, the page can be new or can have a current interval
@@ -227,13 +209,13 @@ def process_page(page, revision_list, extract_record, student_id):
     return new_page_summary
 
 
-def process_revision_data(revision_list_by_page, extract_record, student_id):
+def process_revision_data(revision_list_by_page, student_id):
     # we want to store the summary information about each page as we process revision data in a dict
     summary_by_page = defaultdict(dict)
 
     if hasattr(revision_list_by_page, "items"):
         revision_list_by_page = revision_list_by_page.items()
     for page, revision_list in revision_list_by_page:
-        page_summary = process_page(page, revision_list, extract_record, student_id)
+        page_summary = process_page(revision_list, student_id)
         summary_by_page[page] = page_summary
     return summary_by_page
