@@ -115,10 +115,8 @@ keys_map_revision_entry = {
 
 
 def get_pages_all(student_id):
-    revisions = (
-        PageRevision.objects.filter(student=student_id).order_by("page").values()
-    )
-    revisions = groupby(revisions, lambda rev: rev["page"])
+    revisions = PageRevision.objects.filter(student=student_id).order_by("page")
+    revisions = groupby(revisions, lambda rev: rev.page)
     return qrs.process_revision_data(revisions, student_id)
 
 

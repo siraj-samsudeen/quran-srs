@@ -116,11 +116,11 @@ def process_page(revision_list, student_id):
         # Since revision_date was a datetime object, it was causing a subtle bug
         # in determining revision timings. Even on the due date,
         # it is flagging some revisions as EARLY based on the timestamp
-        revision_date = revision["date"].date()
-        word_mistakes = revision["word_mistakes"]
-        line_mistakes = revision["line_mistakes"]
-        current_interval = revision["current_interval"]
-        difficulty_level = revision["difficulty_level"]
+        revision_date = revision.date.date()
+        word_mistakes = revision.word_mistakes
+        line_mistakes = revision.line_mistakes
+        current_interval = revision.current_interval
+        difficulty_level = revision.difficulty_level
 
         score = get_page_score(word_mistakes, line_mistakes)
 
