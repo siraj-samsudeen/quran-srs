@@ -226,8 +226,6 @@ def process_revision_data(revision_list_by_page, student_id):
     # we want to store the summary information about each page as we process revision data in a dict
     summary_by_page = defaultdict(dict)
 
-    if hasattr(revision_list_by_page, "items"):
-        revision_list_by_page = revision_list_by_page.items()
     for page, revision_list in revision_list_by_page:
         page_summary = process_page(revision_list, student_id)
         summary_by_page[page] = page_summary

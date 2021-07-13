@@ -130,3 +130,4 @@ Temp
 all_pages.yaml
 TODO
 .env
+cov_html
