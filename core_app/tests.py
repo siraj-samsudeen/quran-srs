@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 
+import dotenv
 import pytest
 import yaml
 from django.conf import settings
@@ -15,10 +17,15 @@ def django_db_setup():
     }
 
 
+@pytest.fixture(scope="session", autouse=True)
+def load_env():
+    dotenv.load_dotenv()
+
+
 def describe_safety_net_for_refactoring():
     @pytest.mark.skipif(Path("all_pages.yaml").exists(), reason="CheckFile")
     def test_create_oracle_for_all_pages(client, db):
-        assert client.login(username="siraj", password="kevin123")
+        assert client.login(username="siraj", password=os.getenv("PASSWORD"))
         response = client.get("/student/1/all/")
         pages_all = response.context["pages_all"]
 
@@ -37,7 +44,7 @@ def describe_safety_net_for_refactoring():
     # so that we can fetch it directly from DB rather than processing all the revisions for all the pages every time
     # either the Due pages or All pages are visited. After this is done, then this test and the yaml file can be retired.
     def compare_with_oracle(all_pages_oracle, client, db):
-        assert client.login(username="siraj", password="kevin123")
+        assert client.login(username="siraj", password=os.getenv("PASSWORD"))
         response = client.get("/student/1/all/")
         assert response.context["pages_all"] == all_pages_oracle
 

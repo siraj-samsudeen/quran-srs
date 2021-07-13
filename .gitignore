@@ -129,3 +129,4 @@ project/settings_dev.py
 Temp
 all_pages.yaml
 TODO
+.env
