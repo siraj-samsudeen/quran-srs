@@ -130,4 +130,9 @@ Temp
 all_pages.yaml
 TODO
 .env
-cov_html
+
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+# *.cover
