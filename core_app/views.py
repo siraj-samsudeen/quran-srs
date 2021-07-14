@@ -305,10 +305,8 @@ def page_entry(request, student_id, page, due_page):
             f"{student.name} is not a student of {request.user.username}"
         )
 
-    revision_list = (
-        PageRevision.objects.filter(student=student_id, page=page)
-        .order_by("date")
-        .values()
+    revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by(
+        "date"
     )
     if revision_list:
         page_summary = qrs.process_page(revision_list, student_id)
