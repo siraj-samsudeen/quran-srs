@@ -1,12 +1,17 @@
 [run]
 source = .
 branch = True
-plugins = django_coverage_plugin
+#plugins = django_coverage_plugin
+omit = */migrations/*
+    manage.py
+    project/*
+    */tests.py
+    htmlcov/*
 
 [django_coverage_plugin]
 template_extensions = html
 
 [report]
-fail_under = 100
+fail_under = 50
 show_missing = False
 skip_covered = True
