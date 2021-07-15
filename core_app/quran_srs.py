@@ -207,11 +207,6 @@ def process_page(revision_list, student_id):
             "score_average": round(score_cumulative / (index + 1), 2),
         }
 
-    # Issue #13 - Stop pages from coming for revision on 2 consecutive days
-    if (due_date - revision_date).days == 1:
-        due_date = due_date + datetime.timedelta(days=1)
-        page_summary["8.scheduled_due_date"] = due_date
-
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
     new_page_summary = {
