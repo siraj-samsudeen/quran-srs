@@ -138,46 +138,42 @@ def get_page_score(word_mistakes, line_mistakes):
 def get_interval_delta(score):
     # Convert score into an interval delta
     if score == 0:  # Perfect page
-        interval_delta = +3
+        return +3
     elif score == 1:  # 1 Word Mistake
-        interval_delta = +2
+        return +2
     elif score <= 3:  # 3 Word Mistakes
-        interval_delta = +1
+        return +1
     elif score == 4:  # 1 Line Mistake
-        interval_delta = 0
+        return 0
     elif score <= 8:  # 2 Line Mistakes
-        interval_delta = -1
+        return -1
     elif score <= 12:  # 3 Line Mistakes
-        interval_delta = -2
+        return -2
     elif score <= 20:  # 5 Line Mistakes
-        interval_delta = -3
+        return -3
     elif score <= 30:  # 7.5 Line Mistakes - Half a page
-        interval_delta = -5
+        return -5
     else:  # More than half a page
-        interval_delta = -7
-
-    return interval_delta
+        return -7
 
 
 def get_max_interval(score):
 
     # If Score is 8 or more (2 line mistakes or more), then we have to restrict the max Interval
     if score < 4:
-        max_interval = None
+        return None
     elif score == 4:  # 1 Line Mistake - 40 days max
-        max_interval = 40
+        return 40
     elif score <= 8:  # 2 Line Mistakes - 30 days/1 month max
-        max_interval = 30
+        return 30
     elif score <= 12:  # 3 Line Mistakes - 3 weeks max
-        max_interval = 21
+        return 21
     elif score <= 20:  # 5 Line Mistakes - 2 weeks max
-        max_interval = 14
+        return 14
     elif score <= 30:  # 7.5 Line Mistakes - Half a page - 1 week max
-        max_interval = 7
+        return 7
     else:  # More than half a page - 3 days max
-        max_interval = 3
-
-    return max_interval
+        return 3
 
 
 def get_next_interval(current_interval, interval_delta, max_interval, difficulty_level):
@@ -209,27 +205,19 @@ def update_current_interval_hack(current_interval, student_id, score):
     current_interval = int(current_interval or 0)
 
     # Temp hack to reduce too-many due pages for Safwan and Hanan
-    if student_id == 4:
-        if score == 0:
-            current_interval = 15
-        else:
-            current_interval = 7
     if student_id == 3:
-        if score == 0:
-            current_interval = 10
-        else:
-            current_interval = 5
-
+        current_interval = 10 if score == 0 else 5
+    elif student_id == 4:
+        current_interval = 15 if score == 0 else 7
     return current_interval
 
 
 def get_revision_timing(scheduled_due_date, revision_date):
     # ideally the page should be revised on the due date, not before or after
     if scheduled_due_date == revision_date:
-        revision_timing = "ON_TIME_REVISION"
+        return "ON_TIME_REVISION"
     elif scheduled_due_date < revision_date:
-        revision_timing = "LATE_REVISION"
+        return "LATE_REVISION"
     else:
-        revision_timing = "EARLY_REVISION"
-    return revision_timing
+        return "EARLY_REVISION"
 
