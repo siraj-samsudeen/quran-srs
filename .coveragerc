@@ -7,6 +7,7 @@ omit = */migrations/*
     project/*
     */tests.py
     htmlcov/*
+    *temp*
 
 [django_coverage_plugin]
 template_extensions = html

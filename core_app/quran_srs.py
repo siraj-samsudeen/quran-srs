@@ -2,6 +2,126 @@ import datetime
 from collections import defaultdict
 
 
+def process_revision_data(revision_list_by_page, student_id):
+    # we want to store the summary information about each page as we process revision data in a dict
+    summary_by_page = defaultdict(dict)
+
+    for page, revision_list in revision_list_by_page:
+        page_summary = process_page(revision_list, student_id)
+        summary_by_page[page] = page_summary
+    return summary_by_page
+
+
+def process_page(revision_list, student_id):
+    page_summary = {}
+    test = defaultdict(list)
+    for index, revision in enumerate(revision_list):
+        # Since revision_date was a datetime object, it was causing a subtle bug
+        # in determining revision timings. Even on the due date,
+        # it is flagging some revisions as EARLY based on the timestamp
+        revision_date = revision.date.date()
+        word_mistakes = revision.word_mistakes
+        line_mistakes = revision.line_mistakes
+        current_interval = revision.current_interval
+        difficulty_level = revision.difficulty_level
+
+        score = get_page_score(word_mistakes, line_mistakes)
+
+        interval_delta = get_interval_delta(score)
+
+        # This is first revision - Hence, the page can be new or can have a current interval
+        # Take the current interval in the input data or make it zero
+        if index == 0:
+            current_interval = update_current_interval_hack(
+                current_interval, student_id, score
+            )
+            score_cumulative = score
+        else:
+            # We have the summary data from earlier revisions, hence we have to take use them
+            scheduled_interval = page_summary.get("7.scheduled_interval")
+            scheduled_due_date = page_summary.get("8.scheduled_due_date")
+            last_score = page_summary.get("3.score")
+            score_cumulative = page_summary.get("score_cumulative") + score
+
+            revision_timing = get_revision_timing(scheduled_due_date, revision_date)
+
+            # By default, we take the scheduled interval from the last revision.
+            # And then we will adjust it if the revision is late or early
+            current_interval = scheduled_interval
+
+            # For Late Revisions
+            # Increase interval by the extra days if the score has improved since last time.
+            # Otherwise use the last interval - No need to do anything as it is already set above
+            if revision_timing == "LATE_REVISION" and 60 - score >= 60 - last_score:
+                current_interval = (
+                    scheduled_interval + (revision_date - scheduled_due_date).days
+                )
+
+            # For Early Revisions
+            # If more than 1 line mistake and the score has fallen since last time,
+            # decrease the interval by the left-over days
+            # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
+            if revision_timing == "EARLY_REVISION":
+                if line_mistakes > 1 and 60 - score < 60 - last_score:
+                    current_interval = (
+                        scheduled_interval - (scheduled_due_date - revision_date).days
+                    )
+                else:
+                    interval_delta = 1
+        max_interval = get_max_interval(score)
+
+        next_interval = get_next_interval(
+            current_interval, interval_delta, max_interval, difficulty_level
+        )
+
+        # If the interval is negative or zero, we want to revise the next day
+        if next_interval <= 0:
+            due_date = revision_date + datetime.timedelta(days=1)
+        else:
+            due_date = revision_date + datetime.timedelta(days=next_interval)
+
+        # More readable mistakes string
+        mistakes_text = "-"
+        if line_mistakes != 0:
+            mistakes_text = str(line_mistakes) + "L "
+
+        if word_mistakes != 0:
+            if line_mistakes != 0:
+                mistakes_text += str(word_mistakes) + "W"
+            else:
+                mistakes_text = str(word_mistakes) + "W"
+
+        page_summary = {
+            "1.revision_number": index + 1,
+            "2.revision date": revision_date,
+            "3.score": score,
+            "4.current_interval": current_interval,
+            "5.interval_delta": interval_delta,
+            "6.max_interval": max_interval,
+            "7.scheduled_interval": next_interval,
+            "8.scheduled_due_date": due_date,
+            "page_strength": round(
+                next_interval / (index + 1), 1
+            ),  # Interval per revision
+            "is_due": due_date <= datetime.date.today(),
+            "overdue_days": (due_date - datetime.date.today()).days,
+            "mistakes": mistakes_text,
+            "score_cumulative": score_cumulative,
+            "score_average": round(score_cumulative / (index + 1), 2),
+        }
+
+        test[revision.page].append(page_summary)
+
+    # Since this dict will be stored in session,
+    # we need to convert datetime objects into a string representation
+    new_page_summary = {
+        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
+        for key, value in page_summary.items()
+    }
+
+    return new_page_summary
+
+
 # TODO change score to a negative
 def get_page_score(word_mistakes, line_mistakes):
     # each page has 15 lines - each line is worth 4 points. So, max point is 15*4 = 60
@@ -109,119 +229,3 @@ def get_revision_timing(scheduled_due_date, revision_date):
         revision_timing = "EARLY_REVISION"
     return revision_timing
 
-
-def process_page(revision_list, student_id):
-    page_summary = {}
-    for index, revision in enumerate(revision_list):
-        # Since revision_date was a datetime object, it was causing a subtle bug
-        # in determining revision timings. Even on the due date,
-        # it is flagging some revisions as EARLY based on the timestamp
-        revision_date = revision.date.date()
-        word_mistakes = revision.word_mistakes
-        line_mistakes = revision.line_mistakes
-        current_interval = revision.current_interval
-        difficulty_level = revision.difficulty_level
-
-        score = get_page_score(word_mistakes, line_mistakes)
-
-        interval_delta = get_interval_delta(score)
-
-        # This is first revision - Hence, the page can be new or can have a current interval
-        # Take the current interval in the input data or make it zero
-        if index == 0:
-            current_interval = update_current_interval_hack(
-                current_interval, student_id, score
-            )
-            score_cumulative = score
-        else:
-            # We have the summary data from earlier revisions, hence we have to take use them
-            scheduled_interval = page_summary.get("7.scheduled_interval")
-            scheduled_due_date = page_summary.get("8.scheduled_due_date")
-            last_score = page_summary.get("3.score")
-            score_cumulative = page_summary.get("score_cumulative") + score
-
-            revision_timing = get_revision_timing(scheduled_due_date, revision_date)
-
-            # By default, we take the scheduled interval from the last revision.
-            # And then we will adjust it if the revision is late or early
-            current_interval = scheduled_interval
-
-            # For Late Revisions
-            # Increase interval by the extra days if the score has improved since last time.
-            # Otherwise use the last interval - No need to do anything as it is already set above
-            if revision_timing == "LATE_REVISION" and 60 - score >= 60 - last_score:
-                current_interval = (
-                    scheduled_interval + (revision_date - scheduled_due_date).days
-                )
-
-            # For Early Revisions
-            # If more than 1 line mistake and the score has fallen since last time,
-            # decrease the interval by the left-over days
-            # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
-            if revision_timing == "EARLY_REVISION":
-                if line_mistakes > 1 and 60 - score < 60 - last_score:
-                    current_interval = (
-                        scheduled_interval - (scheduled_due_date - revision_date).days
-                    )
-                else:
-                    interval_delta = 1
-        max_interval = get_max_interval(score)
-
-        next_interval = get_next_interval(
-            current_interval, interval_delta, max_interval, difficulty_level
-        )
-
-        # If the interval is negative or zero, we want to revise the next day
-        if next_interval <= 0:
-            due_date = revision_date + datetime.timedelta(days=1)
-        else:
-            due_date = revision_date + datetime.timedelta(days=next_interval)
-
-        # More readable mistakes string
-        mistakes_text = "-"
-        if line_mistakes != 0:
-            mistakes_text = str(line_mistakes) + "L "
-
-        if word_mistakes != 0:
-            if line_mistakes != 0:
-                mistakes_text += str(word_mistakes) + "W"
-            else:
-                mistakes_text = str(word_mistakes) + "W"
-
-        page_summary = {
-            "1.revision_number": index + 1,
-            "2.revision date": revision_date,
-            "3.score": score,
-            "4.current_interval": current_interval,
-            "5.interval_delta": interval_delta,
-            "6.max_interval": max_interval,
-            "7.scheduled_interval": next_interval,
-            "8.scheduled_due_date": due_date,
-            "page_strength": round(
-                next_interval / (index + 1), 1
-            ),  # Interval per revision
-            "is_due": due_date <= datetime.date.today(),
-            "overdue_days": (due_date - datetime.date.today()).days,
-            "mistakes": mistakes_text,
-            "score_cumulative": score_cumulative,
-            "score_average": round(score_cumulative / (index + 1), 2),
-        }
-
-    # Since this dict will be stored in session,
-    # we need to convert datetime objects into a string representation
-    new_page_summary = {
-        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
-        for key, value in page_summary.items()
-    }
-
-    return new_page_summary
-
-
-def process_revision_data(revision_list_by_page, student_id):
-    # we want to store the summary information about each page as we process revision data in a dict
-    summary_by_page = defaultdict(dict)
-
-    for page, revision_list in revision_list_by_page:
-        page_summary = process_page(revision_list, student_id)
-        summary_by_page[page] = page_summary
-    return summary_by_page
