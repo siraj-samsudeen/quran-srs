@@ -13,6 +13,6 @@ omit = */migrations/*
 template_extensions = html
 
 [report]
-fail_under = 50
-show_missing = False
+fail_under = 100
+show_missing = True
 skip_covered = True

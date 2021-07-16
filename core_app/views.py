@@ -1,7 +1,6 @@
 import datetime
 import math
 from collections import Counter
-from itertools import groupby
 
 import numpy as np
 import pandas as pd
@@ -65,7 +64,7 @@ def page_all(request, student_id):
         request,
         "all.html",
         {
-            "pages_all": dict(get_pages_all(student_id)),
+            "pages_all": dict(qrs.calculate_stats_for_all_pages(student_id)),
             "student": student,
             "keys_map": keys_map_all,
             "next_new_page": request.session.get(next_page_key),
@@ -114,14 +113,8 @@ keys_map_revision_entry = {
 }
 
 
-def get_pages_all(student_id):
-    revisions = PageRevision.objects.filter(student=student_id).order_by("page")
-    revisions = groupby(revisions, lambda rev: rev.page)
-    return qrs.process_revision_data(revisions, student_id)
-
-
 def get_pages_due(student_id):
-    pages_all = get_pages_all(student_id)
+    pages_all = qrs.calculate_stats_for_all_pages(student_id)
     pages_due = {
         page: page_summary
         for page, page_summary in pages_all.items()
