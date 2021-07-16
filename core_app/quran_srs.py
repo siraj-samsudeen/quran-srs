@@ -18,7 +18,6 @@ def calculate_stats_for_all_pages(student_id):
 
 def process_page(revision_list, student_id):
     page_summary = {}
-    test = defaultdict(list)
     for index, revision in enumerate(revision_list):
         # Since revision_date was a datetime object, it was causing a subtle bug
         # in determining revision timings. Even on the due date,
@@ -84,17 +83,6 @@ def process_page(revision_list, student_id):
         else:
             due_date = revision_date + datetime.timedelta(days=next_interval)
 
-        # More readable mistakes string
-        mistakes_text = "-"
-        if line_mistakes != 0:
-            mistakes_text = str(line_mistakes) + "L "
-
-        if word_mistakes != 0:
-            if line_mistakes != 0:
-                mistakes_text += str(word_mistakes) + "W"
-            else:
-                mistakes_text = str(word_mistakes) + "W"
-
         page_summary = {
             "1.revision_number": index + 1,
             "2.revision date": revision_date,
@@ -109,12 +97,10 @@ def process_page(revision_list, student_id):
             ),  # Interval per revision
             "is_due": due_date <= datetime.date.today(),
             "overdue_days": (due_date - datetime.date.today()).days,
-            "mistakes": mistakes_text,
+            "mistakes": get_mistakes_text(word_mistakes, line_mistakes),
             "score_cumulative": score_cumulative,
             "score_average": round(score_cumulative / (index + 1), 2),
         }
-
-        test[revision.page].append(page_summary)
 
     # Since this dict will be stored in session,
     # we need to convert datetime objects into a string representation
@@ -221,3 +207,16 @@ def get_revision_timing(scheduled_due_date, revision_date):
     else:
         return "EARLY_REVISION"
 
+
+def get_mistakes_text(word_mistakes, line_mistakes):
+    # More readable mistakes string
+    mistakes_text = "-"
+    if line_mistakes != 0:
+        mistakes_text = str(line_mistakes) + "L "
+
+    if word_mistakes != 0:
+        if line_mistakes != 0:
+            mistakes_text += str(word_mistakes) + "W"
+        else:
+            mistakes_text = str(word_mistakes) + "W"
+    return mistakes_text
