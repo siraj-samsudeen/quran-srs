@@ -51,9 +51,17 @@ def describe_safety_net_for_refactoring():
         with open("all_pages.yaml") as file:
             return yaml.load(file, Loader=yaml.SafeLoader)
 
+    @pytest.mark.slow
     def compare_with_oracle(all_pages_oracle, client, db):
         response = client.get("/student/1/all/")
         assert response.context["pages_all"] == all_pages_oracle
+
+    def run_the_hack_for_safwan_hanan(client):
+        response = client.get("/student/3/due/")
+        assert len(response.context["pages_due"]) == 106
+
+        response = client.get("/student/4/due/")
+        assert len(response.context["pages_due"]) == 47
 
 
 def describe_visit_all_pages():
