@@ -58,10 +58,14 @@ def describe_safety_net_for_refactoring():
 
     def run_the_hack_for_safwan_hanan(client):
         response = client.get("/student/3/due/")
-        assert len(response.context["pages_due"]) == 106
+        assertTemplateUsed(response, "due.html")
+        assert "pages_due" in response.context
+        assert "keys_map" in response.context
 
         response = client.get("/student/4/due/")
-        assert len(response.context["pages_due"]) == 47
+        assertTemplateUsed(response, "due.html")
+        assert "pages_due" in response.context
+        assert "keys_map" in response.context
 
 
 def describe_visit_all_pages():
