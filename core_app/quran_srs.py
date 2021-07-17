@@ -10,10 +10,7 @@ def calculate_stats_for_all_pages(student_id):
 
     # groupby needs the revisions list to be sorted. Here we are sorting by page as we want to group by page
     revision_list_by_page = groupby(revisions.order_by("page"), lambda rev: rev.page)
-    return {
-        page: process_page(revision_list, student_id)
-        for page, revision_list in revision_list_by_page
-    }
+    return {page: process_page(revision_list, student_id) for page, revision_list in revision_list_by_page}
 
 
 def process_page(revision_list, student_id):
@@ -33,18 +30,14 @@ def process_page(revision_list, student_id):
         # This is first revision - Hence, the page can be new or can have a current interval
         # Take the current interval in the input data or make it zero
         if index == 0:
-            revision.current_interval = update_current_interval_hack(
-                revision, student_id
-            )
+            revision.current_interval = update_current_interval_hack(revision, student_id)
             revision.score_cumulative = revision.score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
             last_revision = page[index - 1]
             scheduled_interval = last_revision.next_interval
             last_revision.score = page[index - 1].score
-            revision.score_cumulative = (
-                page_summary.get("score_cumulative") + revision.score
-            )
+            revision.score_cumulative = page_summary.get("score_cumulative") + revision.score
 
             revision.timing = get_revision_timing(last_revision.due_date, revision.date)
 
@@ -55,56 +48,37 @@ def process_page(revision_list, student_id):
             # For Late Revisions
             # Increase interval by the extra days if the score has improved since last time.
             # Otherwise use the last interval - No need to do anything as it is already set above
-            if (
-                revision.timing == "LATE_REVISION"
-                and 60 - revision.score >= 60 - last_revision.score
-            ):
-                revision.current_interval = (
-                    last_revision.next_interval
-                    + (revision.date - last_revision.due_date).days
-                )
+            if revision.timing == "LATE_REVISION" and 60 - revision.score >= 60 - last_revision.score:
+                revision.current_interval = last_revision.next_interval + (revision.date - last_revision.due_date).days
 
             # For Early Revisions
             # If more than 1 line mistake and the score has fallen since last time,
             # decrease the interval by the left-over days
             # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
             if revision.timing == "EARLY_REVISION":
-                if (
-                    revision.line_mistakes > 1
-                    and 60 - revision.score < 60 - last_revision.score
-                ):
+                if revision.line_mistakes > 1 and 60 - revision.score < 60 - last_revision.score:
                     revision.current_interval = (
-                        last_revision.next_interval
-                        - (last_revision.due_date - revision.date).days
+                        last_revision.next_interval - (last_revision.due_date - revision.date).days
                     )
                 else:
                     revision.interval_delta = 1
         revision.max_interval = get_max_interval(revision.score)
 
         revision.next_interval = get_next_interval(
-            revision.current_interval,
-            revision.interval_delta,
-            revision.max_interval,
-            revision.difficulty_level,
+            revision.current_interval, revision.interval_delta, revision.max_interval, revision.difficulty_level,
         )
 
         # If the interval is negative or zero, we want to revise the next day
         if revision.next_interval <= 0:
             revision.due_date = revision.date + datetime.timedelta(days=1)
         else:
-            revision.due_date = revision.date + datetime.timedelta(
-                days=revision.next_interval
-            )
+            revision.due_date = revision.date + datetime.timedelta(days=revision.next_interval)
 
-        revision.page_strength = round(
-            revision.next_interval / (index + 1), 1
-        )  # Interval per revision
+        revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
         revision.is_due = revision.due_date <= datetime.date.today()
         revision.overdue_days = (revision.due_date - datetime.date.today()).days
         page.append(revision)
-        revision.mistakes_text = get_mistakes_text(
-            revision.word_mistakes, revision.line_mistakes
-        )
+        revision.mistakes_text = get_mistakes_text(revision.word_mistakes, revision.line_mistakes)
 
         page_summary = {
             "1.revision_number": revision.number,
