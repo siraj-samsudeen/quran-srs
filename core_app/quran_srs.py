@@ -1,5 +1,4 @@
 import datetime
-from collections import defaultdict
 from itertools import groupby
 
 from core_app.models import PageRevision
@@ -68,10 +67,7 @@ def process_page(revision_list, student_id):
         )
 
         # If the interval is negative or zero, we want to revise the next day
-        if revision.next_interval <= 0:
-            revision.due_date = revision.date + datetime.timedelta(days=1)
-        else:
-            revision.due_date = revision.date + datetime.timedelta(days=revision.next_interval)
+        set_due_date(revision)
 
         revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
         revision.is_due = revision.due_date <= datetime.date.today()
@@ -82,6 +78,15 @@ def process_page(revision_list, student_id):
         page_summary = get_page_summary_dict(index, revision)
 
     return convert_datetime_to_str(page_summary)
+
+
+def set_due_date(revision):
+    if revision.next_interval <= 0:
+        day_offset = 1
+    else:
+        day_offset = revision.next_interval
+
+    revision.due_date = revision.date + datetime.timedelta(days=day_offset)
 
 
 def convert_datetime_to_str(page_summary):
