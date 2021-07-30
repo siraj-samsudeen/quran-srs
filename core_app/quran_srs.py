@@ -81,7 +81,22 @@ def process_page(revision_list, student_id):
         page.append(revision)
         revision.mistakes_text = get_mistakes_text(revision.word_mistakes, revision.line_mistakes)
 
-        page_summary = {
+        page_summary = get_page_summary_dict(index, revision)
+
+    return convert_datetime_to_str(page_summary)
+
+
+def convert_datetime_to_str(page_summary):
+    # Since this dict will be stored in session,
+    # we need to convert datetime objects into a string representation
+    return {
+        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
+        for key, value in page_summary.items()
+    }
+    
+
+def get_page_summary_dict(index, revision):
+    return {
             "1.revision_number": revision.number,
             "2.revision date": revision.date,
             "3.score": revision.score,
@@ -97,15 +112,7 @@ def process_page(revision_list, student_id):
             "score_cumulative": revision.score_cumulative,
             "score_average": round(revision.score_cumulative / (index + 1), 2),
         }
-
-    # Since this dict will be stored in session,
-    # we need to convert datetime objects into a string representation
-    new_page_summary = {
-        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
-        for key, value in page_summary.items()
-    }
-
-    return new_page_summary
+    
 
 
 def revision_delay(revision, last_revision):
