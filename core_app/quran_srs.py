@@ -49,7 +49,7 @@ def process_page(revision_list, student_id):
             # Increase interval by the extra days if the score has improved since last time.
             # Otherwise use the last interval - No need to do anything as it is already set above
             if revision.timing == "LATE_REVISION" and score_improved(revision, last_revision):
-                revision.current_interval = last_revision.next_interval + (revision.date - last_revision.due_date).days
+                revision.current_interval = last_revision.next_interval + revision_delay(revision, last_revision)
 
             # For Early Revisions
             # If more than 1 line mistake and the score has fallen since last time,
@@ -57,15 +57,16 @@ def process_page(revision_list, student_id):
             # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
             if revision.timing == "EARLY_REVISION":
                 if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
-                    revision.current_interval = (
-                        last_revision.next_interval - (last_revision.due_date - revision.date).days
-                    )
+                    revision.current_interval = last_revision.next_interval + revision_delay(revision, last_revision)
                 else:
                     revision.interval_delta = 1
         revision.max_interval = get_max_interval(revision.score)
 
         revision.next_interval = get_next_interval(
-            revision.current_interval, revision.interval_delta, revision.max_interval, revision.difficulty_level,
+            revision.current_interval,
+            revision.interval_delta,
+            revision.max_interval,
+            revision.difficulty_level,
         )
 
         # If the interval is negative or zero, we want to revise the next day
@@ -105,6 +106,11 @@ def process_page(revision_list, student_id):
     }
 
     return new_page_summary
+
+
+def revision_delay(revision, last_revision):
+    return (revision.date - last_revision.due_date).days
+
 
 def score_improved(revision, last_revision):
     return 60 - revision.score >= 60 - last_revision.score
