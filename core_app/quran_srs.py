@@ -58,15 +58,7 @@ def process_page(revision_list, student_id):
                 else:
                     revision.interval_delta = 1
         revision.max_interval = get_max_interval(revision)
-
-        revision.next_interval = get_next_interval(
-            revision.current_interval,
-            revision.interval_delta,
-            revision.max_interval,
-            revision.difficulty_level,
-        )
-
-        # If the interval is negative or zero, we want to revise the next day
+        revision.next_interval = get_next_interval(revision)
         set_due_date(revision)
 
         revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
@@ -81,11 +73,8 @@ def process_page(revision_list, student_id):
 
 
 def set_due_date(revision):
-    if revision.next_interval <= 0:
-        day_offset = 1
-    else:
-        day_offset = revision.next_interval
-
+    # If the interval is negative or zero, we want to revise the next day
+    day_offset = 1 if revision.next_interval <= 0 else revision.next_interval
     revision.due_date = revision.date + datetime.timedelta(days=day_offset)
 
 
@@ -175,10 +164,10 @@ def get_max_interval(revision):
         return 3
 
 
-def get_next_interval(current_interval, interval_delta, max_interval, difficulty_level):
-    next_interval = current_interval + interval_delta
+def get_next_interval(revision):
+    next_interval = revision.current_interval + revision.interval_delta
 
-    if difficulty_level == "e":
+    if revision.difficulty_level == "e":
         if next_interval <= 15:
             next_interval += 5
         elif next_interval <= 30:
@@ -186,7 +175,7 @@ def get_next_interval(current_interval, interval_delta, max_interval, difficulty
         else:
             next_interval += 1
 
-    elif difficulty_level == "h":
+    elif revision.difficulty_level == "h":
         if next_interval >= 20:
             next_interval -= 5
         elif next_interval >= 10:
@@ -195,9 +184,9 @@ def get_next_interval(current_interval, interval_delta, max_interval, difficulty
             next_interval -= 1
 
     # Restrict the next interval to max interval if is smaller
-    if max_interval is None or max_interval > next_interval:
+    if revision.max_interval is None or revision.max_interval > next_interval:
         return next_interval
-    return max_interval
+    return revision.max_interval
 
 
 def update_current_interval_hack(revision, student_id):
