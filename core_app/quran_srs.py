@@ -29,7 +29,8 @@ def process_page(revision_list, student_id):
         # This is first revision - Hence, the page can be new or can have a current interval
         # Take the current interval in the input data or make it zero
         if index == 0:
-            revision.current_interval = update_current_interval_hack(revision, student_id)
+            revision.current_interval = int(revision.current_interval or 0)
+            update_current_interval_hack(revision, student_id)
             revision.score_cumulative = revision.score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
@@ -46,7 +47,7 @@ def process_page(revision_list, student_id):
             # Increase interval by the extra days if the score has improved since last time.
             # Otherwise use the last interval - No need to do anything as it is already set above
             if revision.timing == "LATE_REVISION" and score_improved(revision, last_revision):
-                add_revision_delay_to_current_interval(last_revision, revision)
+                revision.interval_delta += revision_delay(revision, last_revision)  # NEW
 
             # For Early Revisions
             # If more than 1 line mistake and the score has fallen since last time,
@@ -54,27 +55,24 @@ def process_page(revision_list, student_id):
             # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
             if revision.timing == "EARLY_REVISION":
                 if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
-                    add_revision_delay_to_current_interval(last_revision, revision)
+                    revision.interval_delta += revision_delay(revision, last_revision)
+
                 else:
-                    # revision.current_interval = last_revision.next_interval + 1
                     revision.interval_delta = 1
-        revision.max_interval = get_max_interval(revision)
-        revision.next_interval = get_next_interval(revision)
+
+        set_max_interval(revision)
+        set_next_interval(revision)
         set_due_date(revision)
 
         revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
         revision.is_due = revision.due_date <= datetime.date.today()
-        revision.overdue_days = (revision.due_date - datetime.date.today()).days
-        page.append(revision)
+        revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
         revision.mistakes_text = get_mistakes_text(revision)
+        page.append(revision)
 
         page_summary = get_page_summary_dict(index, revision)
 
     return convert_datetime_to_str(page_summary)
-
-
-def add_revision_delay_to_current_interval(last_revision, revision):
-    revision.current_interval = last_revision.next_interval + revision_delay(revision, last_revision)
 
 
 def set_due_date(revision):
@@ -150,59 +148,57 @@ def get_interval_delta(revision):
         return -7
 
 
-def get_max_interval(revision):
+def set_max_interval(revision):
 
     # If Score is 8 or more (2 line mistakes or more), then we have to restrict the max Interval
     if revision.score < 4:
-        return None
+        revision.max_interval = None
     elif revision.score == 4:  # 1 Line Mistake - 40 days max
-        return 40
+        revision.max_interval = 40
     elif revision.score <= 8:  # 2 Line Mistakes - 30 days/1 month max
-        return 30
+        revision.max_interval = 30
     elif revision.score <= 12:  # 3 Line Mistakes - 3 weeks max
-        return 21
+        revision.max_interval = 21
     elif revision.score <= 20:  # 5 Line Mistakes - 2 weeks max
-        return 14
+        revision.max_interval = 14
     elif revision.score <= 30:  # 7.5 Line Mistakes - Half a page - 1 week max
-        return 7
+        revision.max_interval = 7
     else:  # More than half a page - 3 days max
-        return 3
+        revision.max_interval = 3
 
 
-def get_next_interval(revision):
-    next_interval = revision.current_interval + revision.interval_delta
+def set_next_interval(revision):
+    next_interval = revision.current_interval + revision.interval_delta  # NEW
 
     if revision.difficulty_level == "e":
         if next_interval <= 15:
-            next_interval += 5
+            revision.interval_delta += 5
         elif next_interval <= 30:
-            next_interval += 3
+            revision.interval_delta += 3
         else:
-            next_interval += 1
+            revision.interval_delta += 1
 
     elif revision.difficulty_level == "h":
         if next_interval >= 20:
-            next_interval -= 5
+            revision.interval_delta -= 5
         elif next_interval >= 10:
-            next_interval -= 3
+            revision.interval_delta -= 3
         elif next_interval >= 3:
-            next_interval -= 1
+            revision.interval_delta -= 1
+
+    revision.next_interval = revision.current_interval + revision.interval_delta  # NEW
 
     # Restrict the next interval to max interval if is smaller
-    if revision.max_interval is None or revision.max_interval > next_interval:
-        return next_interval
-    return revision.max_interval
+    if revision.max_interval and revision.max_interval < next_interval:
+        revision.next_interval = revision.max_interval
 
 
 def update_current_interval_hack(revision, student_id):
-    revision.current_interval = int(revision.current_interval or 0)
-
     # Temp hack to reduce too-many due pages for Safwan and Hanan
     if student_id == 3:
-        revision.current_interval = 10 if revision.score == 0 else 5
+        revision.interval_delta += 10 if revision.score == 0 else 5
     elif student_id == 4:
-        revision.current_interval = 15 if revision.score == 0 else 7
-    return revision.current_interval
+        revision.interval_delta += 15 if revision.score == 0 else 7
 
 
 def get_revision_timing(revision, last_revision):
