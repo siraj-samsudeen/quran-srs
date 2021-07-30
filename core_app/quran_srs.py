@@ -48,7 +48,7 @@ def process_page(revision_list, student_id):
             # For Late Revisions
             # Increase interval by the extra days if the score has improved since last time.
             # Otherwise use the last interval - No need to do anything as it is already set above
-            if revision.timing == "LATE_REVISION" and 60 - revision.score >= 60 - last_revision.score:
+            if revision.timing == "LATE_REVISION" and score_improved(revision, last_revision):
                 revision.current_interval = last_revision.next_interval + (revision.date - last_revision.due_date).days
 
             # For Early Revisions
@@ -56,7 +56,7 @@ def process_page(revision_list, student_id):
             # decrease the interval by the left-over days
             # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
             if revision.timing == "EARLY_REVISION":
-                if revision.line_mistakes > 1 and 60 - revision.score < 60 - last_revision.score:
+                if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
                     revision.current_interval = (
                         last_revision.next_interval - (last_revision.due_date - revision.date).days
                     )
@@ -105,6 +105,9 @@ def process_page(revision_list, student_id):
     }
 
     return new_page_summary
+
+def score_improved(revision, last_revision):
+    return 60 - revision.score >= 60 - last_revision.score
 
 
 # TODO change score to a negative
