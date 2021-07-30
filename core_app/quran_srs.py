@@ -35,11 +35,9 @@ def process_page(revision_list, student_id):
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
             last_revision = page[index - 1]
-            scheduled_interval = last_revision.next_interval
-            last_revision.score = page[index - 1].score
             revision.score_cumulative = page_summary.get("score_cumulative") + revision.score
 
-            revision.timing = get_revision_timing(last_revision.due_date, revision.date)
+            revision.timing = get_revision_timing(revision, last_revision)
 
             # By default, we take the scheduled interval from the last revision.
             # And then we will adjust it if the revision is late or early
@@ -60,7 +58,7 @@ def process_page(revision_list, student_id):
                     revision.current_interval = last_revision.next_interval + revision_delay(revision, last_revision)
                 else:
                     revision.interval_delta = 1
-        revision.max_interval = get_max_interval(revision.score)
+        revision.max_interval = get_max_interval(revision)
 
         revision.next_interval = get_next_interval(
             revision.current_interval,
@@ -79,7 +77,7 @@ def process_page(revision_list, student_id):
         revision.is_due = revision.due_date <= datetime.date.today()
         revision.overdue_days = (revision.due_date - datetime.date.today()).days
         page.append(revision)
-        revision.mistakes_text = get_mistakes_text(revision.word_mistakes, revision.line_mistakes)
+        revision.mistakes_text = get_mistakes_text(revision)
 
         page_summary = get_page_summary_dict(index, revision)
 
@@ -93,26 +91,25 @@ def convert_datetime_to_str(page_summary):
         key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
         for key, value in page_summary.items()
     }
-    
+
 
 def get_page_summary_dict(index, revision):
     return {
-            "1.revision_number": revision.number,
-            "2.revision date": revision.date,
-            "3.score": revision.score,
-            "4.current_interval": revision.current_interval,
-            "5.interval_delta": revision.interval_delta,
-            "6.max_interval": revision.max_interval,
-            "7.scheduled_interval": revision.next_interval,
-            "8.scheduled_due_date": revision.due_date,
-            "page_strength": revision.page_strength,
-            "is_due": revision.is_due,
-            "overdue_days": revision.overdue_days,
-            "mistakes": revision.mistakes_text,
-            "score_cumulative": revision.score_cumulative,
-            "score_average": round(revision.score_cumulative / (index + 1), 2),
-        }
-    
+        "1.revision_number": revision.number,
+        "2.revision date": revision.date,
+        "3.score": revision.score,
+        "4.current_interval": revision.current_interval,
+        "5.interval_delta": revision.interval_delta,
+        "6.max_interval": revision.max_interval,
+        "7.scheduled_interval": revision.next_interval,
+        "8.scheduled_due_date": revision.due_date,
+        "page_strength": revision.page_strength,
+        "is_due": revision.is_due,
+        "overdue_days": revision.overdue_days,
+        "mistakes": revision.mistakes_text,
+        "score_cumulative": revision.score_cumulative,
+        "score_average": round(revision.score_cumulative / (index + 1), 2),
+    }
 
 
 def revision_delay(revision, last_revision):
@@ -154,20 +151,20 @@ def get_interval_delta(revision):
         return -7
 
 
-def get_max_interval(score):
+def get_max_interval(revision):
 
     # If Score is 8 or more (2 line mistakes or more), then we have to restrict the max Interval
-    if score < 4:
+    if revision.score < 4:
         return None
-    elif score == 4:  # 1 Line Mistake - 40 days max
+    elif revision.score == 4:  # 1 Line Mistake - 40 days max
         return 40
-    elif score <= 8:  # 2 Line Mistakes - 30 days/1 month max
+    elif revision.score <= 8:  # 2 Line Mistakes - 30 days/1 month max
         return 30
-    elif score <= 12:  # 3 Line Mistakes - 3 weeks max
+    elif revision.score <= 12:  # 3 Line Mistakes - 3 weeks max
         return 21
-    elif score <= 20:  # 5 Line Mistakes - 2 weeks max
+    elif revision.score <= 20:  # 5 Line Mistakes - 2 weeks max
         return 14
-    elif score <= 30:  # 7.5 Line Mistakes - Half a page - 1 week max
+    elif revision.score <= 30:  # 7.5 Line Mistakes - Half a page - 1 week max
         return 7
     else:  # More than half a page - 3 days max
         return 3
@@ -209,25 +206,26 @@ def update_current_interval_hack(revision, student_id):
     return revision.current_interval
 
 
-def get_revision_timing(scheduled_due_date, revision_date):
+def get_revision_timing(revision, last_revision):
+    scheduled_due_date = last_revision.due_date
     # ideally the page should be revised on the due date, not before or after
-    if scheduled_due_date == revision_date:
+    if scheduled_due_date == revision.date:
         return "ON_TIME_REVISION"
-    elif scheduled_due_date < revision_date:
+    elif scheduled_due_date < revision.date:
         return "LATE_REVISION"
     else:
         return "EARLY_REVISION"
 
 
-def get_mistakes_text(word_mistakes, line_mistakes):
+def get_mistakes_text(revision):
     # More readable mistakes string
     mistakes_text = "-"
-    if line_mistakes != 0:
-        mistakes_text = str(line_mistakes) + "L "
+    if revision.line_mistakes != 0:
+        mistakes_text = str(revision.line_mistakes) + "L "
 
-    if word_mistakes != 0:
-        if line_mistakes != 0:
-            mistakes_text += str(word_mistakes) + "W"
+    if revision.word_mistakes != 0:
+        if revision.line_mistakes != 0:
+            mistakes_text += str(revision.word_mistakes) + "W"
         else:
-            mistakes_text = str(word_mistakes) + "W"
+            mistakes_text = str(revision.word_mistakes) + "W"
     return mistakes_text
