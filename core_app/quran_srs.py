@@ -53,14 +53,7 @@ def process_page(revision_list, student_id):
 
 
 def account_for_early_or_late_revision(revision, last_revision):
-    scheduled_due_date = last_revision.due_date
-    # ideally the page should be revised on the due date, not before or after
-    if scheduled_due_date == revision.date_trunc:
-        timing = "ON_TIME_REVISION"
-    elif scheduled_due_date < revision.date_trunc:
-        timing = "LATE_REVISION"
-    else:
-        timing = "EARLY_REVISION"
+    revision_delay = (revision.date_trunc - last_revision.due_date).days
 
     # By default, we take the scheduled interval from the last revision.
     # And then we will adjust it if the revision is late or early
@@ -69,16 +62,16 @@ def account_for_early_or_late_revision(revision, last_revision):
     # For Late Revisions
     # Increase interval by the extra days if the score has improved since last time.
     # Otherwise use the last interval - No need to do anything as it is already set above
-    if timing == "LATE_REVISION" and score_improved(revision, last_revision):
-        revision.interval_delta += revision_delay(revision, last_revision)  # NEW
+    if revision_delay > 0 and score_improved(revision, last_revision):
+        revision.interval_delta += revision_delay
 
     # For Early Revisions
     # If more than 1 line mistake and the score has fallen since last time,
     # decrease the interval by the left-over days
     # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
-    if timing == "EARLY_REVISION":
+    if revision_delay < 0:
         if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
-            revision.interval_delta += revision_delay(revision, last_revision)
+            revision.interval_delta += revision_delay
 
         else:
             revision.interval_delta = 1
@@ -116,10 +109,6 @@ def get_page_summary_dict(index, revision):
         "score_cumulative": revision.score_cumulative,
         "score_average": round(revision.score_cumulative / (index + 1), 2),
     }
-
-
-def revision_delay(revision, last_revision):
-    return (revision.date_trunc - last_revision.due_date).days
 
 
 def score_improved(revision, last_revision):
