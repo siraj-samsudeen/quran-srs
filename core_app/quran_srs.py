@@ -1,7 +1,7 @@
 import datetime
 from itertools import groupby
 
-from core_app.models import PageRevision
+from .models import PageRevision
 
 
 def calculate_stats_for_all_pages(student_id):
@@ -13,8 +13,8 @@ def calculate_stats_for_all_pages(student_id):
 
 
 def process_page(revision_list, student_id):
-    page = []
-    page_summary = {}
+    last_revision = None
+    page_summary = None
     for index, revision in enumerate(revision_list):
         revision.number = index + 1
         # Since revision_date was a datetime object, it was causing a subtle bug
@@ -29,12 +29,10 @@ def process_page(revision_list, student_id):
         # This is first revision - Hence, the page can be new or can have a current interval
         # Take the current interval in the input data or make it zero
         if index == 0:
-            revision.current_interval = int(revision.current_interval or 0)
             update_current_interval_hack(revision, student_id)
             revision.score_cumulative = revision.score
         else:
             # We have the summary data from earlier revisions, hence we have to take use them
-            last_revision = page[index - 1]
             revision.score_cumulative = page_summary.get("score_cumulative") + revision.score
 
             account_for_early_or_late_revision(revision, last_revision)
@@ -47,7 +45,7 @@ def process_page(revision_list, student_id):
         revision.is_due = revision.due_date <= datetime.date.today()
         revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
         revision.mistakes_text = get_mistakes_text(revision)
-        page.append(revision)
+        last_revision = revision
 
         page_summary = get_page_summary_dict(index, revision)
 
