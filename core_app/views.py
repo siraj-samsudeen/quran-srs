@@ -18,36 +18,9 @@ from core_app.models import PageRevision, Student
 from core_app.serializers import StudentSerializer
 
 
-class StudentViewSet(viewsets.ModelViewSet):
-
-    queryset = Student.objects.all()
-    serializer_class = StudentSerializer
-
-    def get_queryset(self):
-        return super().get_queryset().filter(account=self.request.user)
-
-
-def get_last_student(request):
-    last_student_local = request.session.get("last_student")
-    if last_student_local is None:
-        last_student_local = request.user.student_set.all().first()
-        last_student_local = model_to_dict(last_student_local)
-        request.session["last_student"] = last_student_local
-    return last_student_local
-
-
-# this is an end point
 @login_required
 def home(request):
-    return redirect("page_due", student_id=get_last_student(request)["id"])
-
-
-@api_view(["GET", "PUT"])
-def last_student(request):
-    if request.method == "PUT":
-        return Response({"message": "Got some data!", "data": request.data})
-    else:
-        return Response(get_last_student(request))
+    return render(request, "home.html", {"students": request.user.student_set.all()})
 
 
 def page_all(request, student_id):
@@ -55,7 +28,6 @@ def page_all(request, student_id):
     if request.user != student.account:
         return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
 
-    request.session["last_student"] = model_to_dict(student)
     next_page_key = "next_new_page" + str(student_id)
 
     return render(
@@ -125,8 +97,6 @@ def page_due(request, student_id):
     student = get_object_or_404(Student, id=student_id)
     if request.user != student.account:
         return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
-
-    request.session["last_student"] = model_to_dict(student)
 
     pages_due, counter, total_page_count = get_pages_due(student_id)
 

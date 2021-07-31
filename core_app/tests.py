@@ -70,7 +70,9 @@ def describe_safety_net_for_refactoring():
 
 def describe_visit_all_pages():
     def home(client):
-        assertRedirects(client.get("/"), "/student/1/due/")
+        response = client.get("/")
+        assertTemplateUsed(response, "home.html")
+        assert "students" in response.context
 
     def due_pages(client):
         response = client.get("/student/1/due/")

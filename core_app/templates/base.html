@@ -29,48 +29,13 @@
 
                     <!-- Topbar -->
                     <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                        <!-- Topbar Search -->
                         <div class="d-none d-sm-inline-block mr-auto ml-md-3 my-2 my-md-0 mw-100">
                             <a href="/" class="btn btn-primary">Home</a>
                         </div>
-
                         <h3>Quran SRS</h3>
 
-                        <!-- Topbar Navbar -->
-                        {% verbatim %}
-                        <ul class="navbar-nav ml-auto" id='user-menu'>
 
-                            <li class="nav-item dropdown no-arrow">
-                                <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
-                                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <span
-                                        class="mr-2 d-none d-lg-inline text-gray-600 small">{{currentStudent.name}}</span>
-                                    <i class="fas fa-user   fa-fw mr-2  "></i>
-                                </a>
-                                <!-- Dropdown - User Information -->
-                                <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
-                                    aria-labelledby="userDropdown">
 
-                                    <a v-for="student in students" class="dropdown-item"
-                                        v-bind:href="'/student/' + student.id + '/due/'">
-                                        <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i> {{student.name}}
-                                    </a>
-
-                                    <div class="dropdown-divider"></div>
-
-                                    <a class="dropdown-item" href="#">
-                                        <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i> Settings
-                                    </a>
-                                    <a class="dropdown-item" href="#">
-                                        <i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i> Manage Students
-                                    </a>
-                                    <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
-                                        <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
-                                    </a>
-                                </div>
-                            </li>
-                            {% endverbatim %}
 
                     </nav>
                     <!-- End of Topbar -->
@@ -119,12 +84,7 @@
 
     <script src="{% static 'js/sb-admin-2.js' %}">
     </script>
-    <script src="{% static 'js/vue.js' %}">
-    </script>
-    <script src="{% static 'js/axios.min.js' %}">
-    </script>
-    <script src="{% static 'js/script.js' %}">
-    </script>
+
     {% endblock script %}
 
 
