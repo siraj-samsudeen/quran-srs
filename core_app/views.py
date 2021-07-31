@@ -77,7 +77,6 @@ keys_map = {
     "mistakes": "Mistakes",
     "page_strength": "Int/Rev",
     "3.score": "Last Score",
-    "score_average": "Avg Score",
     "sort_order": "Sort Order",
     "risk_rank": "Risk Rank",
     "8.scheduled_due_date": "Due",
@@ -94,7 +93,6 @@ keys_map_due = {
         "2.revision date",
         "8.scheduled_due_date",
     ]
-    # if key not in ["score_average", "2.revision date", ]
 }
 
 keys_map_revision_entry = {
@@ -106,7 +104,6 @@ keys_map_revision_entry = {
         "1.revision_number",
         "mistakes",
         "overdue_days",
-        "score_average",
     ]
 }
 
@@ -151,7 +148,6 @@ def page_due(request, student_id):
                 "5.interval_delta",
                 "6.max_interval",
                 "is_due",
-                "score_cumulative",
             ],
             axis=1,
             inplace=True,
@@ -161,7 +157,6 @@ def page_due(request, student_id):
             columns={
                 "7.scheduled_interval": "interval",
                 "1.revision_number": "revisions",
-                "score_average": "average_score",
                 "3.score": "latest_score",
                 "page_strength": "interval_per_revision",
                 "overdue_days": "overdue_days",
@@ -172,7 +167,6 @@ def page_due(request, student_id):
         cols_new_order = [
             "interval",
             "revisions",
-            "average_score",
             "latest_score",
             "interval_per_revision",
             "overdue_days",
@@ -182,14 +176,12 @@ def page_due(request, student_id):
         df["interval_modified"] = np.where(df.interval >= 30, -1 * df.interval, df.interval)
         df["rank_interval"] = df["interval_modified"].rank(pct=True, ascending=False)
         df["rank_revisions"] = df["revisions"].rank(pct=True, ascending=False)
-        df["rank_average_score"] = df["average_score"].rank(pct=True, ascending=True)
         df["rank_latest_score"] = df["latest_score"].rank(pct=True, ascending=True)
         df["rank_interval_per_revision"] = df["interval_per_revision"].rank(pct=True, ascending=False)
         df["rank_overdue_days"] = df["overdue_days"].rank(pct=True, ascending=False)
         df["rank_overall"] = (
             df.rank_interval
             + df.rank_revisions
-            + df.rank_average_score
             + df.rank_latest_score
             + df.rank_interval_per_revision
             + df.rank_overdue_days

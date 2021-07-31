@@ -30,11 +30,7 @@ def process_page(revision_list, student_id):
         # Take the current interval in the input data or make it zero
         if index == 0:
             update_current_interval_hack(revision, student_id)
-            revision.score_cumulative = revision.score
         else:
-            # We have the summary data from earlier revisions, hence we have to take use them
-            revision.score_cumulative = page_summary.get("score_cumulative") + revision.score
-
             account_for_early_or_late_revision(revision, last_revision)
 
         set_max_interval(revision)
@@ -106,8 +102,6 @@ def get_page_summary_dict(index, revision):
         "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
         "mistakes": revision.mistakes_text,
-        "score_cumulative": revision.score_cumulative,
-        "score_average": round(revision.score_cumulative / (index + 1), 2),
     }
 
 
