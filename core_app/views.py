@@ -53,9 +53,7 @@ def last_student(request):
 def page_all(request, student_id):
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
-        return HttpResponseForbidden(
-            f"{student.name} is not a student of {request.user.username}"
-        )
+        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
 
     request.session["last_student"] = model_to_dict(student)
     next_page_key = "next_new_page" + str(student_id)
@@ -86,16 +84,16 @@ keys_map = {
     "2.revision date": "LastTouch",
 }
 
-keys_map_all = {
-    key: value
-    for key, value in keys_map.items()
-    if key not in ["sort_order", "risk_rank"]
-}
+keys_map_all = {key: value for key, value in keys_map.items() if key not in ["sort_order", "risk_rank"]}
 
 keys_map_due = {
     key: value
     for key, value in keys_map.items()
-    if key not in ["2.revision date", "8.scheduled_due_date",]
+    if key
+    not in [
+        "2.revision date",
+        "8.scheduled_due_date",
+    ]
     # if key not in ["score_average", "2.revision date", ]
 }
 
@@ -115,11 +113,7 @@ keys_map_revision_entry = {
 
 def get_pages_due(student_id):
     pages_all = qrs.calculate_stats_for_all_pages(student_id)
-    pages_due = {
-        page: page_summary
-        for page, page_summary in pages_all.items()
-        if page_summary["is_due"]
-    }
+    pages_due = {page: page_summary for page, page_summary in pages_all.items() if page_summary["is_due"]}
 
     counter = Counter()
     for _, page_summary in pages_all.items():
@@ -135,9 +129,7 @@ def page_due(request, student_id):
     # student = Student.objects.get(id=student_id)
     student = get_object_or_404(Student, id=student_id)
     if request.user != student.account:
-        return HttpResponseForbidden(
-            f"{student.name} is not a student of {request.user.username}"
-        )
+        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
 
     request.session["last_student"] = model_to_dict(student)
 
@@ -146,7 +138,10 @@ def page_due(request, student_id):
     if pages_due:
         # Implement the algorithm to computer page risk
 
-        df = pd.DataFrame.from_dict(pages_due, orient="index",)
+        df = pd.DataFrame.from_dict(
+            pages_due,
+            orient="index",
+        )
         df.drop(
             [
                 "2.revision date",
@@ -184,16 +179,12 @@ def page_due(request, student_id):
         ]
         df = df[cols_new_order]
 
-        df["interval_modified"] = np.where(
-            df.interval >= 30, -1 * df.interval, df.interval
-        )
+        df["interval_modified"] = np.where(df.interval >= 30, -1 * df.interval, df.interval)
         df["rank_interval"] = df["interval_modified"].rank(pct=True, ascending=False)
         df["rank_revisions"] = df["revisions"].rank(pct=True, ascending=False)
         df["rank_average_score"] = df["average_score"].rank(pct=True, ascending=True)
         df["rank_latest_score"] = df["latest_score"].rank(pct=True, ascending=True)
-        df["rank_interval_per_revision"] = df["interval_per_revision"].rank(
-            pct=True, ascending=False
-        )
+        df["rank_interval_per_revision"] = df["interval_per_revision"].rank(pct=True, ascending=False)
         df["rank_overdue_days"] = df["overdue_days"].rank(pct=True, ascending=False)
         df["rank_overall"] = (
             df.rank_interval
@@ -235,23 +226,15 @@ def page_due(request, student_id):
 
 
 def page_new(request, student_id):
-    return redirect(
-        "page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0
-    )
+    return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
 
 
 def page_revision(request, student_id, page):
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
-        return HttpResponseForbidden(
-            f"{student.name} is not a student of {request.user.username}"
-        )
+        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
 
-    revision_list = (
-        PageRevision.objects.filter(student=student_id, page=page)
-        .order_by("date")
-        .values()
-    )
+    revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date").values()
 
     # revisions = PageRevision.objects.all()
     return render(
@@ -294,13 +277,9 @@ def page_revise(request, student_id):
 def page_entry(request, student_id, page, due_page):
     student = Student.objects.get(id=student_id)
     if request.user != student.account:
-        return HttpResponseForbidden(
-            f"{student.name} is not a student of {request.user.username}"
-        )
+        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
 
-    revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by(
-        "date"
-    )
+    revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date")
     if revision_list:
         page_summary = qrs.process_page(revision_list, student_id)
         new_page = False
@@ -331,9 +310,7 @@ def page_entry(request, student_id, page, due_page):
             next_page = page + 1
             next_page_key = "next_new_page" + str(student_id)
             request.session[next_page_key] = next_page
-            return redirect(
-                "page_entry", student_id=student.id, page=next_page, due_page=0
-            )
+            return redirect("page_entry", student_id=student.id, page=next_page, due_page=0)
         else:
             pages_due = request.session.get("pages_due")
             pages_due.pop(str(page), None)
@@ -342,13 +319,12 @@ def page_entry(request, student_id, page, due_page):
             # if there are no more due pages, redirect to the main page.
             if pages_due:
                 pages_due_sorted = sorted(
-                    pages_due.items(), key=lambda key_value: key_value[1]["sort_order"],
+                    pages_due.items(),
+                    key=lambda key_value: key_value[1]["sort_order"],
                 )
                 next_page = int(pages_due_sorted[0][0])
 
-                return redirect(
-                    "page_entry", student_id=student.id, page=next_page, due_page=1
-                )
+                return redirect("page_entry", student_id=student.id, page=next_page, due_page=1)
             else:
                 return redirect("page_due", student_id=student.id)
 
@@ -357,7 +333,8 @@ def page_entry(request, student_id, page, due_page):
     next_page_set = []
     if pages_due:
         pages_due_sorted = sorted(
-            pages_due.items(), key=lambda key_value: key_value[1]["sort_order"],
+            pages_due.items(),
+            key=lambda key_value: key_value[1]["sort_order"],
         )
 
         for i in range(0, len(pages_due.keys())):
