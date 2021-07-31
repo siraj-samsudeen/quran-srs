@@ -234,35 +234,6 @@ def page_revision(request, student_id, page):
 
 
 @login_required
-def page_revise(request, student_id):
-    student = Student.objects.get(id=student_id)
-
-    # Filter to show only the pages revised in the last 24 hours
-    last_24_hours = datetime.date.today() - datetime.timedelta(hours=24)
-    revision_list = (
-        PageRevision.objects.filter(
-            student=student_id,
-            date__gte=last_24_hours,
-            # line_mistakes__gte=1
-        )
-        .order_by("date")
-        .values()
-    )
-
-    rev_list = []
-    for rev in revision_list:
-        score = rev["word_mistakes"] + rev["line_mistakes"] * 4
-        rev["score"] = score
-        rev_list.append(rev)
-
-    return render(
-        request,
-        "pages_to_revise.html",
-        {"revision_list": rev_list, "student": student},
-    )
-
-
-@login_required
 def page_entry(request, student_id, page, due_page):
     student = Student.objects.get(id=student_id)
     if request.user != student.account:

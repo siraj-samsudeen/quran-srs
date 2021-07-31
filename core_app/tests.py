@@ -111,11 +111,6 @@ def describe_visit_all_pages():
         assertTemplateUsed(response, "revisions.html")
         assert "revision_list" in response.context
 
-    def show_pages_revised_recently(client):
-        response = client.get("/student/1/revise/")
-        assertTemplateUsed(response, "pages_to_revise.html")
-        assert "revision_list" in response.context
-
     def access_student_of_another_account(client):
         response = client.get("/student/7/due/")
         assert response.status_code == 403
