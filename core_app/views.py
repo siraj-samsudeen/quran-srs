@@ -273,7 +273,7 @@ def page_entry(request, student_id, page, due_page):
 
     revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date")
     if revision_list:
-        page_summary = qrs.process_page(revision_list, student_id)
+        page_summary = qrs.calculate_stats_for_page(revision_list, student_id)
         new_page = False
     else:
         page_summary = {}

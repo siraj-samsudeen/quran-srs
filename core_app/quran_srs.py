@@ -9,10 +9,10 @@ def calculate_stats_for_all_pages(student_id):
 
     # groupby needs the revisions list to be sorted. Here we are sorting by page as we want to group by page
     revision_list_by_page = groupby(revisions.order_by("page"), lambda rev: rev.page)
-    return {page: process_page(revision_list, student_id) for page, revision_list in revision_list_by_page}
+    return {page: calculate_stats_for_page(revision_list, student_id) for page, revision_list in revision_list_by_page}
 
 
-def process_page(revision_list, student_id):
+def calculate_stats_for_page(revision_list, student_id):
     last_revision = None
     page_summary = None
     for index, revision in enumerate(revision_list):
