@@ -37,28 +37,7 @@ def process_page(revision_list, student_id):
             last_revision = page[index - 1]
             revision.score_cumulative = page_summary.get("score_cumulative") + revision.score
 
-            revision.timing = get_revision_timing(revision, last_revision)
-
-            # By default, we take the scheduled interval from the last revision.
-            # And then we will adjust it if the revision is late or early
-            revision.current_interval = last_revision.next_interval
-
-            # For Late Revisions
-            # Increase interval by the extra days if the score has improved since last time.
-            # Otherwise use the last interval - No need to do anything as it is already set above
-            if revision.timing == "LATE_REVISION" and score_improved(revision, last_revision):
-                revision.interval_delta += revision_delay(revision, last_revision)  # NEW
-
-            # For Early Revisions
-            # If more than 1 line mistake and the score has fallen since last time,
-            # decrease the interval by the left-over days
-            # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
-            if revision.timing == "EARLY_REVISION":
-                if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
-                    revision.interval_delta += revision_delay(revision, last_revision)
-
-                else:
-                    revision.interval_delta = 1
+            account_for_early_or_late_revision(revision, last_revision)
 
         set_max_interval(revision)
         set_next_interval(revision)
@@ -73,6 +52,38 @@ def process_page(revision_list, student_id):
         page_summary = get_page_summary_dict(index, revision)
 
     return convert_datetime_to_str(page_summary)
+
+
+def account_for_early_or_late_revision(revision, last_revision):
+    scheduled_due_date = last_revision.due_date
+    # ideally the page should be revised on the due date, not before or after
+    if scheduled_due_date == revision.date:
+        revision.timing = "ON_TIME_REVISION"
+    elif scheduled_due_date < revision.date:
+        revision.timing = "LATE_REVISION"
+    else:
+        revision.timing = "EARLY_REVISION"
+
+    # By default, we take the scheduled interval from the last revision.
+    # And then we will adjust it if the revision is late or early
+    revision.current_interval = last_revision.next_interval
+
+    # For Late Revisions
+    # Increase interval by the extra days if the score has improved since last time.
+    # Otherwise use the last interval - No need to do anything as it is already set above
+    if revision.timing == "LATE_REVISION" and score_improved(revision, last_revision):
+        revision.interval_delta += revision_delay(revision, last_revision)  # NEW
+
+    # For Early Revisions
+    # If more than 1 line mistake and the score has fallen since last time,
+    # decrease the interval by the left-over days
+    # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
+    if revision.timing == "EARLY_REVISION":
+        if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
+            revision.interval_delta += revision_delay(revision, last_revision)
+
+        else:
+            revision.interval_delta = 1
 
 
 def set_due_date(revision):
@@ -199,17 +210,6 @@ def update_current_interval_hack(revision, student_id):
         revision.interval_delta += 10 if revision.score == 0 else 5
     elif student_id == 4:
         revision.interval_delta += 15 if revision.score == 0 else 7
-
-
-def get_revision_timing(revision, last_revision):
-    scheduled_due_date = last_revision.due_date
-    # ideally the page should be revised on the due date, not before or after
-    if scheduled_due_date == revision.date:
-        return "ON_TIME_REVISION"
-    elif scheduled_due_date < revision.date:
-        return "LATE_REVISION"
-    else:
-        return "EARLY_REVISION"
 
 
 def get_mistakes_text(revision):
