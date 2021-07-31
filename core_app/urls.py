@@ -32,11 +32,6 @@ urlpatterns = [
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("", view.home, name="home"),
     path("student/<int:student_id>/all/", view.page_all, name="page_all"),
-    path(
-        "student/<int:student_id>/page/<int:page>/revision/",
-        view.page_revision,
-        name="page_revision",
-    ),
     path("student/<int:student_id>/due/", view.page_due, name="page_due"),
     path(
         "student/<int:student_id>/page/<int:page>/<int:due_page>/",

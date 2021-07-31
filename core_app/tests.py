@@ -106,11 +106,6 @@ def describe_visit_all_pages():
         )
         assert response.status_code == 302
 
-    def show_revisions_of_page(client):
-        response = client.get("/student/1/page/3/revision/")
-        assertTemplateUsed(response, "revisions.html")
-        assert "revision_list" in response.context
-
     def access_student_of_another_account(client):
         response = client.get("/student/7/due/")
         assert response.status_code == 403
@@ -119,7 +114,4 @@ def describe_visit_all_pages():
         assert response.status_code == 403
 
         response = client.get("/student/7/page/3/1/")
-        assert response.status_code == 403
-
-        response = client.get("/student/7/page/3/revision/")
         assert response.status_code == 403

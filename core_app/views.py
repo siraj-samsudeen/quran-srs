@@ -218,21 +218,6 @@ def page_new(request, student_id):
     return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
 
 
-def page_revision(request, student_id, page):
-    student = Student.objects.get(id=student_id)
-    if request.user != student.account:
-        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
-
-    revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date").values()
-
-    # revisions = PageRevision.objects.all()
-    return render(
-        request,
-        "revisions.html",
-        {"revision_list": revision_list, "student": student, "page": page},
-    )
-
-
 @login_required
 def page_entry(request, student_id, page, due_page):
     student = Student.objects.get(id=student_id)

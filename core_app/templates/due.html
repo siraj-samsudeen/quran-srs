@@ -60,16 +60,7 @@
           </td>
 
           {% for key in keys_map.keys %}
-          {% if key == "1.revision_number" %}
-          <td>
-            <a href="{% url 'page_revision' student_id=student.id page=page %}">
-              {{ page_summary|get_item:key }}
-            </a>
-          </td>
-          {% else %}
           <td>{{ page_summary|get_item:key }}</td>
-          {% endif %}
-
           {% endfor %}
 
         </tr>
