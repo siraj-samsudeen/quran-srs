@@ -23,14 +23,14 @@ def process_page(revision_list, student_id):
         revision.date_trunc = revision.date.date()
 
         revision.score = get_page_score(revision)
-
         revision.interval_delta = get_interval_delta(revision)
 
-        # This is first revision - Hence, the page can be new or can have a current interval
-        # Take the current interval in the input data or make it zero
         if index == 0:
-            update_current_interval_hack(revision, student_id)
+            increase_starting_interval_for_some_students(revision, student_id)
         else:
+            # By default, we take the scheduled interval from the last revision.
+            # And then we will adjust it if the revision is late or early
+            revision.current_interval = last_revision.next_interval
             account_for_early_or_late_revision(revision, last_revision)
 
         set_max_interval(revision)
@@ -38,75 +38,12 @@ def process_page(revision_list, student_id):
         set_due_date(revision)
 
         revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
-        revision.is_due = revision.due_date <= datetime.date.today()
-        revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
         revision.mistakes_text = get_mistakes_text(revision)
         last_revision = revision
 
-        page_summary = get_page_summary_dict(index, revision)
+        page_summary = get_page_summary_dict(revision)
 
     return convert_datetime_to_str(page_summary)
-
-
-def account_for_early_or_late_revision(revision, last_revision):
-    revision_delay = (revision.date_trunc - last_revision.due_date).days
-
-    # By default, we take the scheduled interval from the last revision.
-    # And then we will adjust it if the revision is late or early
-    revision.current_interval = last_revision.next_interval
-
-    # For Late Revisions
-    # Increase interval by the extra days if the score has improved since last time.
-    # Otherwise use the last interval - No need to do anything as it is already set above
-    if revision_delay > 0 and score_improved(revision, last_revision):
-        revision.interval_delta += revision_delay
-
-    # For Early Revisions
-    # If more than 1 line mistake and the score has fallen since last time,
-    # decrease the interval by the left-over days
-    # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
-    if revision_delay < 0:
-        if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
-            revision.interval_delta += revision_delay
-
-        else:
-            revision.interval_delta = 1
-
-
-def set_due_date(revision):
-    # If the interval is negative or zero, we want to revise the next day
-    day_offset = 1 if revision.next_interval <= 0 else revision.next_interval
-    revision.due_date = revision.date_trunc + datetime.timedelta(days=day_offset)
-
-
-def convert_datetime_to_str(page_summary):
-    # Since this dict will be stored in session,
-    # we need to convert datetime objects into a string representation
-    return {
-        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
-        for key, value in page_summary.items()
-    }
-
-
-def get_page_summary_dict(index, revision):
-    return {
-        "1.revision_number": revision.number,
-        "2.revision date": revision.date_trunc,
-        "3.score": revision.score,
-        "4.current_interval": revision.current_interval,
-        "5.interval_delta": revision.interval_delta,
-        "6.max_interval": revision.max_interval,
-        "7.scheduled_interval": revision.next_interval,
-        "8.scheduled_due_date": revision.due_date,
-        "page_strength": revision.page_strength,
-        "is_due": revision.is_due,
-        "overdue_days": revision.overdue_days,
-        "mistakes": revision.mistakes_text,
-    }
-
-
-def score_improved(revision, last_revision):
-    return 60 - revision.score >= 60 - last_revision.score
 
 
 # TODO change score to a negative
@@ -138,6 +75,39 @@ def get_interval_delta(revision):
         return -5
     else:  # More than half a page
         return -7
+
+
+def increase_starting_interval_for_some_students(revision, student_id):
+    # Temp hack to reduce too-many due pages for Safwan and Hanan
+    if student_id == 3:
+        revision.interval_delta += 10 if revision.score == 0 else 5
+    elif student_id == 4:
+        revision.interval_delta += 15 if revision.score == 0 else 7
+
+
+def account_for_early_or_late_revision(revision, last_revision):
+    revision_delay = (revision.date_trunc - last_revision.due_date).days
+
+    # For Late Revisions
+    # Increase interval by the extra days if the score has improved since last time.
+    # Otherwise use the last interval - No need to do anything as it is already set above
+    if revision_delay > 0 and score_improved(revision, last_revision):
+        revision.interval_delta += revision_delay
+
+    # For Early Revisions
+    # If more than 1 line mistake and the score has fallen since last time,
+    # decrease the interval by the left-over days
+    # Otherwise just add 1 as interval delta to increase interval due to unscheduled revision
+    if revision_delay < 0:
+        if revision.line_mistakes > 1 and not score_improved(revision, last_revision):
+            revision.interval_delta += revision_delay
+
+        else:
+            revision.interval_delta = 1
+
+
+def score_improved(revision, last_revision):
+    return 60 - revision.score >= 60 - last_revision.score
 
 
 def set_max_interval(revision):
@@ -185,12 +155,13 @@ def set_next_interval(revision):
         revision.next_interval = revision.max_interval
 
 
-def update_current_interval_hack(revision, student_id):
-    # Temp hack to reduce too-many due pages for Safwan and Hanan
-    if student_id == 3:
-        revision.interval_delta += 10 if revision.score == 0 else 5
-    elif student_id == 4:
-        revision.interval_delta += 15 if revision.score == 0 else 7
+def set_due_date(revision):
+    # If the interval is negative or zero, we want to revise the next day
+    day_offset = 1 if revision.next_interval <= 0 else revision.next_interval
+    revision.due_date = revision.date_trunc + datetime.timedelta(days=day_offset)
+
+    revision.is_due = revision.due_date <= datetime.date.today()
+    revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
 
 
 def get_mistakes_text(revision):
@@ -205,3 +176,29 @@ def get_mistakes_text(revision):
         else:
             mistakes_text = str(revision.word_mistakes) + "W"
     return mistakes_text
+
+
+def get_page_summary_dict(revision):
+    return {
+        "1.revision_number": revision.number,
+        "2.revision date": revision.date_trunc,
+        "3.score": revision.score,
+        "4.current_interval": revision.current_interval,
+        "5.interval_delta": revision.interval_delta,
+        "6.max_interval": revision.max_interval,
+        "7.scheduled_interval": revision.next_interval,
+        "8.scheduled_due_date": revision.due_date,
+        "page_strength": revision.page_strength,
+        "is_due": revision.is_due,
+        "overdue_days": revision.overdue_days,
+        "mistakes": revision.mistakes_text,
+    }
+
+
+def convert_datetime_to_str(page_summary):
+    # Since this dict will be stored in session,
+    # we need to convert datetime objects into a string representation
+    return {
+        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
+        for key, value in page_summary.items()
+    }
