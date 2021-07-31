@@ -74,7 +74,6 @@ keys_map = {
     "7.scheduled_interval": "Int",
     "1.revision_number": "Rev",
     "overdue_days": "Due in",
-    "mistakes": "Mistakes",
     "page_strength": "Int/Rev",
     "3.score": "Last Score",
     "sort_order": "Sort Order",
@@ -102,7 +101,6 @@ keys_map_revision_entry = {
     in [
         "7.scheduled_interval",
         "1.revision_number",
-        "mistakes",
         "overdue_days",
     ]
 }
@@ -143,7 +141,6 @@ def page_due(request, student_id):
             [
                 "2.revision date",
                 "8.scheduled_due_date",
-                "mistakes",
                 "4.current_interval",
                 "5.interval_delta",
                 "6.max_interval",

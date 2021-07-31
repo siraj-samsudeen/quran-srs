@@ -38,7 +38,6 @@ def calculate_stats_for_page(revision_list, student_id):
         set_due_date(revision)
 
         revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
-        revision.mistakes_text = get_mistakes_text(revision)
         last_revision = revision
 
         page_summary = get_page_summary_dict(revision)
@@ -164,20 +163,6 @@ def set_due_date(revision):
     revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
 
 
-def get_mistakes_text(revision):
-    # More readable mistakes string
-    mistakes_text = "-"
-    if revision.line_mistakes != 0:
-        mistakes_text = str(revision.line_mistakes) + "L "
-
-    if revision.word_mistakes != 0:
-        if revision.line_mistakes != 0:
-            mistakes_text += str(revision.word_mistakes) + "W"
-        else:
-            mistakes_text = str(revision.word_mistakes) + "W"
-    return mistakes_text
-
-
 def get_page_summary_dict(revision):
     return {
         "1.revision_number": revision.number,
@@ -191,7 +176,6 @@ def get_page_summary_dict(revision):
         "page_strength": revision.page_strength,
         "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
-        "mistakes": revision.mistakes_text,
     }
 
 
