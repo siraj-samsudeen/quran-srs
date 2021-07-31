@@ -1,79 +1,47 @@
-{% extends "admin/base_site.html" %}
-{% load i18n static %}
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
 
-<!-- EDITED CODE BEGINNING -->
-{% block title %}Login{% endblock %}
-{% block branding %}
-<h1 id="site-name">Login to Quran SRS</h1>
-{% endblock %}
-<!-- END -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>
+        Login to Quran SRS
+    </title>
+    {% block style %}
+    <link rel="stylesheet" href="{% static 'css/bootstrap.css' %}">
+    <link rel="stylesheet" href="{% static 'css/sb-admin-2.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="{% static 'css/all.min.css' %}" rel="stylesheet" type="text/css"> {% endblock style %}
 
-{% block extrastyle %}{{ block.super }}
-<link rel="stylesheet" type="text/css" href="{% static 'admin/css/login.css' %}">
-{{ form.media }}
-{% endblock %}
+</head>
 
-{% block bodyclass %}{{ block.super }} login{% endblock %}
+<body>
+    <!-- <div id="content-container" class="container p-none">-->
+    <div class="container col-lg-5 my-2">
+        <h2 class="text-center py-5">Login to Quran SRS</h2>
+        <form id="login-form" method="post" action=".">
+            {% csrf_token %}
+            <table class="table mb-4">
+                <tr>
+                    <td><label for="id_username">Username</label></td>
+                    <td><input id="id_username" name="username" type="text" class="form-control"></td>
+                </tr>
+                <tr>
+                    <td><label for="id_password">Password</label></td>
+                    <td><input id="id_password" name="password" type="password" class="form-control"></td>
+                </tr>
+            </table>
+            {% if form.errors %}
+            <p class=" label label-danger">
+                Your username and password didn't match.
+                Please try again.
+            </p>
+            {% endif %}
 
-{% block usertools %}{% endblock %}
-
-{% block nav-global %}{% endblock %}
-
-{% block nav-sidebar %}{% endblock %}
-
-{% block content_title %}{% endblock %}
-
-{% block breadcrumbs %}{% endblock %}
-
-
-
-{% block content %}
-{% if form.errors and not form.non_field_errors %}
-<p class="errornote">
-    {% if form.errors.items|length == 1 %}{% translate "Please correct the error below." %}{% else %}{% translate
-    "Please correct the errors below." %}{% endif %}
-</p>
-{% endif %}
-
-{% if form.non_field_errors %}
-{% for error in form.non_field_errors %}
-<p class="errornote">
-    {{ error }}
-</p>
-{% endfor %}
-{% endif %}
-
-<div id="content-main">
-
-    {% if user.is_authenticated %}
-    <p class="errornote">
-        {% blocktranslate trimmed %}
-        You are authenticated as {{ username }}, but are not authorized to
-        access this page. Would you like to login to a different account?
-        {% endblocktranslate %}
-    </p>
-    {% endif %}
-
-    <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
-        <div class="form-row">
-            {{ form.username.errors }}
-            {{ form.username.label_tag }} {{ form.username }}
-        </div>
-        <div class="form-row">
-            {{ form.password.errors }}
-            {{ form.password.label_tag }} {{ form.password }}
-            <input type="hidden" name="next" value="{{ next }}">
-        </div>
-        {% url 'admin_password_reset' as password_reset_url %}
-        {% if password_reset_url %}
-        <div class="password-reset-link">
-            <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
-        </div>
-        {% endif %}
-        <div class="submit-row">
-            <input type="submit" value="{% translate 'Log in' %}">
-        </div>
-    </form>
-
-</div>
-{% endblock %}
+            <input type="submit" value="Login" class="btn btn-primary btn-block" />
+            <input type="hidden" name="next" value="{{ next }}" />
+        </form>
+        <!-- </div> -->
+    </div>
+</body>
