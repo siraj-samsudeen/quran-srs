@@ -18,8 +18,6 @@ def home(request):
 def page_all(request, student_id):
     student = utils.check_access_rights_and_get_student(request, student_id)
 
-    next_page_key = "next_new_page" + str(student_id)
-
     return render(
         request,
         "all.html",
@@ -27,7 +25,6 @@ def page_all(request, student_id):
             "pages_all": dict(qrs.calculate_stats_for_all_pages(student_id)),
             "student": student,
             "keys_map": keys_map,
-            "next_new_page": request.session.get(next_page_key),
         },
     )
 
