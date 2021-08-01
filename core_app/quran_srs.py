@@ -37,7 +37,6 @@ def calculate_stats_for_page(revision_list, student_id):
         set_next_interval(revision)
         set_due_date(revision)
 
-        revision.page_strength = round(revision.next_interval / (index + 1), 1)  # Interval per revision
         last_revision = revision
 
         page_summary = get_page_summary_dict(revision)
@@ -166,12 +165,12 @@ def set_due_date(revision):
 def get_page_summary_dict(revision):
     return {
         "revision_number": revision.number,
-        "revision date": revision.date_trunc,
+        # TODO Hack - Using the ".date" here to avoid date folding in small screens
+        "last_revision.date": revision.date_trunc,
         "score": revision.score,
-        "current_interval": revision.current_interval,
-        "scheduled_interval": revision.next_interval,
+        "interval_before_revision": revision.current_interval,
+        "interval_after_revision": revision.next_interval,
         "scheduled_due_date": revision.due_date,
-        "page_strength": revision.page_strength,
         "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
     }
