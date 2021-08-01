@@ -60,7 +60,7 @@
           </td>
 
           {% for value in page_summary.values %}
-          <td>{{ value }}</td>
+          <td>{{ value | format_date_to_be_sortable}}</td>
           {% endfor %}
 
         </tr>
@@ -78,7 +78,7 @@
         </thead>
         {% for due_date,count in due_date_summary.items %}
         <tr>
-          <td>{{due_date}}</td>
+          <td>{{due_date | format_date_to_be_sortable}}</td>
           <td>{{count}}</td>
         </tr>
         {% endfor %}

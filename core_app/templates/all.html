@@ -54,7 +54,7 @@
           </td>
 
           {% for value in page_summary.values %}
-          <td>{{ value }}</td>
+          <td>{{ value | format_date_to_be_sortable}}</td>
           {% endfor %}
         </tr>
         {% endfor %}
