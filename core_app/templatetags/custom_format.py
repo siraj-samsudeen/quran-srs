@@ -12,3 +12,12 @@ def display_zero(value):
 @register.filter
 def get_item(dictionary, key):
     return dictionary.get(key)
+
+
+@register.filter
+def format_title(value):
+    """
+    Input: 'revision_number'
+    Output: 'Revision Number'
+    """
+    return " ".join([item.title() for item in value.split("_")])

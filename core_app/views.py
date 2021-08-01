@@ -8,16 +8,6 @@ from .models import PageRevision
 
 from . import utils
 
-KEYS_MAP = {
-    "scheduled_interval": "Int",
-    "revision_number": "Rev",
-    "overdue_days": "Due in",
-    "page_strength": "Int/Rev",
-    "score": "Last Score",
-    "scheduled_due_date": "Due",
-    "revision date": "LastTouch",
-}
-
 
 @login_required
 def home(request):
@@ -34,7 +24,6 @@ def page_all(request, student_id):
         {
             "pages_all": qrs.calculate_stats_for_all_pages(student_id),
             "student": student,
-            "keys_map": KEYS_MAP,
         },
     )
 
@@ -54,7 +43,6 @@ def page_due(request, student_id):
         {
             "pages_due": pages_due,
             "student": student,
-            "keys_map": KEYS_MAP,
             "next_new_page": request.session.get(next_page_key),
             "due_date_summary": counter,
             "total_page_count": total_page_count,
@@ -109,7 +97,6 @@ def page_entry(request, student_id, page, due_page):
             "page_summary": page_summary,
             "form": form,
             "student": student,
-            "keys_map": KEYS_MAP,
             "new_page": new_page,
         },
     )

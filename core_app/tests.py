@@ -60,12 +60,10 @@ def describe_safety_net_for_refactoring():
         response = client.get("/student/3/due/")
         assertTemplateUsed(response, "due.html")
         assert "pages_due" in response.context
-        assert "keys_map" in response.context
 
         response = client.get("/student/4/due/")
         assertTemplateUsed(response, "due.html")
         assert "pages_due" in response.context
-        assert "keys_map" in response.context
 
 
 def describe_visit_all_pages():
@@ -78,7 +76,6 @@ def describe_visit_all_pages():
         response = client.get("/student/1/due/")
         assertTemplateUsed(response, "due.html")
         assert "pages_due" in response.context
-        assert "keys_map" in response.context
 
     def due_page_entry(client):
         response = client.get("/student/1/due/")

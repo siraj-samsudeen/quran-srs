@@ -26,21 +26,20 @@
         <table class="table table-bordered" width="100%" cellspacing="0">
             <thead>
                 <tr>
-                    {% for key,key_display_name in keys_map.items %}
+                    {% for key in page_summary.keys %}
                     <td>
-                        {{key_display_name}}
+                      {{key | format_title}}
                     </td>
                     {% endfor %}
+        
 
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    {% for key in keys_map.keys %}
-                    <td>{{ page_summary|get_item:key }}</td>
-
+                    {% for value in page_summary.values %}
+                    <td>{{ value }}</td>
                     {% endfor %}
-
                 </tr>
             </tbody>
         </table>
