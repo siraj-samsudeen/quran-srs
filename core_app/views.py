@@ -8,6 +8,16 @@ from .models import PageRevision
 
 from . import utils
 
+KEYS_MAP = {
+    "7.scheduled_interval": "Int",
+    "1.revision_number": "Rev",
+    "overdue_days": "Due in",
+    "page_strength": "Int/Rev",
+    "3.score": "Last Score",
+    "8.scheduled_due_date": "Due",
+    "2.revision date": "LastTouch",
+}
+
 
 @login_required
 def home(request):
@@ -22,22 +32,11 @@ def page_all(request, student_id):
         request,
         "all.html",
         {
-            "pages_all": dict(qrs.calculate_stats_for_all_pages(student_id)),
+            "pages_all": qrs.calculate_stats_for_all_pages(student_id),
             "student": student,
-            "keys_map": keys_map,
+            "keys_map": KEYS_MAP,
         },
     )
-
-
-keys_map = {
-    "7.scheduled_interval": "Int",
-    "1.revision_number": "Rev",
-    "overdue_days": "Due in",
-    "page_strength": "Int/Rev",
-    "3.score": "Last Score",
-    "8.scheduled_due_date": "Due",
-    "2.revision date": "LastTouch",
-}
 
 
 @login_required
@@ -55,7 +54,7 @@ def page_due(request, student_id):
         {
             "pages_due": pages_due,
             "student": student,
-            "keys_map": keys_map,
+            "keys_map": KEYS_MAP,
             "next_new_page": request.session.get(next_page_key),
             "due_date_summary": counter,
             "total_page_count": total_page_count,
@@ -89,8 +88,8 @@ def page_entry(request, student_id, page, due_page):
         PageRevision(
             student=student,
             page=page,
-            word_mistakes=word_mistakes if word_mistakes else 0,
-            line_mistakes=line_mistakes if line_mistakes else 0,
+            word_mistakes=word_mistakes or 0,
+            line_mistakes=line_mistakes or 0,
             difficulty_level=difficulty_level,
         ).save()
 
@@ -110,7 +109,7 @@ def page_entry(request, student_id, page, due_page):
             "page_summary": page_summary,
             "form": form,
             "student": student,
-            "keys_map": keys_map,
+            "keys_map": KEYS_MAP,
             "new_page": new_page,
         },
     )
