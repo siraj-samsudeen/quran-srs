@@ -1,21 +1,12 @@
-import datetime
-import math
 from collections import Counter
 
-import numpy as np
-import pandas as pd
 from django.contrib.auth.decorators import login_required
-from django.forms.models import model_to_dict
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from rest_framework import viewsets
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
 
 import core_app.quran_srs as qrs
 from core_app.forms import RevisionEntryForm
 from core_app.models import PageRevision, Student
-from core_app.serializers import StudentSerializer
 
 
 @login_required
@@ -48,8 +39,6 @@ keys_map = {
     "overdue_days": "Due in",
     "page_strength": "Int/Rev",
     "3.score": "Last Score",
-    "sort_order": "Sort Order",
-    "risk_rank": "Risk Rank",
     "8.scheduled_due_date": "Due",
     "2.revision date": "LastTouch",
 }
@@ -77,73 +66,7 @@ def page_due(request, student_id):
 
     pages_due, counter, total_page_count = get_pages_due(student_id)
 
-    if pages_due:
-        # Implement the algorithm to computer page risk
-
-        df = pd.DataFrame.from_dict(
-            pages_due,
-            orient="index",
-        )
-        df.drop(
-            [
-                "2.revision date",
-                "8.scheduled_due_date",
-                "4.current_interval",
-                "5.interval_delta",
-                "6.max_interval",
-                "is_due",
-            ],
-            axis=1,
-            inplace=True,
-        )
-
-        df.rename(
-            columns={
-                "7.scheduled_interval": "interval",
-                "1.revision_number": "revisions",
-                "3.score": "latest_score",
-                "page_strength": "interval_per_revision",
-                "overdue_days": "overdue_days",
-            },
-            inplace=True,
-        )
-
-        cols_new_order = [
-            "interval",
-            "revisions",
-            "latest_score",
-            "interval_per_revision",
-            "overdue_days",
-        ]
-        df = df[cols_new_order]
-
-        df["interval_modified"] = np.where(df.interval >= 30, -1 * df.interval, df.interval)
-        df["rank_interval"] = df["interval_modified"].rank(pct=True, ascending=False)
-        df["rank_revisions"] = df["revisions"].rank(pct=True, ascending=False)
-        df["rank_latest_score"] = df["latest_score"].rank(pct=True, ascending=True)
-        df["rank_interval_per_revision"] = df["interval_per_revision"].rank(pct=True, ascending=False)
-        df["rank_overdue_days"] = df["overdue_days"].rank(pct=True, ascending=False)
-        df["rank_overall"] = (
-            df.rank_interval
-            + df.rank_revisions
-            + df.rank_latest_score
-            + df.rank_interval_per_revision
-            + df.rank_overdue_days
-        )
-        # Need a unique rank for each item even if there are ties
-        df["risk_rank"] = df["rank_overall"].rank(ascending=False, method="first")
-
-        for index, row in df.iterrows():
-            risk_rank = row["risk_rank"]
-            pages_due[index].update({"risk_rank": int(row["risk_rank"])})
-
-            # Group pages into bins of 10 so that they can be tackled together
-            page_bin = math.ceil(risk_rank / 10)
-            # Now order the pages based on page number within each bin; page = index in the data frame
-            sort_order = round(page_bin + (index / 1000), 3)
-            pages_due[index].update({"sort_order": sort_order})
-
-        # Cache this so that revision entry page can automatically move to the next due page
+    # Cache this so that revision entry page can automatically move to the next due page
     next_page_key = "next_new_page" + str(student_id)
 
     return render(
