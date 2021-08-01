@@ -36,7 +36,7 @@
             </thead>
             <tbody>
                 <tr>
-                    {% for key in keys_map.keys   %}
+                    {% for key in keys_map.keys %}
                     <td>{{ page_summary|get_item:key }}</td>
 
                     {% endfor %}
@@ -79,42 +79,6 @@
     <p><button>Update</button></p>
 </form>
 
-{% if due_page %}
-<p>Due Pages in <b>Groups of 10</b>:
 
-    {% for page in next_page_set %}
-
-    <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}} </a>
-    {% if not forloop.last %}
-    ,
-    {% endif %}
-
-    {% endfor %}
-</p>
-{% else %}
-<p>
-    Prev/Next Pages :
-    <a href="{% url 'page_entry' student_id=student.id page=page|add:'-1' due_page=0 %}">{{page|add:'-1'}}
-    </a>
-    <a href="{% url 'page_entry' student_id=student.id page=page|add:'1' due_page=0 %}">{{page|add:'1'}}
-    </a>
-</p>
-{% endif %}
-
-{% if next_page_set|length > 10 %}
-
-
-<p>Due Pages <b>All in Order</b>:
-
-    {% for page in next_page_set_sorted %}
-
-    <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}} </a>
-    {% if not forloop.last %}
-    ,
-    {% endif %}
-
-    {% endfor %}
-</p>
-{% endif %}
 
 {% endblock content %}

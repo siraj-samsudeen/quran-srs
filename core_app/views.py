@@ -167,7 +167,6 @@ def page_due(request, student_id):
             pages_due[index].update({"sort_order": sort_order})
 
         # Cache this so that revision entry page can automatically move to the next due page
-    request.session["pages_due"] = pages_due
     next_page_key = "next_new_page" + str(student_id)
 
     return render(
@@ -227,33 +226,7 @@ def page_entry(request, student_id, page, due_page):
             request.session[next_page_key] = next_page
             return redirect("page_entry", student_id=student.id, page=next_page, due_page=0)
         else:
-            pages_due = request.session.get("pages_due")
-            pages_due.pop(str(page), None)
-            request.session["pages_due"] = pages_due
-
-            # if there are no more due pages, redirect to the main page.
-            if pages_due:
-                pages_due_sorted = sorted(
-                    pages_due.items(),
-                    key=lambda key_value: key_value[1]["sort_order"],
-                )
-                next_page = int(pages_due_sorted[0][0])
-
-                return redirect("page_entry", student_id=student.id, page=next_page, due_page=1)
-            else:
-                return redirect("page_due", student_id=student.id)
-
-    pages_due = request.session.get("pages_due")
-
-    next_page_set = []
-    if pages_due:
-        pages_due_sorted = sorted(
-            pages_due.items(),
-            key=lambda key_value: key_value[1]["sort_order"],
-        )
-
-        for i in range(0, len(pages_due.keys())):
-            next_page_set.append(int(pages_due_sorted[i][0]))
+            return redirect("page_due", student_id=student.id)
 
     return render(
         request,
@@ -266,8 +239,6 @@ def page_entry(request, student_id, page, due_page):
             "student": student,
             "keys_map": keys_map_revision_entry,
             "new_page": new_page,
-            "next_page_set": next_page_set,
-            "next_page_set_sorted": sorted(next_page_set),
             "due_page": due_page,
         },
     )

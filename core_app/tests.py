@@ -99,9 +99,6 @@ def describe_visit_all_pages():
         response = client.get("/student/1/new/", {"page": "253"})
         assert response.status_code == 302
 
-        response = client.get("/student/1/new/", {"page": "253"}, follow=True)
-        assertContains(response, "Prev/Next Pages")
-
         response = client.post(
             "/student/1/page/253/0/",
             {"word_mistakes": 0, "line_mistakes": 0, "difficulty_level": "o"},

@@ -42,7 +42,7 @@ def calculate_stats_for_page(revision_list, student_id):
 
         page_summary = get_page_summary_dict(revision)
 
-    return convert_datetime_to_str(page_summary)
+    return page_summary
 
 
 # TODO change score to a negative
@@ -176,13 +176,4 @@ def get_page_summary_dict(revision):
         "page_strength": revision.page_strength,
         "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
-    }
-
-
-def convert_datetime_to_str(page_summary):
-    # Since this dict will be stored in session,
-    # we need to convert datetime objects into a string representation
-    return {
-        key: value.strftime("%Y-%m-%d") if isinstance(value, datetime.date) else value
-        for key, value in page_summary.items()
     }
