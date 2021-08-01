@@ -1,13 +1,12 @@
-from collections import Counter
-
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
-import core_app.quran_srs as qrs
-from core_app.forms import RevisionEntryForm
-from core_app.models import PageRevision, Student
+from . import quran_srs as qrs
+
+from .forms import RevisionEntryForm
+from .models import PageRevision
+
+from . import utils
 
 
 @login_required
@@ -15,8 +14,9 @@ def home(request):
     return render(request, "home.html", {"students": request.user.student_set.all()})
 
 
+@login_required
 def page_all(request, student_id):
-    student = check_access_rights_and_get_student(request, student_id)
+    student = utils.check_access_rights_and_get_student(request, student_id)
 
     next_page_key = "next_new_page" + str(student_id)
 
@@ -43,31 +43,11 @@ keys_map = {
 }
 
 
-def get_pages_due(student_id):
-    pages_all = qrs.calculate_stats_for_all_pages(student_id)
-    pages_due = {page: page_summary for page, page_summary in pages_all.items() if page_summary["is_due"]}
-
-    counter = Counter()
-    for _, page_summary in pages_all.items():
-        counter.update({page_summary["8.scheduled_due_date"]: 1})
-
-    counter = dict(sorted(counter.items()))
-
-    return dict(pages_due), counter, len(pages_all)
-
-
-def check_access_rights_and_get_student(request, student_id):
-    student = get_object_or_404(Student, id=student_id)
-    if request.user != student.account:
-        raise PermissionDenied(f"{student.name} is not a student of {request.user.username}")
-    return student
-
-
 @login_required
 def page_due(request, student_id):
-    student = check_access_rights_and_get_student(request, student_id)
+    student = utils.check_access_rights_and_get_student(request, student_id)
 
-    pages_due, counter, total_page_count = get_pages_due(student_id)
+    pages_due, counter, total_page_count = utils.get_pages_due(student_id)
 
     # Cache this so that revision entry page can automatically move to the next due page
     next_page_key = "next_new_page" + str(student_id)
@@ -86,13 +66,9 @@ def page_due(request, student_id):
     )
 
 
-def page_new(request, student_id):
-    return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
-
-
 @login_required
 def page_entry(request, student_id, page, due_page):
-    student = check_access_rights_and_get_student(request, student_id)
+    student = utils.check_access_rights_and_get_student(request, student_id)
 
     revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date")
     if revision_list:
@@ -143,3 +119,7 @@ def page_entry(request, student_id, page, due_page):
             "due_page": due_page,
         },
     )
+
+
+def page_new(request, student_id):
+    return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
