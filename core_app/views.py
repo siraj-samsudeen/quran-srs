@@ -36,7 +36,7 @@ def page_all(request, student_id):
         {
             "pages_all": dict(qrs.calculate_stats_for_all_pages(student_id)),
             "student": student,
-            "keys_map": keys_map_all,
+            "keys_map": keys_map,
             "next_new_page": request.session.get(next_page_key),
         },
     )
@@ -52,29 +52,6 @@ keys_map = {
     "risk_rank": "Risk Rank",
     "8.scheduled_due_date": "Due",
     "2.revision date": "LastTouch",
-}
-
-keys_map_all = {key: value for key, value in keys_map.items() if key not in ["sort_order", "risk_rank"]}
-
-keys_map_due = {
-    key: value
-    for key, value in keys_map.items()
-    if key
-    not in [
-        "2.revision date",
-        "8.scheduled_due_date",
-    ]
-}
-
-keys_map_revision_entry = {
-    key: value
-    for key, value in keys_map.items()
-    if key
-    in [
-        "7.scheduled_interval",
-        "1.revision_number",
-        "overdue_days",
-    ]
 }
 
 
@@ -175,7 +152,7 @@ def page_due(request, student_id):
         {
             "pages_due": pages_due,
             "student": student,
-            "keys_map": keys_map_due,
+            "keys_map": keys_map,
             "next_new_page": request.session.get(next_page_key),
             "due_date_summary": counter,
             "total_page_count": total_page_count,
@@ -237,7 +214,7 @@ def page_entry(request, student_id, page, due_page):
             "revision_list": revision_list,
             "form": form,
             "student": student,
-            "keys_map": keys_map_revision_entry,
+            "keys_map": keys_map,
             "new_page": new_page,
             "due_page": due_page,
         },
