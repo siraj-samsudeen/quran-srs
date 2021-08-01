@@ -47,28 +47,6 @@
 
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-bordered" id="dataTable">
-            <thead>
-                <tr>
-
-                    <td>No</td>
-                    <td>Date</td>
-                    <td>Word</td>
-                    <td>Line</td>
-                </tr>
-            </thead>
-
-            {% for rev in revision_list%}
-            <tr>
-                <td>{{forloop.counter}}</td>
-                <td>{{rev.date |date:'d-M'}}</td>
-                <td>{{rev.word_mistakes | display_zero}}</td>
-                <td>{{rev.line_mistakes | display_zero}}</td>
-            </tr>
-            {% endfor%}
-        </table>
-    </div>
 
 </div>
 {% endif %}

@@ -111,12 +111,10 @@ def page_entry(request, student_id, page, due_page):
         {
             "page": page,
             "page_summary": page_summary,
-            "revision_list": revision_list,
             "form": form,
             "student": student,
             "keys_map": keys_map,
             "new_page": new_page,
-            "due_page": due_page,
         },
     )
 
