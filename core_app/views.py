@@ -9,13 +9,13 @@ from .models import PageRevision
 from . import utils
 
 KEYS_MAP = {
-    "7.scheduled_interval": "Int",
-    "1.revision_number": "Rev",
+    "scheduled_interval": "Int",
+    "revision_number": "Rev",
     "overdue_days": "Due in",
     "page_strength": "Int/Rev",
-    "3.score": "Last Score",
-    "8.scheduled_due_date": "Due",
-    "2.revision date": "LastTouch",
+    "score": "Last Score",
+    "scheduled_due_date": "Due",
+    "revision date": "LastTouch",
 }
 
 

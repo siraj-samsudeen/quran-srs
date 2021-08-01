@@ -165,14 +165,12 @@ def set_due_date(revision):
 
 def get_page_summary_dict(revision):
     return {
-        "1.revision_number": revision.number,
-        "2.revision date": revision.date_trunc,
-        "3.score": revision.score,
-        "4.current_interval": revision.current_interval,
-        "5.interval_delta": revision.interval_delta,
-        "6.max_interval": revision.max_interval,
-        "7.scheduled_interval": revision.next_interval,
-        "8.scheduled_due_date": revision.due_date,
+        "revision_number": revision.number,
+        "revision date": revision.date_trunc,
+        "score": revision.score,
+        "current_interval": revision.current_interval,
+        "scheduled_interval": revision.next_interval,
+        "scheduled_due_date": revision.due_date,
         "page_strength": revision.page_strength,
         "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
