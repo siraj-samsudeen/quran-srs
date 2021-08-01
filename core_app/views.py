@@ -1,6 +1,7 @@
 from collections import Counter
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -15,9 +16,7 @@ def home(request):
 
 
 def page_all(request, student_id):
-    student = Student.objects.get(id=student_id)
-    if request.user != student.account:
-        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
+    student = check_access_rights_and_get_student(request, student_id)
 
     next_page_key = "next_new_page" + str(student_id)
 
@@ -57,12 +56,16 @@ def get_pages_due(student_id):
     return dict(pages_due), counter, len(pages_all)
 
 
-@login_required
-def page_due(request, student_id):
-    # student = Student.objects.get(id=student_id)
+def check_access_rights_and_get_student(request, student_id):
     student = get_object_or_404(Student, id=student_id)
     if request.user != student.account:
-        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
+        raise PermissionDenied(f"{student.name} is not a student of {request.user.username}")
+    return student
+
+
+@login_required
+def page_due(request, student_id):
+    student = check_access_rights_and_get_student(request, student_id)
 
     pages_due, counter, total_page_count = get_pages_due(student_id)
 
@@ -89,9 +92,7 @@ def page_new(request, student_id):
 
 @login_required
 def page_entry(request, student_id, page, due_page):
-    student = Student.objects.get(id=student_id)
-    if request.user != student.account:
-        return HttpResponseForbidden(f"{student.name} is not a student of {request.user.username}")
+    student = check_access_rights_and_get_student(request, student_id)
 
     revision_list = PageRevision.objects.filter(student=student_id, page=page).order_by("date")
     if revision_list:
