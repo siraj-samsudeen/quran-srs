@@ -1,37 +1,21 @@
 {% extends 'base.html' %}
-
-
+<!-- protect -->
+{% block title %}List of Students{% endblock title %}
+<!-- protect -->
 {% block content %}
-
-<div class="container-fluid">
-
-  <!-- Page Heading -->
-  <h2 class="mb-1 text-gray-800">List of Students</h2>
-  <p class="mb-4">Please select a student to go to his/her due pages
-  </p>
-
-  <!-- Content Row -->
-  <div class="row">
-
-    <!-- Border Left Utilities -->
-    {% for student in students %}
-    <div class="col-md-4">
-
-      <div class="card mb-4 border-left-success">
-        <div class="card-body">
-          <a href="{% url 'page_due' student_id=student.id %}">
-            {{student.name}}
-          </a>
-        </div>
+<!-- protect -->
+<div class="row">
+  {% for student in students %}
+  <div class="col-lg-3 col-sm-6">
+    <div class="card my-1">
+      <div class="card-body">
+        <a href="{% url 'page_due' student_id=student.id %}"
+          >{{student.name}}</a
+        >
       </div>
     </div>
-    {% endfor %}
-
   </div>
-
+  {% endfor %}
 </div>
-<!-- /.container-fluid -->
-
-
-
+<!-- protect -->
 {% endblock content %}
