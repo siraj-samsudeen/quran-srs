@@ -1,112 +1,46 @@
 {% extends 'base.html' %}
-{% load static %}
-{% load custom_format %}
-{% block title %} Pages Due {% endblock title %}
-
-{% block style %}
-{{block.super}}
-<link rel="stylesheet" href="{% static 'css/dataTables.bootstrap4.css' %}">
-
-{% endblock style %}
-
+<!-- protect -->
+{% block title %}Pages Due{% endblock title %}
+<!-- protect -->
 {% block content %}
-
-
-<div class="card shadow mb-4">
-  <div class="card-header py-3">
-    <table width="100%">
+<div class="card shadow">
+  <div class="card-header">
+    <h6 class="m-0 font-weight-bold text-primary text-center py-2">
+      {{student}} - Due Pages
+    </h6>
+  </div>
+  <div class="card-body">
+    {% include 'table.html' with pages=pages_due %}
+    <div class="my-5"></div>
+    <table class="table table-hover" id="summaryTable">
+      <thead>
+        <tr>
+          <td>Date</td>
+          <td>Number of Due Pages</td>
+        </tr>
+      </thead>
+      {% for due_date,count in due_date_summary.items %}
       <tr>
-        <td>
-          <h6 class="m-0">
-            <a href="{% url 'page_all' student_id=student.id %}">View All {{total_page_count}} Pages</a>
-          </h6>
-        </td>
-        <td>
-          <h6 class="m-0 font-weight-bold text-primary">
-            {{student}} - Due Pages
-          </h6>
-        </td>
+        <td>{{due_date | date:"Y-m-d"}}</td>
+        <td>{{count}}</td>
       </tr>
+      {% endfor %}
     </table>
   </div>
-  <p>
-  <form class="form-inline" action="{% url 'page_new' student_id=student.id %}" method="GET">
-    <div class="form-group mx-sm-3 mb-2">
-      <input type="number" class="form-control" name="page" required value="{{next_new_page}}">
-    </div>
-    <button type="submit" class="btn btn-primary mb-2">Enter New Page</button>
-  </form>
-  </p>
-  <div class="card-body">
-
-    <div class="table-responsive">
-      <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-        {% for page, page_summary in pages_due.items %}
-        {% if forloop.first %}
-        <thead>
-          <tr>
-            <td>Page</td>
-            {% for key in page_summary.keys %}
-            <td>
-              {{key | format_title}}
-            </td>
-            {% endfor %}
-          </tr>
-        </thead>
-        {% endif %}
-        <tr>
-          <td>
-            <a href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}">{{page}}</a>
-          </td>
-
-          {% for value in page_summary.values %}
-          <td>{{ value | format_date_to_be_sortable}}</td>
-          {% endfor %}
-
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
-    <p>
-    <div class="table-responsive">
-      <table class="table table-bordered" id="summaryTable" width="100%" cellspacing="0">
-        <thead>
-          <tr>
-            <td>Date</td>
-            <td>Number of Due Pages</td>
-          </tr>
-        </thead>
-        {% for due_date,count in due_date_summary.items %}
-        <tr>
-          <td>{{due_date | format_date_to_be_sortable}}</td>
-          <td>{{count}}</td>
-        </tr>
-        {% endfor %}
-      </table>
-
-
-    </div>
-  </div>
-  {% endblock content %}
-
-  {% block script %}
-  {{block.super}}
-  <script src="{% static 'js/jquery.dataTables.js' %}">
-  </script>
-  <script src="{% static 'js/dataTables.bootstrap4.js' %}">
-  </script>
-
-
-  <script>
-    $(document).ready(function () {
-      $('#dataTable').DataTable({
-        stateSave: true,
-        responsive: true,
-      });
-      $('#summaryTable').DataTable({
-        stateSave: true,
-        searching: false,
-      });
+</div>
+{% endblock content %}
+<!-- protect -->
+{% block script %}
+<script>
+  $(document).ready(function () {
+    $("#dataTable").DataTable({
+      stateSave: true,
+      responsive: true,
     });
-  </script>
-  {% endblock script %}
+    $("#summaryTable").DataTable({
+      stateSave: true,
+      searching: false,
+    });
+  });
+</script>
+{% endblock script %}

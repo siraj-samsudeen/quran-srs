@@ -1,0 +1,30 @@
+{% load custom_format %}
+<div class="table-responsive">
+  <table class="table table-hover" id="dataTable">
+    {% for page, page_summary in pages.items %}
+    <!-- protect -->
+    {% if forloop.first %}
+    <thead>
+      <tr>
+        <td scope="col">Page</td>
+        {% for key in page_summary.keys %}
+        <td scope="col">{{key | format_title}}</td>
+        {% endfor %}
+      </tr>
+    </thead>
+    {% endif %}
+    <tr>
+      <td scope="row">
+        <a
+          href="{% url 'page_entry' student_id=student.id page=page due_page=1 %}"
+          >{{page}}</a
+        >
+      </td>
+
+      {% for value in page_summary.values %}
+      <td>{{ value | date:"Y-m-d" | default:value}}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
