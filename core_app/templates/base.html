@@ -21,7 +21,22 @@
         {% if request.path == '/'%}
         <a href="/accounts/logout/" class="btn btn-danger">Logout</a>
         {% else %}
-        <a href="/" class="btn btn-outline-primary">Home</a>
+        <div class="btn-group" role="group">
+          <a href="/" class="btn btn-outline-primary">Home</a>
+          {% if 'due' in request.path %}
+          <a
+            href="{% url 'page_all' student_id=student.id %}"
+            class="btn btn-outline-primary"
+            >All Pages</a
+          >
+          {% else %}
+          <a
+            href="{% url 'page_due' student_id=student.id %}"
+            class="btn btn-outline-primary"
+            >Due Pages</a
+          >
+          {% endif %}
+        </div>
         {% endif %}
       </nav>
 
