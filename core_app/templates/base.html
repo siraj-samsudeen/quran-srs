@@ -1,82 +1,37 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
-{% load static %}
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>{% block title %}{% endblock title %}</title>
+    <link rel="stylesheet" href="{% static 'css/bootstrap.css' %}" />
+    <link
+      rel="stylesheet"
+      href="{% static 'css/dataTables.bootstrap4.css' %}"
+    />
+  </head>
+  <body class="mx-lg-5">
+    <div class="container-fluid">
+      <nav class="navbar navbar-light">
+        <span class="navbar-brand" style="font-weight: 500">Quran SRS</span>
+        {% if request.path == '/'%}
+        <a href="/accounts/logout/" class="btn btn-danger">Logout</a>
+        {% else %}
+        <a href="/" class="btn btn-outline-primary">Home</a>
+        {% endif %}
+      </nav>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>
-        {% block title %} {% endblock title %}
-    </title>
-    {% block style %}
-    <link rel="stylesheet" href="{% static 'css/bootstrap.css' %}">
-    <link rel="stylesheet" href="{% static 'css/sb-admin-2.css' %}">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link href="{% static 'css/all.min.css' %}" rel="stylesheet" type="text/css"> {% endblock style %}
-
-</head>
-
-<body>
-    <div class="container">
-        <!-- Page Wrapper -->
-        <div id="wrapper">
-
-            <!-- Content Wrapper -->
-            <div id="content-wrapper" class="d-flex flex-column">
-
-                <!-- Main Content -->
-                <div id="content">
-                    <div class="text-center my-2 py-2">
-                        Please report errors/feedback due to recent changes by a whatsapp message to Siraj at +91 97899 68576
-                    </div>
-
-                    <!-- Topbar -->
-                    <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                        <div class="d-sm-inline-block mr-3 ml-md-3 my-2 my-md-0 mw-100">
-                            {%if request.path == '/'%}
-                            <a href="/accounts/logout/" class="btn btn-danger">Logout</a>
-                            {%else%}
-                            <a href="/" class="btn btn-primary">Home</a>
-                            {%endif%}
-
-                        </div>
-                        <div class="ml-auto">
-                            <h3>Quran SRS</h3>
-                        </div>
-
-
-
-
-                    </nav>
-                    <!-- End of Topbar -->
-
-
-
-                    {% block content %} {% endblock content %}
-                </div>
-                <!-- End of Main Content -->
-
-
-            </div>
-            <!-- End of Content Wrapper -->
-
-        </div>
-        <!-- End of Page Wrapper -->
-
+      {% block content %} {% endblock content %}
     </div>
 
-    {% block script %}
-    <script src="{% static 'js/jquery-3.4.1.js' %}">
-    </script>
-    <script src="{% static 'js/bootstrap.js' %}">
-    </script>
-
-    <script src="{% static 'js/sb-admin-2.js' %}">
-    </script>
-
-    {% endblock script %}
-
-
-</body>
-
+    <script src="{% static 'js/jquery-3.4.1.js' %}"></script>
+    <script src="{% static 'js/bootstrap.js' %}"></script>
+    <script src="{% static 'js/jquery.dataTables.js' %}"></script>
+    <script src="{% static 'js/dataTables.bootstrap4.js' %}"></script>
+    {% block script %}{% endblock script %}
+  </body>
 </html>
