@@ -18,7 +18,7 @@ def get_pages_due(student_id):
 
     counter = dict(sorted(counter.items()))
 
-    return pages_due, counter, len(pages_all)
+    return pages_due, counter
 
 
 def check_access_rights_and_get_student(request, student_id):

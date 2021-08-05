@@ -32,7 +32,7 @@ def page_all(request, student_id):
 def page_due(request, student_id):
     student = utils.check_access_rights_and_get_student(request, student_id)
 
-    pages_due, counter, total_page_count = utils.get_pages_due(student_id)
+    pages_due, counter = utils.get_pages_due(student_id)
 
     # Cache this so that revision entry page can automatically move to the next due page
     next_page_key = "next_new_page" + str(student_id)
@@ -45,7 +45,6 @@ def page_due(request, student_id):
             "student": student,
             "next_new_page": request.session.get(next_page_key),
             "due_date_summary": counter,
-            "total_page_count": total_page_count,
         },
     )
 
