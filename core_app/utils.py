@@ -13,7 +13,7 @@ def get_pages_due(student_id):
 
     counter = Counter()
     for page_summary in pages_all:
-        counter.update({page_summary["scheduled_due_date"]: 1})
+        counter.update({page_summary["due_date"]: 1})
 
     counter = dict(sorted(counter.items()))
 
