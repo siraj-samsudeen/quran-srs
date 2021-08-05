@@ -1,3 +1,4 @@
+import datetime
 import os
 from pathlib import Path
 
@@ -5,7 +6,8 @@ import dotenv
 import pytest
 import yaml
 from django.conf import settings
-from pytest_django.asserts import assertContains, assertRedirects, assertTemplateUsed
+from pytest_django.asserts import assertContains, assertTemplateUsed
+from .utils import get_pages_due
 
 
 # Implement a no-op so that the real sqlite db is used for tests during refactoring
@@ -111,3 +113,21 @@ def describe_visit_all_pages():
 
         response = client.get("/student/7/page/3/1/")
         assert response.status_code == 403
+
+
+def describe_due_page_summary():
+    def pages_due_length_should_match_the_count_from_counter():
+        pages_due, counter = get_pages_due(student_id=1)
+        overdue_pages_count = sum(page_count for day, page_count in counter.items() if day <= datetime.date.today())
+
+        assert overdue_pages_count == len(pages_due)
+
+    def all_overdue_pages_should_be_added_to_today():
+        pages_due, counter = get_pages_due(student_id=1)
+        assert counter.get(datetime.date.today()) == len(pages_due)
+
+    def max_1_week_into_the_future():
+        _, counter = get_pages_due(student_id=1)
+        max_allowed_date = datetime.date.today() + datetime.timedelta(days=7)
+        for day in counter.keys():
+            assert day <= max_allowed_date
