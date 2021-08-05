@@ -73,6 +73,8 @@ def describe_visit_all_pages():
         response = client.get("/")
         assertTemplateUsed(response, "home.html")
         assert "students" in response.context
+        assertContains(response, 'href="/student/1/due/"')
+        assertContains(response, 'href="/student/1/all/"')
 
     def due_pages(client):
         response = client.get("/student/1/due/")
