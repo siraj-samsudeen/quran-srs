@@ -161,7 +161,6 @@ def set_due_date(revision):
     day_offset = 1 if revision.next_interval <= 0 else revision.next_interval
     revision.due_date = revision.date_trunc + datetime.timedelta(days=day_offset)
 
-    revision.is_due = revision.due_date <= datetime.date.today()
     revision.overdue_days = (revision.due_date - datetime.date.today()).days  # TODO update today logic
 
 
@@ -173,6 +172,5 @@ def get_page_summary_dict(revision):
         "last_revision": revision.date_trunc,
         "score": revision.score,
         "due_date": revision.due_date,
-        "is_due": revision.is_due,
         "overdue_days": revision.overdue_days,
     }

@@ -1,3 +1,4 @@
+import datetime
 from collections import Counter
 
 from django.core.exceptions import PermissionDenied
@@ -9,7 +10,7 @@ from .models import Student
 
 def get_pages_due(student_id):
     pages_all = qrs.calculate_stats_for_all_pages(student_id)
-    pages_due = [page_summary for page_summary in pages_all if page_summary["is_due"]]
+    pages_due = [page_summary for page_summary in pages_all if page_summary["due_date"] <= datetime.date.today()]
 
     counter = Counter()
     for page_summary in pages_all:
