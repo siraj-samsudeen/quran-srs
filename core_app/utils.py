@@ -9,15 +9,15 @@ from .models import Student
 
 def get_pages_due(student_id):
     pages_all = qrs.calculate_stats_for_all_pages(student_id)
-    pages_due = {page: page_summary for page, page_summary in pages_all.items() if page_summary["is_due"]}
+    pages_due = [page_summary for page_summary in pages_all if page_summary["is_due"]]
 
     counter = Counter()
-    for _, page_summary in pages_all.items():
+    for page_summary in pages_all:
         counter.update({page_summary["scheduled_due_date"]: 1})
 
     counter = dict(sorted(counter.items()))
 
-    return dict(pages_due), counter, len(pages_all)
+    return pages_due, counter, len(pages_all)
 
 
 def check_access_rights_and_get_student(request, student_id):

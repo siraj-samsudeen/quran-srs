@@ -79,7 +79,7 @@ def describe_visit_all_pages():
 
     def due_page_entry(client):
         response = client.get("/student/1/due/")
-        first_due_page = list(response.context["pages_due"].keys())[0]
+        first_due_page = response.context["pages_due"][0]["page"]
 
         due_page_url = f"/student/1/page/{first_due_page}/1/"
         response = client.get(due_page_url)

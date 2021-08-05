@@ -9,7 +9,10 @@ def calculate_stats_for_all_pages(student_id):
 
     # groupby needs the revisions list to be sorted. Here we are sorting by page as we want to group by page
     revision_list_by_page = groupby(revisions.order_by("page"), lambda rev: rev.page)
-    return {page: calculate_stats_for_page(revision_list, student_id) for page, revision_list in revision_list_by_page}
+    return [
+        {"page": page, **calculate_stats_for_page(revision_list, student_id)}
+        for page, revision_list in revision_list_by_page
+    ]
 
 
 def calculate_stats_for_page(revision_list, student_id):
@@ -165,8 +168,7 @@ def set_due_date(revision):
 def get_page_summary_dict(revision):
     return {
         "revision_number": revision.number,
-        # TODO Hack - Using the ".date" here to avoid date folding in small screens
-        "last_revision.date": revision.date_trunc,
+        "last_revision_date": revision.date_trunc,
         "score": revision.score,
         "interval_before_revision": revision.current_interval,
         "interval_after_revision": revision.next_interval,
