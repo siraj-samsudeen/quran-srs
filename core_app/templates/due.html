@@ -32,15 +32,17 @@
 <!-- protect -->
 {% block script %}
 <script>
+  let dataTableOptions = {
+    stateSave: true,
+    responsive: true,
+    scrollX: true,
+    paging: true,
+    dom: "<t><'my-3'p><'my-3'f><'my-3'i>",
+  };
   $(document).ready(function () {
-    $("#dataTable").DataTable({
-      stateSave: true,
-      responsive: true,
-    });
-    $("#summaryTable").DataTable({
-      stateSave: true,
-      searching: false,
-    });
+    $("#dataTable").DataTable(dataTableOptions);
   });
+  //Set the number of elements that appear in the paging control so that Previous and Next button are fully visible on the phone
+  $.fn.DataTable.ext.pager.numbers_length = 5;
 </script>
 {% endblock script %}
