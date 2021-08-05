@@ -4,11 +4,12 @@
 <!-- protect -->
 {% block content %}
 <!-- protect -->
+
 <div class="row">
   {% for student in students %}
-  <div class="col-lg-3 col-sm-6">
-    <div class="card my-1">
-      <div class="card-header">{{student.name}}</div>
+  <div class="col-lg-4 col-sm-6">
+    <div class="card my-3">
+      <div class="card-header h6">{{student.name}}</div>
       <div class="card-body">
         <div class="btn-group w-100">
           <a
