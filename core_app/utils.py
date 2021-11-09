@@ -5,6 +5,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 
 from . import quran_srs as qrs
+from .consecutive_pages import format_consecutive_pages, group_consecutive_pages
 from .models import Student
 
 
@@ -12,6 +13,15 @@ def get_pages_due(student_id):
     pages_all = qrs.calculate_stats_for_all_pages(student_id)
 
     pages_due = [page_summary for page_summary in pages_all if page_summary["due_date"] <= datetime.date.today()]
+
+    consecutive_pages = group_consecutive_pages(page_summary["page"] for page_summary in pages_due)
+    formatted_consecutive_pages = format_consecutive_pages(consecutive_pages)
+
+    # Add the consecutive page column
+    pages_due = [
+        {**page_summary, "consecutive_pages": formatted_consecutive_pages[page_summary["page"]]}
+        for page_summary in pages_due
+    ]
 
     counter = get_due_page_summary_till_next_week(pages_all)
 
