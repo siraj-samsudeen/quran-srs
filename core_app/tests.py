@@ -7,6 +7,8 @@ import pytest
 import yaml
 from django.conf import settings
 from pytest_django.asserts import assertContains, assertTemplateUsed
+
+from .consecutive_pages import format_consecutive_pages, group_consecutive_pages
 from .utils import get_pages_due
 
 
@@ -133,3 +135,40 @@ def describe_due_page_summary():
         max_allowed_date = datetime.date.today() + datetime.timedelta(days=7)
         for day in counter.keys():
             assert day <= max_allowed_date
+
+
+def describe_group_consecutive_pages():
+    def should_return_a_dict():
+        assert isinstance(group_consecutive_pages([]), dict)
+
+    def each_page_in_input_should_be_a_key_in_output():
+        input = [1, 2, 3]
+        assert list(group_consecutive_pages(input).keys()) == input
+
+        input = [1, 2, 4]
+        assert list(group_consecutive_pages(input).keys()) == input
+
+    def each_page_in_group_should_return_the_same_group():
+        input = [112, 113, 115]
+        output = {
+            112: [112, 113],
+            113: [112, 113],
+            115: [115],
+        }
+        assert group_consecutive_pages(input) == output
+
+    def does_not_fail_with_empty_list():
+        assert group_consecutive_pages([]) == {}
+
+
+def describe_format_consecutive_pages():
+    def formats_correctly():
+        input = {
+            1: [1, 2],
+            112: [112, 113, 114, 115, 116, 117, 118, 119, 120, 121],
+        }
+        output = {
+            1: "02(1-2)",
+            112: "10(112-121)",
+        }
+        assert format_consecutive_pages(input) == output
