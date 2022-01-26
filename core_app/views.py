@@ -1,12 +1,13 @@
+import datetime
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from . import quran_srs as qrs
-
+from . import utils
+from .consecutive_pages import format_consecutive_pages, group_consecutive_pages
 from .forms import RevisionEntryForm
 from .models import PageRevision
-
-from . import utils
 
 
 @login_required
@@ -103,3 +104,49 @@ def page_entry(request, student_id, page, due_page):
 
 def page_new(request, student_id):
     return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
+
+
+@login_required
+def consecutive_pages(request, student_id, page):
+    student = utils.check_access_rights_and_get_student(request, student_id)
+
+    pages_all = qrs.calculate_stats_for_all_pages(student_id)
+
+    pages_due = [page_summary for page_summary in pages_all if page_summary["due_date"] <= datetime.date.today()]
+
+    consecutive_pages = group_consecutive_pages(page_summary["page"] for page_summary in pages_due)[page]
+
+    needed_keys = ["page", "score", "interval"]
+    consecutive_pages_summary = [
+        {k: page_summary[k] for k in needed_keys}
+        for page_summary in pages_due
+        if page_summary["page"] in consecutive_pages
+    ]
+
+    form = RevisionEntryForm(request.POST or None)
+    if form.is_valid():
+        word_mistakes = form.cleaned_data["word_mistakes"]
+        line_mistakes = form.cleaned_data["line_mistakes"]
+        difficulty_level = form.cleaned_data["difficulty_level"]
+        for page in consecutive_pages:
+            PageRevision(
+                student=student,
+                page=page,
+                word_mistakes=word_mistakes or 0,
+                line_mistakes=line_mistakes or 0,
+                difficulty_level=difficulty_level,
+            ).save()
+        return redirect("page_due", student_id=student.id)
+
+    return render(
+        request,
+        "page_entry.html",
+        {
+            "page": f"{consecutive_pages[0]}-{consecutive_pages[-1]}",
+            "consecutive_pages": consecutive_pages_summary,
+            "student": student,
+            "form": form,
+            # "next_new_page": request.session.get(next_page_key),
+            # "due_date_summary": counter,
+        },
+    )

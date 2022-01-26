@@ -2,23 +2,32 @@
 <!-- protect -->
 {% load custom_format bootstrap5 %}
 <!-- protect -->
-{% block title %}{{student.name}} - Page {{page}} {% endblock title %}
+{% block title %} {{student.name}} - Page{% if consecutive_pages %}s{% endif %}
+{{page}} {% endblock title %}
 <!-- protect -->
 {% block content %}
 
 <div class="card shadow">
   <div class="card-header">
     <h6 class="m-0 font-weight-bold text-primary text-center py-2">
-      {{student.name}} - Page {{page}}
+      {{student.name}} - Page{% if consecutive_pages %}s{% endif %} {{page}}
     </h6>
   </div>
   <div class="card-body row">
     <ul class="col-md-6 list-group mb-1">
+      {% if pages %}
+      <!-- protect -->
       {% for stat_name, stat_value in page_summary.items %}
       <li class="list-group-item">
         <b>{{stat_name | format_title}}:</b> {{stat_value}}
       </li>
       {% endfor %}
+      <!-- protect -->
+      {% else %}
+      <!-- protect -->
+      {% include 'table.html' with pages=consecutive_pages %}
+      <!-- protect -->
+      {% endif %}
     </ul>
     <form action="." method="POST" class="col-md-6 card card-body">
       {% csrf_token %}
@@ -29,4 +38,19 @@
   </div>
 </div>
 
-{% endblock content %}
+{% endblock content %} {% block script %}
+<script>
+  let dataTableOptions = {
+    stateSave: true,
+    responsive: true,
+    scrollX: true,
+    paging: true,
+    dom: "<t><'my-3'p><'my-3'f><'my-3'i>",
+  };
+  $(document).ready(function () {
+    $("#dataTable").DataTable(dataTableOptions);
+  });
+  //Set the number of elements that appear in the paging control so that Previous and Next button are fully visible on the phone
+  $.fn.DataTable.ext.pager.numbers_length = 5;
+</script>
+{% endblock script %}
