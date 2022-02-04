@@ -2,11 +2,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from . import quran_srs as qrs
-
+from . import utils
 from .forms import RevisionEntryForm
 from .models import PageRevision
-
-from . import utils
 
 
 @login_required
@@ -19,12 +17,7 @@ def page_all(request, student_id):
     student = utils.check_access_rights_and_get_student(request, student_id)
 
     return render(
-        request,
-        "all.html",
-        {
-            "pages_all": qrs.calculate_stats_for_all_pages(student_id),
-            "student": student,
-        },
+        request, "all.html", {"pages_all": qrs.calculate_stats_for_all_pages(student_id), "student": student,},
     )
 
 
@@ -97,6 +90,7 @@ def page_entry(request, student_id, page, due_page):
             "form": form,
             "student": student,
             "new_page": new_page,
+            "revision_list": revision_list,
         },
     )
 

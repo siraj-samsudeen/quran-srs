@@ -7,26 +7,48 @@
 {% block content %}
 
 <div class="card shadow">
-  <div class="card-header">
-    <h6 class="m-0 font-weight-bold text-primary text-center py-2">
-      {{student.name}} - Page {{page}}
-    </h6>
-  </div>
-  <div class="card-body row">
-    <ul class="col-md-6 list-group mb-1">
-      {% for stat_name, stat_value in page_summary.items %}
-      <li class="list-group-item">
-        <b>{{stat_name | format_title}}:</b> {{stat_value}}
-      </li>
-      {% endfor %}
-    </ul>
-    <form action="." method="POST" class="col-md-6 card card-body">
-      {% csrf_token %}
-      <!-- protect -->
-      {% bootstrap_form form %}
-      <button class="btn btn-primary">Update</button>
-    </form>
-  </div>
+    <div class="card-header">
+        <h6 class="m-0 font-weight-bold text-primary text-center py-2">
+            {{student.name}} - Page {{page}}
+        </h6>
+    </div>
+    <div class="card-body row">
+        <ul class="col-md-6 list-group mb-1">
+            {% for stat_name, stat_value in page_summary.items %}
+            <li class="list-group-item">
+                <b>{{stat_name | format_title}}:</b> {{stat_value}}
+            </li>
+            {% endfor %}
+        </ul>
+        <form action="." method="POST" class="col-md-6 card card-body">
+            {% csrf_token %}
+            <!-- protect -->
+            {% bootstrap_form form %}
+            <button class="btn btn-primary">Update</button>
+        </form>
+    </div>
+    <div class="card-body row">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="dataTable">
+                <thead>
+                    <tr>
+                        <td>No</td>
+                        <td>Date</td>
+                        <td>Word</td>
+                        <td>Line</td>
+                    </tr>
+                </thead>
+                {% for rev in revision_list%}
+                <tr>
+                    <td>{{forloop.counter}}</td>
+                    <td>{{rev.date |date:'d-M'}}</td>
+                    <td>{{rev.word_mistakes | display_zero}}</td>
+                    <td>{{rev.line_mistakes | display_zero}}</td>
+                </tr>
+                {% endfor%}
+            </table>
+        </div>
+    </div>
 </div>
 
 {% endblock content %}
