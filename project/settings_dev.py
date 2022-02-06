@@ -12,6 +12,6 @@ ALLOWED_HOSTS = ["127.0.0.1", "0.0.0.0", "192.168.1.10"]
 
 # Changes to make live reload of static files - templates and js
 
-INSTALLED_APPS = ["livereload", *INSTALLED_APPS]
+# INSTALLED_APPS = ["livereload", *INSTALLED_APPS]
 
-MIDDLEWARE += ["livereload.middleware.LiveReloadScript"]
+# MIDDLEWARE += ["livereload.middleware.LiveReloadScript"]
