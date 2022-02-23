@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "core_app",
-    "django_extensions",
     "bootstrap5",
 ]
 
