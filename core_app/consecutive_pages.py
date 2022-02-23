@@ -48,7 +48,7 @@ def bucket_consecutive_pages(pages):
 
 
 def format_consecutive_pages(consecutive_pages):
-    max_size = max(len(value) for value in consecutive_pages.values())
+    max_size = max((len(value) for value in consecutive_pages.values()), default=None)
     number_of_digits = len(str(max_size))
     return {key: get_formatted_value(value, number_of_digits) for key, value in consecutive_pages.items()}
 
