@@ -15,5 +15,5 @@ urlpatterns = [
         name="page_entry",
     ),
     path("student/<int:student_id>/new/", views.page_new, name="page_new"),
-    path("student/<int:student_id>/consecutive_pages/<int:page>/", views.consecutive_pages, name="consecutive_pages"),
+    path("student/<int:student_id>/bulk_update/", views.bulk_update, name="bulk_update"),
 ]

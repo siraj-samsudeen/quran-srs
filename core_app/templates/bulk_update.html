@@ -2,25 +2,20 @@
 <!-- protect -->
 {% load custom_format bootstrap5 %}
 <!-- protect -->
-{% block title %} {{student.name}} - Page{% if consecutive_pages %}s{% endif %}
-{{page}} {% endblock title %}
+{% block title %} {{student.name}} - Bulk Update {% endblock title %}
 <!-- protect -->
 {% block content %}
 
 <div class="card shadow">
   <div class="card-header">
     <h6 class="m-0 font-weight-bold text-primary text-center py-2">
-      {{student.name}} - Page {{page}}
+      {{student.name}} - Bulk Update
     </h6>
   </div>
   <div class="card-body row">
-    <ul class="col-md-6 list-group mb-1">
-      {% for stat_name, stat_value in page_summary.items %}
-      <li class="list-group-item">
-        <b>{{stat_name | format_title}}:</b> {{stat_value}}
-      </li>
-      {% endfor %}
-    </ul>
+    {% if bulk_pages %}
+    <div class="col-md-6">{% include 'table.html' with pages=bulk_pages %}</div>
+    {% endif %}
     <form action="." method="POST" class="col-md-6 card card-body">
       {% csrf_token %}
       <!-- protect -->

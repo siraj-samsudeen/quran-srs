@@ -52,7 +52,10 @@ def format_consecutive_pages(consecutive_pages):
         return {}
     max_size = max(len(value) for value in consecutive_pages.values())
     number_of_digits = len(str(max_size))
-    return {key: get_formatted_value(value, number_of_digits) for key, value in consecutive_pages.items()}
+    return {
+        key: (value[0], value[-1], get_formatted_value(value, number_of_digits))
+        for key, value in consecutive_pages.items()
+    }
 
 
 def get_formatted_value(list, length):

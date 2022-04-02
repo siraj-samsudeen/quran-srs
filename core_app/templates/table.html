@@ -24,8 +24,8 @@
         {% for page in page_summary.values %}
         {% if forloop.first %}
         <a
-        href="{% url 'consecutive_pages' student_id=student.id page=page %}"
-          >{{value}}</a
+        href="{% url 'bulk_update' student_id=student.id %}?from_page={{value.0}}&to_page={{value.1}}"
+          >{{value.2}}</a
         >
         {% endif %}
         {% endfor %}
