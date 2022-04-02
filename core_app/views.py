@@ -3,7 +3,7 @@ from django.shortcuts import redirect, render
 
 from . import quran_srs as qrs
 from . import utils
-from .forms import RevisionEntryForm
+from .forms import BulkUpdateForm, RevisionEntryForm
 from .models import PageRevision
 
 
@@ -17,7 +17,12 @@ def page_all(request, student_id):
     student = utils.check_access_rights_and_get_student(request, student_id)
 
     return render(
-        request, "all.html", {"pages_all": qrs.calculate_stats_for_all_pages(student_id), "student": student,},
+        request,
+        "all.html",
+        {
+            "pages_all": qrs.calculate_stats_for_all_pages(student_id),
+            "student": student,
+        },
     )
 
 
@@ -97,3 +102,47 @@ def page_entry(request, student_id, page, due_page):
 
 def page_new(request, student_id):
     return redirect("page_entry", student_id=student_id, page=request.GET.get("page"), due_page=0)
+
+
+@login_required
+def bulk_update(request, student_id):
+    student = utils.check_access_rights_and_get_student(request, student_id)
+
+    range_provided = bool(request.GET.get("from_page"))
+    if range_provided:
+        pages = range(int(request.GET["from_page"]), int(request.GET["to_page"]) + 1)
+        pages_all = qrs.calculate_stats_for_all_pages(student_id)
+        needed_keys = ["page", "interval", "Rev #", "score", "overdue_days"]
+        pages_summary = [
+            {k: page_summary[k] for k in needed_keys} for page_summary in pages_all if page_summary["page"] in pages
+        ]
+    elif request.POST:
+        pages = range(int(request.POST["from_page"]), int(request.POST["to_page"]) + 1)
+
+    form = BulkUpdateForm(
+        request.POST or None,
+        initial={"from_page": request.GET.get("from_page"), "to_page": request.GET.get("to_page")},
+    )
+    if form.is_valid():
+        word_mistakes = form.cleaned_data["word_mistakes"]
+        line_mistakes = form.cleaned_data["line_mistakes"]
+        difficulty_level = form.cleaned_data["difficulty_level"]
+        for page in pages:
+            PageRevision(
+                student=student,
+                page=page,
+                word_mistakes=word_mistakes or 0,
+                line_mistakes=line_mistakes or 0,
+                difficulty_level=difficulty_level,
+            ).save()
+        return redirect("page_due", student_id=student.id)
+
+    return render(
+        request,
+        "bulk_update.html",
+        {
+            "bulk_pages": pages_summary if range_provided else None,
+            "student": student,
+            "form": form,
+        },
+    )

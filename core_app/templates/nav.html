@@ -25,6 +25,13 @@
         >Due Pages</a
       >
     </li>
+    <li class="nav-item">
+      <a
+        href="{% url 'bulk_update' student_id=student.id %}"
+        class="nav-link {% if 'bulk_update' in request.path %} active {% endif %}"
+        >Bulk Update</a
+      >
+    </li>
   </ul>
 
   <form

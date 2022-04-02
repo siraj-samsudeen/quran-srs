@@ -19,6 +19,17 @@
           >{{value}}</a
         >
       </td>
+      {% elif forloop.last and "consecutive_pages" in pages.0.keys %}
+      <td>
+        {% for page in page_summary.values %}
+        {% if forloop.first %}
+        <a
+        href="{% url 'bulk_update' student_id=student.id %}?from_page={{value.0}}&to_page={{value.1}}"
+          >{{value.2}}</a
+        >
+        {% endif %}
+        {% endfor %}
+      </td>
       {% else %}
       <td>{{ value | date:"Y-m-d" | default:value}}</td>
       {% endif %}

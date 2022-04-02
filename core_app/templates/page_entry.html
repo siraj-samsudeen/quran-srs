@@ -2,59 +2,60 @@
 <!-- protect -->
 {% load custom_format bootstrap5 %}
 <!-- protect -->
-{% block title %}{{student.name}} - Page {{page}} {% endblock title %}
+{% block title %} {{student.name}} - Page{% if consecutive_pages %}s{% endif %}
+{{page}} {% endblock title %}
 <!-- protect -->
 {% block content %}
 
 <div class="card shadow">
-    <div class="card-header">
-        <h6 class="m-0 font-weight-bold text-primary text-center py-2">
-            {{student.name}} - Page {{page}}
-        </h6>
+  <div class="card-header">
+    <h6 class="m-0 font-weight-bold text-primary text-center py-2">
+      {{student.name}} - Page {{page}}
+    </h6>
+  </div>
+  <div class="card-body row">
+    <ul class="col-md-6 list-group mb-1">
+      {% for stat_name, stat_value in page_summary.items %}
+      <li class="list-group-item">
+        <b>{{stat_name | format_title}}:</b> {{stat_value}}
+      </li>
+      {% endfor %}
+    </ul>
+    <form action="." method="POST" class="col-md-6 card card-body">
+      {% csrf_token %}
+      <!-- protect -->
+      {% bootstrap_form form %}
+      <button class="btn btn-primary">Update</button>
+    </form>
+  </div>
+  <div class="card-body row">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="dataTable">
+        <thead>
+          <tr>
+            <td>No</td>
+            <td>Date</td>
+            <td>Word</td>
+            <td>Line</td>
+            <td>Prev Interval</td>
+            <td>Interval Delta</td>
+            <td>Next Interval</td>
+          </tr>
+        </thead>
+        {% for rev in revision_list reversed%}
+        <tr>
+          <td>{{forloop.revcounter}}</td>
+          <td>{{rev.date |date:'d-M-y'}}</td>
+          <td>{{rev.word_mistakes | display_zero}}</td>
+          <td>{{rev.line_mistakes | display_zero}}</td>
+          <td>{{rev.current_interval}}</td>
+          <td>{{rev.interval_delta}}</td>
+          <td>{{rev.next_interval}}</td>
+        </tr>
+        {% endfor%}
+      </table>
     </div>
-    <div class="card-body row">
-        <ul class="col-md-6 list-group mb-1">
-            {% for stat_name, stat_value in page_summary.items %}
-            <li class="list-group-item">
-                <b>{{stat_name | format_title}}:</b> {{stat_value}}
-            </li>
-            {% endfor %}
-        </ul>
-        <form action="." method="POST" class="col-md-6 card card-body">
-            {% csrf_token %}
-            <!-- protect -->
-            {% bootstrap_form form %}
-            <button class="btn btn-primary">Update</button>
-        </form>
-    </div>
-    <div class="card-body row">
-        <div class="table-responsive">
-            <table class="table table-bordered" id="dataTable">
-                <thead>
-                    <tr>
-                        <td>No</td>
-                        <td>Date</td>
-                        <td>Word</td>
-                        <td>Line</td>
-                        <td>Prev Interval</td>
-                        <td>Interval Delta</td>
-                        <td>Next Interval</td>
-                    </tr>
-                </thead>
-                {% for rev in revision_list reversed%}
-                <tr>
-                    <td>{{forloop.revcounter}}</td>
-                    <td>{{rev.date |date:'d-M-y'}}</td>
-                    <td>{{rev.word_mistakes | display_zero}}</td>
-                    <td>{{rev.line_mistakes | display_zero}}</td>
-                    <td>{{rev.current_interval}}</td>
-                    <td>{{rev.interval_delta}}</td>
-                    <td>{{rev.next_interval}}</td>
-                </tr>
-                {% endfor%}
-            </table>
-        </div>
-    </div>
+  </div>
 </div>
 
 {% endblock content %}

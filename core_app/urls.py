@@ -1,7 +1,7 @@
-from django.urls import path
-from . import views
 from django.contrib.auth.views import LoginView, LogoutView
+from django.urls import path
 
+from . import views
 
 urlpatterns = [
     path("accounts/login/", LoginView.as_view(template_name="login.html"), name="login"),
@@ -15,4 +15,5 @@ urlpatterns = [
         name="page_entry",
     ),
     path("student/<int:student_id>/new/", views.page_new, name="page_new"),
+    path("student/<int:student_id>/bulk_update/", views.bulk_update, name="bulk_update"),
 ]
