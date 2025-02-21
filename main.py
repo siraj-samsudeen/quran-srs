@@ -1,5 +1,5 @@
 from fasthtml.common import *
-from utils import standardize_column, convert_time
+from utils import standardize_column
 
 app, rt = fast_app(live=True)
 
@@ -12,12 +12,12 @@ if revisions not in db.t:
         id=int,
         user_id=int,
         page=int,
-        revision_time=int,
+        revision_time=str,
         rating=str,
         created_by=str,
-        created_at=int,
+        created_at=str,
         last_modified_by=str,
-        last_modified_at=int,
+        last_modified_at=str,
         pk="id",
     )
 Revision, User = revisions.dataclass(), users.dataclass()
@@ -35,9 +35,6 @@ column_headers = [
 ]
 
 column_standardized = list(map(standardize_column, column_headers))[1:]
-date_columns = [
-    c for c in column_standardized if c.endswith("time") or c.endswith("at")
-]
 
 
 def radio_btn(id, state=False):
@@ -57,14 +54,9 @@ def render_revision_row(revision):
     id = rev_dict["id"]
     rid = f"r-{id}"
 
-    def render_cell(column, value):
-        if column in date_columns:
-            return Td(convert_time(value))
-        return Td(value)
-
     return Tr(
         Td(radio_btn(id)),
-        *[render_cell(c, rev_dict[c]) for c in column_standardized],
+        *[Td(rev_dict[c]) for c in column_standardized],
         hx_get=select.to(id=id),
         target_id=rid,
         hx_swap="outerHTML",

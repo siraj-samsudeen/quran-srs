@@ -7,7 +7,3 @@ def standardize_column(column_name):
     cleaned_column = column_name.strip().lower()
     # Replace consecutive spaces with a single underscore
     return re.sub(r"\s+", "_", cleaned_column)
-
-
-def convert_time(i):
-    return datetime.fromtimestamp(i).strftime("%Y-%m-%d %H:%M:%S")
