@@ -24,6 +24,7 @@ Revision, User = revisions.dataclass(), users.dataclass()
 
 
 column_headers = [
+    "Select",
     "Page",
     "Revision Time",
     "Rating",
@@ -33,22 +34,41 @@ column_headers = [
     "Last Modified At",
 ]
 
-column_standardized = list(map(standardize_column, column_headers))
+column_standardized = list(map(standardize_column, column_headers))[1:]
 date_columns = [
     c for c in column_standardized if c.endswith("time") or c.endswith("at")
 ]
 
 
+def radio_btn(id, state=False):
+    return Input(
+        type="radio",
+        name="revision_id",
+        value=id,
+        id=f"r-{id}",
+        hx_swap_oob="true",
+        checked=state,
+    )
+
+
 def render_revision_row(revision):
     # Convert the revision object to a dictionary to easily access its attributes by column names
     rev_dict = vars(revision)
+    id = rev_dict["id"]
+    rid = f"r-{id}"
 
     def render_cell(column, value):
         if column in date_columns:
             return Td(convert_time(value))
         return Td(value)
 
-    return Tr(*[render_cell(c, rev_dict[c]) for c in column_standardized])
+    return Tr(
+        Td(radio_btn(id)),
+        *[render_cell(c, rev_dict[c]) for c in column_standardized],
+        hx_get=select.to(id=id),
+        target_id=rid,
+        hx_swap="outerHTML",
+    )
 
 
 @rt
@@ -69,6 +89,11 @@ def revision():
         ),
     )
     return Titled("Quran SRS Revision", table)
+
+
+@rt
+def select(id: int):
+    return radio_btn(id, True)
 
 
 serve()
