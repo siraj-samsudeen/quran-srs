@@ -171,26 +171,43 @@ def logout(sess):
     return RedirectResponse("/login", status_code=303)
 
 
+def navbar(user, title, active="Home"):
+    return (
+        Nav(
+            Ul(Li(P(Strong("User: "), user))),
+            Ul(Li(H3(title))),
+            Ul(
+                Li(A("Home", href="/", cls=None if active == "Home" else "contrast")),
+                Li(
+                    A(
+                        "Revision",
+                        href=revision,
+                        cls=None if active == "Revision" else "contrast",
+                    )
+                ),
+                Li(A("logout", href=logout, cls="contrast")),
+            ),
+        ),
+        Hr(),
+    )
+
+
 @rt
 def index(auth):
     title = "Quran SRS Home"
-    top = Grid(
-        H1(title),
-        Div(A("logout", href="/logout"), style="text-align: right"),
-    )
+    top = navbar(auth, title)
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
     table = Table(Thead(Tr(Th("Page"), Th("Revision Time"))), Tbody(*rows))
     return Title(title), Container(
         top,
         Div("Fresh start with FastHTML"),
-        Div("User: ", auth),
-        Div("Nav: ", A("Revision", href=revision)),
         table,
     )
 
 
 @rt
-def revision():
+def revision(auth):
+    title = "Quran SRS Revision"
     new_btn = Button(
         "New",
         hx_get=add_revision,
@@ -208,7 +225,7 @@ def revision():
         Tbody(*map(render_revision_row, revisions())),
     )
     form = Form(actions, table)
-    return Titled("Quran SRS Revision", form)
+    return Title(title), Container(navbar(auth, title, active="Revision"), form)
 
 
 @app.post
