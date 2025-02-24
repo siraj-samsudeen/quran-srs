@@ -1,4 +1,5 @@
 from fasthtml.common import *
+from datetime import datetime
 from utils import standardize_column
 
 app, rt = fast_app(live=True)
@@ -75,11 +76,18 @@ def index():
 
 @rt
 def revision():
+    new_btn = Button(
+        "New",
+        hx_get=add_revision,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+    )
     edit_btn = Button(
         "Edit", hx_post=edit, hx_target="body", hx_swap="outerHTML", hx_push_url="true"
     )
     delete_btn = Button("Delete", hx_post=delete_row, hx_swap="none")
-    actions = Div(edit_btn, " ", delete_btn)
+    actions = Div(new_btn, " ", edit_btn, " ", delete_btn)
     table = Table(
         Thead(Tr(*map(Th, column_headers))),
         Tbody(*map(render_revision_row, revisions())),
@@ -104,12 +112,18 @@ def edit(revision_id: int):
     return RedirectResponse(f"/edit?id={revision_id}", status_code=303)
 
 
-@app.get
-def edit(id: int):
-    form = Form(
-        Hidden(name="id"),
+def input_form(action: str):
+    return Form(
+        Hidden(name="id") if action == "update" else None,
         Label("Page", Input(type="number", name="page")),
-        Label("Date", Input(type="datetime-local", name="revision_time")),
+        Label(
+            "Date",
+            Input(
+                type="datetime-local",
+                name="revision_time",
+                value=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            ),
+        ),
         Label(
             "Rating",
             Select(
@@ -119,10 +133,15 @@ def edit(id: int):
                 name="rating",
             ),
         ),
-        Button("Update"),
-        action=update,
+        Button(action.capitalize()),
+        action=f"/{action}",
         method="POST",
     )
+
+
+@app.get
+def edit(id: int):
+    form = input_form(action="update")
     return Titled("Edit", fill_form(form, revisions[id]))
 
 
@@ -131,6 +150,23 @@ def update(revision: Revision):
     # Clean up the revision_time
     revision.revision_time = revision.revision_time.replace("T", " ")
     revisions.update(revision)
+    return RedirectResponse("/revision", status_code=303)
+
+
+@rt
+def add_revision():
+    return Titled("Add Revision", input_form(action="create"))
+
+
+@app.post
+def create(revision: Revision):
+    revision.revision_time = revision.revision_time.replace("T", " ")
+    revision.created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    revision.last_modified_at = revision.created_at
+    # Temp user
+    revision.created_by = "admin"
+    revision.last_modified_by = "admin"
+    revisions.insert(revision)
     return RedirectResponse("/revision", status_code=303)
 
 
