@@ -52,6 +52,8 @@ column_headers = [
 
 column_standardized = list(map(standardize_column, column_headers))[1:]
 
+current_time = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def radio_btn(id, state=False):
     return Input(
@@ -259,9 +261,11 @@ def edit(id: int):
 
 
 @app.post
-def update(revision: Revision):
+def update(auth, revision: Revision):
     # Clean up the revision_time
     revision.revision_time = revision.revision_time.replace("T", " ")
+    revision.last_modified_at = current_time()
+    revision.last_modified_by = auth
     revisions.update(revision)
     return RedirectResponse("/revision", status_code=303)
 
@@ -272,13 +276,10 @@ def add_revision():
 
 
 @app.post
-def create(revision: Revision):
+def create(auth, revision: Revision):
     revision.revision_time = revision.revision_time.replace("T", " ")
-    revision.created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    revision.last_modified_at = revision.created_at
-    # Temp user
-    revision.created_by = "admin"
-    revision.last_modified_by = "admin"
+    revision.created_at = revision.last_modified_at = current_time()
+    revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
     return RedirectResponse("/revision", status_code=303)
 
