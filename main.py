@@ -102,6 +102,45 @@ def signup(user: User, sess):
         u = users.insert(user)
     else:
         add_toast(sess, "This email is already registered", "info")
+        return RedirectResponse("/login", status_code=303)
+
+    sess["name"] = u.name
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get
+def login():
+    return Titled(
+        "Login",
+        Form(
+            Input(type="email", name="email", placeholder="Email", required=True),
+            Input(
+                type="password", name="password", placeholder="Password", required=True
+            ),
+            Button("login"),
+            action=login,
+            method="POST",
+        ),
+    )
+
+
+@dataclass
+class Login:
+    email: str
+    password: str
+
+
+@app.post
+def login(user: Login, sess):
+    try:
+        u = users(where=f"email = '{user.email}'")[0]
+    except IndexError:
+        add_toast(sess, "This email is not registered", "warning")
+        return RedirectResponse("/signup", status_code=303)
+
+    if not compare_digest(u.password.encode("utf-8"), user.password.encode("utf-8")):
+        add_toast(sess, "Incorrect password", "error")
+        return RedirectResponse("/login", status_code=303)
 
     sess["name"] = u.name
     return RedirectResponse("/", status_code=303)
