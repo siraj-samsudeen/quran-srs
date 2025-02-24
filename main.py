@@ -65,12 +65,26 @@ def render_revision_row(revision):
     )
 
 
+def get_first_unique_page() -> list[dict]:
+    unique_pages = set()
+    result = []
+    for r in revisions(order_by="revision_time DESC"):
+        if r.page not in unique_pages:
+            unique_pages.add(r.page)
+            result.append(r.__dict__)
+    # Reverse the list to get the oldest first
+    return result[::-1]
+
+
 @rt
 def index():
+    rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
+    table = Table(Thead(Tr(Th("Page"), Th("Revision Time"))), Tbody(*rows))
     return Titled(
         "Quran SRS Home",
         Div("Fresh start with FastHTML"),
         Div("Nav: ", A("Revision", href=revision)),
+        table,
     )
 
 
