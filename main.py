@@ -3,6 +3,7 @@ from datetime import datetime
 from utils import standardize_column
 
 app, rt = fast_app(live=True)
+setup_toasts(app)
 
 db = database("data/quran.db")
 
@@ -76,13 +77,45 @@ def get_first_unique_page() -> list[dict]:
     return result[::-1]
 
 
+@app.get
+def signup():
+    return Titled(
+        "Sign up",
+        Form(
+            Input(name="name", placeholder="Name", required=True),
+            Input(type="email", name="email", placeholder="Email", required=True),
+            Input(
+                type="password", name="password", placeholder="Password", required=True
+            ),
+            Button("sign up"),
+            action=signup,
+            method="POST",
+        ),
+    )
+
+
+@app.post
+def signup(user: User, sess):
+    try:
+        u = users(where=f"email = '{user.email}'")[0]
+    except IndexError:
+        u = users.insert(user)
+    else:
+        add_toast(sess, "This email is already registered", "info")
+
+    sess["name"] = u.name
+    return RedirectResponse("/", status_code=303)
+
+
 @rt
-def index():
+def index(sess):
+    name = sess.get("name", None)
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
     table = Table(Thead(Tr(Th("Page"), Th("Revision Time"))), Tbody(*rows))
     return Titled(
         "Quran SRS Home",
         Div("Fresh start with FastHTML"),
+        Div("User: ", name),
         Div("Nav: ", A("Revision", href=revision)),
         table,
     )
