@@ -2,8 +2,6 @@ from fasthtml.common import *
 from datetime import datetime
 from utils import standardize_column
 
-app, rt = fast_app(live=True)
-setup_toasts(app)
 
 db = database("data/quran.db")
 
@@ -23,6 +21,22 @@ if revisions not in db.t:
         pk="id",
     )
 Revision, User = revisions.dataclass(), users.dataclass()
+
+
+def before(req, sess):
+    auth = req.scope["auth"] = sess.get("auth", None)
+    id = sess.get("user_id", None)
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    revisions.xtra(user_id=id)
+
+
+bware = Beforeware(
+    before, skip=[r"/favicon\.ico", r"/static/.*", r".*\.css", "/login", "/signup"]
+)
+
+app, rt = fast_app(live=True, before=bware)
+setup_toasts(app)
 
 
 column_headers = [
@@ -104,7 +118,8 @@ def signup(user: User, sess):
         add_toast(sess, "This email is already registered", "info")
         return RedirectResponse("/login", status_code=303)
 
-    sess["name"] = u.name
+    sess["auth"] = u.name
+    sess["user_id"] = u.user_id
     return RedirectResponse("/", status_code=303)
 
 
@@ -142,19 +157,31 @@ def login(user: Login, sess):
         add_toast(sess, "Incorrect password", "error")
         return RedirectResponse("/login", status_code=303)
 
-    sess["name"] = u.name
+    sess["auth"] = u.name
+    sess["user_id"] = u.user_id
     return RedirectResponse("/", status_code=303)
 
 
 @rt
-def index(sess):
-    name = sess.get("name", None)
+def logout(sess):
+    del sess["auth"]
+    del sess["user_id"]
+    return RedirectResponse("/login", status_code=303)
+
+
+@rt
+def index(auth):
+    title = "Quran SRS Home"
+    top = Grid(
+        H1(title),
+        Div(A("logout", href="/logout"), style="text-align: right"),
+    )
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
     table = Table(Thead(Tr(Th("Page"), Th("Revision Time"))), Tbody(*rows))
-    return Titled(
-        "Quran SRS Home",
+    return Title(title), Container(
+        top,
         Div("Fresh start with FastHTML"),
-        Div("User: ", name),
+        Div("User: ", auth),
         Div("Nav: ", A("Revision", href=revision)),
         table,
     )
