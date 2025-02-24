@@ -78,13 +78,20 @@ def revision():
     edit_btn = Button(
         "Edit", hx_post=edit, hx_target="body", hx_swap="outerHTML", hx_push_url="true"
     )
-    actions = Div(edit_btn)
+    delete_btn = Button("Delete", hx_post=delete_row, hx_swap="none")
+    actions = Div(edit_btn, " ", delete_btn)
     table = Table(
         Thead(Tr(*map(Th, column_headers))),
         Tbody(*map(render_revision_row, revisions())),
     )
     form = Form(actions, table)
     return Titled("Quran SRS Revision", form)
+
+
+@app.post
+def delete_row(revision_id: int):
+    revisions.delete(revision_id)
+    return Tr(id=f"row-{revision_id}", hx_swap_oob="true")
 
 
 @rt
