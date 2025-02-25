@@ -57,7 +57,20 @@ column_headers = [
 
 column_standardized = list(map(standardize_column, column_headers))[1:]
 
-current_time = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def current_time(f="%Y-%m-%d %I:%M %p"):
+    return datetime.now().strftime(f)
+
+
+def convert_time(t, reverse=False):
+    initial = "%Y-%m-%d"
+    end = "%d %b %Y"
+    if reverse:
+        initial, end = end, initial
+    try:
+        return datetime.strptime(t, initial).strftime(end)
+    except ValueError:
+        return None
 
 
 def radio_btn(id, state=False):
@@ -287,9 +300,9 @@ def input_form(action: str):
         Label(
             "Date",
             Input(
-                type="datetime-local",
+                type="date",
                 name="revision_time",
-                value=current_time(),
+                value=current_time("%Y-%m-%d"),
             ),
         ),
         Label(
@@ -309,14 +322,17 @@ def input_form(action: str):
 
 @app.get
 def edit(id: int):
+    revision = revisions[id]
+    # convert the time to correct format for the form
+    revision.revision_time = convert_time(revision.revision_time, reverse=True)
     form = input_form(action="update")
-    return Titled("Edit", fill_form(form, revisions[id]))
+    return Titled("Edit", fill_form(form, revision))
 
 
 @app.post
 def update(auth, revision: Revision):
     # Clean up the revision_time
-    revision.revision_time = revision.revision_time.replace("T", " ")
+    revision.revision_time = convert_time(revision.revision_time)
     revision.last_modified_at = current_time()
     revision.last_modified_by = auth
     revisions.update(revision)
@@ -330,7 +346,7 @@ def add_revision():
 
 @app.post
 def create(auth, revision: Revision):
-    revision.revision_time = revision.revision_time.replace("T", " ")
+    revision.revision_time = convert_time(revision.revision_time)
     revision.created_at = revision.last_modified_at = current_time()
     revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
