@@ -2,6 +2,7 @@ from fasthtml.common import *
 from datetime import datetime
 from utils import standardize_column
 
+ROW_OPTIONS = [5, 10, 15]
 
 db = database("data/quran.db")
 
@@ -250,8 +251,25 @@ delete_btn = lambda disable=True: Button(
 )
 
 
+def revision_table(limit=5, times=1):
+    upper_limit = limit * times
+    lower_limit = upper_limit - limit
+    return Table(
+        Thead(Tr(*map(Th, column_headers))),
+        Tbody(
+            *map(
+                render_revision_row,
+                # Reverse the list to get the last edited first
+                revisions(order_by="revision_time")[::-1][lower_limit:upper_limit],
+            )
+        ),
+        id="revisionTable",
+    )
+
+
 @rt
-def revision(auth):
+def revision(auth, sess):
+    row_limit = sess.get("row", 5)
     title = "Quran SRS Revision"
     new_btn = Button(
         "New",
@@ -261,14 +279,28 @@ def revision(auth):
         hx_push_url="true",
     )
 
-    actions = Div(new_btn, " ", edit_btn(), " ", delete_btn())
-    table = Table(
-        Thead(Tr(*map(Th, column_headers))),
-        # Reverse the list to get the last edited first
-        Tbody(*map(render_revision_row, revisions(order_by="revision_time")[::-1])),
+    def _option(x):
+        return Option(x, value=x, **({"selected": True} if x == row_limit else {}))
+
+    dropdown = Select(
+        *(_option(x) for x in ROW_OPTIONS),
+        name="row",
+        style="width: 100px;float: right;",
+        hx_trigger="change",
+        hx_post=refresh_table,
+        target_id="revisionTable",
+        hx_swap="outerHTML",
     )
+    actions = Div(new_btn, " ", edit_btn(), " ", delete_btn(), dropdown)
+    table = revision_table(row_limit)
     form = Form(actions, table, cls="overflow-auto")
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
+
+
+@app.post
+def refresh_table(row: int, sess):
+    sess["row"] = row
+    return revision_table(limit=row)
 
 
 @app.post
