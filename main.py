@@ -296,13 +296,14 @@ def edit(revision_id: int):
 def input_form(action: str):
     return Form(
         Hidden(name="id") if action == "update" else None,
-        Label("Page", Input(type="number", name="page", autofocus=True)),
+        Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
         Label(
             "Date",
             Input(
                 type="date",
                 name="revision_time",
                 value=current_time("%Y-%m-%d"),
+                required=True,
             ),
         ),
         Label(
