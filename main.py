@@ -177,23 +177,29 @@ def logout(sess):
 
 
 def navbar(user, title, active="Home"):
+    is_active = lambda x: None if x == active else "contrast"
+    navigation = Nav(
+        Ul(
+            Li(A("Home", href="/", cls=is_active("Home"))),
+            Li(A("Revision", href=revision, cls=is_active("Revision"))),
+            Li(A("logout", href=logout, cls="secondary")),
+        ),
+        aria_label="breadcrumb",
+        style="--pico-nav-breadcrumb-divider: '|';",
+    )
     return (
         Nav(
             Ul(Li(P(Strong("User: "), user))),
-            Ul(Li(H3(title))),
             Ul(
-                Li(A("Home", href="/", cls=None if active == "Home" else "contrast")),
                 Li(
-                    A(
-                        "Revision",
-                        href=revision,
-                        cls=None if active == "Revision" else "contrast",
-                    )
-                ),
-                Li(A("logout", href=logout, cls="contrast")),
+                    H3(title),
+                    Span("Fresh start with FastHTML"),
+                    style="text-align: center",
+                )
             ),
+            Ul(navigation),
         ),
-        Hr(),
+        Hr(style="margin-top:0;"),
     )
 
 
@@ -203,11 +209,7 @@ def index(auth):
     top = navbar(auth, title)
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
     table = Table(Thead(Tr(Th("Page"), Th("Last Revision Time"))), Tbody(*rows))
-    return Title(title), Container(
-        top,
-        Div("Fresh start with FastHTML"),
-        table,
-    )
+    return Title(title), Container(top, table)
 
 
 edit_btn = lambda disable=True: Button(
