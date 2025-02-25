@@ -210,6 +210,27 @@ def index(auth):
     )
 
 
+edit_btn = lambda disable=True: Button(
+    "Edit",
+    hx_post=edit,
+    hx_target="body",
+    hx_swap="outerHTML",
+    hx_push_url="true",
+    id="editButton",
+    disabled=disable,
+    hx_swap_oob="true",
+)
+
+delete_btn = lambda disable=True: Button(
+    "Delete",
+    hx_post=delete_row,
+    hx_swap="none",
+    id="deleteButton",
+    disabled=disable,
+    hx_swap_oob="true",
+)
+
+
 @rt
 def revision(auth):
     title = "Quran SRS Revision"
@@ -220,11 +241,8 @@ def revision(auth):
         hx_swap="outerHTML",
         hx_push_url="true",
     )
-    edit_btn = Button(
-        "Edit", hx_post=edit, hx_target="body", hx_swap="outerHTML", hx_push_url="true"
-    )
-    delete_btn = Button("Delete", hx_post=delete_row, hx_swap="none")
-    actions = Div(new_btn, " ", edit_btn, " ", delete_btn)
+
+    actions = Div(new_btn, " ", edit_btn(), " ", delete_btn())
     table = Table(
         Thead(Tr(*map(Th, column_headers))),
         # Reverse the list to get the last edited first
@@ -237,12 +255,20 @@ def revision(auth):
 @app.post
 def delete_row(revision_id: int):
     revisions.delete(revision_id)
-    return Tr(id=f"row-{revision_id}", hx_swap_oob="true")
+    return (
+        Tr(id=f"row-{revision_id}", hx_swap_oob="true"),
+        edit_btn(),
+        delete_btn(),
+    )
 
 
 @rt
 def select(id: int):
-    return radio_btn(id, True)
+    return (
+        radio_btn(id, True),
+        edit_btn(disable=False),
+        delete_btn(disable=False),
+    )
 
 
 @app.post
