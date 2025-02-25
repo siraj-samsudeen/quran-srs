@@ -73,14 +73,14 @@ def convert_time(t, reverse=False):
         return None
 
 
-def radio_btn(id, state=False):
+def radio_btn(id, state=False, **kwargs):
     return Input(
         type="radio",
         name="revision_id",
         value=id,
         id=f"r-{id}",
-        hx_swap_oob="true",
         checked=state,
+        **kwargs,
     )
 
 
@@ -284,7 +284,7 @@ def delete_row(revision_id: int):
 @rt
 def select(id: int):
     return (
-        radio_btn(id, True),
+        radio_btn(id, True, hx_swap_oob="true"),
         edit_btn(disable=False),
         delete_btn(disable=False),
     )
