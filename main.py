@@ -265,7 +265,7 @@ def revision(auth):
     table = Table(
         Thead(Tr(*map(Th, column_headers))),
         # Reverse the list to get the last edited first
-        Tbody(*map(render_revision_row, revisions(order_by="last_modified_at")[::-1])),
+        Tbody(*map(render_revision_row, revisions(order_by="revision_time")[::-1])),
     )
     form = Form(actions, table, cls="overflow-auto")
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
