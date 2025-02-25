@@ -318,6 +318,8 @@ def input_form(action: str):
             ),
         ),
         Button(action.capitalize()),
+        " ",
+        A(Button("Discard", type="button"), href="/revision"),
         action=f"/{action}",
         method="POST",
     )
