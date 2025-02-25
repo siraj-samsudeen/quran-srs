@@ -217,6 +217,7 @@ edit_btn = lambda disable=True: Button(
     hx_swap="outerHTML",
     hx_push_url="true",
     id="editButton",
+    cls="secondary",
     disabled=disable,
     hx_swap_oob="true",
 )
@@ -226,6 +227,7 @@ delete_btn = lambda disable=True: Button(
     hx_post=delete_row,
     hx_swap="none",
     id="deleteButton",
+    cls="secondary",
     disabled=disable,
     hx_swap_oob="true",
 )
@@ -248,7 +250,7 @@ def revision(auth):
         # Reverse the list to get the last edited first
         Tbody(*map(render_revision_row, revisions(order_by="last_modified_at")[::-1])),
     )
-    form = Form(actions, table)
+    form = Form(actions, table, cls="overflow-auto")
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
 
 
@@ -279,7 +281,7 @@ def edit(revision_id: int):
 def input_form(action: str):
     return Form(
         Hidden(name="id") if action == "update" else None,
-        Label("Page", Input(type="number", name="page")),
+        Label("Page", Input(type="number", name="page", autofocus=True)),
         Label(
             "Date",
             Input(
