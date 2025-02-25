@@ -254,15 +254,37 @@ delete_btn = lambda disable=True: Button(
 def revision_table(limit=5, times=1):
     upper_limit = limit * times
     lower_limit = upper_limit - limit
-    return Table(
-        Thead(Tr(*map(Th, column_headers))),
-        Tbody(
-            *map(
-                render_revision_row,
-                # Reverse the list to get the last edited first
-                revisions(order_by="revision_time")[::-1][lower_limit:upper_limit],
-            )
+
+    prev_btn = Button(
+        "Previous",
+        cls="contrast",
+        hx_get=refresh_table.to(times=times - 1),
+        target_id="revisionTable",
+        hx_swap="outerHTML",
+        **({"disabled": True} if times == 1 else {}),
+    )
+    next_btn = Button(
+        "Next",
+        cls="contrast",
+        style="float: right;",
+        hx_get=refresh_table.to(times=times + 1),
+        target_id="revisionTable",
+        hx_swap="outerHTML",
+        **({"disabled": True} if upper_limit >= len(revisions()) else {}),
+    )
+    action_buttons = Grid(prev_btn, next_btn)
+    return Div(
+        Table(
+            Thead(Tr(*map(Th, column_headers))),
+            Tbody(
+                *map(
+                    render_revision_row,
+                    # Reverse the list to get the last edited first
+                    revisions(order_by="revision_time")[::-1][lower_limit:upper_limit],
+                )
+            ),
         ),
+        action_buttons,
         id="revisionTable",
     )
 
@@ -301,6 +323,12 @@ def revision(auth, sess):
 def refresh_table(row: int, sess):
     sess["row"] = row
     return revision_table(limit=row)
+
+
+@app.get
+def refresh_table(times: int, sess):
+    row = sess.get("row", 5)
+    return revision_table(row, times=times)
 
 
 @app.post
