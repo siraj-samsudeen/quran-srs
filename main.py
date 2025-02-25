@@ -115,6 +115,7 @@ def get_first_unique_page() -> list[dict]:
 def signup():
     return Titled(
         "Sign up",
+        P("Already have an account? ", A("login", href="/login")),
         Form(
             Input(name="name", placeholder="Name", required=True),
             Input(type="email", name="email", placeholder="Email", required=True),
@@ -147,6 +148,7 @@ def signup(user: User, sess):
 def login():
     return Titled(
         "Login",
+        P("Don't have an account? ", A("sign up", href="/signup")),
         Form(
             Input(type="email", name="email", placeholder="Email", required=True),
             Input(
