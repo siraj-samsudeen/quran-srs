@@ -23,11 +23,16 @@ if revisions not in db.t:
 Revision, User = revisions.dataclass(), users.dataclass()
 
 
+login_redir = RedirectResponse("/login", status_code=303)
+home_redir = RedirectResponse("/", status_code=303)
+revision_redir = RedirectResponse("/revision", status_code=303)
+
+
 def before(req, sess):
     auth = req.scope["auth"] = sess.get("auth", None)
     id = sess.get("user_id", None)
     if not auth:
-        return RedirectResponse("/login", status_code=303)
+        return login_redir
     revisions.xtra(user_id=id)
 
 
@@ -118,11 +123,11 @@ def signup(user: User, sess):
         u = users.insert(user)
     else:
         add_toast(sess, "This email is already registered", "info")
-        return RedirectResponse("/login", status_code=303)
+        return login_redir
 
     sess["auth"] = u.name
     sess["user_id"] = u.user_id
-    return RedirectResponse("/", status_code=303)
+    return home_redir
 
 
 @app.get
@@ -157,18 +162,18 @@ def login(user: Login, sess):
 
     if not compare_digest(u.password.encode("utf-8"), user.password.encode("utf-8")):
         add_toast(sess, "Incorrect password", "error")
-        return RedirectResponse("/login", status_code=303)
+        return login_redir
 
     sess["auth"] = u.name
     sess["user_id"] = u.user_id
-    return RedirectResponse("/", status_code=303)
+    return home_redir
 
 
 @rt
 def logout(sess):
     del sess["auth"]
     del sess["user_id"]
-    return RedirectResponse("/login", status_code=303)
+    return login_redir
 
 
 def navbar(user, title, active="Home"):
@@ -197,7 +202,7 @@ def index(auth):
     title = "Quran SRS Home"
     top = navbar(auth, title)
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
-    table = Table(Thead(Tr(Th("Page"), Th("Revision Time"))), Tbody(*rows))
+    table = Table(Thead(Tr(Th("Page"), Th("Last Revision Time"))), Tbody(*rows))
     return Title(title), Container(
         top,
         Div("Fresh start with FastHTML"),
@@ -222,7 +227,8 @@ def revision(auth):
     actions = Div(new_btn, " ", edit_btn, " ", delete_btn)
     table = Table(
         Thead(Tr(*map(Th, column_headers))),
-        Tbody(*map(render_revision_row, revisions())),
+        # Reverse the list to get the last edited first
+        Tbody(*map(render_revision_row, revisions(order_by="last_modified_at")[::-1])),
     )
     form = Form(actions, table)
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
@@ -253,7 +259,7 @@ def input_form(action: str):
             Input(
                 type="datetime-local",
                 name="revision_time",
-                value=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                value=current_time(),
             ),
         ),
         Label(
@@ -284,7 +290,7 @@ def update(auth, revision: Revision):
     revision.last_modified_at = current_time()
     revision.last_modified_by = auth
     revisions.update(revision)
-    return RedirectResponse("/revision", status_code=303)
+    return revision_redir
 
 
 @rt
@@ -298,7 +304,7 @@ def create(auth, revision: Revision):
     revision.created_at = revision.last_modified_at = current_time()
     revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
-    return RedirectResponse("/revision", status_code=303)
+    return revision_redir
 
 
 serve()
