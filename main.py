@@ -221,11 +221,22 @@ def navbar(user, title, active="Home"):
 
 @rt
 def index(auth):
+    form = Form(
+        Group(
+            Input(type="number", name="page", placeholder="Page", required=True),
+            Button("Add"),
+        ),
+        hx_post=add_revision,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+        style="max-width: 200px",
+    )
     title = "Quran SRS Home"
     top = navbar(auth, title)
     rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
     table = Table(Thead(Tr(Th("Page"), Th("Last Revision Time"))), Tbody(*rows))
-    return Title(title), Container(top, table)
+    return Title(title), Container(top, form, table)
 
 
 edit_btn = lambda disable=True: Button(
@@ -404,9 +415,15 @@ def update(auth, revision: Revision):
     return revision_redir
 
 
-@rt
+@app.get
 def add_revision():
     return Titled("Add Revision", input_form(action="create"))
+
+
+@app.post
+def add_revision(revision: Revision):
+    form = input_form(action="create")
+    return Titled("Add Revision", fill_form(form, revision))
 
 
 @app.post
