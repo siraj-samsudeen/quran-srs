@@ -256,7 +256,7 @@ delete_btn = lambda disable=True: Button(
 )
 
 
-def add_pagination(table_data, col_headers, render_func, refresh_link, limit, times):
+def add_pagination(table_data, refresh_link, limit, times):
     upper_limit = limit * times
     lower_limit = upper_limit - limit
 
@@ -280,10 +280,10 @@ def add_pagination(table_data, col_headers, render_func, refresh_link, limit, ti
     action_buttons = Grid(prev_btn, next_btn)
     return Div(
         Table(
-            Thead(Tr(*map(Th, col_headers))),
+            Thead(Tr(*map(Th, column_headers))),
             Tbody(
                 *map(
-                    render_func,
+                    render_revision_row,
                     table_data[lower_limit:upper_limit],
                 )
             ),
@@ -297,8 +297,6 @@ def revision_table(limit=5, times=1):
     return add_pagination(
         # Reverse the list to get the last edited first
         table_data=revisions(order_by="revision_time")[::-1],
-        col_headers=column_headers,
-        render_func=render_revision_row,
         refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
