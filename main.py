@@ -322,13 +322,13 @@ def revision(auth, sess):
 @app.post
 def refresh_table(row: int, sess):
     sess["row"] = row
-    return revision_table(limit=row)
+    return revision_table(limit=row), edit_btn(), delete_btn()
 
 
 @app.get
 def refresh_table(times: int, sess):
     row = sess.get("row", 5)
-    return revision_table(row, times=times)
+    return revision_table(row, times=times), edit_btn(), delete_btn()
 
 
 @app.post
