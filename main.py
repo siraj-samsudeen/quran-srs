@@ -305,7 +305,7 @@ def revision_table(limit=5, times=1):
         table_data=revisions(order_by="revision_time")[::-1],
         col_headers=column_headers,
         render_func=render_revision_row,
-        refresh_link=refresh_table,
+        refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
     )
@@ -339,7 +339,12 @@ def revision(auth, sess):
     )
 
     actions = Div(
-        new_btn, " ", edit_btn(), " ", delete_btn(), dropdown(refresh_table, row_limit)
+        new_btn,
+        " ",
+        edit_btn(),
+        " ",
+        delete_btn(),
+        dropdown(refresh_revison_table, row_limit),
     )
     table = revision_table(row_limit)
     form = Form(actions, table, cls="overflow-auto")
@@ -347,13 +352,13 @@ def revision(auth, sess):
 
 
 @app.post
-def refresh_table(row: int, sess):
+def refresh_revison_table(row: int, sess):
     sess["row"] = row
     return revision_table(limit=row), edit_btn(), delete_btn()
 
 
 @app.get
-def refresh_table(times: int, sess):
+def refresh_revison_table(times: int, sess):
     row = sess.get("row", 5)
     return revision_table(row, times=times), edit_btn(), delete_btn()
 
