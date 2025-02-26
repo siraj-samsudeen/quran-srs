@@ -140,3 +140,4 @@ temp.py
 db.sqlite3-journal
 .idea
 data/
+issues.xlsx
