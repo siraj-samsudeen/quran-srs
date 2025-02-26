@@ -270,7 +270,7 @@ def revision_table(limit=5, times=1):
         "Previous",
         cls="contrast",
         hx_get=refresh_table.to(times=times - 1),
-        target_id="revisionTable",
+        target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if times == 1 else {}),
     )
@@ -279,7 +279,7 @@ def revision_table(limit=5, times=1):
         cls="contrast",
         style="float: right;",
         hx_get=refresh_table.to(times=times + 1),
-        target_id="revisionTable",
+        target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if upper_limit >= len(revisions()) else {}),
     )
@@ -296,7 +296,7 @@ def revision_table(limit=5, times=1):
             ),
         ),
         action_buttons,
-        id="revisionTable",
+        id="tableArea",
     )
 
 
@@ -321,7 +321,7 @@ def revision(auth, sess):
         style="width: 100px;float: right;",
         hx_trigger="change",
         hx_post=refresh_table,
-        target_id="revisionTable",
+        target_id="tableArea",
         hx_swap="outerHTML",
     )
     actions = Div(new_btn, " ", edit_btn(), " ", delete_btn(), dropdown)
