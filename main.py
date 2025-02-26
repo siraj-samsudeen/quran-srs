@@ -262,14 +262,14 @@ delete_btn = lambda disable=True: Button(
 )
 
 
-def revision_table(limit=5, times=1):
+def add_pagination(table_data, col_headers, render_func, refresh_link, limit, times):
     upper_limit = limit * times
     lower_limit = upper_limit - limit
 
     prev_btn = Button(
         "Previous",
         cls="contrast",
-        hx_get=refresh_table.to(times=times - 1),
+        hx_get=refresh_link.to(times=times - 1),
         target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if times == 1 else {}),
@@ -278,7 +278,7 @@ def revision_table(limit=5, times=1):
         "Next",
         cls="contrast",
         style="float: right;",
-        hx_get=refresh_table.to(times=times + 1),
+        hx_get=refresh_link.to(times=times + 1),
         target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if upper_limit >= len(revisions()) else {}),
@@ -286,17 +286,28 @@ def revision_table(limit=5, times=1):
     action_buttons = Grid(prev_btn, next_btn)
     return Div(
         Table(
-            Thead(Tr(*map(Th, column_headers))),
+            Thead(Tr(*map(Th, col_headers))),
             Tbody(
                 *map(
-                    render_revision_row,
-                    # Reverse the list to get the last edited first
-                    revisions(order_by="revision_time")[::-1][lower_limit:upper_limit],
+                    render_func,
+                    table_data[lower_limit:upper_limit],
                 )
             ),
         ),
         action_buttons,
         id="tableArea",
+    )
+
+
+def revision_table(limit=5, times=1):
+    return add_pagination(
+        # Reverse the list to get the last edited first
+        table_data=revisions(order_by="revision_time")[::-1],
+        col_headers=column_headers,
+        render_func=render_revision_row,
+        refresh_link=refresh_table,
+        limit=limit,
+        times=times,
     )
 
 
