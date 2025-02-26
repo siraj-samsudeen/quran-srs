@@ -390,7 +390,7 @@ def input_form(action: str):
         ),
         Button(action.capitalize()),
         " ",
-        A(Button("Discard", type="button"), href="/revision"),
+        A(Button("Discard", type="button"), href="javascript:window.history.back();"),
         action=f"/{action}",
         method="POST",
     )
