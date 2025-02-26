@@ -206,13 +206,7 @@ def navbar(user, title, active="Home"):
     return (
         Nav(
             Ul(Li(P(Strong("User: "), user))),
-            Ul(
-                Li(
-                    H3(title),
-                    Span("Fresh start with FastHTML"),
-                    style="text-align: center",
-                )
-            ),
+            Ul(Li(H3(title))),
             Ul(navigation),
         ),
         Hr(style="margin-top:0;"),
