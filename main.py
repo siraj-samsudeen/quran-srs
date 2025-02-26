@@ -300,6 +300,21 @@ def revision_table(limit=5, times=1):
     )
 
 
+def dropdown(table_link, row_limit=5):
+    def _option(x):
+        return Option(x, value=x, **({"selected": True} if x == row_limit else {}))
+
+    return Select(
+        *(_option(x) for x in ROW_OPTIONS),
+        name="row",
+        style="width: 100px;float: right;",
+        hx_trigger="change",
+        hx_post=table_link,
+        target_id="tableArea",
+        hx_swap="outerHTML",
+    )
+
+
 @rt
 def revision(auth, sess):
     row_limit = sess.get("row", 5)
@@ -312,19 +327,9 @@ def revision(auth, sess):
         hx_push_url="true",
     )
 
-    def _option(x):
-        return Option(x, value=x, **({"selected": True} if x == row_limit else {}))
-
-    dropdown = Select(
-        *(_option(x) for x in ROW_OPTIONS),
-        name="row",
-        style="width: 100px;float: right;",
-        hx_trigger="change",
-        hx_post=refresh_table,
-        target_id="tableArea",
-        hx_swap="outerHTML",
+    actions = Div(
+        new_btn, " ", edit_btn(), " ", delete_btn(), dropdown(refresh_table, row_limit)
     )
-    actions = Div(new_btn, " ", edit_btn(), " ", delete_btn(), dropdown)
     table = revision_table(row_limit)
     form = Form(actions, table, cls="overflow-auto")
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
