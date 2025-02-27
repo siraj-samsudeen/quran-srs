@@ -51,15 +51,10 @@ app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600)
 setup_toasts(app)
 
 
-column_headers = [
-    "Select",
-    "Page",
-    "Revision Time",
-    "Rating",
-    "Created By",
-]
+column_headers = ["Select", "Page", "Revision Time", "Rating", "Created By", "Action"]
 
-column_standardized = list(map(standardize_column, column_headers))[1:]
+# To exclude the select and action buttons
+column_standardized = list(map(standardize_column, column_headers))[1:-1]
 
 
 def get_first_unique_page() -> list:
@@ -86,18 +81,6 @@ def edit_btn(disable=True, oob=False):
     )
 
 
-def delete_btn(disable=True, oob=False):
-    return Button(
-        "Delete",
-        hx_post=delete_row,
-        hx_swap="none",
-        id="deleteButton",
-        cls="secondary",
-        disabled=disable,
-        **({"hx_swap_oob": "true"} if oob else {}),
-    )
-
-
 def radio_btn(id, state=False, **kwargs):
     return Input(
         type="radio",
@@ -118,6 +101,15 @@ def render_revision_row(revision):
     return Tr(
         Td(radio_btn(id)),
         *[Td(rev_dict[c]) for c in column_standardized],
+        Td(
+            Button(
+                "Delete",
+                hx_delete=delete_row.to(id=id),
+                target_id=f"row-{id}",
+                hx_swap="outerHTML",
+                cls="secondary",
+            )
+        ),
         hx_get=select.to(id=id),
         target_id=rid,
         hx_swap="outerHTML",
@@ -193,7 +185,6 @@ def revision_table(limit=5, times=1, filter=False):
         " ",
         edit_btn(),
         " ",
-        delete_btn(),
         dropdown(refresh_revison_table, limit),
         Hidden(name="filter", value=str(filter)),
     )
@@ -372,7 +363,6 @@ def select(id: int):
     return (
         radio_btn(id, True, hx_swap_oob="true"),
         edit_btn(disable=False, oob=True),
-        delete_btn(disable=False, oob=True),
     )
 
 
@@ -400,14 +390,10 @@ def edit(id: int):
     return Titled("Edit", fill_form(form, revision))
 
 
-@app.post
-def delete_row(revision_id: int):
-    revisions.delete(revision_id)
-    return (
-        Tr(id=f"row-{revision_id}", hx_swap_oob="true"),
-        edit_btn(oob=True),
-        delete_btn(oob=True),
-    )
+@app.delete
+def delete_row(id: int):
+    revisions.delete(id)
+    return edit_btn(oob=True)
 
 
 @app.get
