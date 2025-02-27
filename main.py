@@ -233,27 +233,30 @@ def index(auth):
     return Title(title), Container(top, form, table)
 
 
-edit_btn = lambda disable=True: Button(
-    "Edit",
-    hx_post=edit,
-    hx_target="body",
-    hx_swap="outerHTML",
-    hx_push_url="true",
-    id="editButton",
-    cls="secondary",
-    disabled=disable,
-    hx_swap_oob="true",
-)
+def edit_btn(disable=True, oob=False):
+    return Button(
+        "Edit",
+        hx_post=edit,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+        id="editButton",
+        cls="secondary",
+        disabled=disable,
+        **({"hx_swap_oob": "true"} if oob else {}),
+    )
 
-delete_btn = lambda disable=True: Button(
-    "Delete",
-    hx_post=delete_row,
-    hx_swap="none",
-    id="deleteButton",
-    cls="secondary",
-    disabled=disable,
-    hx_swap_oob="true",
-)
+
+def delete_btn(disable=True, oob=False):
+    return Button(
+        "Delete",
+        hx_post=delete_row,
+        hx_swap="none",
+        id="deleteButton",
+        cls="secondary",
+        disabled=disable,
+        **({"hx_swap_oob": "true"} if oob else {}),
+    )
 
 
 def add_pagination(table_data, refresh_link, limit, times):
@@ -289,18 +292,34 @@ def add_pagination(table_data, refresh_link, limit, times):
             ),
         ),
         action_buttons,
-        id="tableArea",
     )
 
 
 def revision_table(limit=5, times=1):
-    return add_pagination(
+    new_btn = Button(
+        "New",
+        hx_get=add_revision,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+    )
+
+    actions = Div(
+        new_btn,
+        " ",
+        edit_btn(),
+        " ",
+        delete_btn(),
+        dropdown(refresh_revison_table, limit),
+    )
+    table = add_pagination(
         # Reverse the list to get the last edited first
         table_data=revisions(order_by="revision_time")[::-1],
         refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
     )
+    return Form(actions, table, cls="overflow-auto", id="tableArea")
 
 
 def dropdown(table_link, row_limit=5):
@@ -322,37 +341,20 @@ def dropdown(table_link, row_limit=5):
 def revision(auth, sess):
     row_limit = sess.get("row", 5)
     title = "Quran SRS Revision"
-    new_btn = Button(
-        "New",
-        hx_get=add_revision,
-        hx_target="body",
-        hx_swap="outerHTML",
-        hx_push_url="true",
-    )
-
-    actions = Div(
-        new_btn,
-        " ",
-        edit_btn(),
-        " ",
-        delete_btn(),
-        dropdown(refresh_revison_table, row_limit),
-    )
-    table = revision_table(row_limit)
-    form = Form(actions, table, cls="overflow-auto")
+    form = revision_table(row_limit)
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
 
 
 @app.post
 def refresh_revison_table(row: int, sess):
     sess["row"] = row
-    return revision_table(limit=row), edit_btn(), delete_btn()
+    return revision_table(limit=row)
 
 
 @app.get
 def refresh_revison_table(times: int, sess):
     row = sess.get("row", 5)
-    return revision_table(row, times=times), edit_btn(), delete_btn()
+    return revision_table(row, times=times)
 
 
 @app.post
@@ -360,8 +362,8 @@ def delete_row(revision_id: int):
     revisions.delete(revision_id)
     return (
         Tr(id=f"row-{revision_id}", hx_swap_oob="true"),
-        edit_btn(),
-        delete_btn(),
+        edit_btn(oob=True),
+        delete_btn(oob=True),
     )
 
 
@@ -369,8 +371,8 @@ def delete_row(revision_id: int):
 def select(id: int):
     return (
         radio_btn(id, True, hx_swap_oob="true"),
-        edit_btn(disable=False),
-        delete_btn(disable=False),
+        edit_btn(disable=False, oob=True),
+        delete_btn(disable=False, oob=True),
     )
 
 
