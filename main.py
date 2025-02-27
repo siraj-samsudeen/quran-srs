@@ -372,6 +372,18 @@ def edit(revision_id: int):
 
 
 def input_form(action: str):
+    def _radio(name: str):
+        return Label(
+            Input(
+                type="radio",
+                name="rating",
+                value=name,
+                checked=(name.startswith("Good")),
+            ),
+            name,
+        )
+
+    ratings = ["Good ✅", "Ok 😄", "Bad ❌"]
     return Form(
         Hidden(name="id") if action == "update" else None,
         Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
@@ -384,15 +396,8 @@ def input_form(action: str):
                 required=True,
             ),
         ),
-        Label(
-            "Rating",
-            Select(
-                Option("Good", value="Good"),
-                Option("Ok", value="Ok"),
-                Option("Bad", value="Bad"),
-                name="rating",
-            ),
-        ),
+        Label("Rating"),
+        *map(_radio, ratings),
         Button(action.capitalize()),
         " ",
         A(Button("Discard", type="button"), href="javascript:window.history.back();"),
