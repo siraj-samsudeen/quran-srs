@@ -108,6 +108,7 @@ def render_revision_row(revision):
                 target_id=f"row-{id}",
                 hx_swap="outerHTML",
                 cls="secondary",
+                style="padding:3px 4px; font-size: 0.8rem;",
             )
         ),
         hx_get=select.to(id=id),
