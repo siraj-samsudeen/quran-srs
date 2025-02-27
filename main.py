@@ -226,9 +226,15 @@ def input_form(action: str):
         ),
         Label("Rating"),
         *map(_radio, ratings),
-        Button(action.capitalize()),
-        " ",
-        A(Button("Discard", type="button"), href="javascript:window.history.back();"),
+        Div(
+            Button(action.capitalize()),
+            " ",
+            A(
+                Button("Discard", type="button"),
+                href="javascript:window.history.back();",
+            ),
+            style="margin-top: 1rem;",
+        ),
         action=f"/{action}",
         method="POST",
     )
