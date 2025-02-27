@@ -107,9 +107,8 @@ def get_first_unique_page() -> list[dict]:
     for r in revisions(order_by="revision_time DESC"):
         if r.page not in unique_pages:
             unique_pages.add(r.page)
-            result.append(r.__dict__)
-    # Reverse the list to get the oldest first
-    return result[::-1]
+            result.append(r)
+    return result
 
 
 @app.get
@@ -214,23 +213,12 @@ def navbar(user, title, active="Home"):
 
 
 @rt
-def index(auth):
-    form = Form(
-        Group(
-            Input(type="number", name="page", placeholder="Page", required=True),
-            Button("Add"),
-        ),
-        hx_post=add_revision,
-        hx_target="body",
-        hx_swap="outerHTML",
-        hx_push_url="true",
-        style="max-width: 200px",
-    )
+def index(auth, sess):
+    row_limit = sess.get("row", 5)
     title = "Quran SRS Home"
     top = navbar(auth, title)
-    rows = [Tr(Td(r["page"]), Td(r["revision_time"])) for r in get_first_unique_page()]
-    table = Table(Thead(Tr(Th("Page"), Th("Last Revision Time"))), Tbody(*rows))
-    return Title(title), Container(top, form, table)
+    form = revision_table(limit=row_limit, filter=True)
+    return Title(title), Container(top, form)
 
 
 def edit_btn(disable=True, oob=False):
@@ -295,7 +283,10 @@ def add_pagination(table_data, refresh_link, limit, times):
     )
 
 
-def revision_table(limit=5, times=1):
+def revision_table(limit=5, times=1, filter=False):
+    table_data = (
+        get_first_unique_page() if filter else revisions(order_by="revision_time")
+    )
     new_btn = Button(
         "New",
         hx_get=add_revision,
@@ -313,8 +304,8 @@ def revision_table(limit=5, times=1):
         dropdown(refresh_revison_table, limit),
     )
     table = add_pagination(
-        # Reverse the list to get the last edited first
-        table_data=revisions(order_by="revision_time")[::-1],
+        # Reverse the list to get the (last edited / oldest) first
+        table_data=table_data[::-1],
         refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
