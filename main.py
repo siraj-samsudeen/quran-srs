@@ -247,14 +247,14 @@ def delete_btn(disable=True, oob=False):
     )
 
 
-def add_pagination(table_data, refresh_link, limit, times):
+def add_pagination(table_data, refresh_link, limit, times, filter):
     upper_limit = limit * times
     lower_limit = upper_limit - limit
 
     prev_btn = Button(
         "Previous",
         cls="contrast",
-        hx_get=refresh_link.to(times=times - 1),
+        hx_get=refresh_link.to(times=times - 1, filter=filter),
         target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if times == 1 else {}),
@@ -263,10 +263,10 @@ def add_pagination(table_data, refresh_link, limit, times):
         "Next",
         cls="contrast",
         style="float: right;",
-        hx_get=refresh_link.to(times=times + 1),
+        hx_get=refresh_link.to(times=times + 1, filter=filter),
         target_id="tableArea",
         hx_swap="outerHTML",
-        **({"disabled": True} if upper_limit >= len(revisions()) else {}),
+        **({"disabled": True} if upper_limit >= len(table_data) else {}),
     )
     action_buttons = Grid(prev_btn, next_btn)
     return Div(
@@ -302,6 +302,7 @@ def revision_table(limit=5, times=1, filter=False):
         " ",
         delete_btn(),
         dropdown(refresh_revison_table, limit),
+        Hidden(name="filter", value=str(filter)),
     )
     table = add_pagination(
         # Reverse the list to get the (last edited / oldest) first
@@ -309,6 +310,7 @@ def revision_table(limit=5, times=1, filter=False):
         refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
+        filter=filter,
     )
     return Form(actions, table, cls="overflow-auto", id="tableArea")
 
@@ -337,15 +339,15 @@ def revision(auth, sess):
 
 
 @app.post
-def refresh_revison_table(row: int, sess):
+def refresh_revison_table(filter: bool, row: int, sess):
     sess["row"] = row
-    return revision_table(limit=row)
+    return revision_table(limit=row, filter=filter)
 
 
 @app.get
-def refresh_revison_table(times: int, sess):
+def refresh_revison_table(filter: bool, times: int, sess):
     row = sess.get("row", 5)
-    return revision_table(row, times=times)
+    return revision_table(row, times=times, filter=filter)
 
 
 @app.post
