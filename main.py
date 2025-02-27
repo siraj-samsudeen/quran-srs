@@ -432,12 +432,6 @@ def add_revision():
 
 
 @app.post
-def add_revision(revision: Revision):
-    form = input_form(action="create")
-    return Titled("Add Revision", fill_form(form, revision))
-
-
-@app.post
 def create(auth, revision: Revision):
     revision.revision_time = convert_time(revision.revision_time)
     revision.created_at = revision.last_modified_at = current_time()
