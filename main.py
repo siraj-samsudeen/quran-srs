@@ -51,9 +51,6 @@ column_headers = [
     "Revision Time",
     "Rating",
     "Created By",
-    "Created At",
-    "Last Modified By",
-    "Last Modified At",
 ]
 
 column_standardized = list(map(standardize_column, column_headers))[1:]
