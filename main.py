@@ -1,6 +1,5 @@
 from fasthtml.common import *
-from datetime import datetime
-from utils import standardize_column
+from utils import standardize_column, convert_time, current_time
 
 ROW_OPTIONS = [5, 10, 15]
 
@@ -22,6 +21,12 @@ if revisions not in db.t:
         pk="id",
     )
 Revision, User = revisions.dataclass(), users.dataclass()
+
+
+@dataclass
+class Login:
+    email: str
+    password: str
 
 
 login_redir = RedirectResponse("/login", status_code=303)
@@ -57,19 +62,40 @@ column_headers = [
 column_standardized = list(map(standardize_column, column_headers))[1:]
 
 
-def current_time(f="%Y-%m-%d %I:%M %p"):
-    return datetime.now().strftime(f)
+def get_first_unique_page() -> list:
+    unique_pages = set()
+    result = []
+    for r in revisions(order_by="revision_time DESC"):
+        if r.page not in unique_pages:
+            unique_pages.add(r.page)
+            result.append(r)
+    return result
 
 
-def convert_time(t, reverse=False):
-    initial = "%Y-%m-%d"
-    end = "%d %b %Y"
-    if reverse:
-        initial, end = end, initial
-    try:
-        return datetime.strptime(t, initial).strftime(end)
-    except ValueError:
-        return None
+def edit_btn(disable=True, oob=False):
+    return Button(
+        "Edit",
+        hx_post=edit,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+        id="editButton",
+        cls="secondary",
+        disabled=disable,
+        **({"hx_swap_oob": "true"} if oob else {}),
+    )
+
+
+def delete_btn(disable=True, oob=False):
+    return Button(
+        "Delete",
+        hx_post=delete_row,
+        hx_swap="none",
+        id="deleteButton",
+        cls="secondary",
+        disabled=disable,
+        **({"hx_swap_oob": "true"} if oob else {}),
+    )
 
 
 def radio_btn(id, state=False, **kwargs):
@@ -99,14 +125,143 @@ def render_revision_row(revision):
     )
 
 
-def get_first_unique_page() -> list[dict]:
-    unique_pages = set()
-    result = []
-    for r in revisions(order_by="revision_time DESC"):
-        if r.page not in unique_pages:
-            unique_pages.add(r.page)
-            result.append(r)
-    return result
+def add_pagination(table_data, refresh_link, limit, times, filter):
+    upper_limit = limit * times
+    lower_limit = upper_limit - limit
+
+    prev_btn = Button(
+        "Previous",
+        cls="contrast",
+        hx_get=refresh_link.to(times=times - 1, filter=filter),
+        target_id="tableArea",
+        hx_swap="outerHTML",
+        **({"disabled": True} if times == 1 else {}),
+    )
+    next_btn = Button(
+        "Next",
+        cls="contrast",
+        style="float: right;",
+        hx_get=refresh_link.to(times=times + 1, filter=filter),
+        target_id="tableArea",
+        hx_swap="outerHTML",
+        **({"disabled": True} if upper_limit >= len(table_data) else {}),
+    )
+    action_buttons = Grid(prev_btn, next_btn)
+    return Div(
+        Table(
+            Thead(Tr(*map(Th, column_headers))),
+            Tbody(
+                *map(
+                    render_revision_row,
+                    table_data[lower_limit:upper_limit],
+                )
+            ),
+        ),
+        action_buttons,
+    )
+
+
+def dropdown(table_link, row_limit=5):
+    def _option(x):
+        return Option(x, value=x, **({"selected": True} if x == row_limit else {}))
+
+    return Select(
+        *(_option(x) for x in ROW_OPTIONS),
+        name="row",
+        style="width: 100px;float: right;",
+        hx_trigger="change",
+        hx_post=table_link,
+        target_id="tableArea",
+        hx_swap="outerHTML",
+    )
+
+
+def revision_table(limit=5, times=1, filter=False):
+    table_data = (
+        get_first_unique_page() if filter else revisions(order_by="revision_time")
+    )
+    new_btn = Button(
+        "New",
+        hx_get=add_revision,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+    )
+
+    actions = Div(
+        new_btn,
+        " ",
+        edit_btn(),
+        " ",
+        delete_btn(),
+        dropdown(refresh_revison_table, limit),
+        Hidden(name="filter", value=str(filter)),
+    )
+    table = add_pagination(
+        # Reverse the list to get the (last edited / oldest) first
+        table_data=table_data[::-1],
+        refresh_link=refresh_revison_table,
+        limit=limit,
+        times=times,
+        filter=filter,
+    )
+    return Form(actions, table, cls="overflow-auto", id="tableArea")
+
+
+def input_form(action: str):
+    def _radio(name: str):
+        return Label(
+            Input(
+                type="radio",
+                name="rating",
+                value=name,
+                checked=(name.startswith("Good")),
+            ),
+            name,
+        )
+
+    ratings = ["Good ✅", "Ok 😄", "Bad ❌"]
+    return Form(
+        Hidden(name="id") if action == "update" else None,
+        Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
+        Label(
+            "Date",
+            Input(
+                type="date",
+                name="revision_time",
+                value=current_time("%Y-%m-%d"),
+                required=True,
+            ),
+        ),
+        Label("Rating"),
+        *map(_radio, ratings),
+        Button(action.capitalize()),
+        " ",
+        A(Button("Discard", type="button"), href="javascript:window.history.back();"),
+        action=f"/{action}",
+        method="POST",
+    )
+
+
+def navbar(user, title, active="Home"):
+    is_active = lambda x: None if x == active else "contrast"
+    navigation = Nav(
+        Ul(
+            Li(A("Home", href="/", cls=is_active("Home"))),
+            Li(A("Revision", href=revision, cls=is_active("Revision"))),
+            Li(A("logout", href=logout, cls="secondary")),
+        ),
+        aria_label="breadcrumb",
+        style="--pico-nav-breadcrumb-divider: '|';",
+    )
+    return (
+        Nav(
+            Ul(Li(P(Strong("User: "), user))),
+            Ul(Li(H3(title))),
+            Ul(navigation),
+        ),
+        Hr(style="margin-top:0;"),
+    )
 
 
 @app.get
@@ -159,12 +314,6 @@ def login():
     )
 
 
-@dataclass
-class Login:
-    email: str
-    password: str
-
-
 @app.post
 def login(user: Login, sess):
     try:
@@ -189,27 +338,6 @@ def logout(sess):
     return login_redir
 
 
-def navbar(user, title, active="Home"):
-    is_active = lambda x: None if x == active else "contrast"
-    navigation = Nav(
-        Ul(
-            Li(A("Home", href="/", cls=is_active("Home"))),
-            Li(A("Revision", href=revision, cls=is_active("Revision"))),
-            Li(A("logout", href=logout, cls="secondary")),
-        ),
-        aria_label="breadcrumb",
-        style="--pico-nav-breadcrumb-divider: '|';",
-    )
-    return (
-        Nav(
-            Ul(Li(P(Strong("User: "), user))),
-            Ul(Li(H3(title))),
-            Ul(navigation),
-        ),
-        Hr(style="margin-top:0;"),
-    )
-
-
 @rt
 def index(auth, sess):
     row_limit = sess.get("row", 5)
@@ -217,115 +345,6 @@ def index(auth, sess):
     top = navbar(auth, title)
     form = revision_table(limit=row_limit, filter=True)
     return Title(title), Container(top, form)
-
-
-def edit_btn(disable=True, oob=False):
-    return Button(
-        "Edit",
-        hx_post=edit,
-        hx_target="body",
-        hx_swap="outerHTML",
-        hx_push_url="true",
-        id="editButton",
-        cls="secondary",
-        disabled=disable,
-        **({"hx_swap_oob": "true"} if oob else {}),
-    )
-
-
-def delete_btn(disable=True, oob=False):
-    return Button(
-        "Delete",
-        hx_post=delete_row,
-        hx_swap="none",
-        id="deleteButton",
-        cls="secondary",
-        disabled=disable,
-        **({"hx_swap_oob": "true"} if oob else {}),
-    )
-
-
-def add_pagination(table_data, refresh_link, limit, times, filter):
-    upper_limit = limit * times
-    lower_limit = upper_limit - limit
-
-    prev_btn = Button(
-        "Previous",
-        cls="contrast",
-        hx_get=refresh_link.to(times=times - 1, filter=filter),
-        target_id="tableArea",
-        hx_swap="outerHTML",
-        **({"disabled": True} if times == 1 else {}),
-    )
-    next_btn = Button(
-        "Next",
-        cls="contrast",
-        style="float: right;",
-        hx_get=refresh_link.to(times=times + 1, filter=filter),
-        target_id="tableArea",
-        hx_swap="outerHTML",
-        **({"disabled": True} if upper_limit >= len(table_data) else {}),
-    )
-    action_buttons = Grid(prev_btn, next_btn)
-    return Div(
-        Table(
-            Thead(Tr(*map(Th, column_headers))),
-            Tbody(
-                *map(
-                    render_revision_row,
-                    table_data[lower_limit:upper_limit],
-                )
-            ),
-        ),
-        action_buttons,
-    )
-
-
-def revision_table(limit=5, times=1, filter=False):
-    table_data = (
-        get_first_unique_page() if filter else revisions(order_by="revision_time")
-    )
-    new_btn = Button(
-        "New",
-        hx_get=add_revision,
-        hx_target="body",
-        hx_swap="outerHTML",
-        hx_push_url="true",
-    )
-
-    actions = Div(
-        new_btn,
-        " ",
-        edit_btn(),
-        " ",
-        delete_btn(),
-        dropdown(refresh_revison_table, limit),
-        Hidden(name="filter", value=str(filter)),
-    )
-    table = add_pagination(
-        # Reverse the list to get the (last edited / oldest) first
-        table_data=table_data[::-1],
-        refresh_link=refresh_revison_table,
-        limit=limit,
-        times=times,
-        filter=filter,
-    )
-    return Form(actions, table, cls="overflow-auto", id="tableArea")
-
-
-def dropdown(table_link, row_limit=5):
-    def _option(x):
-        return Option(x, value=x, **({"selected": True} if x == row_limit else {}))
-
-    return Select(
-        *(_option(x) for x in ROW_OPTIONS),
-        name="row",
-        style="width: 100px;float: right;",
-        hx_trigger="change",
-        hx_post=table_link,
-        target_id="tableArea",
-        hx_swap="outerHTML",
-    )
 
 
 @rt
@@ -348,16 +367,6 @@ def refresh_revison_table(filter: bool, times: int, sess):
     return revision_table(row, times=times, filter=filter)
 
 
-@app.post
-def delete_row(revision_id: int):
-    revisions.delete(revision_id)
-    return (
-        Tr(id=f"row-{revision_id}", hx_swap_oob="true"),
-        edit_btn(oob=True),
-        delete_btn(oob=True),
-    )
-
-
 @rt
 def select(id: int):
     return (
@@ -368,43 +377,18 @@ def select(id: int):
 
 
 @app.post
+def update(auth, revision: Revision):
+    # Clean up the revision_time
+    revision.revision_time = convert_time(revision.revision_time)
+    revision.last_modified_at = current_time()
+    revision.last_modified_by = auth
+    revisions.update(revision)
+    return revision_redir
+
+
+@app.post
 def edit(revision_id: int):
     return RedirectResponse(f"/edit?id={revision_id}", status_code=303)
-
-
-def input_form(action: str):
-    def _radio(name: str):
-        return Label(
-            Input(
-                type="radio",
-                name="rating",
-                value=name,
-                checked=(name.startswith("Good")),
-            ),
-            name,
-        )
-
-    ratings = ["Good ✅", "Ok 😄", "Bad ❌"]
-    return Form(
-        Hidden(name="id") if action == "update" else None,
-        Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
-        Label(
-            "Date",
-            Input(
-                type="date",
-                name="revision_time",
-                value=current_time("%Y-%m-%d"),
-                required=True,
-            ),
-        ),
-        Label("Rating"),
-        *map(_radio, ratings),
-        Button(action.capitalize()),
-        " ",
-        A(Button("Discard", type="button"), href="javascript:window.history.back();"),
-        action=f"/{action}",
-        method="POST",
-    )
 
 
 @app.get
@@ -417,13 +401,13 @@ def edit(id: int):
 
 
 @app.post
-def update(auth, revision: Revision):
-    # Clean up the revision_time
-    revision.revision_time = convert_time(revision.revision_time)
-    revision.last_modified_at = current_time()
-    revision.last_modified_by = auth
-    revisions.update(revision)
-    return revision_redir
+def delete_row(revision_id: int):
+    revisions.delete(revision_id)
+    return (
+        Tr(id=f"row-{revision_id}", hx_swap_oob="true"),
+        edit_btn(oob=True),
+        delete_btn(oob=True),
+    )
 
 
 @app.get
