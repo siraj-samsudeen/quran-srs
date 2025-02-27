@@ -41,7 +41,8 @@ bware = Beforeware(
     before, skip=[r"/favicon\.ico", r"/static/.*", r".*\.css", "/login", "/signup"]
 )
 
-app, rt = fast_app(live=True, before=bware)
+# Session will expire after 7 days
+app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600)
 setup_toasts(app)
 
 
