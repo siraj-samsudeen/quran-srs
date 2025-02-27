@@ -118,14 +118,14 @@ def render_revision_row(revision):
     )
 
 
-def add_pagination(table_data, refresh_link, limit, times, filter):
+def add_pagination(table_data, limit, filter, times=1):
     upper_limit = limit * times
     lower_limit = upper_limit - limit
 
     prev_btn = Button(
         "Previous",
         cls="contrast",
-        hx_get=refresh_link.to(times=times - 1, filter=filter),
+        hx_get=refresh_revison_table.to(times=times - 1, filter=filter),
         target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if times == 1 else {}),
@@ -134,7 +134,7 @@ def add_pagination(table_data, refresh_link, limit, times, filter):
         "Next",
         cls="contrast",
         style="float: right;",
-        hx_get=refresh_link.to(times=times + 1, filter=filter),
+        hx_get=refresh_revison_table.to(times=times + 1, filter=filter),
         target_id="tableArea",
         hx_swap="outerHTML",
         **({"disabled": True} if upper_limit >= len(table_data) else {}),
@@ -192,7 +192,6 @@ def revision_table(limit=5, times=1, filter=False):
     table = add_pagination(
         # Reverse the list to get the (last edited / oldest) first
         table_data=table_data[::-1],
-        refresh_link=refresh_revison_table,
         limit=limit,
         times=times,
         filter=filter,
