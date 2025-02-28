@@ -1,5 +1,5 @@
 from fasthtml.common import *
-from utils import standardize_column, convert_time, current_time
+from utils import standardize_column, current_time
 
 ROW_OPTIONS = [5, 10, 15]
 RATINGS = ["Good ✅", "Ok 😄", "Bad ❌"]
@@ -472,8 +472,6 @@ def select(id: int):
 
 @app.post
 def update(auth, revision: Revision, filter: bool):
-    # Clean up the revision_time
-    revision.revision_time = convert_time(revision.revision_time)
     revision.last_modified_at = current_time()
     revision.last_modified_by = auth
     revisions.update(revision)
@@ -483,8 +481,6 @@ def update(auth, revision: Revision, filter: bool):
 @rt
 def edit(revision_id: int, filter: bool):
     revision = revisions[revision_id]
-    # convert the time to correct format for the form
-    revision.revision_time = convert_time(revision.revision_time, reverse=True)
     form = input_form(action="update", filter=filter)
     return Titled("Edit", fill_form(form, revision))
 
@@ -504,7 +500,6 @@ def add_revision(filter: bool):
 def create(auth, revision: Revision, filter: bool):
     if not revision.revision_time:
         revision.revision_time = current_time(f="%Y-%m-%d")
-    revision.revision_time = convert_time(revision.revision_time)
     revision.created_at = revision.last_modified_at = current_time()
     revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
