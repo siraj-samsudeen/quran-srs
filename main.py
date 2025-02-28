@@ -131,7 +131,8 @@ def row_level_action_buttons(revision: dict):
     delete_btn = Button(
         "Delete",
         hx_delete=delete_row.to(id=revision["id"]),
-        target_id=f"row-{revision["id"]}",
+        hx_include="[name='filter'], [name='times']",
+        target_id="paginationArea",
         hx_swap="outerHTML",
         cls="secondary inline_input",
     )
@@ -258,6 +259,7 @@ def revision_table(limit=5, times=1, filter=False, **kwargs):
         " ",
         dropdown(refresh_revison_table, limit),
         Hidden(name="filter", value=str(filter)),
+        Hidden(name="times", value=times),
     )
     table = add_pagination(
         limit=limit,
@@ -486,9 +488,11 @@ def edit(revision_id: int, filter: bool):
 
 
 @app.delete
-def delete_row(id: int):
+def delete_row(id: int, filter: bool, times: int, sess):
     revisions.delete(id)
-    return edit_btn(oob=True)
+    current_sort = sess.get("sort", {})
+    row = sess.get("row", 5)
+    return add_pagination(limit=row, times=times, filter=filter, **current_sort)
 
 
 @app.get
