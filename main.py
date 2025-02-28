@@ -57,14 +57,14 @@ column_headers = ["Select", "Page", "Revision Time", "Rating", "Created By", "Ac
 column_standardized = list(map(standardize_column, column_headers))[1:-1]
 
 
-def get_first_unique_page() -> list:
+def get_first_unique_page(sort_by, sort_type) -> list:
     unique_pages = set()
     result = []
     for r in revisions(order_by="revision_time DESC"):
         if r.page not in unique_pages:
             unique_pages.add(r.page)
-            result.append(r)
-    return result
+            result.append(r.__dict__)
+    return sorted(result, key=lambda d: d[sort_by], reverse=(sort_type == "DESC"))
 
 
 def edit_btn(disable=True, oob=False):
@@ -94,7 +94,7 @@ def radio_btn(id, state=False, **kwargs):
 
 def render_revision_row(revision):
     # Convert the revision object to a dictionary to easily access its attributes by column names
-    rev_dict = vars(revision)
+    rev_dict = revision if isinstance(revision, dict) else vars(revision)
     id = rev_dict["id"]
     rid = f"r-{id}"
 
@@ -118,7 +118,13 @@ def render_revision_row(revision):
     )
 
 
-def add_pagination(table_data, limit, filter, times=1):
+def add_pagination(limit, filter, times=1, sort_by="revision_time", sort_type=""):
+    table_data = (
+        get_first_unique_page(sort_by, sort_type)
+        if filter
+        else revisions(order_by=f"{sort_by} {sort_type}")
+    )
+
     upper_limit = limit * times
     lower_limit = upper_limit - limit
 
@@ -140,17 +146,44 @@ def add_pagination(table_data, limit, filter, times=1):
         **({"disabled": True} if upper_limit >= len(table_data) else {}),
     )
     action_buttons = Grid(prev_btn, next_btn)
+
+    icon = {"ASC": "▲", "DESC": "▼", "": ""}
+
+    def _column_header_render(col_name):
+        column_standardized = standardize_column(col_name)
+        if col_name in ["Select", "Action"]:
+            return Th(col_name)
+
+        return Th(
+            col_name,
+            (icon[sort_type] if column_standardized == sort_by else ""),
+            hx_get=sort_revision_table.to(
+                times=times,
+                filter=filter,
+                sort_by=column_standardized,
+            ),
+            target_id="paginationArea",
+            hx_swap="outerHTML",
+            style="cursor: pointer;",
+        )
+
     return Div(
         Table(
-            Thead(Tr(*map(Th, column_headers))),
+            Thead(Tr(*map(_column_header_render, column_headers))),
             Tbody(
                 *map(
                     render_revision_row,
-                    table_data[lower_limit:upper_limit],
+                    # Reverse the list to get the (last edited / oldest) first unless there is no sorting
+                    (
+                        table_data[::-1][lower_limit:upper_limit]
+                        if sort_type == ""
+                        else table_data[lower_limit:upper_limit]
+                    ),
                 )
             ),
         ),
         action_buttons,
+        id="paginationArea",
     )
 
 
@@ -169,10 +202,8 @@ def dropdown(table_link, row_limit=5):
     )
 
 
-def revision_table(limit=5, times=1, filter=False):
-    table_data = (
-        get_first_unique_page() if filter else revisions(order_by="revision_time")
-    )
+def revision_table(limit=5, times=1, filter=False, **kwargs):
+
     new_btn = Button(
         "New",
         hx_get=add_revision,
@@ -190,11 +221,10 @@ def revision_table(limit=5, times=1, filter=False):
         Hidden(name="filter", value=str(filter)),
     )
     table = add_pagination(
-        # Reverse the list to get the (last edited / oldest) first
-        table_data=table_data[::-1],
         limit=limit,
         times=times,
         filter=filter,
+        **kwargs,
     )
     return Form(actions, table, cls="overflow-auto", id="tableArea")
 
@@ -337,6 +367,8 @@ def logout(sess):
 
 @rt
 def index(auth, sess):
+    if "sort" in sess:
+        del sess["sort"]
     row_limit = sess.get("row", 5)
     title = "Quran SRS Home"
     top = navbar(auth, title)
@@ -346,6 +378,8 @@ def index(auth, sess):
 
 @rt
 def revision(auth, sess):
+    if "sort" in sess:
+        del sess["sort"]
     row_limit = sess.get("row", 5)
     title = "Quran SRS Revision"
     form = revision_table(row_limit)
@@ -354,14 +388,39 @@ def revision(auth, sess):
 
 @app.post
 def refresh_revison_table(filter: bool, row: int, sess):
+    current_sort = sess.get("sort", {})
     sess["row"] = row
-    return revision_table(limit=row, filter=filter)
+    return revision_table(limit=row, filter=filter, **current_sort)
 
 
 @app.get
 def refresh_revison_table(filter: bool, times: int, sess):
+    current_sort = sess.get("sort", {})
     row = sess.get("row", 5)
-    return revision_table(row, times=times, filter=filter)
+    return revision_table(limit=row, times=times, filter=filter, **current_sort)
+
+
+sort_type_mapping = {"": "ASC", "ASC": "DESC", "DESC": ""}
+
+
+@rt
+def sort_revision_table(filter: bool, sort_by: str, sess):
+    row_limit = sess.get("row", 5)
+    current_sort = sess.get("sort", {"sort_by": "", "sort_type": ""})
+
+    if current_sort["sort_by"] == sort_by:
+        current_sort["sort_type"] = sort_type_mapping[current_sort["sort_type"]]
+    else:
+        current_sort = {"sort_by": sort_by, "sort_type": "ASC"}
+
+    if current_sort["sort_type"]:
+        sess["sort"] = current_sort
+    else:
+        del sess["sort"]
+        # Reset the current sort to use the default
+        current_sort = {}
+
+    return add_pagination(limit=row_limit, filter=filter, **current_sort)
 
 
 @rt
