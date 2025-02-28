@@ -181,7 +181,7 @@ def add_pagination(limit, filter, times=1, sort_by="revision_time", sort_type=""
         hx_swap="outerHTML",
         **({"disabled": True} if upper_limit >= len(table_data) else {}),
     )
-    action_buttons = Grid(prev_btn, next_btn)
+    action_buttons = Div(prev_btn, next_btn)
 
     icon = {"ASC": "▲", "DESC": "▼", "": ""}
 
