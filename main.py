@@ -87,8 +87,8 @@ def get_first_unique_page(sort_by, sort_type) -> list:
 def edit_btn(disable=True, oob=False):
     return Button(
         "Edit",
-        hx_post=edit,
-        hx_include="[name='revision_id']",
+        hx_get=edit,
+        hx_include="[name='revision_id'], [name='filter']",
         hx_target="body",
         hx_swap="outerHTML",
         hx_push_url="true",
@@ -123,6 +123,7 @@ def row_level_action_buttons(revision: dict):
             cls="inline_group",
         ),
         hx_post=create,
+        hx_include="[name='filter']",
         hx_target="body",
         hx_swap="outerHTML",
         cls="inline_create_form",
@@ -244,6 +245,7 @@ def revision_table(limit=5, times=1, filter=False, **kwargs):
     new_btn = Button(
         "New",
         hx_get=add_revision,
+        hx_include="[name='filter']",
         hx_target="body",
         hx_swap="outerHTML",
         hx_push_url="true",
@@ -266,7 +268,7 @@ def revision_table(limit=5, times=1, filter=False, **kwargs):
     return Div(actions, table, cls="overflow-auto", id="tableArea")
 
 
-def input_form(action: str):
+def input_form(action: str, filter: bool):
     def _radio(name: str):
         return Label(
             Input(
@@ -279,6 +281,7 @@ def input_form(action: str):
         )
 
     return Form(
+        Hidden(name="filter", value=str(filter)),
         Hidden(name="id") if action == "update" else None,
         Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
         Label(
@@ -468,26 +471,21 @@ def select(id: int):
 
 
 @app.post
-def update(auth, revision: Revision):
+def update(auth, revision: Revision, filter: bool):
     # Clean up the revision_time
     revision.revision_time = convert_time(revision.revision_time)
     revision.last_modified_at = current_time()
     revision.last_modified_by = auth
     revisions.update(revision)
-    return revision_redir
+    return home_redir if filter else revision_redir
 
 
-@app.post
-def edit(revision_id: int):
-    return RedirectResponse(f"/edit?id={revision_id}", status_code=303)
-
-
-@app.get
-def edit(id: int):
-    revision = revisions[id]
+@rt
+def edit(revision_id: int, filter: bool):
+    revision = revisions[revision_id]
     # convert the time to correct format for the form
     revision.revision_time = convert_time(revision.revision_time, reverse=True)
-    form = input_form(action="update")
+    form = input_form(action="update", filter=filter)
     return Titled("Edit", fill_form(form, revision))
 
 
@@ -498,19 +496,19 @@ def delete_row(id: int):
 
 
 @app.get
-def add_revision():
-    return Titled("Add Revision", input_form(action="create"))
+def add_revision(filter: bool):
+    return Titled("Add Revision", input_form(action="create", filter=filter))
 
 
 @app.post
-def create(auth, revision: Revision):
+def create(auth, revision: Revision, filter: bool):
     if not revision.revision_time:
         revision.revision_time = current_time(f="%Y-%m-%d")
     revision.revision_time = convert_time(revision.revision_time)
     revision.created_at = revision.last_modified_at = current_time()
     revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
-    return revision_redir
+    return home_redir if filter else revision_redir
 
 
 serve()
