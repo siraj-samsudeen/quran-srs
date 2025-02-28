@@ -99,9 +99,12 @@ def render_revision_row(revision):
     id = rev_dict["id"]
     rid = f"r-{id}"
 
+    def Td_select(c):
+        return Td(c, hx_get=select.to(id=id), target_id=rid, hx_swap="outerHTML")
+
     return Tr(
-        Td(radio_btn(id)),
-        *[Td(rev_dict[c]) for c in column_standardized],
+        Td_select(radio_btn(id)),
+        *[Td_select(rev_dict[c]) for c in column_standardized],
         Td(
             Button(
                 "Delete",
@@ -112,9 +115,6 @@ def render_revision_row(revision):
                 style="padding:3px 4px; font-size: 0.8rem;",
             )
         ),
-        hx_get=select.to(id=id),
-        target_id=rid,
-        hx_swap="outerHTML",
         id=f"row-{id}",
     )
 
