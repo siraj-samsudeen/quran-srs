@@ -71,6 +71,7 @@ def edit_btn(disable=True, oob=False):
     return Button(
         "Edit",
         hx_post=edit,
+        hx_include="[name='revision_id']",
         hx_target="body",
         hx_swap="outerHTML",
         hx_push_url="true",
@@ -226,7 +227,7 @@ def revision_table(limit=5, times=1, filter=False, **kwargs):
         filter=filter,
         **kwargs,
     )
-    return Form(actions, table, cls="overflow-auto", id="tableArea")
+    return Div(actions, table, cls="overflow-auto", id="tableArea")
 
 
 def input_form(action: str):
