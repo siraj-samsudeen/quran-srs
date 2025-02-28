@@ -81,7 +81,7 @@ def get_first_unique_page(sort_by, sort_type) -> list:
         if r.page not in unique_pages:
             unique_pages.add(r.page)
             result.append(r.__dict__)
-    return sorted(result, key=lambda d: d[sort_by], reverse=(sort_type == "DESC"))
+    return sorted(result, key=lambda d: d[sort_by], reverse=(not sort_type == "ASC"))
 
 
 def edit_btn(disable=True, oob=False):
