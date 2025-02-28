@@ -2,6 +2,7 @@ from fasthtml.common import *
 from utils import standardize_column, convert_time, current_time
 
 ROW_OPTIONS = [5, 10, 15]
+RATINGS = ["Good ✅", "Ok 😄", "Bad ❌"]
 
 db = database("data/quran.db")
 
@@ -51,7 +52,7 @@ app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600)
 setup_toasts(app)
 
 
-column_headers = ["Select", "Page", "Revision Time", "Rating", "Created By", "Action"]
+column_headers = ["Select", "Page", "Revision Time", "Rating", "Action"]
 
 # To exclude the select and action buttons
 column_standardized = list(map(standardize_column, column_headers))[1:-1]
@@ -93,6 +94,34 @@ def radio_btn(id, state=False, **kwargs):
     )
 
 
+def row_level_action_buttons(revision: dict):
+    def _option(o):
+        return Option(o, value=o)
+
+    inline_btn_style = "padding:3px 4px; font-size: 0.9rem;"
+    create_form = Form(
+        Hidden(name="page", value=revision["page"]),
+        Group(
+            Select(*(map(_option, RATINGS)), name="rating", style=inline_btn_style),
+            Button("Save", style=inline_btn_style),
+            style="margin: 0;",
+        ),
+        hx_post=create,
+        hx_target="body",
+        hx_swap="outerHTML",
+        style="min-width: 140px; display: inline-block; margin-right: 8px;",
+    )
+    delete_btn = Button(
+        "Delete",
+        hx_delete=delete_row.to(id=revision["id"]),
+        target_id=f"row-{revision["id"]}",
+        hx_swap="outerHTML",
+        cls="secondary",
+        style=inline_btn_style,
+    )
+    return create_form, delete_btn
+
+
 def render_revision_row(revision):
     # Convert the revision object to a dictionary to easily access its attributes by column names
     rev_dict = revision if isinstance(revision, dict) else vars(revision)
@@ -105,16 +134,7 @@ def render_revision_row(revision):
     return Tr(
         Td_select(radio_btn(id)),
         *[Td_select(rev_dict[c]) for c in column_standardized],
-        Td(
-            Button(
-                "Delete",
-                hx_delete=delete_row.to(id=id),
-                target_id=f"row-{id}",
-                hx_swap="outerHTML",
-                cls="secondary",
-                style="padding:3px 4px; font-size: 0.8rem;",
-            )
-        ),
+        Td(row_level_action_buttons(rev_dict)),
         id=f"row-{id}",
     )
 
@@ -243,7 +263,6 @@ def input_form(action: str):
             name,
         )
 
-    ratings = ["Good ✅", "Ok 😄", "Bad ❌"]
     return Form(
         Hidden(name="id") if action == "update" else None,
         Label("Page", Input(type="number", name="page", autofocus=True, required=True)),
@@ -257,7 +276,7 @@ def input_form(action: str):
             ),
         ),
         Label("Rating"),
-        *map(_radio, ratings),
+        *map(_radio, RATINGS),
         Div(
             Button(action.capitalize()),
             " ",
@@ -470,6 +489,8 @@ def add_revision():
 
 @app.post
 def create(auth, revision: Revision):
+    if not revision.revision_time:
+        revision.revision_time = current_time(f="%Y-%m-%d")
     revision.revision_time = convert_time(revision.revision_time)
     revision.created_at = revision.last_modified_at = current_time()
     revision.created_by = revision.last_modified_by = auth
