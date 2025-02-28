@@ -47,8 +47,24 @@ bware = Beforeware(
     before, skip=[r"/favicon\.ico", r"/static/.*", r".*\.css", "/login", "/signup"]
 )
 
+custom_css = Style(
+    """
+.inline_group {
+    margin: 0;
+}
+.inline_create_form {
+    display: inline-block; 
+    min-width: 140px; 
+    margin-right: 8px;
+}
+.inline_input {
+    padding:3px 4px; font-size: 0.9rem;
+}
+"""
+)
+
 # Session will expire after 7 days
-app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600)
+app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600, hdrs=[custom_css])
 setup_toasts(app)
 
 
@@ -102,22 +118,21 @@ def row_level_action_buttons(revision: dict):
     create_form = Form(
         Hidden(name="page", value=revision["page"]),
         Group(
-            Select(*(map(_option, RATINGS)), name="rating", style=inline_btn_style),
-            Button("Save", style=inline_btn_style),
-            style="margin: 0;",
+            Select(*(map(_option, RATINGS)), name="rating", cls="inline_input"),
+            Button("Save", cls="inline_input"),
+            cls="inline_group",
         ),
         hx_post=create,
         hx_target="body",
         hx_swap="outerHTML",
-        style="min-width: 140px; display: inline-block; margin-right: 8px;",
+        cls="inline_create_form",
     )
     delete_btn = Button(
         "Delete",
         hx_delete=delete_row.to(id=revision["id"]),
         target_id=f"row-{revision["id"]}",
         hx_swap="outerHTML",
-        cls="secondary",
-        style=inline_btn_style,
+        cls="secondary inline_input",
     )
     return create_form, delete_btn
 
