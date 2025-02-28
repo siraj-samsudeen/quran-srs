@@ -198,6 +198,7 @@ def dropdown(table_link, row_limit=5):
         style="width: 100px;float: right;",
         hx_trigger="change",
         hx_post=table_link,
+        hx_include="[name='filter']",
         target_id="tableArea",
         hx_swap="outerHTML",
     )
