@@ -64,7 +64,7 @@ custom_css = Style(
 )
 
 # Session will expire after 7 days
-app, rt = fast_app(live=True, before=bware, max_age=7 * 24 * 3600, hdrs=[custom_css])
+app, rt = fast_app(live=False, before=bware, max_age=7 * 24 * 3600, hdrs=[custom_css])
 setup_toasts(app)
 
 
