@@ -1,4 +1,6 @@
 from fasthtml.common import *
+import pandas as pd
+from io import BytesIO
 from utils import standardize_column, current_time
 
 ROW_OPTIONS = [5, 10, 15]
@@ -44,7 +46,15 @@ def before(req, sess):
 
 
 bware = Beforeware(
-    before, skip=[r"/favicon\.ico", r"/static/.*", r".*\.css", "/login", "/signup"]
+    before,
+    skip=[
+        r"/favicon\.ico",
+        r"/static/.*",
+        r".*\.css",
+        "/login",
+        "/signup",
+        "/export_csv",
+    ],
 )
 
 custom_css = Style(
@@ -318,6 +328,13 @@ def navbar(user, title, active="Home"):
         Ul(
             Li(A("Home", href="/", cls=is_active("Home"))),
             Li(A("Revision", href=revision, cls=is_active("Revision"))),
+            Li(
+                A(
+                    "Export",
+                    href=export_csv,
+                    cls="contrast",
+                )
+            ),
             Li(A("logout", href=logout, cls="secondary")),
         ),
         aria_label="breadcrumb",
@@ -509,6 +526,21 @@ def create(auth, revision: Revision, filter: bool):
     revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
     return home_redir if filter else revision_redir
+
+
+@app.get
+def export_csv():
+    df = pd.DataFrame(revisions()).drop("id", axis=1).rename(columns=str.capitalize)
+
+    csv_buffer = BytesIO()
+    df.to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+
+    return StreamingResponse(
+        csv_buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=data.csv"},
+    )
 
 
 serve()
