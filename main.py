@@ -114,7 +114,6 @@ def row_level_action_buttons(revision: dict):
     def _option(o):
         return Option(o, value=o)
 
-    inline_btn_style = "padding:3px 4px; font-size: 0.9rem;"
     create_form = Form(
         Hidden(name="page", value=revision["page"]),
         Group(
@@ -492,7 +491,7 @@ def delete_row(id: int, filter: bool, times: int, sess):
     revisions.delete(id)
     current_sort = sess.get("sort", {})
     row = sess.get("row", 5)
-    return add_pagination(limit=row, times=times, filter=filter, **current_sort)
+    return create_revision_table(limit=row, times=times, filter=filter, **current_sort)
 
 
 @app.get
