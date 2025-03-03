@@ -155,7 +155,9 @@ def render_revision_row(revision):
     )
 
 
-def add_pagination(limit, filter, times=1, sort_by="revision_time", sort_type=""):
+def create_revision_table(
+    limit, filter, times=1, sort_by="revision_time", sort_type=""
+):
     table_data = (
         get_first_unique_page(sort_by, sort_type)
         if filter
@@ -240,7 +242,7 @@ def dropdown(table_link, row_limit=5):
     )
 
 
-def revision_table(limit=5, times=1, filter=False, **kwargs):
+def revision_table_area(limit=5, times=1, filter=False, **kwargs):
 
     new_btn = Button(
         "New",
@@ -260,7 +262,7 @@ def revision_table(limit=5, times=1, filter=False, **kwargs):
         Hidden(name="filter", value=str(filter)),
         Hidden(name="times", value=times),
     )
-    table = add_pagination(
+    table = create_revision_table(
         limit=limit,
         times=times,
         filter=filter,
@@ -412,7 +414,7 @@ def index(auth, sess):
     row_limit = sess.get("row", 5)
     title = "Quran SRS Home"
     top = navbar(auth, title)
-    form = revision_table(limit=row_limit, filter=True)
+    form = revision_table_area(limit=row_limit, filter=True)
     return Title(title), Container(top, form)
 
 
@@ -422,7 +424,7 @@ def revision(auth, sess):
         del sess["sort"]
     row_limit = sess.get("row", 5)
     title = "Quran SRS Revision"
-    form = revision_table(row_limit)
+    form = revision_table_area(row_limit)
     return Title(title), Container(navbar(auth, title, active="Revision"), form)
 
 
@@ -430,14 +432,14 @@ def revision(auth, sess):
 def refresh_revison_table(filter: bool, row: int, sess):
     current_sort = sess.get("sort", {})
     sess["row"] = row
-    return revision_table(limit=row, filter=filter, **current_sort)
+    return revision_table_area(limit=row, filter=filter, **current_sort)
 
 
 @app.get
 def refresh_revison_table(filter: bool, times: int, sess):
     current_sort = sess.get("sort", {})
     row = sess.get("row", 5)
-    return revision_table(limit=row, times=times, filter=filter, **current_sort)
+    return revision_table_area(limit=row, times=times, filter=filter, **current_sort)
 
 
 sort_type_mapping = {"": "ASC", "ASC": "DESC", "DESC": ""}
@@ -460,7 +462,7 @@ def sort_revision_table(filter: bool, sort_by: str, sess):
         # Reset the current sort to use the default
         current_sort = {}
 
-    return add_pagination(limit=row_limit, filter=filter, **current_sort)
+    return create_revision_table(limit=row_limit, filter=filter, **current_sort)
 
 
 @rt
