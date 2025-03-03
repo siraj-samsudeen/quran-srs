@@ -389,6 +389,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "monsterui" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "python-fasthtml" },
 ]
@@ -396,6 +397,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "monsterui", specifier = ">=1.0.10" },
+    { name = "numpy", specifier = ">=2.2.3" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "python-fasthtml", specifier = ">=0.12.1" },
 ]
