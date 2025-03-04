@@ -539,9 +539,8 @@ def import_csv(auth):
 @app.post
 async def import_csv(file: UploadFile):
     file_content = await file.read()
-    csv_data = BytesIO(file_content)
     revisions.delete_where()  # Truncate the table before importing
-    db.import_file("revisions", csv_data)
+    db.import_file("revisions", file_content)
     return revision_redir
 
 
