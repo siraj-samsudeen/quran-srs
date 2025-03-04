@@ -17,10 +17,6 @@ if revisions not in db.t:
         page=int,
         revision_time=str,
         rating=str,
-        created_by=str,
-        created_at=str,
-        last_modified_by=str,
-        last_modified_at=str,
         pk="id",
     )
 Revision, User = revisions.dataclass(), users.dataclass()
@@ -491,9 +487,7 @@ def select(id: int):
 
 
 @app.post
-def update(auth, revision: Revision, filter: bool):
-    revision.last_modified_at = current_time()
-    revision.last_modified_by = auth
+def update(revision: Revision, filter: bool):
     revisions.update(revision)
     return home_redir if filter else revision_redir
 
@@ -519,11 +513,9 @@ def add_revision(filter: bool):
 
 
 @app.post
-def create(auth, revision: Revision, filter: bool):
+def create(revision: Revision, filter: bool):
     if not revision.revision_time:
         revision.revision_time = current_time(f="%Y-%m-%d")
-    revision.created_at = revision.last_modified_at = current_time()
-    revision.created_by = revision.last_modified_by = auth
     revisions.insert(revision)
     return home_redir if filter else revision_redir
 
