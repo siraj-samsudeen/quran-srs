@@ -324,17 +324,17 @@ def navbar(user, title, active="Home"):
         Ul(
             Li(A("Home", href="/", cls=is_active("Home"))),
             Li(A("Revision", href=revision, cls=is_active("Revision"))),
-            Li(
-                A(
-                    "Export",
-                    href=export_csv,
-                    cls="contrast",
-                )
+            Details(
+                Summary("Data"),
+                Ul(
+                    Li(A("Export", href=export_csv, cls="contrast")),
+                    Li(A("Import", href=import_csv, cls=is_active("Import CSV"))),
+                    dir="rtl",
+                ),
+                cls="dropdown",
             ),
             Li(A("logout", href=logout, cls="secondary")),
         ),
-        aria_label="breadcrumb",
-        style="--pico-nav-breadcrumb-divider: '|';",
     )
     return (
         Nav(
@@ -518,6 +518,31 @@ def create(revision: Revision, filter: bool):
         revision.revision_time = current_time(f="%Y-%m-%d")
     revisions.insert(revision)
     return home_redir if filter else revision_redir
+
+
+@app.get
+def import_csv(auth):
+    title = "Import CSV"
+    form = Form(
+        Input(type="file", name="file", accept="text/csv"),
+        Button("Upload"),
+        hx_post=import_csv,
+        hx_target="body",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+    )
+    return Title(title, " - Quran SRS"), Container(
+        navbar(auth, title, active=title), form
+    )
+
+
+@app.post
+async def import_csv(file: UploadFile):
+    file_content = await file.read()
+    csv_data = BytesIO(file_content)
+    revisions.delete_where()  # Truncate the table before importing
+    db.import_file("revisions", csv_data)
+    return revision_redir
 
 
 @app.get
