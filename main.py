@@ -522,7 +522,7 @@ def create(revision: Revision, filter: bool):
 
 @app.get
 def export_csv():
-    df = pd.DataFrame(revisions()).drop("id", axis=1)
+    df = pd.DataFrame(revisions())
 
     csv_buffer = BytesIO()
     df.to_csv(csv_buffer, index=False)
