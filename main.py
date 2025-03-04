@@ -530,7 +530,7 @@ def create(auth, revision: Revision, filter: bool):
 
 @app.get
 def export_csv():
-    df = pd.DataFrame(revisions()).drop("id", axis=1).rename(columns=str.capitalize)
+    df = pd.DataFrame(revisions()).drop("id", axis=1)
 
     csv_buffer = BytesIO()
     df.to_csv(csv_buffer, index=False)
