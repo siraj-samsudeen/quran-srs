@@ -83,10 +83,10 @@ def delete(user_id: int):
 @rt("/user/add")
 def get():
     form = form = Form(
-        Label("ID", Input(name="id")),
-        Label("Name", Input(name="name")),
-        Label("Email", Input(name="email")),
-        Label("Password", Input(name="password")),
+        Label("id", Input(name="id")),
+        Label("name", Input(name="name")),
+        Label("email", Input(name="email")),
+        Label("password", Input(name="password")),
         Button("Save"),
         method="POST",
         action=f"/user/add",
@@ -102,7 +102,22 @@ def post(user_details: User):
 
 @rt
 def revision():
-    return Titled("Revision", A("Back", href=index))
+    def _render_revision(user):
+        return Tr(
+            Td(user.id),
+            Td(user.user_id),
+            Td(user.page),
+            Td(user.revision_date),
+            Td(user.rating),
+        )
+
+    table = Table(
+        Thead(
+            Tr(Th("id"), Th("user_id"), Th("page"), Th("revision_date"), Th("rating"))
+        ),
+        Tbody(*map(_render_revision, revisions())),
+    )
+    return Titled("Revision", A("Back", href=index), Div(table))
 
 
 serve()
