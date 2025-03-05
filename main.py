@@ -136,7 +136,13 @@ def revision():
         ),
         Tbody(*map(_render_revision, revisions())),
     )
-    return Titled("Revision", A("Back", href=index), Div(table))
+    return Titled(
+        "Revision",
+        A("Back", href=index),
+        " | ",
+        A("Add", href="/revision/add"),
+        Div(table),
+    )
 
 
 @rt("/revision/edit/{revision_id}")
@@ -164,6 +170,27 @@ def post(revision_id: int, revision_details: Revision):
 @rt("/revision/delete/{revision_id}")
 def delete(revision_id: int):
     revisions.delete(revision_id)
+
+
+@rt("/revision/add")
+def get():
+    form = Form(
+        Label("id", Input(name="id")),
+        Label("user_id", Input(name="user_id")),
+        Label("page", Input(name="page")),
+        Label("revision_date", Input(name="revision_date")),
+        Label("rating", Input(name="rating")),
+        Button("Save"),
+        method="POST",
+        action=f"/revision/add",
+    )
+    return Titled("Add Revision", form)
+
+
+@rt("/revision/add")
+def post(revision_details: Revision):
+    revisions.insert(revision_details)
+    return Redirect(revision)
 
 
 serve()
