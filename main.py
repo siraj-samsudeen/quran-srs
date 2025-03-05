@@ -4,19 +4,19 @@ from io import BytesIO
 from utils import standardize_column, current_time
 
 ROW_OPTIONS = [5, 10, 15]
-RATINGS = ["Good ✅", "Ok 😄", "Bad ❌"]
+RATINGS = {1: "Good ✅", 0: "Ok 😄", -1: "Bad ❌"}
 
 db = database("data/quran.db")
 
 revisions, users = db.t.revisions, db.t.users
 if revisions not in db.t:
-    users.create(user_id=int, name=str, email=str, password=str, pk="user_id")
+    users.create(id=int, name=str, email=str, password=str, pk="id")
     revisions.create(
         id=int,
         user_id=int,
         page=int,
-        revision_time=str,
-        rating=str,
+        revision_date=str,
+        rating=int,
         pk="id",
     )
 Revision, User = revisions.dataclass(), users.dataclass()
@@ -74,7 +74,7 @@ app, rt = fast_app(live=False, before=bware, max_age=7 * 24 * 3600, hdrs=[custom
 setup_toasts(app)
 
 
-column_headers = ["Select", "Page", "Revision Time", "Rating", "Action"]
+column_headers = ["Select", "Page", "Revision Date", "Rating", "Action"]
 
 # To exclude the select and action buttons
 column_standardized = list(map(standardize_column, column_headers))[1:-1]
@@ -83,7 +83,7 @@ column_standardized = list(map(standardize_column, column_headers))[1:-1]
 def get_first_unique_page(sort_by, sort_type) -> list:
     unique_pages = set()
     result = []
-    for r in revisions(order_by="revision_time DESC"):
+    for r in revisions(order_by="revision_date DESC"):
         if r.page not in unique_pages:
             unique_pages.add(r.page)
             result.append(r.__dict__)
@@ -118,12 +118,13 @@ def radio_btn(id, state=False, **kwargs):
 
 def row_level_action_buttons(revision: dict):
     def _option(o):
-        return Option(o, value=o)
+        number, text = o
+        return Option(text, value=number)
 
     create_form = Form(
         Hidden(name="page", value=revision["page"]),
         Group(
-            Select(*(map(_option, RATINGS)), name="rating", cls="inline_input"),
+            Select(*(map(_option, RATINGS.items())), name="rating", cls="inline_input"),
             Button("Save", cls="inline_input"),
             cls="inline_group",
         ),
@@ -155,14 +156,19 @@ def render_revision_row(revision):
 
     return Tr(
         Td_select(radio_btn(id)),
-        *[Td_select(rev_dict[c]) for c in column_standardized],
+        *[
+            Td_select(
+                RATINGS[rev_dict[column]] if column == "rating" else rev_dict[column]
+            )
+            for column in column_standardized
+        ],
         Td(row_level_action_buttons(rev_dict)),
         id=f"row-{id}",
     )
 
 
 def create_revision_table(
-    limit, filter, times=1, sort_by="revision_time", sort_type=""
+    limit, filter, times=1, sort_by="revision_date", sort_type=""
 ):
     table_data = (
         get_first_unique_page(sort_by, sort_type)
@@ -278,15 +284,16 @@ def revision_table_area(limit=5, times=1, filter=False, **kwargs):
 
 
 def input_form(action: str, filter: bool):
-    def _radio(name: str):
+    def _radio(o):
+        number, text = o
         return Label(
             Input(
                 type="radio",
                 name="rating",
-                value=name,
-                checked=(name.startswith("Good")),
+                value=number,
+                checked=(text.startswith("Good")),
             ),
-            name,
+            text,
         )
 
     return Form(
@@ -297,13 +304,13 @@ def input_form(action: str, filter: bool):
             "Date",
             Input(
                 type="date",
-                name="revision_time",
+                name="revision_date",
                 value=current_time("%Y-%m-%d"),
                 required=True,
             ),
         ),
         Label("Rating"),
-        *map(_radio, RATINGS),
+        *map(_radio, RATINGS.items()),
         Div(
             Button(action.capitalize()),
             " ",
@@ -375,7 +382,7 @@ def signup(user: User, sess):
         return login_redir
 
     sess["auth"] = u.name
-    sess["user_id"] = u.user_id
+    sess["user_id"] = u.id
     return home_redir
 
 
@@ -409,7 +416,7 @@ def login(user: Login, sess):
         return login_redir
 
     sess["auth"] = u.name
-    sess["user_id"] = u.user_id
+    sess["user_id"] = u.id
     return home_redir
 
 
@@ -514,8 +521,8 @@ def add_revision(filter: bool):
 
 @app.post
 def create(revision: Revision, filter: bool):
-    if not revision.revision_time:
-        revision.revision_time = current_time(f="%Y-%m-%d")
+    if not revision.revision_date:
+        revision.revision_date = current_time(f="%Y-%m-%d")
     revisions.insert(revision)
     return home_redir if filter else revision_redir
 
