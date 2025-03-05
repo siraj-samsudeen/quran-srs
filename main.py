@@ -109,7 +109,18 @@ def revision():
             Td(user.page),
             Td(user.revision_date),
             Td(user.rating),
-            Td(A("Edit", href=f"/revision/edit/{user.id}")),
+            Td(
+                A("Edit", href=f"/revision/edit/{user.id}"),
+                " | ",
+                A(
+                    "Delete",
+                    hx_delete=f"/revision/delete/{user.id}",
+                    target_id=f"revision-{user.id}",
+                    hx_swap="outerHTML",
+                    hx_confirm="Are you sure?",
+                ),
+            ),
+            id=f"revision-{user.id}",
         )
 
     table = Table(
@@ -148,6 +159,11 @@ def get(revision_id: int):
 def post(revision_id: int, revision_details: Revision):
     revisions.update(revision_details, revision_id)
     return Redirect(revision)
+
+
+@rt("/revision/delete/{revision_id}")
+def delete(revision_id: int):
+    revisions.delete(revision_id)
 
 
 serve()
