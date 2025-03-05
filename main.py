@@ -49,7 +49,9 @@ def user():
         Thead(Tr(Th("ID"), Th("Name"), Th("Email"), Th("Password"), Th("Action"))),
         Tbody(*map(_render_user, users())),
     )
-    return Titled("User", A("Back", href=index), Div(table))
+    return Titled(
+        "User", A("Back", href=index), " | ", A("Add", href="/user/add"), Div(table)
+    )
 
 
 @rt("/user/edit/{user_id}")
@@ -76,6 +78,26 @@ def post(user_id: int, user_details: User):
 @rt("/user/delete/{user_id}")
 def delete(user_id: int):
     users.delete(user_id)
+
+
+@rt("/user/add")
+def get():
+    form = form = Form(
+        Label("ID", Input(name="id")),
+        Label("Name", Input(name="name")),
+        Label("Email", Input(name="email")),
+        Label("Password", Input(name="password")),
+        Button("Save"),
+        method="POST",
+        action=f"/user/add",
+    )
+    return Titled("Add User", form)
+
+
+@rt("/user/add")
+def post(user_details: User):
+    users.insert(user_details)
+    return Redirect(user)
 
 
 @rt
