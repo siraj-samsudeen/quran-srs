@@ -48,7 +48,7 @@ def user():
         )
 
     table = Table(
-        Thead(Tr(Th("ID"), Th("Name"), Th("Email"), Th("Password"), Th("Action"))),
+        Thead(Tr(Th("id"), Th("name"), Th("email"), Th("password"), Th("Action"))),
         Tbody(*map(_render_user, users())),
     )
     return Titled(
