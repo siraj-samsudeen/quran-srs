@@ -56,10 +56,8 @@ def user():
     )
 
 
-@rt("/user/edit/{user_id}")
-def get(user_id: int):
-    current_user = users[user_id]
-    form = Form(
+def create_user_form(url):
+    return Form(
         Label("id", Input(name="id", type="number")),
         Label("name", Input(name="name")),
         Label("email", Input(name="email")),
@@ -68,8 +66,14 @@ def get(user_id: int):
         " ",
         A(Button("Discard", type="button"), href=user),
         method="POST",
-        action=f"/user/edit/{user_id}",
+        action=url,
     )
+
+
+@rt("/user/edit/{user_id}")
+def get(user_id: int):
+    current_user = users[user_id]
+    form = create_user_form(f"/user/edit/{user_id}")
     return Titled("Edit User", fill_form(form, current_user))
 
 
@@ -86,18 +90,7 @@ def delete(user_id: int):
 
 @rt("/user/add")
 def get():
-    form = form = Form(
-        Label("id", Input(name="id", type="number")),
-        Label("name", Input(name="name")),
-        Label("email", Input(name="email")),
-        Label("password", Input(name="password")),
-        Button("Save"),
-        " ",
-        A(Button("Discard", type="button"), href=user),
-        method="POST",
-        action=f"/user/add",
-    )
-    return Titled("Add User", form)
+    return Titled("Add User", create_user_form("/user/add"))
 
 
 @rt("/user/add")
@@ -151,10 +144,8 @@ def revision():
     )
 
 
-@rt("/revision/edit/{revision_id}")
-def get(revision_id: int):
-    current_revision = revisions[revision_id]
-    form = Form(
+def create_revision_form(url):
+    return Form(
         Label("id", Input(name="id", type="number")),
         Label("user_id", Input(name="user_id", type="number")),
         Label("page", Input(name="page", type="number")),
@@ -164,8 +155,14 @@ def get(revision_id: int):
         " ",
         A(Button("Discard", type="button"), href=revision),
         method="POST",
-        action=f"/revision/edit/{revision_id}",
+        action=url,
     )
+
+
+@rt("/revision/edit/{revision_id}")
+def get(revision_id: int):
+    current_revision = revisions[revision_id]
+    form = create_revision_form(f"/revision/edit/{revision_id}")
     return Titled("Edit Revision", fill_form(form, current_revision))
 
 
@@ -182,19 +179,7 @@ def delete(revision_id: int):
 
 @rt("/revision/add")
 def get():
-    form = Form(
-        Label("id", Input(name="id", type="number")),
-        Label("user_id", Input(name="user_id", type="number")),
-        Label("page", Input(name="page", type="number")),
-        Label("revision_date", Input(name="revision_date", type="date")),
-        Label("rating", Input(name="rating", type="number")),
-        Button("Save"),
-        " ",
-        A(Button("Discard", type="button"), href=revision),
-        method="POST",
-        action=f"/revision/add",
-    )
-    return Titled("Add Revision", form)
+    return Titled("Add Revision", create_revision_form(f"/revision/add"))
 
 
 @rt("/revision/add")
