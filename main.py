@@ -58,10 +58,10 @@ def user():
 def get(user_id: int):
     user = users[user_id]
     form = Form(
-        Label("ID", Input(name="id")),
-        Label("Name", Input(name="name")),
-        Label("Email", Input(name="email")),
-        Label("Password", Input(name="password")),
+        Label("id", Input(name="id")),
+        Label("name", Input(name="name")),
+        Label("email", Input(name="email")),
+        Label("password", Input(name="password")),
         Button("Save"),
         method="POST",
         action=f"/user/edit/{user_id}",
@@ -109,15 +109,45 @@ def revision():
             Td(user.page),
             Td(user.revision_date),
             Td(user.rating),
+            Td(A("Edit", href=f"/revision/edit/{user.id}")),
         )
 
     table = Table(
         Thead(
-            Tr(Th("id"), Th("user_id"), Th("page"), Th("revision_date"), Th("rating"))
+            Tr(
+                Th("id"),
+                Th("user_id"),
+                Th("page"),
+                Th("revision_date"),
+                Th("rating"),
+                Th("Action"),
+            )
         ),
         Tbody(*map(_render_revision, revisions())),
     )
     return Titled("Revision", A("Back", href=index), Div(table))
+
+
+@rt("/revision/edit/{revision_id}")
+def get(revision_id: int):
+    revision = revisions[revision_id]
+    form = Form(
+        Label("id", Input(name="id")),
+        Label("user_id", Input(name="user_id")),
+        Label("page", Input(name="page")),
+        Label("revision_date", Input(name="revision_date")),
+        Label("rating", Input(name="rating")),
+        Button("Save"),
+        method="POST",
+        action=f"/revision/edit/{revision_id}",
+    )
+    return Titled("Edit Revision", fill_form(form, revision))
+
+
+@rt("/revision/edit/{revision_id}")
+def post(revision_id: int, revision_details: Revision):
+    revisions.update(revision_details, revision_id)
+    return Redirect(revision)
 
 
 serve()
