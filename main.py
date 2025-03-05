@@ -25,7 +25,14 @@ def index():
 
 @rt
 def user():
-    return Titled("User", A("Back", href=index))
+    def _render_user(user):
+        return Tr(Td(user.id), Td(user.name), Td(user.email), Td(user.password))
+
+    table = Table(
+        Thead(Tr(Th("ID"), Th("Name"), Th("Email"), Th("Password"))),
+        Tbody(*map(_render_user, users())),
+    )
+    return Titled("User", A("Back", href=index), Div(table))
 
 
 @rt
