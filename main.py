@@ -31,7 +31,18 @@ def user():
             Td(user.name),
             Td(user.email),
             Td(user.password),
-            Td(A("Edit", href=f"/user/edit/{user.id}")),
+            Td(
+                A("Edit", href=f"/user/edit/{user.id}"),
+                " | ",
+                A(
+                    "Delete",
+                    hx_delete=f"/user/delete/{user.id}",
+                    target_id=f"user-{user.id}",
+                    hx_swap="outerHTML",
+                    hx_confirm="Are you sure?",
+                ),
+            ),
+            id=f"user-{user.id}",
         )
 
     table = Table(
@@ -60,6 +71,11 @@ def get(user_id: int):
 def post(user_id: int, user_details: User):
     users.update(user_details, user_id)
     return Redirect(user)
+
+
+@rt("/user/delete/{user_id}")
+def delete(user_id: int):
+    users.delete(user_id)
 
 
 @rt
