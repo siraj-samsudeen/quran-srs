@@ -58,7 +58,7 @@ def user():
 def get(user_id: int):
     user = users[user_id]
     form = Form(
-        Label("id", Input(name="id")),
+        Label("id", Input(name="id", type="number")),
         Label("name", Input(name="name")),
         Label("email", Input(name="email")),
         Label("password", Input(name="password")),
@@ -83,7 +83,7 @@ def delete(user_id: int):
 @rt("/user/add")
 def get():
     form = form = Form(
-        Label("id", Input(name="id")),
+        Label("id", Input(name="id", type="number")),
         Label("name", Input(name="name")),
         Label("email", Input(name="email")),
         Label("password", Input(name="password")),
@@ -149,11 +149,11 @@ def revision():
 def get(revision_id: int):
     revision = revisions[revision_id]
     form = Form(
-        Label("id", Input(name="id")),
-        Label("user_id", Input(name="user_id")),
-        Label("page", Input(name="page")),
-        Label("revision_date", Input(name="revision_date")),
-        Label("rating", Input(name="rating")),
+        Label("id", Input(name="id", type="number")),
+        Label("user_id", Input(name="user_id", type="number")),
+        Label("page", Input(name="page", type="number")),
+        Label("revision_date", Input(name="revision_date", type="date")),
+        Label("rating", Input(name="rating", type="number")),
         Button("Save"),
         method="POST",
         action=f"/revision/edit/{revision_id}",
@@ -175,11 +175,11 @@ def delete(revision_id: int):
 @rt("/revision/add")
 def get():
     form = Form(
-        Label("id", Input(name="id")),
-        Label("user_id", Input(name="user_id")),
-        Label("page", Input(name="page")),
-        Label("revision_date", Input(name="revision_date")),
-        Label("rating", Input(name="rating")),
+        Label("id", Input(name="id", type="number")),
+        Label("user_id", Input(name="user_id", type="number")),
+        Label("page", Input(name="page", type="number")),
+        Label("revision_date", Input(name="revision_date", type="date")),
+        Label("rating", Input(name="rating", type="number")),
         Button("Save"),
         method="POST",
         action=f"/revision/add",
