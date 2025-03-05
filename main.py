@@ -20,7 +20,9 @@ app, rt = fast_app()
 
 @rt
 def index():
-    return Titled("Quran SRS", A("User", href=user), " ", A("Revision", href=revision))
+    return Titled(
+        "Quran SRS", A("User", href=user), " | ", A("Revision", href=revision)
+    )
 
 
 @rt
@@ -56,17 +58,19 @@ def user():
 
 @rt("/user/edit/{user_id}")
 def get(user_id: int):
-    user = users[user_id]
+    current_user = users[user_id]
     form = Form(
         Label("id", Input(name="id", type="number")),
         Label("name", Input(name="name")),
         Label("email", Input(name="email")),
         Label("password", Input(name="password")),
         Button("Save"),
+        " ",
+        A(Button("Discard", type="button"), href=user),
         method="POST",
         action=f"/user/edit/{user_id}",
     )
-    return Titled("Edit User", fill_form(form, user))
+    return Titled("Edit User", fill_form(form, current_user))
 
 
 @rt("/user/edit/{user_id}")
@@ -88,6 +92,8 @@ def get():
         Label("email", Input(name="email")),
         Label("password", Input(name="password")),
         Button("Save"),
+        " ",
+        A(Button("Discard", type="button"), href=user),
         method="POST",
         action=f"/user/add",
     )
@@ -147,7 +153,7 @@ def revision():
 
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int):
-    revision = revisions[revision_id]
+    current_revision = revisions[revision_id]
     form = Form(
         Label("id", Input(name="id", type="number")),
         Label("user_id", Input(name="user_id", type="number")),
@@ -155,10 +161,12 @@ def get(revision_id: int):
         Label("revision_date", Input(name="revision_date", type="date")),
         Label("rating", Input(name="rating", type="number")),
         Button("Save"),
+        " ",
+        A(Button("Discard", type="button"), href=revision),
         method="POST",
         action=f"/revision/edit/{revision_id}",
     )
-    return Titled("Edit Revision", fill_form(form, revision))
+    return Titled("Edit Revision", fill_form(form, current_revision))
 
 
 @rt("/revision/edit/{revision_id}")
@@ -181,6 +189,8 @@ def get():
         Label("revision_date", Input(name="revision_date", type="date")),
         Label("rating", Input(name="rating", type="number")),
         Button("Save"),
+        " ",
+        A(Button("Discard", type="button"), href=revision),
         method="POST",
         action=f"/revision/add",
     )
