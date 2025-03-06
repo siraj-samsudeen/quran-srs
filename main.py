@@ -164,9 +164,12 @@ def create_revision_form(url):
     def RadioLabel(label):
         return LabelRadio(label=label, id="rating", value=label)
 
+    def _option(obj):
+        return Option(f"{obj.id} ({obj.name})", value=obj.id)
+
     return Form(
         Hidden(name="id"),
-        LabelInput("User_Id", type="number"),
+        LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
         LabelInput("Page", type="number"),
         LabelInput("Revision_Date", type="date"),
         Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
