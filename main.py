@@ -161,12 +161,15 @@ def revision():
 
 
 def create_revision_form(url):
+    def RadioLabel(label):
+        return LabelRadio(label=label, id="rating", value=label)
+
     return Form(
         Hidden(name="id"),
         LabelInput("User_Id", type="number"),
         LabelInput("Page", type="number"),
         LabelInput("Revision_Date", type="date"),
-        LabelInput("Rating", type="number"),
+        Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
         DivFullySpaced(
             Button("Save"), A(Button("Discard", type="button"), href=revision)
         ),
@@ -178,6 +181,8 @@ def create_revision_form(url):
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int):
     current_revision = revisions[revision_id]
+    # Convert rating to string in order to make the fill_form to select the option.
+    current_revision.rating = str(current_revision.rating)
     form = create_revision_form(f"/revision/edit")
     return Titled("Edit Revision", fill_form(form, current_revision))
 
