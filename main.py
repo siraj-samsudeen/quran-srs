@@ -72,13 +72,13 @@ def create_user_form(url):
 @rt("/user/edit/{user_id}")
 def get(user_id: int):
     current_user = users[user_id]
-    form = create_user_form(f"/user/edit/{user_id}")
+    form = create_user_form(f"/user/edit")
     return Titled("Edit User", fill_form(form, current_user))
 
 
-@rt("/user/edit/{user_id}")
-def post(user_id: int, user_details: User):
-    users.update(user_details, user_id)
+@rt("/user/edit")
+def post(user_details: User):
+    users.update(user_details)
     return Redirect(user)
 
 
@@ -94,6 +94,7 @@ def get():
 
 @rt("/user/add")
 def post(user_details: User):
+    del user_details.id
     users.insert(user_details)
     return Redirect(user)
 
@@ -161,13 +162,13 @@ def create_revision_form(url):
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int):
     current_revision = revisions[revision_id]
-    form = create_revision_form(f"/revision/edit/{revision_id}")
+    form = create_revision_form(f"/revision/edit")
     return Titled("Edit Revision", fill_form(form, current_revision))
 
 
-@rt("/revision/edit/{revision_id}")
-def post(revision_id: int, revision_details: Revision):
-    revisions.update(revision_details, revision_id)
+@rt("/revision/edit")
+def post(revision_details: Revision):
+    revisions.update(revision_details)
     return Redirect(revision)
 
 
@@ -183,6 +184,7 @@ def get():
 
 @rt("/revision/add")
 def post(revision_details: Revision):
+    del revision_details.id
     revisions.insert(revision_details)
     return Redirect(revision)
 
