@@ -19,11 +19,35 @@ Revision, User = revisions.dataclass(), users.dataclass()
 app, rt = fast_app(hdrs=Theme.blue.headers())
 
 
+def side_nav(active=None):
+    is_active = lambda x: "uk-active" if x == active else None
+    table_links = [
+        Li(A("User", href=user), cls=is_active("User")),
+        Li(A("Revision", href=revision), cls=is_active("Revision")),
+    ]
+    return NavContainer(
+        NavParentLi(
+            H4("Tables", cls="pl-4"),
+            NavContainer(*table_links, parent=False),
+        )
+    )
+
+
+def main_area(*args, **kwargs):
+    return Title("Quran SRS"), Container(
+        NavBar(A("Home", href=index), brand=H3("Quran SRS")),
+        Div(
+            Div(side_nav(**kwargs), cls="flex-1"),
+            Main(*args, cls="flex-[4]") if args else None,
+            cls=FlexT.block,
+        ),
+        cls=ContainerT.xl,
+    )
+
+
 @rt
 def index():
-    return Titled(
-        "Quran SRS", A("User", href=user), " | ", A("Revision", href=revision)
-    )
+    return main_area(active="Home")
 
 
 @rt
@@ -52,9 +76,7 @@ def user():
         Thead(Tr(Th("id"), Th("name"), Th("email"), Th("password"), Th("Action"))),
         Tbody(*map(_render_user, users())),
     )
-    return Titled(
-        "User", A("Back", href=index), " | ", A("Add", href="/user/add"), Div(table)
-    )
+    return main_area(A("Add", href="/user/add"), table, active="User")
 
 
 def create_user_form(url):
@@ -135,13 +157,7 @@ def revision():
         ),
         Tbody(*map(_render_revision, revisions())),
     )
-    return Titled(
-        "Revision",
-        A("Back", href=index),
-        " | ",
-        A("Add", href="/revision/add"),
-        Div(table),
-    )
+    return main_area(A("Add", href="/revision/add"), table, active="Revision")
 
 
 def create_revision_form(url):
