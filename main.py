@@ -1,4 +1,5 @@
 from fasthtml.common import *
+from monsterui.all import *
 
 db = database("data/quran.db")
 
@@ -15,7 +16,7 @@ if revisions not in db.t:
     )
 Revision, User = revisions.dataclass(), users.dataclass()
 
-app, rt = fast_app()
+app, rt = fast_app(hdrs=Theme.blue.headers())
 
 
 @rt
@@ -58,13 +59,11 @@ def user():
 
 def create_user_form(url):
     return Form(
-        Label("id", Input(name="id", type="number")),
-        Label("name", Input(name="name")),
-        Label("email", Input(name="email")),
-        Label("password", Input(name="password")),
-        Button("Save"),
-        " ",
-        A(Button("Discard", type="button"), href=user),
+        Hidden(name="id"),
+        LabelInput("Name"),
+        LabelInput("Email"),
+        LabelInput("Password"),
+        DivFullySpaced(Button("Save"), A(Button("Discard", type="button"), href=user)),
         method="POST",
         action=url,
     )
@@ -146,14 +145,14 @@ def revision():
 
 def create_revision_form(url):
     return Form(
-        Label("id", Input(name="id", type="number")),
-        Label("user_id", Input(name="user_id", type="number")),
-        Label("page", Input(name="page", type="number")),
-        Label("revision_date", Input(name="revision_date", type="date")),
-        Label("rating", Input(name="rating", type="number")),
-        Button("Save"),
-        " ",
-        A(Button("Discard", type="button"), href=revision),
+        Hidden(name="id"),
+        LabelInput("User_Id", type="number"),
+        LabelInput("Page", type="number"),
+        LabelInput("Revision_Date", type="date"),
+        LabelInput("Rating", type="number"),
+        DivFullySpaced(
+            Button("Save"), A(Button("Discard", type="button"), href=revision)
+        ),
         method="POST",
         action=url,
     )
