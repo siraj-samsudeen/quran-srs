@@ -44,7 +44,7 @@ def main_area(*args, **kwargs):
         Div(
             Div(side_nav(**kwargs), cls="flex-1 p-2"),
             Main(*args, cls="flex-[4] border-l-2 p-4", id="main") if args else None,
-            cls=FlexT.block,
+            cls=(FlexT.block, "flex-col md:flex-row"),
         ),
         cls=ContainerT.xl,
     )
@@ -91,7 +91,7 @@ def user():
         Button(
             "Add", type="button", hx_get="/user/add", target_id="main", cls=ButtonT.link
         ),
-        table,
+        Div(table, cls="uk-overflow-auto"),
         active="User",
     )
 
@@ -200,7 +200,7 @@ def revision(sess):
                 cls=ButtonT.link,
             ),
         ),
-        table,
+        Div(table, cls="uk-overflow-auto"),
         active="Revision",
     )
 
