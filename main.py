@@ -142,6 +142,9 @@ def post(user_details: User):
 def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
+    if isinstance(last_added_page, int):
+        last_added_page += 1
+
     def _render_revision(user):
         return Tr(
             Td(user.id),
@@ -268,13 +271,17 @@ def get(page: int):
 
 @rt("/revision/add")
 def post(revision_details: Revision, sess):
-    page = revision_details.page + 1
-    sess["last_added_page"] = page
+    # The id is set to zero in the form, so we need to delete it
+    # before inserting to generate the id automatically
     del revision_details.id
     revisions.insert(revision_details)
+
+    page = revision_details.page
+    sess["last_added_page"] = page
+
     return Titled(
         "Add Revision",
-        fill_form(create_revision_form("add"), {"page": page}),
+        fill_form(create_revision_form("add"), {"page": page + 1}),
     )
 
 
