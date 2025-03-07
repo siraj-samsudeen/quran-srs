@@ -289,9 +289,13 @@ def post(revision_details: Revision, sess):
     page = revision_details.page
     sess["last_added_page"] = page
 
-    return Titled(
-        "Add Revision",
-        fill_form(create_revision_form("add"), {"page": page + 1}),
+    notification = Toast(
+        f"Sucessfully added revision for page {page}",
+        alert_cls=AlertT.success,
+        cls=(ToastVT.top, ToastHT.center, "z-20"),
+    )
+    return notification, Titled(
+        "Add Revision", fill_form(create_revision_form("add"), {"page": page + 1})
     )
 
 
