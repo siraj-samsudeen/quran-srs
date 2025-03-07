@@ -190,7 +190,7 @@ def revision():
     )
 
 
-def create_revision_form(url):
+def create_revision_form(type):
     def RadioLabel(label):
         return LabelRadio(
             label=label,
@@ -216,10 +216,11 @@ def create_revision_form(url):
         LabelInput("Page", type="number", autofocus=True),
         Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
         DivFullySpaced(
-            Button("Save"), A(Button("Discard", type="button"), href=revision)
+            Button(f"Save{' and next' if type == 'add' else ''}"),
+            A(Button("Discard", type="button"), href=revision),
         ),
-        method="POST",
-        action=url,
+        hx_post=f"/revision/{type}",
+        target_id="main",
     )
 
 
@@ -228,7 +229,7 @@ def get(revision_id: int):
     current_revision = revisions[revision_id]
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision.rating = str(current_revision.rating)
-    form = create_revision_form(f"/revision/edit")
+    form = create_revision_form("edit")
     return Titled("Edit Revision", fill_form(form, current_revision))
 
 
@@ -245,14 +246,17 @@ def delete(revision_id: int):
 
 @rt("/revision/add")
 def get():
-    return Titled("Add Revision", create_revision_form(f"/revision/add"))
+    return Titled("Add Revision", create_revision_form("add"))
 
 
 @rt("/revision/add")
 def post(revision_details: Revision):
     del revision_details.id
     revisions.insert(revision_details)
-    return Redirect(revision)
+    return Titled(
+        "Add Revision",
+        fill_form(create_revision_form("add"), {"page": revision_details.page + 1}),
+    )
 
 
 serve()
