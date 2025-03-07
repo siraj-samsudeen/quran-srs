@@ -1,5 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
+from utils import *
 
 db = database("data/quran.db")
 
@@ -191,16 +192,28 @@ def revision():
 
 def create_revision_form(url):
     def RadioLabel(label):
-        return LabelRadio(label=label, id="rating", value=label)
+        return LabelRadio(
+            label=label,
+            id="rating",
+            value=label,
+            checked=True if label == "1" else False,
+        )
 
     def _option(obj):
-        return Option(f"{obj.id} ({obj.name})", value=obj.id)
+        return Option(
+            f"{obj.id} ({obj.name})",
+            value=obj.id,
+            # TODO: Temp condition for selecting siraj, later it should be handled by sess
+            # Another caviat is that siraj should be in the top of the list of users
+            # or else the edit functionality will not work properly.
+            selected=True if "siraj" in obj.name.lower() else False,
+        )
 
     return Form(
         Hidden(name="id"),
         LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
-        LabelInput("Page", type="number"),
-        LabelInput("Revision_Date", type="date"),
+        LabelInput("Page", type="number", autofocus=True),
+        LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
         Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
         DivFullySpaced(
             Button("Save"), A(Button("Discard", type="button"), href=revision)
