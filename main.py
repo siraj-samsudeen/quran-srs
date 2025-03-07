@@ -136,7 +136,9 @@ def post(user_details: User):
 
 
 @rt
-def revision():
+def revision(sess):
+    last_added_page = sess.get("last_added_page", None)
+
     def _render_revision(user):
         return Tr(
             Td(user.id),
@@ -179,7 +181,13 @@ def revision():
     )
     return main_area(
         DivLAligned(
-            Input(type="number", placeholder="page", cls="max-w-20", id="page"),
+            Input(
+                type="number",
+                placeholder="page",
+                cls="max-w-20",
+                id="page",
+                value=last_added_page,
+            ),
             Button(
                 "Add",
                 type="button",
@@ -256,12 +264,14 @@ def get(page: int):
 
 
 @rt("/revision/add")
-def post(revision_details: Revision):
+def post(revision_details: Revision, sess):
+    page = revision_details.page + 1
+    sess["last_added_page"] = page
     del revision_details.id
     revisions.insert(revision_details)
     return Titled(
         "Add Revision",
-        fill_form(create_revision_form("add"), {"page": revision_details.page + 1}),
+        fill_form(create_revision_form("add"), {"page": page}),
     )
 
 
