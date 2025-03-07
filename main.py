@@ -177,7 +177,7 @@ def revision(sess):
                 Th("Action"),
             )
         ),
-        Tbody(*map(_render_revision, revisions())),
+        Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
         DivLAligned(
