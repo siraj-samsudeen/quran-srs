@@ -212,8 +212,8 @@ def create_revision_form(url):
     return Form(
         Hidden(name="id"),
         LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
-        LabelInput("Page", type="number", autofocus=True),
         LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
+        LabelInput("Page", type="number", autofocus=True),
         Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
         DivFullySpaced(
             Button("Save"), A(Button("Discard", type="button"), href=revision)
