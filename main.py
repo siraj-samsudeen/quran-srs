@@ -59,7 +59,7 @@ def user():
             Td(user.email),
             Td(user.password),
             Td(
-                A("Edit", href=f"/user/edit/{user.id}"),
+                A("Edit", href=f"/user/edit/{user.id}", cls=AT.muted),
                 " | ",
                 A(
                     "Delete",
@@ -67,6 +67,7 @@ def user():
                     target_id=f"user-{user.id}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
+                    cls=AT.muted,
                 ),
             ),
             id=f"user-{user.id}",
@@ -76,7 +77,11 @@ def user():
         Thead(Tr(Th("id"), Th("name"), Th("email"), Th("password"), Th("Action"))),
         Tbody(*map(_render_user, users())),
     )
-    return main_area(A("Add", href="/user/add"), table, active="User")
+    return main_area(
+        A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
+        table,
+        active="User",
+    )
 
 
 def create_user_form(url):
@@ -131,7 +136,7 @@ def revision():
             Td(user.revision_date),
             Td(user.rating),
             Td(
-                A("Edit", href=f"/revision/edit/{user.id}"),
+                A("Edit", href=f"/revision/edit/{user.id}", cls=AT.muted),
                 " | ",
                 A(
                     "Delete",
@@ -139,6 +144,7 @@ def revision():
                     target_id=f"revision-{user.id}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
+                    cls=AT.muted,
                 ),
             ),
             id=f"revision-{user.id}",
@@ -157,7 +163,11 @@ def revision():
         ),
         Tbody(*map(_render_revision, revisions())),
     )
-    return main_area(A("Add", href="/revision/add"), table, active="Revision")
+    return main_area(
+        A(Button("Add", type="button", cls=ButtonT.link), href="/revision/add"),
+        table,
+        active="Revision",
+    )
 
 
 def create_revision_form(url):
