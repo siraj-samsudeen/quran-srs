@@ -52,7 +52,7 @@ def main_area(*args, **kwargs):
 
 @rt
 def index():
-    return main_area(active="Home")
+    return main_area()
 
 
 @rt
