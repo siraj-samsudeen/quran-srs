@@ -178,12 +178,16 @@ def revision():
         Tbody(*map(_render_revision, revisions())),
     )
     return main_area(
-        Button(
-            "Add",
-            type="button",
-            hx_get="/revision/add",
-            target_id="main",
-            cls=ButtonT.link,
+        DivLAligned(
+            Input(type="number", placeholder="page", cls="max-w-20", id="page"),
+            Button(
+                "Add",
+                type="button",
+                hx_get="/revision/add",
+                hx_include="#page",
+                target_id="main",
+                cls=ButtonT.link,
+            ),
         ),
         table,
         active="Revision",
@@ -245,8 +249,10 @@ def delete(revision_id: int):
 
 
 @rt("/revision/add")
-def get():
-    return Titled("Add Revision", create_revision_form("add"))
+def get(page: int):
+    return Titled(
+        "Add Revision", fill_form(create_revision_form("add"), {"page": page})
+    )
 
 
 @rt("/revision/add")
