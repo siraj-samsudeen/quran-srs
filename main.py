@@ -147,8 +147,8 @@ def revision(sess):
 
     def _render_revision(user):
         return Tr(
-            Td(user.id),
-            Td(user.user_id),
+            # Td(user.id),
+            # Td(user.user_id),
             Td(user.page),
             Td(user.revision_date),
             Td(user.rating),
@@ -175,8 +175,9 @@ def revision(sess):
     table = Table(
         Thead(
             Tr(
-                Th("id"),
-                Th("user_id"),
+                # Columns are temporarily hidden
+                # Th("id"),
+                # Th("user_id"),
                 Th("page"),
                 Th("revision_date"),
                 Th("rating"),
