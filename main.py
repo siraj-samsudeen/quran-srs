@@ -39,7 +39,7 @@ def main_area(*args, **kwargs):
         DividerLine(y_space=0),
         Div(
             Div(side_nav(**kwargs), cls="flex-1 p-2"),
-            Main(*args, cls="flex-[4] border-l-2 p-4") if args else None,
+            Main(*args, cls="flex-[4] border-l-2 p-4", id="main") if args else None,
             cls=FlexT.block,
         ),
         cls=ContainerT.xl,
@@ -60,7 +60,12 @@ def user():
             Td(user.email),
             Td(user.password),
             Td(
-                A("Edit", href=f"/user/edit/{user.id}", cls=AT.muted),
+                A(
+                    "Edit",
+                    hx_get=f"/user/edit/{user.id}",
+                    target_id="main",
+                    cls=AT.muted,
+                ),
                 " | ",
                 A(
                     "Delete",
@@ -79,7 +84,9 @@ def user():
         Tbody(*map(_render_user, users())),
     )
     return main_area(
-        A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
+        Button(
+            "Add", type="button", hx_get="/user/add", target_id="main", cls=ButtonT.link
+        ),
         table,
         active="User",
     )
@@ -137,7 +144,12 @@ def revision():
             Td(user.revision_date),
             Td(user.rating),
             Td(
-                A("Edit", href=f"/revision/edit/{user.id}", cls=AT.muted),
+                A(
+                    "Edit",
+                    hx_get=f"/revision/edit/{user.id}",
+                    target_id="main",
+                    cls=AT.muted,
+                ),
                 " | ",
                 A(
                     "Delete",
@@ -165,7 +177,13 @@ def revision():
         Tbody(*map(_render_revision, revisions())),
     )
     return main_area(
-        A(Button("Add", type="button", cls=ButtonT.link), href="/revision/add"),
+        Button(
+            "Add",
+            type="button",
+            hx_get="/revision/add",
+            target_id="main",
+            cls=ButtonT.link,
+        ),
         table,
         active="Revision",
     )
