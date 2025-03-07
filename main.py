@@ -209,12 +209,17 @@ def revision(sess):
 
 
 def create_revision_form(type):
-    def RadioLabel(label):
-        return LabelRadio(
-            label=label,
-            id="rating",
-            value=label,
-            checked=True if label == "1" else False,
+    def RadioLabel(o):
+        label, value = o
+        is_checked = True if value == "1" else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id="rating", value=value, checked=is_checked, autofocus=is_checked
+                ),
+                Span(label),
+                cls="py-4 space-x-2",
+            )
         )
 
     def _option(obj):
@@ -231,8 +236,12 @@ def create_revision_form(type):
         Hidden(name="id"),
         LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
         LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
-        LabelInput("Page", type="number", autofocus=True),
-        Div(FormLabel("Rating"), *map(RadioLabel, ["1", "0", "-1"]), cls="space-y-2"),
+        LabelInput("Page", type="number"),
+        Div(
+            FormLabel("Rating"),
+            *map(RadioLabel, {"✅ Good": "1", "😄 Ok": "0", "❌ Bad": "-1"}.items()),
+            cls="space-y-2",
+        ),
         DivFullySpaced(
             Button(f"Save{' and next' if type == 'add' else ''}"),
             A(Button("Discard", type="button"), href=revision),
