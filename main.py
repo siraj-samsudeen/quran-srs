@@ -93,7 +93,7 @@ def user():
     )
 
 
-def create_user_form(url):
+def create_user_form(type):
     return Form(
         Hidden(name="id"),
         LabelInput("Name"),
@@ -101,14 +101,14 @@ def create_user_form(url):
         LabelInput("Password"),
         DivFullySpaced(Button("Save"), A(Button("Discard", type="button"), href=user)),
         method="POST",
-        action=url,
+        action=f"/user/{type}",
     )
 
 
 @rt("/user/edit/{user_id}")
 def get(user_id: int):
     current_user = users[user_id]
-    form = create_user_form(f"/user/edit")
+    form = create_user_form("edit")
     return Titled("Edit User", fill_form(form, current_user))
 
 
@@ -125,7 +125,7 @@ def delete(user_id: int):
 
 @rt("/user/add")
 def get():
-    return Titled("Add User", create_user_form("/user/add"))
+    return Titled("Add User", create_user_form("add"))
 
 
 @rt("/user/add")
