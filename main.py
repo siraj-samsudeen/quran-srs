@@ -36,9 +36,10 @@ def side_nav(active=None):
 def main_area(*args, **kwargs):
     return Title("Quran SRS"), Container(
         NavBar(A("Home", href=index), brand=H3("Quran SRS")),
+        DividerLine(y_space=0),
         Div(
-            Div(side_nav(**kwargs), cls="flex-1"),
-            Main(*args, cls="flex-[4]") if args else None,
+            Div(side_nav(**kwargs), cls="flex-1 p-2"),
+            Main(*args, cls="flex-[4] border-l-2 p-4") if args else None,
             cls=FlexT.block,
         ),
         cls=ContainerT.xl,
