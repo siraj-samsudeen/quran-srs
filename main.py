@@ -1,6 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
+import pandas as pd
+from io import BytesIO
 
 db = database("data/quran.db")
 
@@ -187,22 +189,29 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        DivLAligned(
-            Input(
-                type="number",
-                placeholder="page",
-                cls="max-w-20",
-                id="page",
-                value=last_added_page,
+        DivFullySpaced(
+            DivLAligned(
+                Input(
+                    type="number",
+                    placeholder="page",
+                    cls="max-w-20",
+                    id="page",
+                    value=last_added_page,
+                ),
+                Button(
+                    "Add",
+                    type="button",
+                    hx_get="/revision/add",
+                    hx_include="#page",
+                    target_id="main",
+                    cls=ButtonT.link,
+                ),
             ),
-            Button(
-                "Add",
-                type="button",
-                hx_get="/revision/add",
-                hx_include="#page",
-                target_id="main",
-                cls=ButtonT.link,
+            DivLAligned(
+                Button("Import", type="button", hx_get=import_csv, target_id="main"),
+                A(Button("Export"), href=export_csv),
             ),
+            cls="flex-wrap gap-4",
         ),
         Div(table, cls="uk-overflow-auto"),
         active="Revision",
@@ -298,6 +307,44 @@ def post(revision_details: Revision, sess):
     )
     return notification, Titled(
         "Add Revision", fill_form(create_revision_form("add"), {"page": page + 1})
+    )
+
+
+@app.get
+def import_csv():
+    form = Form(
+        UploadZone(
+            DivCentered(Span("Upload Zone"), UkIcon("upload")),
+            id="file",
+            accept="text/csv",
+        ),
+        Button("Submit"),
+        hx_post=import_csv,
+    )
+    return Titled("Upload CSV", form)
+
+
+@app.post
+async def import_csv(file: UploadFile):
+    file_content = await file.read()
+    revisions.delete_where()  # Truncate the table before importing
+    db.import_file("revisions", file_content)
+    return Redirect(revision)
+
+
+@app.get
+def export_csv():
+    df = pd.DataFrame(revisions())
+
+    csv_buffer = BytesIO()
+    df.to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+
+    file_name = f"Quran_SRS_data_{current_time("%Y%m%d%I%M")}"
+    return StreamingResponse(
+        csv_buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
     )
 
 
