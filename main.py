@@ -219,7 +219,7 @@ def create_revision_form(type):
                     id="rating", value=value, checked=is_checked, autofocus=is_checked
                 ),
                 Span(label),
-                cls="py-4 space-x-2",
+                cls="space-x-2",
             )
         )
 
@@ -235,17 +235,19 @@ def create_revision_form(type):
 
     return Form(
         Hidden(name="id"),
-        LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
+        # Hide the User selection temporarily
+        # LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
         LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
-        LabelInput("Page", type="number"),
+        LabelInput("Page", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, {"✅ Good": "1", "😄 Ok": "0", "❌ Bad": "-1"}.items()),
-            cls="space-y-2",
+            cls="space-y-2 leading-8 sm:leading-6 ",
         ),
-        DivFullySpaced(
-            Button(f"Save{' and next' if type == 'add' else ''}"),
-            A(Button("Discard", type="button"), href=revision),
+        Div(
+            Button("Save", cls=ButtonT.primary),
+            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+            cls="flex justify-around items-center w-full",
         ),
         hx_post=f"/revision/{type}",
         target_id="main",
