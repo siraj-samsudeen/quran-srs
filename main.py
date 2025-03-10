@@ -245,7 +245,9 @@ def create_revision_form(type):
     return Form(
         Hidden(name="id"),
         # Hide the User selection temporarily
-        # LabelSelect(*map(_option, users()), label="User_Id", name="user_id"),
+        LabelSelect(
+            *map(_option, users()), label="User_Id", name="user_id", cls="hidden"
+        ),
         LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
         LabelInput("Page", type="number", input_cls="text-2xl"),
         Div(
