@@ -206,6 +206,14 @@ def revision(sess):
                     target_id="main",
                     cls=ButtonT.link,
                 ),
+                Button(
+                    "Bulk",
+                    type="button",
+                    hx_get="/revision/bulk_add",
+                    hx_include="#page",
+                    target_id="main",
+                    cls=ButtonT.link,
+                ),
             ),
             DivLAligned(
                 Button("Import", type="button", hx_get=import_csv, target_id="main"),
@@ -309,6 +317,95 @@ def post(revision_details: Revision, sess):
     )
     return notification, Titled(
         "Add Revision", fill_form(create_revision_form("add"), {"page": page + 1})
+    )
+
+
+@app.get("/revision/bulk_add")
+def get(page: int, date: str = None):
+
+    def _render_row(current_page):
+        def _render_radio(o):
+            label, value = o
+            is_checked = True if value == "1" else False
+            return FormLabel(
+                Radio(
+                    id=f"rating-{current_page}",
+                    value=value,
+                    checked=is_checked,
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        return Tr(
+            Td(P(current_page, cls="text-xl")),
+            Td(
+                Div(
+                    *map(
+                        _render_radio,
+                        {"✅ Good": "1", "😄 Ok": "0", "❌ Bad": "-1"}.items(),
+                    ),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    last_page = page + 5
+    table = Table(
+        Thead(Tr(Th("page"), Th("rating"))),
+        Tbody(*[_render_row(i) for i in range(page, last_page)]),
+    )
+
+    action_buttons = Div(
+        Button(
+            "Save",
+            type="button",
+            hx_post="/revision/bulk_add",
+            target_id="main",
+            cls=ButtonT.primary,
+        ),
+        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+
+    # TODO: Later handle the user selection by session, for now temporarily setting it to siraj
+    try:
+        user_id = users(where="name='Siraj'")[0].id
+    except IndexError:
+        user_id = 1
+
+    return Titled(
+        "Bulk Revision",
+        Form(
+            Hidden(id="user_id", value=user_id),
+            Hidden(name="last_page", value=last_page),
+            LabelInput("Date", type="date", value=(date or current_time("%Y-%m-%d"))),
+            table,
+            action_buttons,
+        ),
+    )
+
+
+@rt("/revision/bulk_add")
+async def post(user_id: int, date: str, last_page: int, sess, req):
+    form_data = await req.form()
+
+    parsed_data = [
+        Revision(
+            page=int(page.split("-")[1]),
+            rating=int(rating),
+            user_id=user_id,
+            revision_date=date,
+        )
+        for page, rating in form_data.items()
+        if page.startswith("rating-")
+    ]
+    revisions.insert_all(parsed_data)
+
+    sess["last_added_page"] = parsed_data[-1].page
+
+    return RedirectResponse(
+        f"/revision/bulk_add?page={last_page}&date={date}", status_code=303
     )
 
 
