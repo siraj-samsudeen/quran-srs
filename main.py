@@ -375,7 +375,7 @@ def get(page: int, date: str = None):
         user_id = 1
 
     return Titled(
-        "Bulk Revision",
+        f"Bulk Revision ({page}-{last_page - 1})",
         Form(
             Hidden(id="user_id", value=user_id),
             Hidden(name="last_page", value=last_page),
