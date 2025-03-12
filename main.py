@@ -324,9 +324,8 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, date: str = None):
+def get(page: str, date: str = None, length: int = 5):
 
-    length = 5
     if "." in page:
         page, length = map(int, page.split("."))
     else:
@@ -389,6 +388,7 @@ def get(page: str, date: str = None):
         Form(
             Hidden(id="user_id", value=user_id),
             Hidden(name="last_page", value=last_page),
+            Hidden(name="length", value=length),
             LabelInput("Date", type="date", value=(date or current_time("%Y-%m-%d"))),
             table,
             action_buttons,
@@ -397,7 +397,7 @@ def get(page: str, date: str = None):
 
 
 @rt("/revision/bulk_add")
-async def post(user_id: int, date: str, last_page: int, sess, req):
+async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
     form_data = await req.form()
 
     parsed_data = [
@@ -415,7 +415,8 @@ async def post(user_id: int, date: str, last_page: int, sess, req):
     sess["last_added_page"] = parsed_data[-1].page
 
     return RedirectResponse(
-        f"/revision/bulk_add?page={last_page}&date={date}", status_code=303
+        f"/revision/bulk_add?page={last_page}&date={date}&length={length}",
+        status_code=303,
     )
 
 
