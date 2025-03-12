@@ -330,6 +330,7 @@ def get(page: str, date: str = None, length: int = 5):
                     id=f"rating-{current_page}",
                     value=value,
                     checked=is_checked,
+                    cls="toggleable-radio",
                 ),
                 Span(label),
                 cls="space-x-2",
@@ -383,6 +384,7 @@ def get(page: str, date: str = None, length: int = 5):
                 action="/revision/bulk_add",
                 method="POST",
             ),
+            Script(src="/script.js"),
         ),
         active="Revision",
     )
