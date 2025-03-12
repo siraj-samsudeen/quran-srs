@@ -66,12 +66,7 @@ def user():
             Td(user.email),
             Td(user.password),
             Td(
-                A(
-                    "Edit",
-                    hx_get=f"/user/edit/{user.id}",
-                    target_id="main",
-                    cls=AT.muted,
-                ),
+                A("Edit", href=f"/user/edit/{user.id}", cls=AT.muted),
                 " | ",
                 A(
                     "Delete",
@@ -90,9 +85,7 @@ def user():
         Tbody(*map(_render_user, users())),
     )
     return main_area(
-        Button(
-            "Add", type="button", hx_get="/user/add", target_id="main", cls=ButtonT.link
-        ),
+        A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
         Div(table, cls="uk-overflow-auto"),
         active="User",
     )
@@ -114,7 +107,7 @@ def create_user_form(type):
 def get(user_id: int):
     current_user = users[user_id]
     form = create_user_form("edit")
-    return Titled("Edit User", fill_form(form, current_user))
+    return main_area(Titled("Edit User", fill_form(form, current_user)), active="User")
 
 
 @rt("/user/edit")
@@ -130,7 +123,7 @@ def delete(user_id: int):
 
 @rt("/user/add")
 def get():
-    return Titled("Add User", create_user_form("add"))
+    return main_area(Titled("Add User", create_user_form("add")), active="User")
 
 
 @rt("/user/add")
@@ -155,12 +148,7 @@ def revision(sess):
             Td(rev.revision_date),
             Td(rev.rating),
             Td(
-                A(
-                    "Edit",
-                    hx_get=f"/revision/edit/{rev.id}",
-                    target_id="main",
-                    cls=AT.muted,
-                ),
+                A("Edit", href=f"/revision/edit/{rev.id}", cls=AT.muted),
                 " | ",
                 A(
                     "Delete",
@@ -204,7 +192,8 @@ def revision(sess):
                     type="button",
                     hx_get="/revision/bulk_add",
                     hx_include="#page",
-                    target_id="main",
+                    hx_target="body",
+                    hx_replace_url="true",
                     cls=ButtonT.link,
                 ),
                 Button(
@@ -212,12 +201,13 @@ def revision(sess):
                     type="button",
                     hx_get="/revision/add",
                     hx_include="#page",
-                    target_id="main",
+                    hx_target="body",
+                    hx_replace_url="true",
                     cls=ButtonT.link,
                 ),
             ),
             DivLAligned(
-                Button("Import", type="button", hx_get=import_csv, target_id="main"),
+                A(Button("Import"), href=import_csv),
                 A(Button("Export"), href=export_csv),
             ),
             cls="flex-wrap gap-4",
@@ -269,8 +259,8 @@ def create_revision_form(type):
             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
             cls="flex justify-around items-center w-full",
         ),
-        hx_post=f"/revision/{type}",
-        target_id="main",
+        action=f"/revision/{type}",
+        method="POST",
     )
 
 
@@ -280,7 +270,9 @@ def get(revision_id: int):
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision.rating = str(current_revision.rating)
     form = create_revision_form("edit")
-    return Titled("Edit Revision", fill_form(form, current_revision))
+    return main_area(
+        Titled("Edit Revision", fill_form(form, current_revision)), active="Revision"
+    )
 
 
 @rt("/revision/edit")
@@ -298,8 +290,11 @@ def delete(revision_id: int):
 def get(page: str):
     if "." in page:
         page = page.split(".")[0]
-    return Titled(
-        "Add Revision", fill_form(create_revision_form("add"), {"page": int(page)})
+    return main_area(
+        Titled(
+            "Add Revision", fill_form(create_revision_form("add"), {"page": int(page)})
+        ),
+        active="Revision",
     )
 
 
@@ -313,14 +308,7 @@ def post(revision_details: Revision, sess):
     page = revision_details.page
     sess["last_added_page"] = page
 
-    notification = Toast(
-        f"Sucessfully added revision for page {page}",
-        alert_cls=AlertT.success,
-        cls=(ToastVT.top, ToastHT.center, "z-20"),
-    )
-    return notification, Titled(
-        "Add Revision", fill_form(create_revision_form("add"), {"page": page + 1})
-    )
+    return Redirect(f"/revision/add?page={page + 1}")
 
 
 @app.get("/revision/bulk_add")
@@ -368,9 +356,6 @@ def get(page: str, date: str = None, length: int = 5):
     action_buttons = Div(
         Button(
             "Save",
-            type="button",
-            hx_post="/revision/bulk_add",
-            target_id="main",
             cls=ButtonT.primary,
         ),
         A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
@@ -383,16 +368,23 @@ def get(page: str, date: str = None, length: int = 5):
     except IndexError:
         user_id = 1
 
-    return Titled(
-        f"Bulk Revision ({page}-{last_page - 1})",
-        Form(
-            Hidden(id="user_id", value=user_id),
-            Hidden(name="last_page", value=last_page),
-            Hidden(name="length", value=length),
-            LabelInput("Date", type="date", value=(date or current_time("%Y-%m-%d"))),
-            table,
-            action_buttons,
+    return main_area(
+        Titled(
+            f"Bulk Revision ({page}-{last_page - 1})",
+            Form(
+                Hidden(id="user_id", value=user_id),
+                Hidden(name="last_page", value=last_page),
+                Hidden(name="length", value=length),
+                LabelInput(
+                    "Date", type="date", value=(date or current_time("%Y-%m-%d"))
+                ),
+                table,
+                action_buttons,
+                action="/revision/bulk_add",
+                method="POST",
+            ),
         ),
+        active="Revision",
     )
 
 
@@ -414,10 +406,7 @@ async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
 
     sess["last_added_page"] = parsed_data[-1].page
 
-    return RedirectResponse(
-        f"/revision/bulk_add?page={last_page}&date={date}&length={length}",
-        status_code=303,
-    )
+    return Redirect(f"/revision/bulk_add?page={last_page}&date={date}&length={length}")
 
 
 @app.get
@@ -429,9 +418,10 @@ def import_csv():
             accept="text/csv",
         ),
         Button("Submit"),
-        hx_post=import_csv,
+        action=import_csv,
+        method="POST",
     )
-    return Titled("Upload CSV", form)
+    return main_area(Titled("Upload CSV", form), active="Revision")
 
 
 @app.post
