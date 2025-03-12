@@ -188,7 +188,7 @@ def revision(sess):
                     autocomplete="off",
                 ),
                 Button(
-                    "Bulk",
+                    "Bulk Entry",
                     type="button",
                     hx_get="/revision/bulk_add",
                     hx_include="#page",
@@ -197,7 +197,7 @@ def revision(sess):
                     cls=ButtonT.link,
                 ),
                 Button(
-                    "Add",
+                    "Single Entry",
                     type="button",
                     hx_get="/revision/add",
                     hx_include="#page",
@@ -205,6 +205,7 @@ def revision(sess):
                     hx_replace_url="true",
                     cls=ButtonT.link,
                 ),
+                cls=("gap-3", FlexT.wrap),
             ),
             DivLAligned(
                 A(Button("Import"), href=import_csv),
