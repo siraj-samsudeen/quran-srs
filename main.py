@@ -192,11 +192,12 @@ def revision(sess):
         DivFullySpaced(
             DivLAligned(
                 Input(
-                    type="number",
+                    type="text",
                     placeholder="page",
                     cls="max-w-20",
                     id="page",
                     value=last_added_page,
+                    autocomplete="off",
                 ),
                 Button(
                     "Add",
@@ -294,9 +295,11 @@ def delete(revision_id: int):
 
 
 @rt("/revision/add")
-def get(page: int):
+def get(page: str):
+    if "." in page:
+        page = page.split(".")[0]
     return Titled(
-        "Add Revision", fill_form(create_revision_form("add"), {"page": page})
+        "Add Revision", fill_form(create_revision_form("add"), {"page": int(page)})
     )
 
 
@@ -321,7 +324,15 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: int, date: str = None):
+def get(page: str, date: str = None):
+
+    length = 5
+    if "." in page:
+        page, length = map(int, page.split("."))
+    else:
+        page = int(page)
+
+    last_page = page + length
 
     def _render_row(current_page):
         def _render_radio(o):
@@ -338,7 +349,7 @@ def get(page: int, date: str = None):
             )
 
         return Tr(
-            Td(P(current_page, cls="text-xl")),
+            Td(P(current_page)),
             Td(
                 Div(
                     *map(
@@ -350,7 +361,6 @@ def get(page: int, date: str = None):
             ),
         )
 
-    last_page = page + 5
     table = Table(
         Thead(Tr(Th("page"), Th("rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
