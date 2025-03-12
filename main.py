@@ -147,31 +147,31 @@ def revision(sess):
     if isinstance(last_added_page, int):
         last_added_page += 1
 
-    def _render_revision(user):
+    def _render_revision(rev):
         return Tr(
-            # Td(user.id),
-            # Td(user.user_id),
-            Td(user.page),
-            Td(user.revision_date),
-            Td(user.rating),
+            # Td(rev.id),
+            # Td(rev.user_id),
+            Td(rev.page),
+            Td(rev.revision_date),
+            Td(rev.rating),
             Td(
                 A(
                     "Edit",
-                    hx_get=f"/revision/edit/{user.id}",
+                    hx_get=f"/revision/edit/{rev.id}",
                     target_id="main",
                     cls=AT.muted,
                 ),
                 " | ",
                 A(
                     "Delete",
-                    hx_delete=f"/revision/delete/{user.id}",
-                    target_id=f"revision-{user.id}",
+                    hx_delete=f"/revision/delete/{rev.id}",
+                    target_id=f"revision-{rev.id}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
                     cls=AT.muted,
                 ),
             ),
-            id=f"revision-{user.id}",
+            id=f"revision-{rev.id}",
         )
 
     table = Table(
