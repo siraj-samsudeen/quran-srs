@@ -4,6 +4,7 @@ from utils import *
 import pandas as pd
 from io import BytesIO
 
+RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 quran_data = pd.read_csv("metadata/quran_metadata.csv").to_dict(orient="records")
 
 db = database("data/quran.db")
@@ -153,10 +154,10 @@ def revision(sess):
             # Td(rev.id),
             # Td(rev.user_id),
             Td(rev.page),
+            Td(f"{rev.rating} ({RATING_MAP.get(str(rev.rating))})"),
             Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("juz", "-")),
             Td(rev.revision_date),
-            Td(rev.rating),
             Td(
                 A("Edit", href=f"/revision/edit/{rev.id}", cls=AT.muted),
                 " | ",
@@ -179,10 +180,10 @@ def revision(sess):
                 # Th("id"),
                 # Th("user_id"),
                 Th("page"),
+                Th("rating"),
                 Th("surah"),
                 Th("juz"),
                 Th("revision_date"),
-                Th("rating"),
                 Th("Action"),
             )
         ),
@@ -232,7 +233,7 @@ def revision(sess):
 
 def create_revision_form(type):
     def RadioLabel(o):
-        label, value = o
+        value, label = o
         is_checked = True if value == "1" else False
         return Div(
             FormLabel(
@@ -264,7 +265,7 @@ def create_revision_form(type):
         LabelInput("Page", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
-            *map(RadioLabel, {"✅ Good": "1", "😄 Ok": "0", "❌ Bad": "-1"}.items()),
+            *map(RadioLabel, RATING_MAP.items()),
             cls="space-y-2 leading-8 sm:leading-6 ",
         ),
         Div(
@@ -336,7 +337,7 @@ def get(page: str, date: str = None, length: int = 5):
 
     def _render_row(current_page):
         def _render_radio(o):
-            label, value = o
+            value, label = o
             is_checked = True if value == "1" else False
             return FormLabel(
                 Radio(
@@ -353,10 +354,7 @@ def get(page: str, date: str = None, length: int = 5):
             Td(P(current_page)),
             Td(
                 Div(
-                    *map(
-                        _render_radio,
-                        {"✅ Good": "1", "😄 Ok": "0", "❌ Bad": "-1"}.items(),
-                    ),
+                    *map(_render_radio, RATING_MAP.items()),
                     cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
                 )
             ),
