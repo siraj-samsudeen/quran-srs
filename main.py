@@ -408,7 +408,8 @@ async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
     revisions.insert_all(parsed_data)
 
     if len(parsed_data) > 0:
-        sess["last_added_page"] = parsed_data[-1].page
+        sess["last_added_page"] = last_page = parsed_data[-1].page
+        last_page += 1
 
     return Redirect(f"/revision/bulk_add?page={last_page}&date={date}&length={length}")
 
