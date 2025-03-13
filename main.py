@@ -4,6 +4,8 @@ from utils import *
 import pandas as pd
 from io import BytesIO
 
+quran_data = pd.read_csv("metadata/quran_metadata.csv").to_dict(orient="records")
+
 db = database("data/quran.db")
 
 revisions, users = db.t.revisions, db.t.users
@@ -141,10 +143,18 @@ def revision(sess):
         last_added_page += 1
 
     def _render_revision(rev):
+        current_page_quran_data = [d for d in quran_data if d["page"] == rev.page]
+
+        current_page_quran_data = (
+            current_page_quran_data[0] if current_page_quran_data else {}
+        )
+
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
             Td(rev.page),
+            Td(current_page_quran_data.get("surah", "-")),
+            Td(current_page_quran_data.get("juz", "-")),
             Td(rev.revision_date),
             Td(rev.rating),
             Td(
@@ -169,6 +179,8 @@ def revision(sess):
                 # Th("id"),
                 # Th("user_id"),
                 Th("page"),
+                Th("surah"),
+                Th("juz"),
                 Th("revision_date"),
                 Th("rating"),
                 Th("Action"),
@@ -409,6 +421,7 @@ async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
 
     if len(parsed_data) > 0:
         sess["last_added_page"] = last_page = parsed_data[-1].page
+        # To show the next page
         last_page += 1
 
     return Redirect(f"/revision/bulk_add?page={last_page}&date={date}&length={length}")
