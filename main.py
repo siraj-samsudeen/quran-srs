@@ -452,4 +452,14 @@ def export_csv():
     )
 
 
+@app.get
+def backup():
+    db_path = "data/quran.db"  # This should match your database path
+
+    if not os.path.exists(db_path):
+        return Titled("Error", P("Database file not found"))
+
+    return FileResponse(db_path, filename="quran_backup.db")
+
+
 serve()
