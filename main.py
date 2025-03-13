@@ -217,7 +217,7 @@ def revision(sess):
                 cls=("gap-3", FlexT.wrap),
             ),
             DivLAligned(
-                A(Button("Import"), href=import_csv),
+                # A(Button("Import"), href=import_csv),
                 A(Button("Export"), href=export_csv),
             ),
             cls="flex-wrap gap-4",
