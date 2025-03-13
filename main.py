@@ -65,12 +65,10 @@ def user():
     def _render_user(user):
         return Tr(
             Td(user.id),
-            Td(user.name),
+            Td(A(user.name, href=f"/user/edit/{user.id}", cls=AT.muted)),
             Td(user.email),
             Td(user.password),
             Td(
-                A("Edit", href=f"/user/edit/{user.id}", cls=AT.muted),
-                " | ",
                 A(
                     "Delete",
                     hx_delete=f"/user/delete/{user.id}",
@@ -153,14 +151,12 @@ def revision(sess):
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
-            Td(rev.page),
+            Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             Td(f"{rev.rating} ({RATING_MAP.get(str(rev.rating))})"),
             Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("juz", "-")),
             Td(rev.revision_date),
             Td(
-                A("Edit", href=f"/revision/edit/{rev.id}", cls=AT.muted),
-                " | ",
                 A(
                     "Delete",
                     hx_delete=f"/revision/delete/{rev.id}",
