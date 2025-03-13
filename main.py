@@ -57,7 +57,22 @@ def main_area(*args, **kwargs):
 
 @rt
 def index():
-    return main_area()
+    qry = f"select distinct revision_date from {revisions}"
+    unique_dates = db.q(qry)
+    unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
+
+    def _render_row(date):
+        pages = revisions(where=f"revision_date = '{date}'")
+        pages = sorted([p.page for p in pages])
+
+        return Tr(Td(date), Td(compact_format(pages)))
+
+    table = Table(
+        Thead(Tr(Th("Date"), Th("Page Range"))),
+        Tbody(*map(_render_row, unique_dates)),
+    )
+
+    return main_area(H1("Datewise summary"), table)
 
 
 @rt
