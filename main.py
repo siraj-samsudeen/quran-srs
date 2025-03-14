@@ -25,6 +25,11 @@ Revision, User = revisions.dataclass(), users.dataclass()
 app, rt = fast_app(hdrs=Theme.blue.headers())
 
 
+def get_quran_data(page: int) -> dict:
+    current_page_quran_data = [d for d in quran_data if d["page"] == page]
+    return current_page_quran_data[0] if current_page_quran_data else {}
+
+
 def main_area(*args, active=None):
     is_active = lambda x: AT.primary if x == active else None
     return Title("Quran SRS"), Container(
@@ -145,11 +150,7 @@ def revision(sess):
         last_added_page += 1
 
     def _render_revision(rev):
-        current_page_quran_data = [d for d in quran_data if d["page"] == rev.page]
-
-        current_page_quran_data = (
-            current_page_quran_data[0] if current_page_quran_data else {}
-        )
+        current_page_quran_data = get_quran_data(rev.page)
 
         return Tr(
             # Td(rev.id),
@@ -356,6 +357,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
 
         return Tr(
             Td(P(current_page)),
+            Td(get_quran_data(current_page).get("surah", "-")),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -365,7 +367,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Rating"))),
+        Thead(Tr(Th("Page"), Th("Surah"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
