@@ -25,32 +25,20 @@ Revision, User = revisions.dataclass(), users.dataclass()
 app, rt = fast_app(hdrs=Theme.blue.headers())
 
 
-def side_nav(active=None):
-    is_active = lambda x: "uk-active" if x == active else None
-    table_links = [
-        Li(A("User", href=user), cls=is_active("User")),
-        Li(A("Revision", href=revision), cls=is_active("Revision")),
-    ]
-    return NavContainer(
-        NavParentLi(
-            H4("Tables", cls="pl-4"),
-            NavContainer(*table_links, parent=False),
-        )
-    )
-
-
-def main_area(*args, **kwargs):
+def main_area(*args, active=None):
+    is_active = lambda x: AT.primary if x == active else None
     return Title("Quran SRS"), Container(
         Div(
-            NavBar(A("Home", href=index), brand=H3("Quran SRS")),
+            NavBar(
+                A("Home", href=index, cls=is_active("Home")),
+                A("Revision", href=revision, cls=is_active("Revision")),
+                # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
+                brand=H3("Quran SRS"),
+            ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
         ),
-        Div(
-            Div(side_nav(**kwargs), cls="flex-1 p-2"),
-            Main(*args, cls="flex-[4] border-l-2 p-4", id="main") if args else None,
-            cls=(FlexT.block, "flex-col md:flex-row"),
-        ),
+        Main(*args, cls="p-4", id="main") if args else None,
         cls=ContainerT.xl,
     )
 
@@ -72,7 +60,7 @@ def index():
         Tbody(*map(_render_row, unique_dates)),
     )
 
-    return main_area(H1("Datewise summary"), table)
+    return main_area(H1("Datewise summary"), table, active="Home")
 
 
 @rt
