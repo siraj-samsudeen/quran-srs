@@ -321,9 +321,11 @@ def delete(revision_id: int):
 def get(page: str):
     if "." in page:
         page = page.split(".")[0]
+    page_desc = get_quran_data(int(page)).get("page description", "-")
     return main_area(
         Titled(
-            "Add Revision", fill_form(create_revision_form("add"), {"page": int(page)})
+            f"{page} - {page_desc}",
+            fill_form(create_revision_form("add"), {"page": int(page)}),
         ),
         active="Revision",
     )
