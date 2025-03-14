@@ -68,11 +68,27 @@ def index():
     )
 
     all_pages = sorted([p.page for p in revisions()])
+
+    def render_page_range(page_range: str):
+        last_page = page_range.split("-")[1] if "-" in page_range else page_range
+        next_page = int(last_page) + 1
+
+        return (
+            f"{page_range} ",
+            A(
+                f"(start from {next_page})",
+                href=f"revision/bulk_add?page={next_page}",
+                cls=AT.classic,
+            ),
+            ", ",
+        )
+
     top = Div(
         H1("Datewise summary"),
         P(
             Span("Overall page range: ", cls=TextPresets.bold_lg),
-            compact_format(all_pages),
+            *map(render_page_range, compact_format(all_pages).split(", ")),
+            cls="leading-8",
         ),
         cls="space-y-2",
     )
