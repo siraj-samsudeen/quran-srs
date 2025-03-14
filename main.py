@@ -5,7 +5,9 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-quran_data = pd.read_csv("metadata/quran_metadata.csv").to_dict(orient="records")
+quran_data = (
+    pd.read_csv("metadata/quran_metadata.csv").fillna("").to_dict(orient="records")
+)
 
 db = database("data/quran.db")
 
@@ -75,7 +77,7 @@ def index():
         cls="space-y-2",
     )
 
-    return main_area(Div(top, table), active="Home")
+    return main_area(Div(top, Div(table, cls="uk-overflow-auto")), active="Home")
 
 
 @rt
@@ -365,9 +367,11 @@ def get(page: str, revision_date: str = None, length: int = 5):
                 cls="space-x-2",
             )
 
+        current_page_quran_data = get_quran_data(current_page)
         return Tr(
             Td(P(current_page)),
-            Td(get_quran_data(current_page).get("surah", "-")),
+            Td(current_page_quran_data.get("surah", "-")),
+            Td(current_page_quran_data.get("page description", "-")),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -377,7 +381,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Surah"), Th("Rating"))),
+        Thead(Tr(Th("Page"), Th("Surah"), Th("Page Description"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
@@ -396,26 +400,26 @@ def get(page: str, revision_date: str = None, length: int = 5):
     except IndexError:
         user_id = 1
 
+    start_page_desc = get_quran_data(page).get("page description", "-")
+    last_page_desc = get_quran_data(last_page - 1).get("page description", "-")
     return main_area(
-        Titled(
-            f"Bulk Revision ({page}-{last_page - 1})",
-            Form(
-                Hidden(id="user_id", value=user_id),
-                Hidden(name="last_page", value=last_page),
-                Hidden(name="length", value=length),
-                LabelInput(
-                    "Revision Date",
-                    name="revision_date",
-                    type="date",
-                    value=(revision_date or current_time("%Y-%m-%d")),
-                ),
-                table,
-                action_buttons,
-                action="/revision/bulk_add",
-                method="POST",
+        H1(f"{page} - {start_page_desc} => {last_page - 1} - {last_page_desc}"),
+        Form(
+            Hidden(id="user_id", value=user_id),
+            Hidden(name="last_page", value=last_page),
+            Hidden(name="length", value=length),
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=(revision_date or current_time("%Y-%m-%d")),
             ),
-            Script(src="/script.js"),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action="/revision/bulk_add",
+            method="POST",
         ),
+        Script(src="/script.js"),
         active="Revision",
     )
 
