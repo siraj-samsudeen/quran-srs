@@ -40,7 +40,7 @@ def main_area(*args, active=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3("Quran SRS"),
+                brand=H3(A("Quran SRS", href=index)),
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
