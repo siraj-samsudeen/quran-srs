@@ -97,7 +97,7 @@ def user():
         )
 
     table = Table(
-        Thead(Tr(Th("id"), Th("name"), Th("email"), Th("password"), Th("Action"))),
+        Thead(Tr(Th("Id"), Th("Name"), Th("Email"), Th("Password"), Th("Action"))),
         Tbody(*map(_render_user, users())),
     )
     return main_area(
@@ -167,7 +167,7 @@ def revision(sess):
             # Td(rev.id),
             # Td(rev.user_id),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
-            Td(f"{rev.rating} ({RATING_MAP.get(str(rev.rating))})"),
+            Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("juz", "-")),
             Td(rev.revision_date),
@@ -188,13 +188,13 @@ def revision(sess):
         Thead(
             Tr(
                 # Columns are temporarily hidden
-                # Th("id"),
-                # Th("user_id"),
-                Th("page"),
-                Th("rating"),
-                Th("surah"),
-                Th("juz"),
-                Th("revision_date"),
+                # Th("Id"),
+                # Th("User Id"),
+                Th("Page"),
+                Th("Rating"),
+                Th("Surah"),
+                Th("Juz"),
+                Th("Revision Date"),
                 Th("Action"),
             )
         ),
@@ -270,9 +270,14 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, users()), label="User_Id", name="user_id", cls="hidden"
+            *map(_option, users()), label="User Id", name="user_id", cls="hidden"
         ),
-        LabelInput("Revision_Date", type="date", value=current_time("%Y-%m-%d")),
+        LabelInput(
+            "Revision Date",
+            name="revision_date",
+            type="date",
+            value=current_time("%Y-%m-%d"),
+        ),
         LabelInput("Page", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
@@ -337,7 +342,7 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, date: str = None, length: int = 5):
+def get(page: str, revision_date: str = None, length: int = 5):
 
     if "." in page:
         page, length = map(int, page.split("."))
@@ -372,7 +377,7 @@ def get(page: str, date: str = None, length: int = 5):
         )
 
     table = Table(
-        Thead(Tr(Th("page"), Th("rating"))),
+        Thead(Tr(Th("Page"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
@@ -399,7 +404,10 @@ def get(page: str, date: str = None, length: int = 5):
                 Hidden(name="last_page", value=last_page),
                 Hidden(name="length", value=length),
                 LabelInput(
-                    "Date", type="date", value=(date or current_time("%Y-%m-%d"))
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=(revision_date or current_time("%Y-%m-%d")),
                 ),
                 table,
                 action_buttons,
@@ -413,7 +421,9 @@ def get(page: str, date: str = None, length: int = 5):
 
 
 @rt("/revision/bulk_add")
-async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
+async def post(
+    user_id: int, revision_date: str, last_page: int, length: int, sess, req
+):
     form_data = await req.form()
 
     parsed_data = [
@@ -421,7 +431,7 @@ async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
             page=int(page.split("-")[1]),
             rating=int(rating),
             user_id=user_id,
-            revision_date=date,
+            revision_date=revision_date,
         )
         for page, rating in form_data.items()
         if page.startswith("rating-")
@@ -433,7 +443,9 @@ async def post(user_id: int, date: str, last_page: int, length: int, sess, req):
         # To show the next page
         last_page += 1
 
-    return Redirect(f"/revision/bulk_add?page={last_page}&date={date}&length={length}")
+    return Redirect(
+        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}"
+    )
 
 
 @app.get
