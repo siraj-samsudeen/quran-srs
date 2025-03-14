@@ -58,14 +58,24 @@ def index():
         pages = revisions(where=f"revision_date = '{date}'")
         pages = sorted([p.page for p in pages])
 
-        return Tr(Td(date), Td(compact_format(pages)))
+        return Tr(Td(date), Td(len(pages)), Td(compact_format(pages)))
 
     table = Table(
-        Thead(Tr(Th("Date"), Th("Page Range"))),
+        Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
         Tbody(*map(_render_row, unique_dates)),
     )
 
-    return main_area(H1("Datewise summary"), table, active="Home")
+    all_pages = sorted([p.page for p in revisions()])
+    top = Div(
+        H1("Datewise summary"),
+        P(
+            Span("Overall page range: ", cls=TextPresets.bold_lg),
+            compact_format(all_pages),
+        ),
+        cls="space-y-2",
+    )
+
+    return main_area(Div(top, table), active="Home")
 
 
 @rt

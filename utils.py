@@ -33,7 +33,7 @@ def compact_format(numbers):
             if start == end:
                 result.append(str(start))
             else:
-                result.append(f"{start}..{end}")
+                result.append(f"{start}-{end}")
 
             # Start a new range (if not at the end)
             if num is not None:
