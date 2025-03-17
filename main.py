@@ -5,9 +5,14 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-quran_data = (
-    pd.read_csv("metadata/quran_metadata.csv").fillna("").to_dict(orient="records")
+
+# Quran metadata
+quran_data = pd.read_csv("metadata/quran_metadata.csv")
+quran_data["page description"] = quran_data["page description"].fillna(
+    quran_data["surah"]
 )
+quran_data = quran_data.fillna("").to_dict(orient="records")
+
 
 db = database("data/quran.db")
 
@@ -52,6 +57,20 @@ def main_area(*args, active=None):
 
 @rt
 def index():
+    def split_page_range(page_range: str):
+        start_page, end_page = (
+            page_range.split("-") if "-" in page_range else [page_range, None]
+        )
+        start_page = int(start_page)
+        end_page = int(end_page) if end_page else None
+        return start_page, end_page
+
+    def render_page(page):
+        page_data = get_quran_data(page)
+        page_description = page_data.get("page description", "")
+        return Span(Span(page, cls=TextPresets.bold_sm), f"- {page_description}")
+
+    ################### Datewise summary ###################
     qry = f"select distinct revision_date from {revisions}"
     unique_dates = db.q(qry)
     unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
@@ -60,8 +79,21 @@ def index():
         pages = revisions(where=f"revision_date = '{date}'")
         pages = sorted([p.page for p in pages])
 
+        def _render_page_range(page_range: str):
+            start_page, end_page = split_page_range(page_range)
+            if end_page:
+                return P(
+                    render_page(start_page),
+                    Span(" -> "),
+                    render_page(end_page),
+                )
+            else:
+                return P(render_page(start_page))
+
         return Tr(
-            Td(date_to_human_readable(date)), Td(len(pages)), Td(compact_format(pages))
+            Td(date_to_human_readable(date)),
+            Td(len(pages)),
+            Td(*map(_render_page_range, compact_format(pages).split(", "))),
         )
 
     datewise_table = Div(
@@ -72,24 +104,13 @@ def index():
         ),
         cls="uk-overflow-auto",
     )
+
+    ################### Overall summary ###################
     all_pages = sorted([p.page for p in revisions()])
 
     def render_overall_row(page_range: str):
-        start_page, end_page = (
-            page_range.split("-") if "-" in page_range else [page_range, None]
-        )
-
-        start_page = int(start_page)
-        end_page = int(end_page) if end_page else None
+        start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
-
-        def render_page(page):
-            page_data = get_quran_data(page)
-            page_description = page_data.get("page description", "")
-            if page_description:
-                return f"{page} - {page_description}"
-            else:
-                return page
 
         return Tr(
             Td(page_range),
