@@ -388,7 +388,6 @@ def get(page: str, revision_date: str = None, length: int = 5):
         current_page_quran_data = get_quran_data(current_page)
         return Tr(
             Td(P(current_page)),
-            Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("page description", "-")),
             Td(
                 Div(
@@ -399,7 +398,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Surah"), Th("Page Description"), Th("Rating"))),
+        Thead(Tr(Th("Page"), Th("Page Description"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
