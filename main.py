@@ -60,7 +60,9 @@ def index():
         pages = revisions(where=f"revision_date = '{date}'")
         pages = sorted([p.page for p in pages])
 
-        return Tr(Td(date), Td(len(pages)), Td(compact_format(pages)))
+        return Tr(
+            Td(date_to_human_readable(date)), Td(len(pages)), Td(compact_format(pages))
+        )
 
     table = Table(
         Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
