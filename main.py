@@ -56,7 +56,7 @@ def index():
     unique_dates = db.q(qry)
     unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
 
-    def _render_row(date):
+    def _render_datewise_row(date):
         pages = revisions(where=f"revision_date = '{date}'")
         pages = sorted([p.page for p in pages])
 
@@ -64,38 +64,66 @@ def index():
             Td(date_to_human_readable(date)), Td(len(pages)), Td(compact_format(pages))
         )
 
-    table = Table(
-        Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
-        Tbody(*map(_render_row, unique_dates)),
+    datewise_table = Div(
+        H1("Datewise summary"),
+        Table(
+            Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
+            Tbody(*map(_render_datewise_row, unique_dates)),
+        ),
+        cls="uk-overflow-auto",
     )
-
     all_pages = sorted([p.page for p in revisions()])
 
-    def render_page_range(page_range: str):
-        last_page = page_range.split("-")[1] if "-" in page_range else page_range
-        next_page = int(last_page) + 1
-
-        return (
-            f"{page_range} ",
-            A(
-                f"(start from {next_page})",
-                href=f"revision/bulk_add?page={next_page}",
-                cls=AT.classic,
-            ),
-            ", ",
+    def render_overall_row(page_range: str):
+        start_page, end_page = (
+            page_range.split("-") if "-" in page_range else [page_range, None]
         )
 
-    top = Div(
-        H1("Datewise summary"),
-        P(
-            Span("Overall page range: ", cls=TextPresets.bold_lg),
-            *map(render_page_range, compact_format(all_pages).split(", ")),
-            cls="leading-8",
+        start_page = int(start_page)
+        end_page = int(end_page) if end_page else None
+        next_page = (end_page or start_page) + 1
+
+        return Tr(
+            Td(page_range),
+            Td(
+                f"{start_page} - {get_quran_data(start_page).get('page description', '-')}"
+            ),
+            (
+                Td(
+                    f"{end_page} - {get_quran_data(end_page).get('page description', '-')}"
+                    if end_page
+                    else None
+                )
+            ),
+            Td(
+                A(
+                    f"{next_page} - {get_quran_data(next_page).get('page description', '-')}",
+                    href=f"revision/bulk_add?page={next_page}",
+                    cls=AT.classic,
+                )
+            ),
+        )
+
+    overall_table = Div(
+        H1("Overall summary"),
+        Table(
+            Thead(
+                Tr(
+                    Th("Page Range"),
+                    Th("Start Page"),
+                    Th("End Page"),
+                    Th("Continue From"),
+                )
+            ),
+            Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
         ),
-        cls="space-y-2",
+        cls="uk-overflow-auto",
     )
 
-    return main_area(Div(top, Div(table, cls="uk-overflow-auto")), active="Home")
+    return main_area(
+        Div(overall_table, Divider(), datewise_table),
+        active="Home",
+    )
 
 
 @rt
