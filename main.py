@@ -83,21 +83,21 @@ def index():
         end_page = int(end_page) if end_page else None
         next_page = (end_page or start_page) + 1
 
+        def render_page(page):
+            page_data = get_quran_data(page)
+            page_description = page_data.get("page description", "")
+            if page_description:
+                return f"{page} - {page_description}"
+            else:
+                return page
+
         return Tr(
             Td(page_range),
-            Td(
-                f"{start_page} - {get_quran_data(start_page).get('page description', '-')}"
-            ),
-            (
-                Td(
-                    f"{end_page} - {get_quran_data(end_page).get('page description', '-')}"
-                    if end_page
-                    else None
-                )
-            ),
+            Td(render_page(start_page)),
+            (Td(render_page(end_page) if end_page else None)),
             Td(
                 A(
-                    f"{next_page} - {get_quran_data(next_page).get('page description', '-')}",
+                    render_page(next_page),
                     href=f"revision/bulk_add?page={next_page}",
                     cls=AT.classic,
                 )
