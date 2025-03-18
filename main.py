@@ -273,34 +273,24 @@ def revision(sess):
     )
     return main_area(
         DivFullySpaced(
-            DivLAligned(
-                Input(
-                    type="text",
-                    placeholder="page",
-                    cls="max-w-20",
-                    id="page",
-                    value=last_added_page,
-                    autocomplete="off",
+            Form(
+                DivLAligned(
+                    Input(
+                        type="text",
+                        placeholder="page",
+                        cls="max-w-20",
+                        id="page",
+                        value=last_added_page,
+                        autocomplete="off",
+                    ),
+                    Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
+                    Button(
+                        "Single Entry", name="type", value="single", cls=ButtonT.link
+                    ),
+                    cls=("gap-3", FlexT.wrap),
                 ),
-                Button(
-                    "Bulk Entry",
-                    type="button",
-                    hx_get="/revision/bulk_add",
-                    hx_include="#page",
-                    hx_target="body",
-                    hx_replace_url="true",
-                    cls=ButtonT.link,
-                ),
-                Button(
-                    "Single Entry",
-                    type="button",
-                    hx_get="/revision/add",
-                    hx_include="#page",
-                    hx_target="body",
-                    hx_replace_url="true",
-                    cls=ButtonT.link,
-                ),
-                cls=("gap-3", FlexT.wrap),
+                action="/revision/entry",
+                method="POST",
             ),
             DivLAligned(
                 # A(Button("Import"), href=import_csv),
@@ -385,6 +375,15 @@ def post(revision_details: Revision):
 @rt("/revision/delete/{revision_id}")
 def delete(revision_id: int):
     revisions.delete(revision_id)
+
+
+# This route is used to redirect to the appropriate revision entry form
+@rt("/revision/entry")
+def post(type: str, page: int):
+    if type == "bulk":
+        return Redirect(f"/revision/bulk_add?page={page}")
+    elif type == "single":
+        return Redirect(f"/revision/add?page={page}")
 
 
 @rt("/revision/add")
