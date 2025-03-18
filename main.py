@@ -37,6 +37,37 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
+def action_buttons(last_added_page):
+
+    if isinstance(last_added_page, int):
+        last_added_page += 1
+
+    return DivFullySpaced(
+        Form(
+            DivLAligned(
+                Input(
+                    type="text",
+                    placeholder="page",
+                    cls="max-w-20",
+                    id="page",
+                    value=last_added_page,
+                    autocomplete="off",
+                ),
+                Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
+                Button("Single Entry", name="type", value="single", cls=ButtonT.link),
+                cls=("gap-3", FlexT.wrap),
+            ),
+            action="/revision/entry",
+            method="POST",
+        ),
+        DivLAligned(
+            # A(Button("Import"), href=import_csv),
+            A(Button("Export"), href=export_csv),
+        ),
+        cls="flex-wrap gap-4 mb-3",
+    )
+
+
 def main_area(*args, active=None):
     is_active = lambda x: AT.primary if x == active else None
     return Title("Quran SRS"), Container(
@@ -56,7 +87,9 @@ def main_area(*args, active=None):
 
 
 @rt
-def index():
+def index(sess):
+    last_added_page = sess.get("last_added_page", None)
+
     def split_page_range(page_range: str):
         start_page, end_page = (
             page_range.split("-") if "-" in page_range else [page_range, None]
@@ -145,6 +178,7 @@ def index():
     )
 
     return main_area(
+        action_buttons(last_added_page),
         Div(overall_table, Divider(), datewise_table),
         active="Home",
     )
@@ -228,9 +262,6 @@ def post(user_details: User):
 def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
-    if isinstance(last_added_page, int):
-        last_added_page += 1
-
     def _render_revision(rev):
         current_page_quran_data = get_quran_data(rev.page)
 
@@ -272,32 +303,7 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        DivFullySpaced(
-            Form(
-                DivLAligned(
-                    Input(
-                        type="text",
-                        placeholder="page",
-                        cls="max-w-20",
-                        id="page",
-                        value=last_added_page,
-                        autocomplete="off",
-                    ),
-                    Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
-                    Button(
-                        "Single Entry", name="type", value="single", cls=ButtonT.link
-                    ),
-                    cls=("gap-3", FlexT.wrap),
-                ),
-                action="/revision/entry",
-                method="POST",
-            ),
-            DivLAligned(
-                # A(Button("Import"), href=import_csv),
-                A(Button("Export"), href=export_csv),
-            ),
-            cls="flex-wrap gap-4",
-        ),
+        action_buttons(last_added_page),
         Div(table, cls="uk-overflow-auto"),
         active="Revision",
     )
