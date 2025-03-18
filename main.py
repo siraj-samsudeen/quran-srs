@@ -388,14 +388,20 @@ def delete(revision_id: int):
 
 
 @rt("/revision/add")
-def get(page: str):
+def get(page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
-    page_desc = get_quran_data(int(page)).get("page description", "-")
+
+    page = int(page)
+
+    if page >= max_page:
+        return Redirect(revision)
+
+    page_desc = get_quran_data(page).get("page description", "-")
     return main_area(
         Titled(
             f"{page} - {page_desc}",
-            fill_form(create_revision_form("add"), {"page": int(page)}),
+            fill_form(create_revision_form("add"), {"page": page}),
         ),
         active="Revision",
     )
@@ -415,14 +421,20 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, revision_date: str = None, length: int = 5):
+def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 605):
 
     if "." in page:
         page, length = map(int, page.split("."))
     else:
         page = int(page)
 
+    if page >= max_page:
+        return Redirect(revision)
+
     last_page = page + length
+
+    if last_page > max_page:
+        last_page = max_page
 
     def _render_row(current_page):
         def _render_radio(o):
