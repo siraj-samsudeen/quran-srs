@@ -5,5 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "monsterui>=1.0.10",
+    "numpy>=2.2.3",
+    "pandas>=2.2.3",
     "python-fasthtml>=0.12.1",
 ]
