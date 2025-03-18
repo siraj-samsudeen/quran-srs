@@ -109,6 +109,9 @@ def index():
     all_pages = sorted([p.page for p in revisions()])
 
     def render_overall_row(page_range: str):
+        if not page_range:
+            return None
+
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
