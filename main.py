@@ -347,7 +347,9 @@ def create_revision_form(type):
         ),
         Div(
             Button("Save", cls=ButtonT.primary),
-            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+            Button(
+                "Cancel", type="button", cls=ButtonT.secondary, onclick="history.back()"
+            ),
             cls="flex justify-around items-center w-full",
         ),
         action=f"/revision/{type}",
@@ -472,7 +474,9 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
             "Save",
             cls=ButtonT.primary,
         ),
-        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+        Button(
+            "Cancel", type="button", cls=ButtonT.secondary, onclick="history.back()"
+        ),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
