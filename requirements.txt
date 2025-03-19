@@ -2,3 +2,4 @@ monsterui>=1.0.10
 numpy>=2.2.3
 pandas>=2.2.3
 python-fasthtml>=0.12.1
+humanize>=4.12.1
