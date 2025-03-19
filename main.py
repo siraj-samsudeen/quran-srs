@@ -49,7 +49,7 @@ def action_buttons(last_added_page, source="Home"):
             Input(
                 type="text",
                 placeholder="page",
-                cls="max-w-20",
+                cls="max-w-12 sm:max-w-16",
                 id="page",
                 value=last_added_page,
                 autocomplete="off",
