@@ -136,7 +136,7 @@ def index(sess):
     datewise_table = Div(
         # H1("Datewise summary"),
         Table(
-            Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
+            Thead(Tr(Th("Date"), Th("Count"), Th("Range"))),
             Tbody(*map(_render_datewise_row, unique_dates)),
         ),
         cls="uk-overflow-auto",
@@ -170,10 +170,10 @@ def index(sess):
         Table(
             Thead(
                 Tr(
-                    Th("Page Range"),
-                    Th("Start Page"),
-                    Th("End Page"),
-                    Th("Continue From"),
+                    Th("Range"),
+                    Th("Start"),
+                    Th("End"),
+                    Th("Continue"),
                 )
             ),
             Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
