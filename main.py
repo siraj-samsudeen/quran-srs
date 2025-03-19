@@ -130,7 +130,10 @@ def index(sess):
         return Tr(
             Td(date_to_human_readable(date)),
             Td(len(pages)),
-            Td(*map(_render_page_range, compact_format(pages).split(", "))),
+            Td(
+                *map(_render_page_range, compact_format(pages).split(", ")),
+                cls="space-y-3",
+            ),
         )
 
     datewise_table = Div(
