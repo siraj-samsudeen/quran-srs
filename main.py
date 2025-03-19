@@ -7,11 +7,14 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 
 # Quran metadata
-quran_data = pd.read_csv("metadata/quran_metadata.csv")
-quran_data["page description"] = quran_data["page description"].fillna(
-    quran_data["surah"]
+q = pd.read_csv("metadata/quran_metadata.csv")
+q["page description"] = q["page description"].fillna(q["surah"])
+q["page description"] = q["page description"].str.replace(".", "")
+# If the page description starts with J, then it is a Juz
+q["page description"] = q["page description"].where(
+    q["page description"].str.startswith("J"), "S" + q["page description"]
 )
-quran_data = quran_data.fillna("").to_dict(orient="records")
+quran_data = q.fillna("").to_dict(orient="records")
 
 
 db = database("data/quran.db")
@@ -37,33 +40,34 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
-def action_buttons(last_added_page):
+def action_buttons(last_added_page, source="Home"):
 
     if isinstance(last_added_page, int):
         last_added_page += 1
-
-    return DivFullySpaced(
-        Form(
-            DivLAligned(
-                Input(
-                    type="text",
-                    placeholder="page",
-                    cls="max-w-20",
-                    id="page",
-                    value=last_added_page,
-                    autocomplete="off",
-                ),
-                Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
-                Button("Single Entry", name="type", value="single", cls=ButtonT.link),
-                cls=("gap-3", FlexT.wrap),
-            ),
-            action="/revision/entry",
-            method="POST",
-        ),
+    entry_buttons = Form(
         DivLAligned(
-            # A(Button("Import"), href=import_csv),
-            A(Button("Export"), href=export_csv),
+            Input(
+                type="text",
+                placeholder="page",
+                cls="max-w-12 sm:max-w-16",
+                id="page",
+                value=last_added_page,
+                autocomplete="off",
+            ),
+            Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
+            Button("Single Entry", name="type", value="single", cls=ButtonT.link),
+            cls=("gap-3", FlexT.wrap),
         ),
+        action="/revision/entry",
+        method="POST",
+    )
+    import_export_buttons = DivLAligned(
+        # A(Button("Import"), href=import_csv),
+        A(Button("Export"), href=export_csv),
+    )
+    return DivFullySpaced(
+        entry_buttons if source == "Home" else Div(),
+        import_export_buttons if source == "Revision" else Div(),
         cls="flex-wrap gap-4 mb-3",
     )
 
@@ -101,7 +105,7 @@ def index(sess):
     def render_page(page):
         page_data = get_quran_data(page)
         page_description = page_data.get("page description", "")
-        return Span(Span(page, cls=TextPresets.bold_sm), f"- {page_description}")
+        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_description}")
 
     ################### Datewise summary ###################
     qry = f"select distinct revision_date from {revisions}"
@@ -126,13 +130,16 @@ def index(sess):
         return Tr(
             Td(date_to_human_readable(date)),
             Td(len(pages)),
-            Td(*map(_render_page_range, compact_format(pages).split(", "))),
+            Td(
+                *map(_render_page_range, compact_format(pages).split(", ")),
+                cls="space-y-3",
+            ),
         )
 
     datewise_table = Div(
-        H1("Datewise summary"),
+        # H1("Datewise summary"),
         Table(
-            Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
+            Thead(Tr(Th("Date"), Th("Count"), Th("Range"))),
             Tbody(*map(_render_datewise_row, unique_dates)),
         ),
         cls="uk-overflow-auto",
@@ -162,14 +169,14 @@ def index(sess):
         )
 
     overall_table = Div(
-        H1("Overall summary"),
+        # H1("Overall summary"),
         Table(
             Thead(
                 Tr(
-                    Th("Page Range"),
-                    Th("Start Page"),
-                    Th("End Page"),
-                    Th("Continue From"),
+                    Th("Range"),
+                    Th("Start"),
+                    Th("End"),
+                    Th("Continue"),
                 )
             ),
             Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
@@ -303,7 +310,7 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        action_buttons(last_added_page),
+        action_buttons(last_added_page, source="Revision"),
         Div(table, cls="uk-overflow-auto"),
         active="Revision",
     )
@@ -469,7 +476,7 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Page Description"), Th("Rating"))),
+        Thead(Tr(Th("No"), Th("Page"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
