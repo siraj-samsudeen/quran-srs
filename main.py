@@ -7,11 +7,14 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 
 # Quran metadata
-quran_data = pd.read_csv("metadata/quran_metadata.csv")
-quran_data["page description"] = quran_data["page description"].fillna(
-    quran_data["surah"]
+q = pd.read_csv("metadata/quran_metadata.csv")
+q["page description"] = q["page description"].fillna(q["surah"])
+q["page description"] = q["page description"].str.replace(".", "")
+# If the page description starts with J, then it is a Juz
+q["page description"] = q["page description"].where(
+    q["page description"].str.startswith("J"), "S" + q["page description"]
 )
-quran_data = quran_data.fillna("").to_dict(orient="records")
+quran_data = q.fillna("").to_dict(orient="records")
 
 
 db = database("data/quran.db")
@@ -101,7 +104,7 @@ def index(sess):
     def render_page(page):
         page_data = get_quran_data(page)
         page_description = page_data.get("page description", "")
-        return Span(Span(page, cls=TextPresets.bold_sm), f"- {page_description}")
+        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_description}")
 
     ################### Datewise summary ###################
     qry = f"select distinct revision_date from {revisions}"
