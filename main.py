@@ -37,29 +37,29 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
-def action_buttons(last_added_page):
+def action_buttons(last_added_page, source="Home"):
 
     if isinstance(last_added_page, int):
         last_added_page += 1
-
-    return DivFullySpaced(
-        Form(
-            DivLAligned(
-                Input(
-                    type="text",
-                    placeholder="page",
-                    cls="max-w-20",
-                    id="page",
-                    value=last_added_page,
-                    autocomplete="off",
-                ),
-                Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
-                Button("Single Entry", name="type", value="single", cls=ButtonT.link),
-                cls=("gap-3", FlexT.wrap),
+    entry_buttons = Form(
+        DivLAligned(
+            Input(
+                type="text",
+                placeholder="page",
+                cls="max-w-20",
+                id="page",
+                value=last_added_page,
+                autocomplete="off",
             ),
-            action="/revision/entry",
-            method="POST",
+            Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
+            Button("Single Entry", name="type", value="single", cls=ButtonT.link),
+            cls=("gap-3", FlexT.wrap),
         ),
+        action="/revision/entry",
+        method="POST",
+    )
+    return DivFullySpaced(
+        entry_buttons if source == "Home" else Div(),
         DivLAligned(
             # A(Button("Import"), href=import_csv),
             A(Button("Export"), href=export_csv),
@@ -303,7 +303,7 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        action_buttons(last_added_page),
+        action_buttons(last_added_page, source="Revision"),
         Div(table, cls="uk-overflow-auto"),
         active="Revision",
     )
