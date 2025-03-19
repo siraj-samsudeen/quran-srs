@@ -469,7 +469,7 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Page Description"), Th("Rating"))),
+        Thead(Tr(Th("No"), Th("Page"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
