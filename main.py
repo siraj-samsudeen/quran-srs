@@ -7,11 +7,14 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 
 # Quran metadata
-quran_data = pd.read_csv("metadata/quran_metadata.csv")
-quran_data["page description"] = quran_data["page description"].fillna(
-    quran_data["surah"]
+q = pd.read_csv("metadata/quran_metadata.csv")
+q["page description"] = q["page description"].fillna(q["surah"])
+q["page description"] = q["page description"].str.replace(".", "")
+# If the page description starts with J, then it is a Juz
+q["page description"] = q["page description"].where(
+    q["page description"].str.startswith("J"), "S" + q["page description"]
 )
-quran_data = quran_data.fillna("").to_dict(orient="records")
+quran_data = q.fillna("").to_dict(orient="records")
 
 
 db = database("data/quran.db")
@@ -37,6 +40,38 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
+def action_buttons(last_added_page, source="Home"):
+
+    if isinstance(last_added_page, int):
+        last_added_page += 1
+    entry_buttons = Form(
+        DivLAligned(
+            Input(
+                type="text",
+                placeholder="page",
+                cls="max-w-12 sm:max-w-16",
+                id="page",
+                value=last_added_page,
+                autocomplete="off",
+            ),
+            Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
+            Button("Single Entry", name="type", value="single", cls=ButtonT.link),
+            cls=("gap-3", FlexT.wrap),
+        ),
+        action="/revision/entry",
+        method="POST",
+    )
+    import_export_buttons = DivLAligned(
+        # A(Button("Import"), href=import_csv),
+        A(Button("Export"), href=export_csv),
+    )
+    return DivFullySpaced(
+        entry_buttons if source == "Home" else Div(),
+        import_export_buttons if source == "Revision" else Div(),
+        cls="flex-wrap gap-4 mb-3",
+    )
+
+
 def main_area(*args, active=None):
     is_active = lambda x: AT.primary if x == active else None
     return Title("Quran SRS"), Container(
@@ -56,7 +91,9 @@ def main_area(*args, active=None):
 
 
 @rt
-def index():
+def index(sess):
+    last_added_page = sess.get("last_added_page", None)
+
     def split_page_range(page_range: str):
         start_page, end_page = (
             page_range.split("-") if "-" in page_range else [page_range, None]
@@ -68,7 +105,7 @@ def index():
     def render_page(page):
         page_data = get_quran_data(page)
         page_description = page_data.get("page description", "")
-        return Span(Span(page, cls=TextPresets.bold_sm), f"- {page_description}")
+        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_description}")
 
     ################### Datewise summary ###################
     qry = f"select distinct revision_date from {revisions}"
@@ -93,13 +130,16 @@ def index():
         return Tr(
             Td(date_to_human_readable(date)),
             Td(len(pages)),
-            Td(*map(_render_page_range, compact_format(pages).split(", "))),
+            Td(
+                *map(_render_page_range, compact_format(pages).split(", ")),
+                cls="space-y-3",
+            ),
         )
 
     datewise_table = Div(
-        H1("Datewise summary"),
+        # H1("Datewise summary"),
         Table(
-            Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
+            Thead(Tr(Th("Date"), Th("Count"), Th("Range"))),
             Tbody(*map(_render_datewise_row, unique_dates)),
         ),
         cls="uk-overflow-auto",
@@ -129,14 +169,14 @@ def index():
         )
 
     overall_table = Div(
-        H1("Overall summary"),
+        # H1("Overall summary"),
         Table(
             Thead(
                 Tr(
-                    Th("Page Range"),
-                    Th("Start Page"),
-                    Th("End Page"),
-                    Th("Continue From"),
+                    Th("Range"),
+                    Th("Start"),
+                    Th("End"),
+                    Th("Continue"),
                 )
             ),
             Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
@@ -145,6 +185,7 @@ def index():
     )
 
     return main_area(
+        action_buttons(last_added_page),
         Div(overall_table, Divider(), datewise_table),
         active="Home",
     )
@@ -228,9 +269,6 @@ def post(user_details: User):
 def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
-    if isinstance(last_added_page, int):
-        last_added_page += 1
-
     def _render_revision(rev):
         current_page_quran_data = get_quran_data(rev.page)
 
@@ -272,42 +310,7 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        DivFullySpaced(
-            DivLAligned(
-                Input(
-                    type="text",
-                    placeholder="page",
-                    cls="max-w-20",
-                    id="page",
-                    value=last_added_page,
-                    autocomplete="off",
-                ),
-                Button(
-                    "Bulk Entry",
-                    type="button",
-                    hx_get="/revision/bulk_add",
-                    hx_include="#page",
-                    hx_target="body",
-                    hx_replace_url="true",
-                    cls=ButtonT.link,
-                ),
-                Button(
-                    "Single Entry",
-                    type="button",
-                    hx_get="/revision/add",
-                    hx_include="#page",
-                    hx_target="body",
-                    hx_replace_url="true",
-                    cls=ButtonT.link,
-                ),
-                cls=("gap-3", FlexT.wrap),
-            ),
-            DivLAligned(
-                # A(Button("Import"), href=import_csv),
-                A(Button("Export"), href=export_csv),
-            ),
-            cls="flex-wrap gap-4",
-        ),
+        action_buttons(last_added_page, source="Revision"),
         Div(table, cls="uk-overflow-auto"),
         active="Revision",
     )
@@ -357,7 +360,7 @@ def create_revision_form(type):
         ),
         Div(
             Button("Save", cls=ButtonT.primary),
-            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
             cls="flex justify-around items-center w-full",
         ),
         action=f"/revision/{type}",
@@ -387,15 +390,30 @@ def delete(revision_id: int):
     revisions.delete(revision_id)
 
 
+# This route is used to redirect to the appropriate revision entry form
+@rt("/revision/entry")
+def post(type: str, page: int):
+    if type == "bulk":
+        return Redirect(f"/revision/bulk_add?page={page}")
+    elif type == "single":
+        return Redirect(f"/revision/add?page={page}")
+
+
 @rt("/revision/add")
-def get(page: str):
+def get(page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
-    page_desc = get_quran_data(int(page)).get("page description", "-")
+
+    page = int(page)
+
+    if page >= max_page:
+        return Redirect(revision)
+
+    page_desc = get_quran_data(page).get("page description", "-")
     return main_area(
         Titled(
             f"{page} - {page_desc}",
-            fill_form(create_revision_form("add"), {"page": int(page)}),
+            fill_form(create_revision_form("add"), {"page": page}),
         ),
         active="Revision",
     )
@@ -415,14 +433,20 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, revision_date: str = None, length: int = 5):
+def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 605):
 
     if "." in page:
         page, length = map(int, page.split("."))
     else:
         page = int(page)
 
+    if page >= max_page:
+        return Redirect(revision)
+
     last_page = page + length
+
+    if last_page > max_page:
+        last_page = max_page
 
     def _render_row(current_page):
         def _render_radio(o):
@@ -452,7 +476,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Page Description"), Th("Rating"))),
+        Thead(Tr(Th("No"), Th("Page"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
@@ -461,7 +485,7 @@ def get(page: str, revision_date: str = None, length: int = 5):
             "Save",
             cls=ButtonT.primary,
         ),
-        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 

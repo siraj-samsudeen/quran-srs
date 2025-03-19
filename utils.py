@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+import humanize
 
 
 # Util function
@@ -44,27 +45,12 @@ def compact_format(numbers):
 
 def date_to_human_readable(date_string):
 
-        try:
-            # Parse the input date string
-            input_date = datetime.strptime(date_string, "%Y-%m-%d")
-        except ValueError:
-            # Return the original string if it can't be parsed
-            return date_string
+    try:
+        # Parse the input date string
+        input_date = datetime.strptime(date_string, "%Y-%m-%d")
+    except ValueError:
+        # Return the original string if it can't be parsed
+        return date_string
 
-        # Get today's date without time information
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-        # Strip time information from input date
-        input_date = input_date.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        # Calculate difference in days
-        day_diff = (today - input_date).days
-
-        # Return appropriate string based on day difference
-        if day_diff == 0:
-            return "Today"
-        elif day_diff == 1:
-            return "Yesterday"
-        else:
-            # Return the original date string for dates beyond 2 days ago
-            return date_string
+    # Convert the date to a human-readable format
+    return humanize.naturaldate(input_date).capitalize()
