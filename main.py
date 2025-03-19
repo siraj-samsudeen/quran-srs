@@ -133,7 +133,7 @@ def index(sess):
         )
 
     datewise_table = Div(
-        H1("Datewise summary"),
+        # H1("Datewise summary"),
         Table(
             Thead(Tr(Th("Date"), Th("Count"), Th("Page Range"))),
             Tbody(*map(_render_datewise_row, unique_dates)),
@@ -165,7 +165,7 @@ def index(sess):
         )
 
     overall_table = Div(
-        H1("Overall summary"),
+        # H1("Overall summary"),
         Table(
             Thead(
                 Tr(
