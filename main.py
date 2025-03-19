@@ -61,12 +61,13 @@ def action_buttons(last_added_page, source="Home"):
         action="/revision/entry",
         method="POST",
     )
+    import_export_buttons = DivLAligned(
+        # A(Button("Import"), href=import_csv),
+        A(Button("Export"), href=export_csv),
+    )
     return DivFullySpaced(
         entry_buttons if source == "Home" else Div(),
-        DivLAligned(
-            # A(Button("Import"), href=import_csv),
-            A(Button("Export"), href=export_csv),
-        ),
+        import_export_buttons if source == "Revision" else Div(),
         cls="flex-wrap gap-4 mb-3",
     )
 
