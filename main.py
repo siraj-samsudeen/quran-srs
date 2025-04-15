@@ -63,10 +63,16 @@ def action_buttons(last_added_page, source="Home"):
     )
     import_export_buttons = DivLAligned(
         Button(
+            "Bulk Edit",
+            hx_get="/revision/bulk_edit",
+            hx_push_url="true",
+            hx_include="closest form",
+            hx_target="body",
+        ),
+        Button(
             "Bulk Delete",
             hx_delete="/revision",
             hx_confirm="Are you sure you want to delete these revisions?",
-            # hx_swap="none",
             hx_target="body",
         ),
         # A(Button("Import"), href=import_csv),
@@ -407,6 +413,84 @@ def revision_delete_all(selected_revision_ids: List[int]):
     for id in selected_revision_ids:
         revisions.delete(id)
     return RedirectResponse(revision, status_code=303)
+
+
+@rt("/revision/bulk_edit")
+def get(selected_revision_ids: List[int]):
+    # Get the revision date of the first selected revision
+    try:
+        date = revisions[selected_revision_ids[0]].revision_date
+    except IndexError:
+        date = current_time("%Y-%m-%d")
+
+    def _render_row(id):
+        current_revision = revisions[id]
+        current_page = current_revision.page
+
+        def _render_radio(o):
+            value, label = o
+
+            is_checked = True if int(value) == current_revision.rating else False
+            return FormLabel(
+                Radio(
+                    name=f"rating-{id}",
+                    value=value,
+                    checked=is_checked,
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        return Tr(
+            Td(P(current_page)),
+            Td(P(current_revision.revision_date)),
+            Td(
+                Div(
+                    *map(_render_radio, RATING_MAP.items()),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    table = Table(
+        Thead(Tr(Th("Page"), Th("Date"), Th("Rating"))),
+        Tbody(*[_render_row(i) for i in selected_revision_ids]),
+    )
+
+    action_buttons = Div(
+        Button("Save", cls=ButtonT.primary),
+        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+
+    return main_area(
+        H1("Bulk Edit Revision"),
+        Form(
+            LabelInput("Revision Date", name="revision_date", type="date", value=date),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action="/revision/bulk_edit",
+            method="POST",
+        ),
+        active="Revision",
+    )
+
+
+@rt("/revision/bulk_edit")
+async def post(revision_date: str, req):
+    form_data = await req.form()
+
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            revisions.update(
+                Revision(
+                    id=int(name.split("-")[1]),
+                    rating=int(value),
+                    revision_date=revision_date,
+                )
+            )
+
+    return RedirectResponse("/revision", status_code=303)
 
 
 # This route is used to redirect to the appropriate revision entry form
