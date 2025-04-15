@@ -32,7 +32,10 @@ if revisions not in db.t:
     )
 Revision, User = revisions.dataclass(), users.dataclass()
 
-app, rt = fast_app(hdrs=Theme.blue.headers(), bodykw={"hx-boost": "true"})
+app, rt = fast_app(
+    hdrs=(Theme.blue.headers(), Script(src="https://unpkg.com/hyperscript.org@0.9.14")),
+    bodykw={"hx-boost": "true"},
+)
 
 
 def get_quran_data(page: int) -> dict:
@@ -61,6 +64,8 @@ def action_buttons(last_added_page, source="Home"):
         action="/revision/entry",
         method="POST",
     )
+    # Enable and Disable the button based on the checkbox selection
+    dynamic_enable_button_hyperscript = "on checkboxChanged if document.querySelector('input[type=checkbox]:checked') remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
         Button(
             "Bulk Edit",
@@ -68,12 +73,18 @@ def action_buttons(last_added_page, source="Home"):
             hx_push_url="true",
             hx_include="closest form",
             hx_target="body",
+            id="bulkedit",
+            disabled=True,
+            _=dynamic_enable_button_hyperscript,
         ),
         Button(
             "Bulk Delete",
             hx_delete="/revision",
             hx_confirm="Are you sure you want to delete these revisions?",
             hx_target="body",
+            id="bulkdelete",
+            disabled=True,
+            _=dynamic_enable_button_hyperscript,
         ),
         # A(Button("Import"), href=import_csv),
         A(Button("Export", type="button"), href=export_csv),
@@ -288,7 +299,14 @@ def revision(sess):
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
-            Td(CheckboxX(name="selected_revision_ids", value=rev.id)),
+            Td(
+                CheckboxX(
+                    name="selected_revision_ids",
+                    value=rev.id,
+                    # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
+                    _="on click send checkboxChanged to #bulkedit then send checkboxChanged to #bulkdelete",
+                )
+            ),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
