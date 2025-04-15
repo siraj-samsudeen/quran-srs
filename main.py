@@ -32,7 +32,7 @@ if revisions not in db.t:
     )
 Revision, User = revisions.dataclass(), users.dataclass()
 
-app, rt = fast_app(hdrs=Theme.blue.headers())
+app, rt = fast_app(hdrs=Theme.blue.headers(), bodykw={"hx-boost": "true"})
 
 
 def get_quran_data(page: int) -> dict:
@@ -62,8 +62,15 @@ def action_buttons(last_added_page, source="Home"):
         method="POST",
     )
     import_export_buttons = DivLAligned(
+        Button(
+            "Bulk Delete",
+            hx_delete="/revision",
+            hx_confirm="Are you sure you want to delete these revisions?",
+            # hx_swap="none",
+            hx_target="body",
+        ),
         # A(Button("Import"), href=import_csv),
-        A(Button("Export"), href=export_csv),
+        A(Button("Export", type="button"), href=export_csv),
     )
     return DivFullySpaced(
         entry_buttons if source == "Home" else Div(),
@@ -275,6 +282,7 @@ def revision(sess):
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
+            Td(CheckboxX(name="selected_revision_ids", value=rev.id)),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
@@ -299,6 +307,7 @@ def revision(sess):
                 # Columns are temporarily hidden
                 # Th("Id"),
                 # Th("User Id"),
+                Th(),  # empty header for checkbox
                 Th("Page"),
                 Th("Rating"),
                 Th("Surah"),
@@ -310,8 +319,11 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        action_buttons(last_added_page, source="Revision"),
-        Div(table, cls="uk-overflow-auto"),
+        # To send the selected revision ids for bulk delete and bulk edit
+        Form(
+            action_buttons(last_added_page, source="Revision"),
+            Div(table, cls="uk-overflow-auto"),
+        ),
         active="Revision",
     )
 
@@ -388,6 +400,13 @@ def post(revision_details: Revision):
 @rt("/revision/delete/{revision_id}")
 def delete(revision_id: int):
     revisions.delete(revision_id)
+
+
+@app.delete("/revision")
+def revision_delete_all(selected_revision_ids: List[int]):
+    for id in selected_revision_ids:
+        revisions.delete(id)
+    return RedirectResponse(revision, status_code=303)
 
 
 # This route is used to redirect to the appropriate revision entry form
