@@ -392,7 +392,7 @@ def delete(revision_id: int):
 
 # This route is used to redirect to the appropriate revision entry form
 @rt("/revision/entry")
-def post(type: str, page: int):
+def post(type: str, page: str):
     if type == "bulk":
         return Redirect(f"/revision/bulk_add?page={page}")
     elif type == "single":
