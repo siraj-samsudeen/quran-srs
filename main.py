@@ -65,7 +65,7 @@ def action_buttons(last_added_page, source="Home"):
         method="POST",
     )
     # Enable and Disable the button based on the checkbox selection
-    dynamic_enable_button_hyperscript = "on checkboxChanged if document.querySelector('input[type=checkbox]:checked') remove @disabled else add @disabled"
+    dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
         Button(
             "Bulk Edit",
