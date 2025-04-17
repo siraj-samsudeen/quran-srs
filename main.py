@@ -141,19 +141,34 @@ def index(sess):
     unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
 
     def _render_datewise_row(date):
-        pages = revisions(where=f"revision_date = '{date}'")
-        pages = sorted([p.page for p in pages])
+        current_date_revisions = [
+            r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
+        ]
+        pages = sorted([r["page"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
+            # Get the ids for all the pages for the particular date
+            ids = [
+                d["id"]
+                for page in range(start_page, (end_page or start_page) + 1)
+                for d in current_date_revisions
+                if d.get("page") == page
+            ]
+
             if end_page:
-                return P(
-                    render_page(start_page),
-                    Span(" -> "),
-                    render_page(end_page),
-                )
+                ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
             else:
-                return P(render_page(start_page))
+                ctn = render_page(start_page)
+            return P(
+                A(
+                    *ctn,
+                    hx_get=f"/revision/bulk_edit?{'&'.join([f'ids={i}' for i in ids])}",
+                    hx_push_url="true",
+                    hx_target="body",
+                    cls=AT.classic,
+                )
+            )
 
         return Tr(
             Td(date_to_human_readable(date)),
