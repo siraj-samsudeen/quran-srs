@@ -525,7 +525,24 @@ def get(selected_revision_ids: List[int]):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
-            LabelInput("Revision Date", name="revision_date", type="date", value=date),
+            Div(
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=date,
+                    cls="space-y-2 w-full",
+                ),
+                Button(
+                    "Delete",
+                    hx_delete="/revision",
+                    hx_confirm="Are you sure you want to delete these revisions?",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=ButtonT.destructive,
+                ),
+                cls=(FlexT.block, FlexT.between, FlexT.bottom, "w-full gap-2"),
+            ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
             action="/revision/bulk_edit",
