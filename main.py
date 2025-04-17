@@ -467,6 +467,7 @@ def get(selected_revision_ids: List[int]):
                     cls="revision_ids",
                     # This checks if all the checkboxes are checked or unchecked
                     # based on that select the 'selectAll' checkbox
+                    # _at_ is a alias for @
                     _at_change="updateSelectAll()",
                 )
             ),
