@@ -77,7 +77,7 @@ def action_buttons(last_added_page, source="Home"):
             hx_push_url="true",
             hx_include="closest form",
             hx_target="body",
-            id="bulkedit",
+            cls="toggle_btn",  # To disable and enable the button based on the checkboxes (Don't change, it is referenced in hyperscript)
             disabled=True,
             _=dynamic_enable_button_hyperscript,
         ),
@@ -86,7 +86,7 @@ def action_buttons(last_added_page, source="Home"):
             hx_delete="/revision",
             hx_confirm="Are you sure you want to delete these revisions?",
             hx_target="body",
-            id="bulkdelete",
+            cls="toggle_btn",
             disabled=True,
             _=dynamic_enable_button_hyperscript,
         ),
@@ -308,7 +308,7 @@ def revision(sess):
                     name="selected_revision_ids",
                     value=rev.id,
                     # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
-                    _="on click send checkboxChanged to #bulkedit then send checkboxChanged to #bulkdelete",
+                    _="on click send checkboxChanged to .toggle_btn",
                 )
             ),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
