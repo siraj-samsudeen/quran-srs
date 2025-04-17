@@ -538,16 +538,19 @@ def get(selected_revision_ids: List[int]):
 @rt("/revision/bulk_edit")
 async def post(revision_date: str, req):
     form_data = await req.form()
+    ids_to_update = form_data.getlist("selected_revision_ids")
 
     for name, value in form_data.items():
         if name.startswith("rating-"):
-            revisions.update(
-                Revision(
-                    id=int(name.split("-")[1]),
-                    rating=int(value),
-                    revision_date=revision_date,
+            current_id = name.split("-")[1]
+            if current_id in ids_to_update:
+                revisions.update(
+                    Revision(
+                        id=int(current_id),
+                        rating=int(value),
+                        revision_date=revision_date,
+                    )
                 )
-            )
 
     return RedirectResponse("/revision", status_code=303)
 
