@@ -305,7 +305,7 @@ def revision(sess):
             # Td(rev.user_id),
             Td(
                 CheckboxX(
-                    name="selected_revision_ids",
+                    name="ids",
                     value=rev.id,
                     # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
                     _="on click send checkboxChanged to .toggle_btn",
@@ -431,17 +431,17 @@ def delete(revision_id: int):
 
 
 @app.delete("/revision")
-def revision_delete_all(selected_revision_ids: List[int]):
-    for id in selected_revision_ids:
+def revision_delete_all(ids: List[int]):
+    for id in ids:
         revisions.delete(id)
     return RedirectResponse(revision, status_code=303)
 
 
 @rt("/revision/bulk_edit")
-def get(selected_revision_ids: List[int]):
+def get(ids: List[int]):
     # Get the revision date of the first selected revision
     try:
-        date = revisions[selected_revision_ids[0]].revision_date
+        date = revisions[ids[0]].revision_date
     except IndexError:
         date = current_time("%Y-%m-%d")
 
@@ -462,7 +462,7 @@ def get(selected_revision_ids: List[int]):
         return Tr(
             Td(
                 CheckboxX(
-                    name="selected_revision_ids",
+                    name="ids",
                     value=id,
                     cls="revision_ids",
                     # This checks if all the checkboxes are checked or unchecked
@@ -496,7 +496,7 @@ def get(selected_revision_ids: List[int]):
                 Th("Rating"),
             )
         ),
-        Tbody(*[_render_row(i) for i in selected_revision_ids]),
+        Tbody(*[_render_row(i) for i in ids]),
         # defining the reactive data for for component to reference (alpine.js)
         x_data="""
         { 
@@ -555,7 +555,7 @@ def get(selected_revision_ids: List[int]):
 @rt("/revision/bulk_edit")
 async def post(revision_date: str, req):
     form_data = await req.form()
-    ids_to_update = form_data.getlist("selected_revision_ids")
+    ids_to_update = form_data.getlist("ids")
 
     for name, value in form_data.items():
         if name.startswith("rating-"):
