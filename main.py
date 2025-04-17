@@ -533,7 +533,9 @@ def get(ids: List[int]):
 
     action_buttons = Div(
         Button("Save", cls=ButtonT.primary),
-        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=revision),
+        Button(
+            "Cancel", type="button", cls=ButtonT.secondary, onclick="history.back()"
+        ),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
