@@ -32,8 +32,12 @@ if revisions not in db.t:
     )
 Revision, User = revisions.dataclass(), users.dataclass()
 
+hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
+alpinejs_header = Script(
+    src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
+)
 app, rt = fast_app(
-    hdrs=(Theme.blue.headers(), Script(src="https://unpkg.com/hyperscript.org@0.9.14")),
+    hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
 
@@ -450,16 +454,22 @@ def get(selected_revision_ids: List[int]):
 
             is_checked = True if int(value) == current_revision.rating else False
             return FormLabel(
-                Radio(
-                    name=f"rating-{id}",
-                    value=value,
-                    checked=is_checked,
-                ),
+                Radio(name=f"rating-{id}", value=value, checked=is_checked),
                 Span(label),
                 cls="space-x-2",
             )
 
         return Tr(
+            Td(
+                CheckboxX(
+                    name="selected_revision_ids",
+                    value=id,
+                    cls="revision_ids",
+                    # This checks if all the checkboxes are checked or unchecked
+                    # based on that select the 'selectAll' checkbox
+                    _at_change="updateSelectAll()",
+                )
+            ),
             Td(P(current_page)),
             Td(P(current_revision.revision_date)),
             Td(
@@ -471,8 +481,38 @@ def get(selected_revision_ids: List[int]):
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Date"), Th("Rating"))),
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                    )
+                ),
+                Th("Page"),
+                Th("Date"),
+                Th("Rating"),
+            )
+        ),
         Tbody(*[_render_row(i) for i in selected_revision_ids]),
+        # defining the reactive data for for component to reference (alpine.js)
+        x_data="""
+        { 
+        selectAll: true,
+        updateSelectAll() {
+            const checkboxes = [...$el.querySelectorAll('.revision_ids')];
+          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        },
+        toggleAll() {
+          $el.querySelectorAll('.revision_ids').forEach(cb => {
+            cb.checked = this.selectAll;
+          });
+        }
+      }    
+    """,
+        # initializing the toggleAll function to select all the checkboxes by default.
+        x_init="toggleAll()",
     )
 
     action_buttons = Div(
