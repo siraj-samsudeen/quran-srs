@@ -86,7 +86,7 @@ def action_buttons(last_added_page, source="Home"):
             hx_delete="/revision",
             hx_confirm="Are you sure you want to delete these revisions?",
             hx_target="body",
-            cls="toggle_btn",
+            cls=("toggle_btn", ButtonT.destructive),
             disabled=True,
             _=dynamic_enable_button_hyperscript,
         ),
