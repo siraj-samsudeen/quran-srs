@@ -32,7 +32,14 @@ if revisions not in db.t:
     )
 Revision, User = revisions.dataclass(), users.dataclass()
 
-app, rt = fast_app(hdrs=Theme.blue.headers())
+hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
+alpinejs_header = Script(
+    src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
+)
+app, rt = fast_app(
+    hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
+    bodykw={"hx-boost": "true"},
+)
 
 
 def get_quran_data(page: int) -> dict:
@@ -61,9 +68,30 @@ def action_buttons(last_added_page, source="Home"):
         action="/revision/entry",
         method="POST",
     )
+    # Enable and Disable the button based on the checkbox selection
+    dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
+        Button(
+            "Bulk Edit",
+            hx_post="/revision/bulk_edit",
+            hx_push_url="true",
+            hx_include="closest form",
+            hx_target="body",
+            cls="toggle_btn",  # To disable and enable the button based on the checkboxes (Don't change, it is referenced in hyperscript)
+            disabled=True,
+            _=dynamic_enable_button_hyperscript,
+        ),
+        Button(
+            "Bulk Delete",
+            hx_delete="/revision",
+            hx_confirm="Are you sure you want to delete these revisions?",
+            hx_target="body",
+            cls=("toggle_btn", ButtonT.destructive),
+            disabled=True,
+            _=dynamic_enable_button_hyperscript,
+        ),
         # A(Button("Import"), href=import_csv),
-        A(Button("Export"), href=export_csv),
+        A(Button("Export", type="button"), href=export_csv),
     )
     return DivFullySpaced(
         entry_buttons if source == "Home" else Div(),
@@ -113,19 +141,34 @@ def index(sess):
     unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
 
     def _render_datewise_row(date):
-        pages = revisions(where=f"revision_date = '{date}'")
-        pages = sorted([p.page for p in pages])
+        current_date_revisions = [
+            r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
+        ]
+        pages = sorted([r["page"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
+            # Get the ids for all the pages for the particular date
+            ids = [
+                str(d["id"])
+                for page in range(start_page, (end_page or start_page) + 1)
+                for d in current_date_revisions
+                if d.get("page") == page
+            ]
+
             if end_page:
-                return P(
-                    render_page(start_page),
-                    Span(" -> "),
-                    render_page(end_page),
-                )
+                ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
             else:
-                return P(render_page(start_page))
+                ctn = render_page(start_page)
+            return P(
+                A(
+                    *ctn,
+                    hx_get=f"/revision/bulk_edit?ids={','.join(ids)}",
+                    hx_push_url="true",
+                    hx_target="body",
+                    cls=AT.classic,
+                )
+            )
 
         return Tr(
             Td(date_to_human_readable(date)),
@@ -265,7 +308,7 @@ def post(user_details: User):
     return Redirect(user)
 
 
-@rt
+@app.get
 def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
@@ -275,6 +318,14 @@ def revision(sess):
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=rev.id,
+                    # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
+                    _="on click send checkboxChanged to .toggle_btn",
+                )
+            ),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
@@ -299,6 +350,7 @@ def revision(sess):
                 # Columns are temporarily hidden
                 # Th("Id"),
                 # Th("User Id"),
+                Th(),  # empty header for checkbox
                 Th("Page"),
                 Th("Rating"),
                 Th("Surah"),
@@ -310,8 +362,11 @@ def revision(sess):
         Tbody(*map(_render_revision, revisions(order_by="id desc"))),
     )
     return main_area(
-        action_buttons(last_added_page, source="Revision"),
-        Div(table, cls="uk-overflow-auto"),
+        # To send the selected revision ids for bulk delete and bulk edit
+        Form(
+            action_buttons(last_added_page, source="Revision"),
+            Div(table, cls="uk-overflow-auto"),
+        ),
         active="Revision",
     )
 
@@ -388,6 +443,158 @@ def post(revision_details: Revision):
 @rt("/revision/delete/{revision_id}")
 def delete(revision_id: int):
     revisions.delete(revision_id)
+
+
+@app.delete("/revision")
+def revision_delete_all(ids: List[int]):
+    for id in ids:
+        revisions.delete(id)
+    return RedirectResponse(revision, status_code=303)
+
+
+# This is to handle the checkbox on revison page as it was coming as individual ids.
+@app.post("/revision/bulk_edit")
+def bulk_edit_redirect(ids: List[str]):
+    return RedirectResponse(f"/revision/bulk_edit?ids={','.join(ids)}", status_code=303)
+
+
+@app.get("/revision/bulk_edit")
+def bulk_edit_view(ids: str):
+    ids = ids.split(",")
+
+    # Get the revision date of the first selected revision
+    try:
+        date = revisions[ids[0]].revision_date
+    except IndexError:
+        date = current_time("%Y-%m-%d")
+
+    def _render_row(id):
+        current_revision = revisions[id]
+        current_page = current_revision.page
+
+        def _render_radio(o):
+            value, label = o
+
+            is_checked = True if int(value) == current_revision.rating else False
+            return FormLabel(
+                Radio(name=f"rating-{id}", value=value, checked=is_checked),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        return Tr(
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=id,
+                    cls="revision_ids",
+                    # This checks if all the checkboxes are checked or unchecked
+                    # based on that select the 'selectAll' checkbox
+                    # _at_ is a alias for @
+                    _at_change="updateSelectAll()",
+                )
+            ),
+            Td(P(current_page)),
+            Td(P(current_revision.revision_date)),
+            Td(
+                Div(
+                    *map(_render_radio, RATING_MAP.items()),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                    )
+                ),
+                Th("Page"),
+                Th("Date"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*[_render_row(i) for i in ids]),
+        # defining the reactive data for for component to reference (alpine.js)
+        x_data="""
+        { 
+        selectAll: true,
+        updateSelectAll() {
+            const checkboxes = [...$el.querySelectorAll('.revision_ids')];
+          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        },
+        toggleAll() {
+          $el.querySelectorAll('.revision_ids').forEach(cb => {
+            cb.checked = this.selectAll;
+          });
+        }
+      }    
+    """,
+        # initializing the toggleAll function to select all the checkboxes by default.
+        x_init="toggleAll()",
+    )
+
+    action_buttons = Div(
+        Button("Save", cls=ButtonT.primary),
+        Button(
+            "Cancel", type="button", cls=ButtonT.secondary, onclick="history.back()"
+        ),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+
+    return main_area(
+        H1("Bulk Edit Revision"),
+        Form(
+            Div(
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=date,
+                    cls="space-y-2 w-full",
+                ),
+                Button(
+                    "Delete",
+                    hx_delete="/revision",
+                    hx_confirm="Are you sure you want to delete these revisions?",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=ButtonT.destructive,
+                ),
+                cls=(FlexT.block, FlexT.between, FlexT.bottom, "w-full gap-2"),
+            ),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action="/revision",
+            method="POST",
+        ),
+        active="Revision",
+    )
+
+
+@app.post("/revision")
+async def bulk_edit_save(revision_date: str, req):
+    form_data = await req.form()
+    ids_to_update = form_data.getlist("ids")
+
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            current_id = name.split("-")[1]
+            if current_id in ids_to_update:
+                revisions.update(
+                    Revision(
+                        id=int(current_id),
+                        rating=int(value),
+                        revision_date=revision_date,
+                    )
+                )
+
+    return RedirectResponse("/revision", status_code=303)
 
 
 # This route is used to redirect to the appropriate revision entry form
