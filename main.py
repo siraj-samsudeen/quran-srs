@@ -73,7 +73,7 @@ def action_buttons(last_added_page, source="Home"):
     import_export_buttons = DivLAligned(
         Button(
             "Bulk Edit",
-            hx_get="/revision/bulk_edit",
+            hx_post="/revision/bulk_edit",
             hx_push_url="true",
             hx_include="closest form",
             hx_target="body",
@@ -150,7 +150,7 @@ def index(sess):
             start_page, end_page = split_page_range(page_range)
             # Get the ids for all the pages for the particular date
             ids = [
-                d["id"]
+                str(d["id"])
                 for page in range(start_page, (end_page or start_page) + 1)
                 for d in current_date_revisions
                 if d.get("page") == page
@@ -163,7 +163,7 @@ def index(sess):
             return P(
                 A(
                     *ctn,
-                    hx_get=f"/revision/bulk_edit?{'&'.join([f'ids={i}' for i in ids])}",
+                    hx_get=f"/revision/bulk_edit?ids={','.join(ids)}",
                     hx_push_url="true",
                     hx_target="body",
                     cls=AT.classic,
@@ -308,7 +308,7 @@ def post(user_details: User):
     return Redirect(user)
 
 
-@rt
+@app.get
 def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
@@ -452,8 +452,16 @@ def revision_delete_all(ids: List[int]):
     return RedirectResponse(revision, status_code=303)
 
 
-@rt("/revision/bulk_edit")
-def get(ids: List[int]):
+# This is to handle the checkbox on revison page as it was coming as individual ids.
+@app.post("/revision/bulk_edit")
+def bulk_edit_redirect(ids: List[str]):
+    return RedirectResponse(f"/revision/bulk_edit?ids={','.join(ids)}", status_code=303)
+
+
+@app.get("/revision/bulk_edit")
+def bulk_edit_view(ids: str):
+    ids = ids.split(",")
+
     # Get the revision date of the first selected revision
     try:
         date = revisions[ids[0]].revision_date
@@ -562,15 +570,15 @@ def get(ids: List[int]):
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
-            action="/revision/bulk_edit",
+            action="/revision",
             method="POST",
         ),
         active="Revision",
     )
 
 
-@rt("/revision/bulk_edit")
-async def post(revision_date: str, req):
+@app.post("/revision")
+async def bulk_edit_save(revision_date: str, req):
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
