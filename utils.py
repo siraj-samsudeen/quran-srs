@@ -53,4 +53,4 @@ def date_to_human_readable(date_string):
         return date_string
 
     # Convert the date to a human-readable format
-    return humanize.naturaldate(input_date).capitalize()
+    return input_date.strftime("%b %d %a")
