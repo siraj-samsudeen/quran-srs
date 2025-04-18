@@ -488,10 +488,8 @@ def bulk_edit_view(ids: str):
                     name="ids",
                     value=id,
                     cls="revision_ids",
-                    # This checks if all the checkboxes are checked or unchecked
-                    # based on that select the 'selectAll' checkbox
                     # _at_ is a alias for @
-                    _at_change="updateSelectAll()",
+                    _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
             Td(P(current_page)),
@@ -532,8 +530,22 @@ def bulk_edit_view(ids: str):
           $el.querySelectorAll('.revision_ids').forEach(cb => {
             cb.checked = this.selectAll;
           });
+        },
+        handleCheckboxClick(e) {
+            // Handle shift+click selection
+            if (e.shiftKey) {
+                const checkboxes = [...$el.querySelectorAll('.revision_ids')];
+                const currentCheckboxIndex = checkboxes.indexOf(e.target);
+                
+                // loop through the checkboxes backwards untll we find one that is checked
+                for (let i = currentCheckboxIndex; i >= 0; i--) {
+                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
+                    checkboxes[i].checked = true;
+                }
+            }
+            this.updateSelectAll();
         }
-      }    
+      }  
     """,
         # initializing the toggleAll function to select all the checkboxes by default.
         x_init="toggleAll()",
