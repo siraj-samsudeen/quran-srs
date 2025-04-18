@@ -108,9 +108,15 @@ def index(sess):
         return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_description}")
 
     ################### Datewise summary ###################
-    qry = f"select distinct revision_date from {revisions}"
-    unique_dates = db.q(qry)
-    unique_dates = sorted([d["revision_date"] for d in unique_dates], reverse=True)
+    qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
+    result = db.q(qry)
+    earliest_date = result[0]["earliest_date"]
+    current_date = current_time("%Y-%m-%d")
+
+    date_range = pd.date_range(
+        start=(earliest_date or current_date), end=current_date, freq="D"
+    )
+    date_range = [date.strftime("%Y-%m-%d") for date in date_range][::-1]
 
     def _render_datewise_row(date):
         pages = revisions(where=f"revision_date = '{date}'")
@@ -131,7 +137,11 @@ def index(sess):
             Td(date_to_human_readable(date)),
             Td(len(pages)),
             Td(
-                *map(_render_page_range, compact_format(pages).split(", ")),
+                *(
+                    map(_render_page_range, compact_format(pages).split(", "))
+                    if pages
+                    else "-"
+                ),
                 cls="space-y-3",
             ),
         )
@@ -140,7 +150,7 @@ def index(sess):
         # H1("Datewise summary"),
         Table(
             Thead(Tr(Th("Date"), Th("Count"), Th("Range"))),
-            Tbody(*map(_render_datewise_row, unique_dates)),
+            Tbody(*map(_render_datewise_row, date_range)),
         ),
         cls="uk-overflow-auto",
     )
