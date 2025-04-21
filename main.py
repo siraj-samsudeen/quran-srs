@@ -339,6 +339,9 @@ def revision(sess):
                 )
             ),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+            Td(rev.mode),
+            Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("juz", "-")),
@@ -364,6 +367,9 @@ def revision(sess):
                 # Th("User Id"),
                 Th(),  # empty header for checkbox
                 Th("Page"),
+                # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+                Th("Mode"),
+                Th("Plan Id"),
                 Th("Rating"),
                 Th("Surah"),
                 Th("Juz"),
