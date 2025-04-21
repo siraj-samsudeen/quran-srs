@@ -17,13 +17,15 @@ q["page description"] = q["page description"].where(
 quran_data = q.fillna("").to_dict(orient="records")
 
 
-db = database("data/quran.db")
+db = database("data/quranV2.db")
 
 revisions, users = db.t.revisions, db.t.users
 if revisions not in db.t:
     users.create(id=int, name=str, email=str, password=str, pk="id")
     revisions.create(
         id=int,
+        mode=str,
+        plan_id=int,
         user_id=int,
         page=int,
         revision_date=str,
