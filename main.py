@@ -5,6 +5,7 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+DB_PATH = "data/quranV2.db"
 
 # Quran metadata
 q = pd.read_csv("metadata/quran_metadata.csv")
@@ -16,14 +17,15 @@ q["page description"] = q["page description"].where(
 )
 quran_data = q.fillna("").to_dict(orient="records")
 
-
-db = database("data/quran.db")
+db = database(DB_PATH)
 
 revisions, users = db.t.revisions, db.t.users
 if revisions not in db.t:
     users.create(id=int, name=str, email=str, password=str, pk="id")
     revisions.create(
         id=int,
+        mode=str,
+        plan_id=int,
         user_id=int,
         page=int,
         revision_date=str,
@@ -337,6 +339,9 @@ def revision(sess):
                 )
             ),
             Td(A(rev.page, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+            Td(rev.mode),
+            Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(current_page_quran_data.get("surah", "-")),
             Td(current_page_quran_data.get("juz", "-")),
@@ -362,6 +367,9 @@ def revision(sess):
                 # Th("User Id"),
                 Th(),  # empty header for checkbox
                 Th("Page"),
+                # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+                Th("Mode"),
+                Th("Plan Id"),
                 Th("Rating"),
                 Th("Surah"),
                 Th("Juz"),
@@ -793,6 +801,7 @@ def import_csv():
 
 @app.post
 async def import_csv(file: UploadFile):
+    backup_sqlite_db(DB_PATH, "data/backup")
     file_content = await file.read()
     revisions.delete_where()  # Truncate the table before importing
     db.import_file("revisions", file_content)
@@ -817,12 +826,12 @@ def export_csv():
 
 @app.get
 def backup():
-    db_path = "data/quran.db"  # This should match your database path
-
-    if not os.path.exists(db_path):
+    if not os.path.exists(DB_PATH):
         return Titled("Error", P("Database file not found"))
 
-    return FileResponse(db_path, filename="quran_backup.db")
+    backup_path = backup_sqlite_db(DB_PATH, "data/backup")
+
+    return FileResponse(backup_path, filename="quran_backup.db")
 
 
 serve()

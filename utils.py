@@ -1,6 +1,7 @@
 from datetime import datetime
 import re
-import humanize
+import sqlite3
+import os
 
 
 # Util function
@@ -54,3 +55,29 @@ def date_to_human_readable(date_string):
 
     # Convert the date to a human-readable format
     return input_date.strftime("%b %d %a")
+
+
+def backup_sqlite_db(source_db_path, backup_dir):
+    # Create backup directory if it doesn't exist
+    os.makedirs(backup_dir, exist_ok=True)
+
+    # Generate backup filename with timestamp
+    timestamp = current_time("%Y%m%d_%H%M%S")
+    db_name = os.path.basename(source_db_path)
+    backup_name = f"{os.path.splitext(db_name)[0]}_{timestamp}.db"
+    backup_path = os.path.join(backup_dir, backup_name)
+
+    # Connect to source database
+    source = sqlite3.connect(source_db_path)
+
+    # Connect to destination database (will create it if it doesn't exist)
+    destination = sqlite3.connect(backup_path)
+
+    # Use SQLite's backup API to create the backup
+    source.backup(destination)
+
+    # Close connections
+    source.close()
+    destination.close()
+
+    return backup_path
