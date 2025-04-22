@@ -493,11 +493,8 @@ def bulk_edit_redirect(ids: List[str]):
 def bulk_edit_view(ids: str):
     ids = ids.split(",")
 
-    # Get the revision date of the first selected revision
-    try:
-        date = revisions[ids[0]].revision_date
-    except IndexError:
-        date = current_time("%Y-%m-%d")
+    # Get the default values from the first selected revision
+    first_revision = revisions[ids[0]]
 
     def _render_row(id):
         current_revision = revisions[id]
@@ -525,6 +522,8 @@ def bulk_edit_view(ids: str):
             ),
             Td(P(current_page)),
             Td(P(current_revision.revision_date)),
+            Td(P(current_revision.mode)),
+            Td(P(current_revision.plan_id)),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -545,6 +544,8 @@ def bulk_edit_view(ids: str):
                 ),
                 Th("Page"),
                 Th("Date"),
+                Th("Mode"),
+                Th("Plan ID"),
                 Th("Rating"),
             )
         ),
@@ -593,12 +594,25 @@ def bulk_edit_view(ids: str):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
+            Grid(
+                mode_dropdown(
+                    default_mode=first_revision.mode,
+                    required=True,
+                ),
+                LabelInput(
+                    "Plan ID",
+                    name="plan_id",
+                    type="number",
+                    required=True,
+                    value=first_revision.plan_id,
+                ),
+            ),
             Div(
                 LabelInput(
                     "Revision Date",
                     name="revision_date",
                     type="date",
-                    value=date,
+                    value=first_revision.revision_date,
                     cls="space-y-2 w-full",
                 ),
                 Button(
@@ -621,7 +635,7 @@ def bulk_edit_view(ids: str):
 
 
 @app.post("/revision")
-async def bulk_edit_save(revision_date: str, req):
+async def bulk_edit_save(revision_date: str, mode: str, plan_id: str, req):
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -634,6 +648,8 @@ async def bulk_edit_save(revision_date: str, req):
                         id=int(current_id),
                         rating=int(value),
                         revision_date=revision_date,
+                        mode=mode,
+                        plan_id=plan_id,
                     )
                 )
 
