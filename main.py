@@ -432,6 +432,10 @@ def create_revision_form(type):
         LabelSelect(
             *map(_option, users()), label="User Id", name="user_id", cls="hidden"
         ),
+        Grid(
+            mode_dropdown(required=True),
+            LabelInput("Plan ID", name="plan_id", type="number", required=True),
+        ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -666,7 +670,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(page: str, max_page: int = 605):
+def get(sess, page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
@@ -679,7 +683,14 @@ def get(page: str, max_page: int = 605):
     return main_area(
         Titled(
             f"{page} - {page_desc}",
-            fill_form(create_revision_form("add"), {"page": page}),
+            fill_form(
+                create_revision_form("add"),
+                {
+                    "page": page,
+                    "mode": sess.get("last_added_mode"),
+                    "plan_id": sess.get("last_added_plan_id"),
+                },
+            ),
         ),
         active="Revision",
     )
