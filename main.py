@@ -49,6 +49,19 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
+def mode_dropdown(default_mode="SEQ", **kwargs):
+    def mk_options(mode):
+        is_selected = lambda m: m == default_mode
+        return Option(mode, value=mode, selected=is_selected(mode))
+
+    return LabelSelect(
+        map(mk_options, ["SEQ", "SRS", "Watch List", "New Memoization"]),
+        label="Mode",
+        name="mode",
+        **kwargs,
+    )
+
+
 def action_buttons(last_added_page, source="Home"):
 
     if isinstance(last_added_page, int):
@@ -670,7 +683,15 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 605):
+def get(
+    sess,
+    page: str,
+    mode: str = None,
+    plan_id: int = None,
+    revision_date: str = None,
+    length: int = 5,
+    max_page: int = 605,
+):
 
     if "." in page:
         page, length = map(int, page.split("."))
@@ -740,6 +761,19 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
             Hidden(id="user_id", value=user_id),
             Hidden(name="last_page", value=last_page),
             Hidden(name="length", value=length),
+            Grid(
+                mode_dropdown(
+                    default_mode=(mode or sess.get("last_added_mode", "SEQ")),
+                    required=True,
+                ),
+                LabelInput(
+                    "Plan ID",
+                    name="plan_id",
+                    type="number",
+                    required=True,
+                    value=(plan_id or sess.get("last_added_plan_id")),
+                ),
+            ),
             LabelInput(
                 "Revision Date",
                 name="revision_date",
@@ -758,7 +792,14 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
 
 @rt("/revision/bulk_add")
 async def post(
-    user_id: int, revision_date: str, last_page: int, length: int, sess, req
+    user_id: int,
+    revision_date: str,
+    mode: str,
+    plan_id: int,
+    last_page: int,
+    length: int,
+    sess,
+    req,
 ):
     form_data = await req.form()
 
@@ -768,6 +809,8 @@ async def post(
             rating=int(rating),
             user_id=user_id,
             revision_date=revision_date,
+            mode=mode,
+            plan_id=plan_id,
         )
         for page, rating in form_data.items()
         if page.startswith("rating-")
@@ -776,11 +819,13 @@ async def post(
 
     if len(parsed_data) > 0:
         sess["last_added_page"] = last_page = parsed_data[-1].page
+        sess["last_added_mode"] = mode
+        sess["last_added_plan_id"] = plan_id
         # To show the next page
         last_page += 1
 
     return Redirect(
-        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}"
+        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}&mode={mode}&plan_id={plan_id}"
     )
 
 
