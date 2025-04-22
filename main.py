@@ -5,6 +5,7 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+DB_PATH = "data/quranV2.db"
 
 # Quran metadata
 q = pd.read_csv("metadata/quran_metadata.csv")
@@ -16,8 +17,7 @@ q["page description"] = q["page description"].where(
 )
 quran_data = q.fillna("").to_dict(orient="records")
 
-
-db = database("data/quranV2.db")
+db = database(DB_PATH)
 
 revisions, users = db.t.revisions, db.t.users
 if revisions not in db.t:
@@ -801,6 +801,7 @@ def import_csv():
 
 @app.post
 async def import_csv(file: UploadFile):
+    backup_sqlite_db(DB_PATH, "data/backup")
     file_content = await file.read()
     revisions.delete_where()  # Truncate the table before importing
     db.import_file("revisions", file_content)
@@ -825,12 +826,12 @@ def export_csv():
 
 @app.get
 def backup():
-    db_path = "data/quran.db"  # This should match your database path
-
-    if not os.path.exists(db_path):
+    if not os.path.exists(DB_PATH):
         return Titled("Error", P("Database file not found"))
 
-    return FileResponse(db_path, filename="quran_backup.db")
+    backup_path = backup_sqlite_db(DB_PATH, "data/backup")
+
+    return FileResponse(backup_path, filename="quran_backup.db")
 
 
 serve()
