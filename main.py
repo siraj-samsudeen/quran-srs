@@ -49,6 +49,19 @@ def get_quran_data(page: int) -> dict:
     return current_page_quran_data[0] if current_page_quran_data else {}
 
 
+def mode_dropdown(default_mode="SEQ", **kwargs):
+    def mk_options(mode):
+        is_selected = lambda m: m == default_mode
+        return Option(mode, value=mode, selected=is_selected(mode))
+
+    return LabelSelect(
+        map(mk_options, ["SEQ", "SRS", "Watch List", "New Memoization"]),
+        label="Mode",
+        name="mode",
+        **kwargs,
+    )
+
+
 def action_buttons(last_added_page, source="Home"):
 
     if isinstance(last_added_page, int):
@@ -419,6 +432,10 @@ def create_revision_form(type):
         LabelSelect(
             *map(_option, users()), label="User Id", name="user_id", cls="hidden"
         ),
+        Grid(
+            mode_dropdown(required=True),
+            LabelInput("Plan ID", name="plan_id", type="number", required=True),
+        ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -480,11 +497,8 @@ def bulk_edit_redirect(ids: List[str]):
 def bulk_edit_view(ids: str):
     ids = ids.split(",")
 
-    # Get the revision date of the first selected revision
-    try:
-        date = revisions[ids[0]].revision_date
-    except IndexError:
-        date = current_time("%Y-%m-%d")
+    # Get the default values from the first selected revision
+    first_revision = revisions[ids[0]]
 
     def _render_row(id):
         current_revision = revisions[id]
@@ -512,6 +526,8 @@ def bulk_edit_view(ids: str):
             ),
             Td(P(current_page)),
             Td(P(current_revision.revision_date)),
+            Td(P(current_revision.mode)),
+            Td(P(current_revision.plan_id)),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -532,6 +548,8 @@ def bulk_edit_view(ids: str):
                 ),
                 Th("Page"),
                 Th("Date"),
+                Th("Mode"),
+                Th("Plan ID"),
                 Th("Rating"),
             )
         ),
@@ -580,12 +598,25 @@ def bulk_edit_view(ids: str):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
+            Grid(
+                mode_dropdown(
+                    default_mode=first_revision.mode,
+                    required=True,
+                ),
+                LabelInput(
+                    "Plan ID",
+                    name="plan_id",
+                    type="number",
+                    required=True,
+                    value=first_revision.plan_id,
+                ),
+            ),
             Div(
                 LabelInput(
                     "Revision Date",
                     name="revision_date",
                     type="date",
-                    value=date,
+                    value=first_revision.revision_date,
                     cls="space-y-2 w-full",
                 ),
                 Button(
@@ -608,7 +639,7 @@ def bulk_edit_view(ids: str):
 
 
 @app.post("/revision")
-async def bulk_edit_save(revision_date: str, req):
+async def bulk_edit_save(revision_date: str, mode: str, plan_id: str, req):
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -621,6 +652,8 @@ async def bulk_edit_save(revision_date: str, req):
                         id=int(current_id),
                         rating=int(value),
                         revision_date=revision_date,
+                        mode=mode,
+                        plan_id=plan_id,
                     )
                 )
 
@@ -637,7 +670,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(page: str, max_page: int = 605):
+def get(sess, page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
@@ -650,7 +683,14 @@ def get(page: str, max_page: int = 605):
     return main_area(
         Titled(
             f"{page} - {page_desc}",
-            fill_form(create_revision_form("add"), {"page": page}),
+            fill_form(
+                create_revision_form("add"),
+                {
+                    "page": page,
+                    "mode": sess.get("last_added_mode"),
+                    "plan_id": sess.get("last_added_plan_id"),
+                },
+            ),
         ),
         active="Revision",
     )
@@ -670,7 +710,15 @@ def post(revision_details: Revision, sess):
 
 
 @app.get("/revision/bulk_add")
-def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 605):
+def get(
+    sess,
+    page: str,
+    mode: str = None,
+    plan_id: int = None,
+    revision_date: str = None,
+    length: int = 5,
+    max_page: int = 605,
+):
 
     if "." in page:
         page, length = map(int, page.split("."))
@@ -740,6 +788,19 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
             Hidden(id="user_id", value=user_id),
             Hidden(name="last_page", value=last_page),
             Hidden(name="length", value=length),
+            Grid(
+                mode_dropdown(
+                    default_mode=(mode or sess.get("last_added_mode", "SEQ")),
+                    required=True,
+                ),
+                LabelInput(
+                    "Plan ID",
+                    name="plan_id",
+                    type="number",
+                    required=True,
+                    value=(plan_id or sess.get("last_added_plan_id")),
+                ),
+            ),
             LabelInput(
                 "Revision Date",
                 name="revision_date",
@@ -758,7 +819,14 @@ def get(page: str, revision_date: str = None, length: int = 5, max_page: int = 6
 
 @rt("/revision/bulk_add")
 async def post(
-    user_id: int, revision_date: str, last_page: int, length: int, sess, req
+    user_id: int,
+    revision_date: str,
+    mode: str,
+    plan_id: int,
+    last_page: int,
+    length: int,
+    sess,
+    req,
 ):
     form_data = await req.form()
 
@@ -768,6 +836,8 @@ async def post(
             rating=int(rating),
             user_id=user_id,
             revision_date=revision_date,
+            mode=mode,
+            plan_id=plan_id,
         )
         for page, rating in form_data.items()
         if page.startswith("rating-")
@@ -776,11 +846,13 @@ async def post(
 
     if len(parsed_data) > 0:
         sess["last_added_page"] = last_page = parsed_data[-1].page
+        sess["last_added_mode"] = mode
+        sess["last_added_plan_id"] = plan_id
         # To show the next page
         last_page += 1
 
     return Redirect(
-        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}"
+        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}&mode={mode}&plan_id={plan_id}"
     )
 
 
