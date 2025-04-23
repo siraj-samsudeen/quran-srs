@@ -214,9 +214,27 @@ def index(sess):
     )
 
     ################### Overall summary ###################
-    all_pages = sorted([p.page for p in revisions()])
+    qry = f"SELECT DISTINCT mode || '-' || plan_id AS combined_value FROM {revisions} ORDER BY combined_value"
+    result = db.q(qry)
+    unique_mode_and_plan_id = [i["combined_value"] for i in result]
 
-    def render_overall_row(page_range: str):
+    # To get the unique page ranges for the combination of mode and plan_id
+    unique_page_ranges = []
+    for mp in unique_mode_and_plan_id:
+        if not mp:
+            continue
+        mode, plan_id = mp.split("-")
+        pages = sorted(
+            [
+                p.page
+                for p in revisions(where=f"mode = '{mode}' AND plan_id = '{plan_id}'")
+            ]
+        )
+        for p in compact_format(pages).split(", "):
+            unique_page_ranges.append({"mode": mode, "plan_id": plan_id, "pages": p})
+
+    def render_overall_row(o: dict):
+        plan, mode, page_range = o["plan_id"], o["mode"], o["pages"]
         if not page_range:
             return None
 
@@ -224,13 +242,15 @@ def index(sess):
         next_page = (end_page or start_page) + 1
 
         return Tr(
+            Td(plan),
+            Td(mode),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
             Td(
                 A(
                     render_page(next_page),
-                    href=f"revision/bulk_add?page={next_page}",
+                    href=f"revision/bulk_add?page={next_page}&mode={mode}&plan_id={plan}",
                     cls=AT.classic,
                 )
             ),
@@ -241,13 +261,15 @@ def index(sess):
         Table(
             Thead(
                 Tr(
+                    Th("Mode"),
+                    Th("Plan Id"),
                     Th("Range"),
                     Th("Start"),
                     Th("End"),
                     Th("Continue"),
                 )
             ),
-            Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
+            Tbody(*map(render_overall_row, unique_page_ranges)),
         ),
         cls="uk-overflow-auto",
     )
