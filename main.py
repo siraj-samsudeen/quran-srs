@@ -906,4 +906,42 @@ def backup():
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
+@app.get
+def import_db():
+    current_dbs = [
+        Li(f, cls=ListT.circle) for f in os.listdir("data") if f.endswith(".db")
+    ]
+    form = Form(
+        UploadZone(
+            DivCentered(Span("Upload Zone"), UkIcon("upload")),
+            id="file",
+            accept=".db",
+        ),
+        Button("Submit"),
+        action=import_db,
+        method="POST",
+    )
+    return main_area(
+        Div(
+            Div(H2("Current DBs"), Ul(*current_dbs)),
+            Div(H1("Upload DB"), form),
+            cls="space-y-6",
+        ),
+        active="Revision",
+    )
+
+
+@app.post
+async def import_db(file: UploadFile):
+    path = "data/" + file.filename
+    if DB_PATH == path:
+        return Titled("Error", P("Cannot overwrite the current DB"))
+
+    file_content = await file.read()
+    with open(path, "wb") as f:
+        f.write(file_content)
+
+    return RedirectResponse(index)
+
+
 serve()
