@@ -7,16 +7,6 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 DB_PATH = "data/quran_v3.db"
 
-# Quran metadata
-q = pd.read_csv("metadata/quran_metadata.csv")
-q["page description"] = q["page description"].fillna(q["surah"])
-q["page description"] = q["page description"].str.replace(".", "")
-# If the page description starts with J, then it is a Juz
-q["page description"] = q["page description"].where(
-    q["page description"].str.startswith("J"), "S" + q["page description"]
-)
-quran_data = q.fillna("").to_dict(orient="records")
-
 db = database(DB_PATH)
 tables = db.t
 revisions, users = tables.revisions, tables.users
@@ -168,9 +158,8 @@ def index(sess):
         return start_page, end_page
 
     def render_page(page):
-        page_data = get_quran_data(page)
-        page_description = page_data.get("page description", "")
-        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_description}")
+        page_data = pages[page]
+        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_data.description}")
 
     ################### Datewise summary ###################
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
@@ -360,7 +349,7 @@ def revision(sess):
     last_added_page = sess.get("last_added_page", None)
 
     def _render_revision(rev):
-        current_page_quran_data = get_quran_data(rev.page_id)
+        current_page_quran_data = pages[rev.page_id]
 
         return Tr(
             # Td(rev.id),
@@ -378,8 +367,8 @@ def revision(sess):
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(current_page_quran_data.get("surah", "-")),
-            Td(current_page_quran_data.get("juz", "-")),
+            Td(current_page_quran_data.surah),
+            Td(current_page_quran_data.juz),
             Td(rev.revision_date),
             Td(
                 A(
@@ -700,10 +689,9 @@ def get(sess, page: str, max_page: int = 605):
     if page >= max_page:
         return Redirect(revision)
 
-    page_desc = get_quran_data(page).get("page description", "-")
     return main_area(
         Titled(
-            f"{page} - {page_desc}",
+            f"{page} - {pages[page].description}",
             fill_form(
                 create_revision_form("add"),
                 {
@@ -771,10 +759,9 @@ def get(
                 cls="space-x-2",
             )
 
-        current_page_quran_data = get_quran_data(current_page)
         return Tr(
             Td(P(current_page)),
-            Td(current_page_quran_data.get("page description", "-")),
+            Td(pages[current_page].description),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -803,10 +790,10 @@ def get(
     except IndexError:
         user_id = 1
 
-    start_page_desc = get_quran_data(page).get("page description", "-")
-    last_page_desc = get_quran_data(last_page - 1).get("page description", "-")
     return main_area(
-        H1(f"{page} - {start_page_desc} => {last_page - 1} - {last_page_desc}"),
+        H1(
+            f"{page} - {pages[page].description} => {last_page - 1} - {pages[last_page - 1].description}"
+        ),
         Form(
             Hidden(id="user_id", value=user_id),
             Hidden(name="last_page", value=last_page),
