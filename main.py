@@ -55,11 +55,6 @@ app, rt = fast_app(
 )
 
 
-def get_quran_data(page: int) -> dict:
-    current_page_quran_data = [d for d in quran_data if d["page"] == page]
-    return current_page_quran_data[0] if current_page_quran_data else {}
-
-
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
