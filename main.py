@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-DB_PATH = "data/quranV2.db"
+DB_PATH = "data/quran_v3.db"
 
 # Quran metadata
 q = pd.read_csv("metadata/quran_metadata.csv")
@@ -18,21 +18,42 @@ q["page description"] = q["page description"].where(
 quran_data = q.fillna("").to_dict(orient="records")
 
 db = database(DB_PATH)
-
-revisions, users = db.t.revisions, db.t.users
-if revisions not in db.t:
+tables = db.t
+revisions, users = tables.revisions, tables.users
+plans, modes, pages = tables.plans, tables.modes, tables.pages
+if revisions not in tables:
     users.create(id=int, name=str, email=str, password=str, pk="id")
     revisions.create(
         id=int,
-        mode=str,
+        mode_id=int,
         plan_id=int,
         user_id=int,
-        page=int,
+        page_id=int,
         revision_date=str,
         rating=int,
         pk="id",
     )
+if modes not in tables:
+    modes.create(id=int, name=str, description=str, pk="id")
+if plans not in tables:
+    plans.create(
+        id=int,
+        mode_id=str,
+        start_date=str,
+        end_date=str,
+        start_page=int,
+        end_page=int,
+        revision_count=int,
+        page_count=int,
+        completed=bool,
+        pk="id",
+    )
+if pages not in tables:
+    pages.create(
+        id=int, page=int, juz=str, surah=str, description=str, start=str, pk="id"
+    )
 Revision, User = revisions.dataclass(), users.dataclass()
+Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
