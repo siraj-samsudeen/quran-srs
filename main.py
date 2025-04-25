@@ -268,6 +268,21 @@ def index(sess):
 @rt
 def user():
     def _render_user(user):
+@app.get("/tables")
+def db_tables():
+    tables = [t for t in str(db.t).split(", ") if not t.startswith("sqlite")]
+    return main_area(
+        Div(
+            H1("Tables"),
+            Ul(
+                *[
+                    Li(A(t, href=f"/tables/{t}", cls=AT.classic), cls=ListT.bullet)
+                    for t in tables
+                ]
+            ),
+        )
+    )
+
         return Tr(
             Td(user.id),
             Td(A(user.name, href=f"/user/edit/{user.id}", cls=AT.muted)),
