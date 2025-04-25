@@ -764,6 +764,8 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 def post(type: str, page: str):
     if type == "bulk":
         return Redirect(f"/revision/bulk_add?page={page}")
+    elif type == "single":
+        return Redirect(f"/revision/add?page={page}")
 
 
 @rt("/revision/add")
