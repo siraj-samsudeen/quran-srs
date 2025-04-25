@@ -55,6 +55,12 @@ app, rt = fast_app(
 )
 
 
+def get_column_headers(table):
+    data_class = db.t[table].dataclass()
+    columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
+    return columns
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -265,9 +271,6 @@ def index(sess):
     )
 
 
-@rt
-def user():
-    def _render_user(user):
 @app.get("/tables")
 def db_tables():
     tables = [t for t in str(db.t).split(", ") if not t.startswith("sqlite")]
@@ -283,27 +286,42 @@ def db_tables():
         )
     )
 
+
+@app.get("/tables/{table}")
+def db_tables(table: str):
+    records = db.q(f"SELECT * FROM {table}")
+    columns = get_column_headers(table)
+
+    def _render_rows(data: dict):
+        def render_cell(column: str):
+            if column == "id":
+                return Td(
+                    A(
+                        data[column],
+                        href=f"/tables/{table}/{data[column]}/edit",
+                        cls=AT.muted,
+                    )
+                )
+            return Td(data[column])
+
         return Tr(
-            Td(user.id),
-            Td(A(user.name, href=f"/user/edit/{user.id}", cls=AT.muted)),
-            Td(user.email),
-            Td(user.password),
+            *map(render_cell, columns),
             Td(
                 A(
                     "Delete",
-                    hx_delete=f"/user/delete/{user.id}",
-                    target_id=f"user-{user.id}",
+                    hx_delete=f"/tables/{table}/{data["id"]}",
+                    target_id=f"row-{data["id"]}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
                     cls=AT.muted,
                 ),
             ),
-            id=f"user-{user.id}",
+            id=f"row-{data["id"]}",
         )
 
     table = Table(
-        Thead(Tr(Th("Id"), Th("Name"), Th("Email"), Th("Password"), Th("Action"))),
-        Tbody(*map(_render_user, users())),
+        Thead(Tr(*map(Th, columns), Th("Action"))),
+        Tbody(*map(_render_rows, records)),
     )
     return main_area(
         A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
