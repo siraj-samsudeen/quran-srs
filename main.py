@@ -324,7 +324,17 @@ def db_tables(table: str):
         Tbody(*map(_render_rows, records)),
     )
     return main_area(
-        A(Button("New", type="button", cls=ButtonT.link), href=f"/tables/{table}/new"),
+        DivLAligned(
+            A(
+                UkIcon("undo-2", height=15, width=15),
+                cls="px-6 py-3 shadow-md rounded-sm",
+                href=f"/tables",
+            ),
+            A(
+                Button("New", type="button", cls=ButtonT.link),
+                href=f"/tables/{table}/new",
+            ),
+        ),
         Div(table_element, cls="uk-overflow-auto"),
     )
 
