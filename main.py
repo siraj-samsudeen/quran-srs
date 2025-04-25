@@ -398,9 +398,9 @@ async def update_record(table: str, record_id: int, req: Request):
     return Redirect(f"/tables/{table}")
 
 
-@rt("/user/delete/{user_id}")
-def delete(user_id: int):
-    users.delete(user_id)
+@app.delete("/tables/{table}/{record_id}")
+def delete_record(table: str, record_id: int):
+    tables[table].delete(record_id)
 
 
 @app.get("/tables/{table}/new")
