@@ -319,14 +319,13 @@ def db_tables(table: str):
             id=f"row-{data["id"]}",
         )
 
-    table = Table(
+    table_element = Table(
         Thead(Tr(*map(Th, columns), Th("Action"))),
         Tbody(*map(_render_rows, records)),
     )
     return main_area(
-        A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
-        Div(table, cls="uk-overflow-auto"),
-        active="User",
+        A(Button("New", type="button", cls=ButtonT.link), href=f"/tables/{table}/new"),
+        Div(table_element, cls="uk-overflow-auto"),
     )
 
 
@@ -377,11 +376,17 @@ def edit_record_view(table: str, record_id: int):
     if table == "plans":
         current_data.completed = str(current_data.completed)
 
-    data_class = current_table.dataclass()
-    column_and_types = data_class.__dict__["__annotations__"]
-    form = create_input_form(column_and_types, hx_put=f"/tables/{table}/{record_id}")
+    column_with_types = get_column_and_its_type(table)
+    form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
 
-    return main_area(Titled("Edit User", fill_form(form, current_data)), active="User")
+    return main_area(
+        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="User"
+    )
+
+
+def get_column_and_its_type(table):
+    data_class = tables[table].dataclass()
+    return data_class.__dict__["__annotations__"]
 
 
 @app.put("/tables/{table}/{record_id}")
@@ -398,16 +403,24 @@ def delete(user_id: int):
     users.delete(user_id)
 
 
-@rt("/user/add")
-def get():
-    return main_area(Titled("Add User", create_user_form("add")), active="User")
+@app.get("/tables/{table}/new")
+def new_record_view(table: str):
+    column_with_types = get_column_and_its_type(table)
+    return main_area(
+        Titled(
+            f"Add page - {table}",
+            create_input_form(column_with_types, hx_post=f"/tables/{table}"),
+        )
+    )
 
 
-@rt("/user/add")
-def post(user_details: User):
-    del user_details.id
-    users.insert(user_details)
-    return Redirect(user)
+@app.post("/tables/{table}")
+async def create_new_record(table: str, req: Request):
+    formt_data = await req.form()
+    current_data = formt_data.__dict__.get("_dict")
+    print(current_data)
+    tables[table].insert(current_data)
+    return Redirect(f"/tables/{table}")
 
 
 @app.get
