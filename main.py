@@ -56,7 +56,7 @@ app, rt = fast_app(
 
 
 def get_column_headers(table):
-    data_class = db.t[table].dataclass()
+    data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
     return columns
 
@@ -273,14 +273,14 @@ def index(sess):
 
 @app.get("/tables")
 def db_tables():
-    tables = [t for t in str(db.t).split(", ") if not t.startswith("sqlite")]
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
     return main_area(
         Div(
             H1("Tables"),
             Ul(
                 *[
                     Li(A(t, href=f"/tables/{t}", cls=AT.classic), cls=ListT.bullet)
-                    for t in tables
+                    for t in tables_list
                 ]
             ),
         )
@@ -330,29 +330,67 @@ def db_tables(table: str):
     )
 
 
-def create_user_form(type):
+def create_input_form(schema: dict, **kwargs):
+    input_types_map = {"int": "number", "str": "text", "date": "date"}
+
+    def create_input_field(o: dict):
+        column, datatype = o
+        if column == "id":
+            return None
+        # datatype is an union type, so we need to extract the first element using __args__
+        # and it returns datatype class so to get the name we'll use __name__ attribute
+        datatype = datatype.__args__[0].__name__
+        input_type = input_types_map.get(datatype, "text")
+        # The datatype for the date column are stored in str
+        # so we are checking if the 'date'  is in the column name
+        if "date" in column:
+            input_type = "date"
+        # The bool datatype is stored in int
+        # so we are creating a column list that are bool to compare against column name
+        if column in ["completed"]:
+            return Div(
+                FormLabel(column),
+                LabelRadio(label="True", id=f"{column}-1", name=column, value="1"),
+                LabelRadio(label="False", id=f"{column}-2", name=column, value="0"),
+                cls="space-y-2",
+            )
+        return LabelInput(column, type=input_type)
+
     return Form(
-        Hidden(name="id"),
-        LabelInput("Name"),
-        LabelInput("Email"),
-        LabelInput("Password"),
-        DivFullySpaced(Button("Save"), A(Button("Discard", type="button"), href=user)),
-        method="POST",
-        action=f"/user/{type}",
+        *map(create_input_field, schema.items()),
+        DivFullySpaced(
+            Button("Save"),
+            A(Button("Discard", type="button"), onclick="history.back()"),
+        ),
+        **kwargs,
+        cls="space-y-4",
     )
 
 
-@rt("/user/edit/{user_id}")
-def get(user_id: int):
-    current_user = users[user_id]
-    form = create_user_form("edit")
-    return main_area(Titled("Edit User", fill_form(form, current_user)), active="User")
+@app.get("/tables/{table}/{record_id}/edit")
+def edit_record_view(table: str, record_id: int):
+    current_table = tables[table]
+    current_data = current_table[record_id]
+
+    # The completed column is stored in int and it is considered as bool
+    # so we are converting it to str in order to select the right radio button using fill_form
+    if table == "plans":
+        current_data.completed = str(current_data.completed)
+
+    data_class = current_table.dataclass()
+    column_and_types = data_class.__dict__["__annotations__"]
+    form = create_input_form(column_and_types, hx_put=f"/tables/{table}/{record_id}")
+
+    return main_area(Titled("Edit User", fill_form(form, current_data)), active="User")
 
 
-@rt("/user/edit")
-def post(user_details: User):
-    users.update(user_details)
-    return Redirect(user)
+@app.put("/tables/{table}/{record_id}")
+async def update_record(table: str, record_id: int, req: Request):
+    formt_data = await req.form()
+    current_data = formt_data.__dict__.get("_dict")
+    tables[table].update(current_data, record_id)
+
+    return Redirect(f"/tables/{table}")
 
 
 @rt("/user/delete/{user_id}")
@@ -703,8 +741,6 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 def post(type: str, page: str):
     if type == "bulk":
         return Redirect(f"/revision/bulk_add?page={page}")
-    elif type == "single":
-        return Redirect(f"/revision/add?page={page}")
 
 
 @rt("/revision/add")
