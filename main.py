@@ -178,7 +178,7 @@ def index(sess):
         current_date_revisions = [
             r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
         ]
-        pages = sorted([r["page_id"] for r in current_date_revisions])
+        pages_list = sorted([r["page_id"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
@@ -189,7 +189,6 @@ def index(sess):
                 for d in current_date_revisions
                 if d.get("page_id") == page
             ]
-
             if end_page:
                 ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
             else:
@@ -206,11 +205,11 @@ def index(sess):
 
         return Tr(
             Td(date_to_human_readable(date)),
-            Td(len(pages)),
+            Td(len(pages_list)),
             Td(
                 *(
-                    map(_render_page_range, compact_format(pages).split(", "))
-                    if pages
+                    map(_render_page_range, compact_format(pages_list).split(", "))
+                    if pages_list
                     else "-"
                 ),
                 cls="space-y-3",
@@ -227,25 +226,61 @@ def index(sess):
     )
 
     ################### Overall summary ###################
-    all_pages = sorted([p.page_id for p in revisions()])
+    qry = f"SELECT DISTINCT mode_id || '-' || plan_id AS combined_value FROM {revisions} ORDER BY combined_value"
+    result = db.q(qry)
+    unique_mode_and_plan_id = [i["combined_value"] for i in result]
 
-    def render_overall_row(page_range: str):
+    # To get the unique page ranges for the combination of mode and plan_id
+    unique_page_ranges = []
+    for mp in unique_mode_and_plan_id:
+        if not mp:
+            continue
+        mode_id, plan_id = mp.split("-")
+        pages_list = sorted(
+            [
+                r.page_id
+                for r in revisions(
+                    where=f"mode_id = '{mode_id}' AND plan_id = '{plan_id}'"
+                )
+            ]
+        )
+        for p in compact_format(pages_list).split(", "):
+            unique_page_ranges.append(
+                {"mode_id": mode_id, "plan_id": plan_id, "page_range": p}
+            )
+
+    def render_overall_row(o: dict):
+        plan_id, mode_id, page_range = o["plan_id"], o["mode_id"], o["page_range"]
         if not page_range:
             return None
 
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
+        mode = modes[mode_id]
+
+        current_plan = plans(where=f"id = '{plan_id}' AND mode_id = '{mode_id}'")
+        if current_plan:
+            is_completed = current_plan[0].completed
+        else:
+            is_completed = False
+
         return Tr(
+            Td(mode.name if mode else mode_id),
+            Td(plan_id),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
             Td(
-                A(
-                    render_page(next_page),
-                    href=f"revision/bulk_add?page={next_page}",
-                    cls=AT.classic,
-                )
+                (
+                    A(
+                        render_page(next_page),
+                        href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
+                        cls=AT.classic,
+                    )
+                    if not is_completed
+                    else "Completed"
+                ),
             ),
         )
 
@@ -254,13 +289,15 @@ def index(sess):
         Table(
             Thead(
                 Tr(
+                    Th("Mode"),
+                    Th("Plan Id"),
                     Th("Range"),
                     Th("Start"),
                     Th("End"),
                     Th("Continue"),
                 )
             ),
-            Tbody(*map(render_overall_row, compact_format(all_pages).split(", "))),
+            Tbody(*map(render_overall_row, unique_page_ranges)),
         ),
         cls="uk-overflow-auto",
     )
@@ -436,7 +473,6 @@ def new_record_view(table: str):
 async def create_new_record(table: str, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
-    print(current_data)
     tables[table].insert(current_data)
     return Redirect(f"/tables/{table}")
 
