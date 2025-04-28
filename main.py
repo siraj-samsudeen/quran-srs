@@ -135,6 +135,7 @@ def main_area(*args, active=None):
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(A("Quran SRS", href=index)),
             ),
@@ -272,7 +273,7 @@ def index(sess):
 
 
 @app.get("/tables")
-def db_tables():
+def list_tables():
     tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
     return main_area(
         Div(
@@ -283,12 +284,13 @@ def db_tables():
                     for t in tables_list
                 ]
             ),
-        )
+        ),
+        active="Tables",
     )
 
 
 @app.get("/tables/{table}")
-def db_tables(table: str):
+def view_table(table: str):
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
 
@@ -324,18 +326,23 @@ def db_tables(table: str):
         Tbody(*map(_render_rows, records)),
     )
     return main_area(
-        DivLAligned(
-            A(
-                UkIcon("undo-2", height=15, width=15),
-                cls="px-6 py-3 shadow-md rounded-sm",
-                href=f"/tables",
+        Div(
+            H2(f"Table: {table}"),
+            DivLAligned(
+                A(
+                    UkIcon("undo-2", height=15, width=15),
+                    cls="px-6 py-3 shadow-md rounded-sm",
+                    href=f"/tables",
+                ),
+                A(
+                    Button("New", type="button", cls=ButtonT.link),
+                    href=f"/tables/{table}/new",
+                ),
             ),
-            A(
-                Button("New", type="button", cls=ButtonT.link),
-                href=f"/tables/{table}/new",
-            ),
+            Div(table_element, cls="uk-overflow-auto"),
+            cls="space-y-3",
         ),
-        Div(table_element, cls="uk-overflow-auto"),
+        active="Tables",
     )
 
 
@@ -390,7 +397,7 @@ def edit_record_view(table: str, record_id: int):
     form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
 
     return main_area(
-        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="User"
+        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="Tables"
     )
 
 
@@ -420,7 +427,8 @@ def new_record_view(table: str):
         Titled(
             f"Add page - {table}",
             create_input_form(column_with_types, hx_post=f"/tables/{table}"),
-        )
+        ),
+        active="Tables",
     )
 
 
