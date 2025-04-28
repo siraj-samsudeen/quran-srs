@@ -55,6 +55,12 @@ app, rt = fast_app(
 )
 
 
+def get_column_headers(table):
+    data_class = tables[table].dataclass()
+    columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
+    return columns
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -129,6 +135,7 @@ def main_area(*args, active=None):
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(A("Quran SRS", href=index)),
             ),
@@ -265,78 +272,173 @@ def index(sess):
     )
 
 
-@rt
-def user():
-    def _render_user(user):
+@app.get("/tables")
+def list_tables():
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    return main_area(
+        Div(
+            H1("Tables"),
+            Ul(
+                *[
+                    Li(A(t, href=f"/tables/{t}", cls=AT.classic), cls=ListT.bullet)
+                    for t in tables_list
+                ]
+            ),
+        ),
+        active="Tables",
+    )
+
+
+@app.get("/tables/{table}")
+def view_table(table: str):
+    records = db.q(f"SELECT * FROM {table}")
+    columns = get_column_headers(table)
+
+    def _render_rows(data: dict):
+        def render_cell(column: str):
+            if column == "id":
+                return Td(
+                    A(
+                        data[column],
+                        href=f"/tables/{table}/{data[column]}/edit",
+                        cls=AT.muted,
+                    )
+                )
+            return Td(data[column])
+
         return Tr(
-            Td(user.id),
-            Td(A(user.name, href=f"/user/edit/{user.id}", cls=AT.muted)),
-            Td(user.email),
-            Td(user.password),
+            *map(render_cell, columns),
             Td(
                 A(
                     "Delete",
-                    hx_delete=f"/user/delete/{user.id}",
-                    target_id=f"user-{user.id}",
+                    hx_delete=f"/tables/{table}/{data["id"]}",
+                    target_id=f"row-{data["id"]}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
                     cls=AT.muted,
                 ),
             ),
-            id=f"user-{user.id}",
+            id=f"row-{data["id"]}",
         )
 
-    table = Table(
-        Thead(Tr(Th("Id"), Th("Name"), Th("Email"), Th("Password"), Th("Action"))),
-        Tbody(*map(_render_user, users())),
+    table_element = Table(
+        Thead(Tr(*map(Th, columns), Th("Action"))),
+        Tbody(*map(_render_rows, records)),
     )
     return main_area(
-        A(Button("Add", type="button", cls=ButtonT.link), href="/user/add"),
-        Div(table, cls="uk-overflow-auto"),
-        active="User",
+        Div(
+            H2(f"Table: {table}"),
+            DivLAligned(
+                A(
+                    UkIcon("undo-2", height=15, width=15),
+                    cls="px-6 py-3 shadow-md rounded-sm",
+                    href=f"/tables",
+                ),
+                A(
+                    Button("New", type="button", cls=ButtonT.link),
+                    href=f"/tables/{table}/new",
+                ),
+            ),
+            Div(table_element, cls="uk-overflow-auto"),
+            cls="space-y-3",
+        ),
+        active="Tables",
     )
 
 
-def create_user_form(type):
+def create_input_form(schema: dict, **kwargs):
+    input_types_map = {"int": "number", "str": "text", "date": "date"}
+
+    def create_input_field(o: dict):
+        column, datatype = o
+        if column == "id":
+            return None
+        # datatype is an union type, so we need to extract the first element using __args__
+        # and it returns datatype class so to get the name we'll use __name__ attribute
+        datatype = datatype.__args__[0].__name__
+        input_type = input_types_map.get(datatype, "text")
+        # The datatype for the date column are stored in str
+        # so we are checking if the 'date'  is in the column name
+        if "date" in column:
+            input_type = "date"
+        # The bool datatype is stored in int
+        # so we are creating a column list that are bool to compare against column name
+        if column in ["completed"]:
+            return Div(
+                FormLabel(column),
+                LabelRadio(label="True", id=f"{column}-1", name=column, value="1"),
+                LabelRadio(label="False", id=f"{column}-2", name=column, value="0"),
+                cls="space-y-2",
+            )
+        return LabelInput(column, type=input_type)
+
     return Form(
-        Hidden(name="id"),
-        LabelInput("Name"),
-        LabelInput("Email"),
-        LabelInput("Password"),
-        DivFullySpaced(Button("Save"), A(Button("Discard", type="button"), href=user)),
-        method="POST",
-        action=f"/user/{type}",
+        *map(create_input_field, schema.items()),
+        DivFullySpaced(
+            Button("Save"),
+            A(Button("Discard", type="button"), onclick="history.back()"),
+        ),
+        **kwargs,
+        cls="space-y-4",
     )
 
 
-@rt("/user/edit/{user_id}")
-def get(user_id: int):
-    current_user = users[user_id]
-    form = create_user_form("edit")
-    return main_area(Titled("Edit User", fill_form(form, current_user)), active="User")
+@app.get("/tables/{table}/{record_id}/edit")
+def edit_record_view(table: str, record_id: int):
+    current_table = tables[table]
+    current_data = current_table[record_id]
+
+    # The completed column is stored in int and it is considered as bool
+    # so we are converting it to str in order to select the right radio button using fill_form
+    if table == "plans":
+        current_data.completed = str(current_data.completed)
+
+    column_with_types = get_column_and_its_type(table)
+    form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
+
+    return main_area(
+        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="Tables"
+    )
 
 
-@rt("/user/edit")
-def post(user_details: User):
-    users.update(user_details)
-    return Redirect(user)
+def get_column_and_its_type(table):
+    data_class = tables[table].dataclass()
+    return data_class.__dict__["__annotations__"]
 
 
-@rt("/user/delete/{user_id}")
-def delete(user_id: int):
-    users.delete(user_id)
+@app.put("/tables/{table}/{record_id}")
+async def update_record(table: str, record_id: int, req: Request):
+    formt_data = await req.form()
+    current_data = formt_data.__dict__.get("_dict")
+    tables[table].update(current_data, record_id)
+
+    return Redirect(f"/tables/{table}")
 
 
-@rt("/user/add")
-def get():
-    return main_area(Titled("Add User", create_user_form("add")), active="User")
+@app.delete("/tables/{table}/{record_id}")
+def delete_record(table: str, record_id: int):
+    tables[table].delete(record_id)
 
 
-@rt("/user/add")
-def post(user_details: User):
-    del user_details.id
-    users.insert(user_details)
-    return Redirect(user)
+@app.get("/tables/{table}/new")
+def new_record_view(table: str):
+    column_with_types = get_column_and_its_type(table)
+    return main_area(
+        Titled(
+            f"Add page - {table}",
+            create_input_form(column_with_types, hx_post=f"/tables/{table}"),
+        ),
+        active="Tables",
+    )
+
+
+@app.post("/tables/{table}")
+async def create_new_record(table: str, req: Request):
+    formt_data = await req.form()
+    current_data = formt_data.__dict__.get("_dict")
+    print(current_data)
+    tables[table].insert(current_data)
+    return Redirect(f"/tables/{table}")
 
 
 @app.get
