@@ -291,15 +291,12 @@ def index(sess):
                 Tr(
                     Th("Mode"),
                     Th("Plan Id"),
-                    Th("Mode"),
-                    Th("Plan Id"),
                     Th("Range"),
                     Th("Start"),
                     Th("End"),
                     Th("Continue"),
                 )
             ),
-            Tbody(*map(render_overall_row, unique_page_ranges)),
             Tbody(*map(render_overall_row, unique_page_ranges)),
         ),
         cls="uk-overflow-auto",
