@@ -267,7 +267,7 @@ def index(sess):
 
         return Tr(
             Td(mode.name if mode else mode_id),
-            Td(plan_id),
+            Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
