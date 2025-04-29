@@ -382,7 +382,11 @@ def view_table(table: str):
                         Button("Export", type="button", cls=ButtonT.link),
                         href=f"/tables/{table}/export",
                         hx_boost="false",
-                    )
+                    ),
+                    A(
+                        Button("Import", type="button", cls=ButtonT.link),
+                        href=f"/tables/{table}/import",
+                    ),
                 ),
             ),
             Div(table_element, cls="uk-overflow-auto"),
@@ -500,6 +504,50 @@ def export_specific_table(table: str):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
     )
+
+
+@app.get("/tables/{table}/import")
+def import_specific_table_view(table: str):
+    form = Form(
+        UploadZone(
+            DivCentered(Span("Upload Zone"), UkIcon("upload")),
+            id="file",
+            accept="text/csv",
+        ),
+        DivFullySpaced(
+            Button("Submit"), Button("Cancel", type="button", onclick="history.back()")
+        ),
+        action=f"/tables/{table}/import",
+        method="POST",
+    )
+    return main_area(
+        Titled(
+            f"Upload CSV: {table}",
+            P(
+                f"CSV should contain these columns: ",
+                Span(
+                    " ,".join(get_column_headers(table)), cls=TextPresets.md_weight_sm
+                ),
+            ),
+            form,
+            cls="space-y-4",
+        ),
+        active="Tables",
+    )
+
+
+@app.post("/tables/{table}/import")
+async def import_specific_table(table: str, file: UploadFile):
+    backup_sqlite_db(DB_PATH, "data/backup")
+    # Instead of using the import_file method, we are using upsert method to import the csv file
+    # as some of the forign key values are being used in another table
+    # so we cannot truncate the table
+    file_content = await file.read()
+    data = pd.read_csv(BytesIO(file_content)).to_dict("records")
+    for row in data:
+        tables[table].upsert(row)
+
+    return Redirect(f"/tables/{table}")
 
 
 @app.get
