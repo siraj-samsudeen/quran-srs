@@ -897,7 +897,7 @@ def get(sess, page: str, max_page: int = 605):
 
     return main_area(
         Titled(
-            f"{page} - {pages[page].description}",
+            f"{page} - {pages[page].description} - {pages[page].start}",
             fill_form(
                 create_revision_form("add"),
                 {
@@ -968,6 +968,7 @@ def get(
         return Tr(
             Td(P(current_page)),
             Td(pages[current_page].description),
+            Td(pages[current_page].start),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -977,7 +978,7 @@ def get(
         )
 
     table = Table(
-        Thead(Tr(Th("No"), Th("Page"), Th("Rating"))),
+        Thead(Tr(Th("No"), Th("Page"), Th("Start"), Th("Rating"))),
         Tbody(*[_render_row(i) for i in range(page, last_page)]),
     )
 
