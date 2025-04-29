@@ -365,15 +365,28 @@ def view_table(table: str):
     return main_area(
         Div(
             H2(f"Table: {table}"),
-            DivLAligned(
-                A(
-                    UkIcon("undo-2", height=15, width=15),
-                    cls="px-6 py-3 shadow-md rounded-sm",
-                    href=f"/tables",
+            DivFullySpaced(
+                DivLAligned(
+                    A(
+                        UkIcon("undo-2", height=15, width=15),
+                        cls="px-6 py-3 shadow-md rounded-sm",
+                        href=f"/tables",
+                    ),
+                    A(
+                        Button("New", type="button", cls=ButtonT.link),
+                        href=f"/tables/{table}/new",
+                    ),
                 ),
-                A(
-                    Button("New", type="button", cls=ButtonT.link),
-                    href=f"/tables/{table}/new",
+                DivRAligned(
+                    A(
+                        Button("Export", type="button", cls=ButtonT.link),
+                        href=f"/tables/{table}/export",
+                        hx_boost="false",
+                    ),
+                    A(
+                        Button("Import", type="button", cls=ButtonT.link),
+                        href=f"/tables/{table}/import",
+                    ),
                 ),
             ),
             Div(table_element, cls="uk-overflow-auto"),
@@ -474,6 +487,66 @@ async def create_new_record(table: str, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
     tables[table].insert(current_data)
+    return Redirect(f"/tables/{table}")
+
+
+@app.get("/tables/{table}/export")
+def export_specific_table(table: str):
+    df = pd.DataFrame(tables[table]())
+
+    csv_buffer = BytesIO()
+    df.to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+
+    file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
+    return StreamingResponse(
+        csv_buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
+    )
+
+
+@app.get("/tables/{table}/import")
+def import_specific_table_view(table: str):
+    form = Form(
+        UploadZone(
+            DivCentered(Span("Upload Zone"), UkIcon("upload")),
+            id="file",
+            accept="text/csv",
+        ),
+        DivFullySpaced(
+            Button("Submit"), Button("Cancel", type="button", onclick="history.back()")
+        ),
+        action=f"/tables/{table}/import",
+        method="POST",
+    )
+    return main_area(
+        Titled(
+            f"Upload CSV: {table}",
+            P(
+                f"CSV should contain these columns: ",
+                Span(
+                    " ,".join(get_column_headers(table)), cls=TextPresets.md_weight_sm
+                ),
+            ),
+            form,
+            cls="space-y-4",
+        ),
+        active="Tables",
+    )
+
+
+@app.post("/tables/{table}/import")
+async def import_specific_table(table: str, file: UploadFile):
+    backup_sqlite_db(DB_PATH, "data/backup")
+    # Instead of using the import_file method, we are using upsert method to import the csv file
+    # as some of the forign key values are being used in another table
+    # so we cannot truncate the table
+    file_content = await file.read()
+    data = pd.read_csv(BytesIO(file_content)).to_dict("records")
+    for row in data:
+        tables[table].upsert(row)
+
     return Redirect(f"/tables/{table}")
 
 
