@@ -698,6 +698,9 @@ def get(revision_id: int):
 
 @rt("/revision/edit")
 def post(revision_details: Revision):
+    # setting the plan_id to None if it is 0
+    # as it get defaults to 0 if the field is empty.
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     revisions.update(revision_details)
     return Redirect(revision)
 
@@ -862,6 +865,7 @@ def bulk_edit_view(ids: str):
 
 @app.post("/revision")
 async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -931,6 +935,8 @@ def post(revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+
     revisions.insert(revision_details)
 
     page = revision_details.page_id
@@ -1058,6 +1064,7 @@ async def post(
     length: int,
     req,
 ):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
 
     parsed_data = [
