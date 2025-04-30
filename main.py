@@ -269,23 +269,24 @@ def index():
         else:
             is_completed = False
 
+        if is_completed:
+            continue_message = "Completed"
+        elif next_page > 604:
+            continue_message = "No further page"
+        else:
+            continue_message = A(
+                render_page(next_page),
+                href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
+                cls=AT.classic,
+            )
+
         return Tr(
             Td(mode.name if mode else mode_id),
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
-            Td(
-                (
-                    A(
-                        render_page(next_page),
-                        href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
-                        cls=AT.classic,
-                    )
-                    if not is_completed
-                    else "Completed"
-                ),
-            ),
+            Td(continue_message),
         )
 
     overall_table = Div(
@@ -898,7 +899,7 @@ def get(page: str, max_page: int = 605):
     page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
 
     try:
         last_added_record = revisions()[-1]
@@ -953,7 +954,7 @@ def get(
         page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
 
     last_page = page + length
 
