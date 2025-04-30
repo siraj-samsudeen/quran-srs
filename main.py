@@ -61,7 +61,7 @@ def get_column_headers(table):
     return columns
 
 
-def mode_dropdown(default_mode=1, **kwargs):
+def mode_dropdown(default_mode=1):
     def mk_options(mode):
         id, name = mode.id, mode.name
         is_selected = lambda m: m == default_mode
@@ -71,11 +71,10 @@ def mode_dropdown(default_mode=1, **kwargs):
         map(mk_options, modes()),
         label="Mode Id",
         name="mode_id",
-        **kwargs,
     )
 
 
-def action_buttons(last_added_page, source="Home"):
+def action_buttons(last_added_page=1, source="Home"):
 
     if isinstance(last_added_page, int):
         last_added_page += 1
@@ -148,8 +147,13 @@ def main_area(*args, active=None):
 
 
 @rt
-def index(sess):
-    last_added_page = sess.get("last_added_page", None)
+def index():
+    try:
+        last_added_record = revisions()[-1]
+    except IndexError:
+        last_added_page = None
+    else:
+        last_added_page = last_added_record.page_id
 
     def split_page_range(page_range: str):
         start_page, end_page = (
@@ -303,7 +307,13 @@ def index(sess):
     )
 
     return main_area(
-        action_buttons(last_added_page),
+        action_buttons(
+            **(
+                {"last_added_page": last_added_page}
+                if last_added_page is not None
+                else {}
+            )
+        ),
         Div(overall_table, Divider(), datewise_table),
         active="Home",
     )
@@ -551,8 +561,7 @@ async def import_specific_table(table: str, file: UploadFile):
 
 
 @app.get
-def revision(sess):
-    last_added_page = sess.get("last_added_page", None)
+def revision():
 
     def _render_revision(rev):
         current_page_quran_data = pages[rev.page_id]
@@ -612,7 +621,7 @@ def revision(sess):
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
         Form(
-            action_buttons(last_added_page, source="Revision"),
+            action_buttons(source="Revision"),
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
@@ -650,8 +659,8 @@ def create_revision_form(type):
             *map(_option, users()), label="User Id", name="user_id", cls="hidden"
         ),
         Grid(
-            mode_dropdown(required=True),
-            LabelInput("Plan Id", name="plan_id", type="number", required=True),
+            mode_dropdown(),
+            LabelInput("Plan Id", name="plan_id", type="number"),
         ),
         LabelInput(
             "Revision Date",
@@ -815,15 +824,11 @@ def bulk_edit_view(ids: str):
         H1("Bulk Edit Revision"),
         Form(
             Grid(
-                mode_dropdown(
-                    default_mode=first_revision.mode_id,
-                    required=True,
-                ),
+                mode_dropdown(default_mode=first_revision.mode_id),
                 LabelInput(
                     "Plan ID",
                     name="plan_id",
                     type="number",
-                    required=True,
                     value=first_revision.plan_id,
                 ),
             ),
@@ -886,7 +891,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(sess, page: str, max_page: int = 605):
+def get(page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
@@ -895,6 +900,15 @@ def get(sess, page: str, max_page: int = 605):
     if page >= max_page:
         return Redirect(revision)
 
+    try:
+        last_added_record = revisions()[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
+
     return main_area(
         Titled(
             f"{page} - {pages[page].description} - {pages[page].start}",
@@ -902,8 +916,8 @@ def get(sess, page: str, max_page: int = 605):
                 create_revision_form("add"),
                 {
                     "page_id": page,
-                    "mode_id": sess.get("last_added_mode_id"),
-                    "plan_id": sess.get("last_added_plan_id"),
+                    "mode_id": defalut_mode_value,
+                    "plan_id": defalut_plan_value,
                 },
             ),
         ),
@@ -912,23 +926,19 @@ def get(sess, page: str, max_page: int = 605):
 
 
 @rt("/revision/add")
-def post(revision_details: Revision, sess):
+def post(revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
     revisions.insert(revision_details)
 
     page = revision_details.page_id
-    sess["last_added_page"] = page
-    sess["last_added_mode_id"] = revision_details.mode_id
-    sess["last_added_plan_id"] = revision_details.plan_id
 
     return Redirect(f"/revision/add?page={page + 1}")
 
 
 @app.get("/revision/bulk_add")
 def get(
-    sess,
     page: str,
     mode_id: int = None,
     plan_id: int = None,
@@ -997,25 +1007,29 @@ def get(
     except IndexError:
         user_id = 1
 
+    try:
+        last_added_record = revisions()[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
+
     return main_area(
         H1(
             f"{page} - {pages[page].description} => {last_page - 1} - {pages[last_page - 1].description}"
         ),
         Form(
             Hidden(id="user_id", value=user_id),
-            Hidden(name="last_page", value=last_page),
             Hidden(name="length", value=length),
             Grid(
-                mode_dropdown(
-                    default_mode=(mode_id or sess.get("last_added_mode_id", 1)),
-                    required=True,
-                ),
+                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
                     "Plan ID",
                     name="plan_id",
                     type="number",
-                    required=True,
-                    value=(plan_id or sess.get("last_added_plan_id")),
+                    value=(plan_id or defalut_plan_value),
                 ),
             ),
             LabelInput(
@@ -1040,9 +1054,7 @@ async def post(
     revision_date: str,
     mode_id: int,
     plan_id: int,
-    last_page: int,
     length: int,
-    sess,
     req,
 ):
     form_data = await req.form()
@@ -1060,16 +1072,15 @@ async def post(
         if page.startswith("rating-")
     ]
     revisions.insert_all(parsed_data)
-
-    if len(parsed_data) > 0:
-        sess["last_added_page"] = last_page = parsed_data[-1].page_id
-        sess["last_added_mode_id"] = mode_id
-        sess["last_added_plan_id"] = plan_id
+    if parsed_data:
+        last_page = parsed_data[-1].page_id
         # To show the next page
-        last_page += 1
+        next_page = last_page + 1
+    else:
+        return Redirect(index)
 
     return Redirect(
-        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
     )
 
 
