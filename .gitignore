@@ -141,3 +141,7 @@ db.sqlite3-journal
 .idea
 data/
 issues.xlsx
+
+# ignore virtual environment files
+.venv/
+venv/
