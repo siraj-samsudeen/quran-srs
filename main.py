@@ -87,6 +87,7 @@ def action_buttons(last_added_page=1, source="Home"):
                 id="page",
                 value=last_added_page,
                 autocomplete="off",
+                required=True,
             ),
             Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
             Button("Single Entry", name="type", value="single", cls=ButtonT.link),
@@ -148,12 +149,11 @@ def main_area(*args, active=None):
 
 @rt
 def index():
-    try:
-        last_added_record = revisions()[-1]
-    except IndexError:
+    revision_data = revisions()
+    last_added_page = revision_data[-1].page_id if revision_data else None
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
-    else:
-        last_added_page = last_added_record.page_id
 
     def split_page_range(page_range: str):
         start_page, end_page = (
@@ -269,23 +269,24 @@ def index():
         else:
             is_completed = False
 
+        if is_completed:
+            continue_message = "Completed"
+        elif next_page > 604:
+            continue_message = "No further page"
+        else:
+            continue_message = A(
+                render_page(next_page),
+                href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
+                cls=AT.classic,
+            )
+
         return Tr(
             Td(mode.name if mode else mode_id),
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
-            Td(
-                (
-                    A(
-                        render_page(next_page),
-                        href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
-                        cls=AT.classic,
-                    )
-                    if not is_completed
-                    else "Completed"
-                ),
-            ),
+            Td(continue_message),
         )
 
     overall_table = Div(
@@ -716,6 +717,9 @@ def get(revision_id: int):
 
 @rt("/revision/edit")
 def post(revision_details: Revision):
+    # setting the plan_id to None if it is 0
+    # as it get defaults to 0 if the field is empty.
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     revisions.update(revision_details)
     return Redirect(revision)
 
@@ -880,6 +884,7 @@ def bulk_edit_view(ids: str):
 
 @app.post("/revision")
 async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -917,7 +922,7 @@ def get(page: str, max_page: int = 605):
     page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
 
     try:
         last_added_record = revisions()[-1]
@@ -949,6 +954,8 @@ def post(revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+
     revisions.insert(revision_details)
 
     page = revision_details.page_id
@@ -972,7 +979,7 @@ def get(
         page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
 
     last_page = page + length
 
@@ -1076,6 +1083,7 @@ async def post(
     length: int,
     req,
 ):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
 
     parsed_data = [
