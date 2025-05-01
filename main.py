@@ -149,12 +149,11 @@ def main_area(*args, active=None):
 
 @rt
 def index():
-    try:
-        last_added_record = revisions()[-1]
-    except IndexError:
+    revision_data = revisions()
+    last_added_page = revision_data[-1].page_id if revision_data else None
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
-    else:
-        last_added_page = last_added_record.page_id
 
     def split_page_range(page_range: str):
         start_page, end_page = (
