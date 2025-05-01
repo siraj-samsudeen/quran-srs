@@ -560,10 +560,13 @@ async def import_specific_table(table: str, file: UploadFile):
     return Redirect(f"/tables/{table}")
 
 
-@app.get
-def revision():
+# this function is used to create infinite scroll for the revisions table
+def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]:
+    start = (part_num - 1) * size
+    end = start + size
+    data = revisions(order_by="id desc")[start:end]
 
-    def _render_revision(rev):
+    def _render_rows(rev: Revision):
         current_page_quran_data = pages[rev.page_id]
 
         return Tr(
@@ -598,6 +601,22 @@ def revision():
             id=f"revision-{rev.id}",
         )
 
+    paginated = [_render_rows(i) for i in data]
+
+    if len(paginated) == 20:
+        paginated[-1].attrs.update(
+            {
+                "get": f"revision?idx={part_num + 1}",
+                "hx-trigger": "revealed",
+                "hx-swap": "afterend",
+                "hx-select": "tbody > tr",
+            }
+        )
+    return tuple(paginated)
+
+
+@app.get
+def revision(idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -616,7 +635,7 @@ def revision():
                 Th("Action"),
             )
         ),
-        Tbody(*map(_render_revision, revisions(order_by="id desc"))),
+        Tbody(*generate_revision_table_part(part_num=idx)),
     )
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
