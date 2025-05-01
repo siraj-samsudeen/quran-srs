@@ -25,6 +25,8 @@ if revisions not in tables:
     )
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
+    modes_data = pd.read_csv("metadata/modes.csv").to_dict("records")
+    modes.insert_all(modes_data)
 if plans not in tables:
     plans.create(
         id=int,
@@ -42,6 +44,8 @@ if pages not in tables:
     pages.create(
         id=int, page=int, juz=str, surah=str, description=str, start=str, pk="id"
     )
+    pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
+    pages.insert_all(pages_data)
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
