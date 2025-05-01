@@ -87,6 +87,7 @@ def action_buttons(last_added_page=1, source="Home"):
                 id="page",
                 value=last_added_page,
                 autocomplete="off",
+                required=True,
             ),
             Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
             Button("Single Entry", name="type", value="single", cls=ButtonT.link),
