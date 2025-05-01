@@ -11,18 +11,6 @@ db = database(DB_PATH)
 tables = db.t
 revisions, users = tables.revisions, tables.users
 plans, modes, pages = tables.plans, tables.modes, tables.pages
-if revisions not in tables:
-    users.create(id=int, name=str, email=str, password=str, pk="id")
-    revisions.create(
-        id=int,
-        mode_id=int,
-        plan_id=int,
-        user_id=int,
-        page_id=int,
-        revision_date=str,
-        rating=int,
-        pk="id",
-    )
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
     modes_data = pd.read_csv("metadata/modes.csv").to_dict("records")
@@ -39,6 +27,8 @@ if plans not in tables:
         page_count=int,
         completed=bool,
         pk="id",
+        # foreign_key, reference_table, reference_column
+        foreign_keys=[("mode_id", "modes", "id")],
     )
 if pages not in tables:
     pages.create(
@@ -46,6 +36,23 @@ if pages not in tables:
     )
     pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
     pages.insert_all(pages_data)
+if revisions not in tables:
+    users.create(id=int, name=str, email=str, password=str, pk="id")
+    revisions.create(
+        id=int,
+        mode_id=int,
+        plan_id=int,
+        user_id=int,
+        page_id=int,
+        revision_date=str,
+        rating=int,
+        pk="id",
+        foreign_keys=[
+            ("mode_id", "modes", "id"),
+            ("user_id", "users", "id"),
+            ("page_id", "pages", "id"),
+        ],
+    )
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
