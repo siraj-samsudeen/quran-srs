@@ -81,3 +81,9 @@ def backup_sqlite_db(source_db_path, backup_dir):
     destination.close()
 
     return backup_path
+
+
+def set_zero_to_none(data):
+    if data == 0:
+        return None
+    return data

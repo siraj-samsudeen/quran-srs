@@ -61,7 +61,7 @@ def get_column_headers(table):
     return columns
 
 
-def mode_dropdown(default_mode=1, **kwargs):
+def mode_dropdown(default_mode=1):
     def mk_options(mode):
         id, name = mode.id, mode.name
         is_selected = lambda m: m == default_mode
@@ -71,11 +71,10 @@ def mode_dropdown(default_mode=1, **kwargs):
         map(mk_options, modes()),
         label="Mode Id",
         name="mode_id",
-        **kwargs,
     )
 
 
-def action_buttons(last_added_page, source="Home"):
+def action_buttons(last_added_page=1, source="Home"):
 
     if isinstance(last_added_page, int):
         last_added_page += 1
@@ -88,6 +87,7 @@ def action_buttons(last_added_page, source="Home"):
                 id="page",
                 value=last_added_page,
                 autocomplete="off",
+                required=True,
             ),
             Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
             Button("Single Entry", name="type", value="single", cls=ButtonT.link),
@@ -148,8 +148,12 @@ def main_area(*args, active=None):
 
 
 @rt
-def index(sess):
-    last_added_page = sess.get("last_added_page", None)
+def index():
+    revision_data = revisions()
+    last_added_page = revision_data[-1].page_id if revision_data else None
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
+        last_added_page = None
 
     def split_page_range(page_range: str):
         start_page, end_page = (
@@ -265,23 +269,24 @@ def index(sess):
         else:
             is_completed = False
 
+        if is_completed:
+            continue_message = "Completed"
+        elif next_page > 604:
+            continue_message = "No further page"
+        else:
+            continue_message = A(
+                render_page(next_page),
+                href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
+                cls=AT.classic,
+            )
+
         return Tr(
             Td(mode.name if mode else mode_id),
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
-            Td(
-                (
-                    A(
-                        render_page(next_page),
-                        href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
-                        cls=AT.classic,
-                    )
-                    if not is_completed
-                    else "Completed"
-                ),
-            ),
+            Td(continue_message),
         )
 
     overall_table = Div(
@@ -303,7 +308,13 @@ def index(sess):
     )
 
     return main_area(
-        action_buttons(last_added_page),
+        action_buttons(
+            **(
+                {"last_added_page": last_added_page}
+                if last_added_page is not None
+                else {}
+            )
+        ),
         Div(overall_table, Divider(), datewise_table),
         active="Home",
     )
@@ -550,11 +561,13 @@ async def import_specific_table(table: str, file: UploadFile):
     return Redirect(f"/tables/{table}")
 
 
-@app.get
-def revision(sess):
-    last_added_page = sess.get("last_added_page", None)
+# this function is used to create infinite scroll for the revisions table
+def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]:
+    start = (part_num - 1) * size
+    end = start + size
+    data = revisions(order_by="id desc")[start:end]
 
-    def _render_revision(rev):
+    def _render_rows(rev: Revision):
         current_page_quran_data = pages[rev.page_id]
 
         return Tr(
@@ -589,6 +602,22 @@ def revision(sess):
             id=f"revision-{rev.id}",
         )
 
+    paginated = [_render_rows(i) for i in data]
+
+    if len(paginated) == 20:
+        paginated[-1].attrs.update(
+            {
+                "get": f"revision?idx={part_num + 1}",
+                "hx-trigger": "revealed",
+                "hx-swap": "afterend",
+                "hx-select": "tbody > tr",
+            }
+        )
+    return tuple(paginated)
+
+
+@app.get
+def revision(idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -607,12 +636,12 @@ def revision(sess):
                 Th("Action"),
             )
         ),
-        Tbody(*map(_render_revision, revisions(order_by="id desc"))),
+        Tbody(*generate_revision_table_part(part_num=idx)),
     )
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
         Form(
-            action_buttons(last_added_page, source="Revision"),
+            action_buttons(source="Revision"),
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
@@ -650,8 +679,8 @@ def create_revision_form(type):
             *map(_option, users()), label="User Id", name="user_id", cls="hidden"
         ),
         Grid(
-            mode_dropdown(required=True),
-            LabelInput("Plan Id", name="plan_id", type="number", required=True),
+            mode_dropdown(),
+            LabelInput("Plan Id", name="plan_id", type="number"),
         ),
         LabelInput(
             "Revision Date",
@@ -688,6 +717,9 @@ def get(revision_id: int):
 
 @rt("/revision/edit")
 def post(revision_details: Revision):
+    # setting the plan_id to None if it is 0
+    # as it get defaults to 0 if the field is empty.
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     revisions.update(revision_details)
     return Redirect(revision)
 
@@ -815,15 +847,11 @@ def bulk_edit_view(ids: str):
         H1("Bulk Edit Revision"),
         Form(
             Grid(
-                mode_dropdown(
-                    default_mode=first_revision.mode_id,
-                    required=True,
-                ),
+                mode_dropdown(default_mode=first_revision.mode_id),
                 LabelInput(
                     "Plan ID",
                     name="plan_id",
                     type="number",
-                    required=True,
                     value=first_revision.plan_id,
                 ),
             ),
@@ -856,6 +884,7 @@ def bulk_edit_view(ids: str):
 
 @app.post("/revision")
 async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -886,14 +915,23 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(sess, page: str, max_page: int = 605):
+def get(page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
     page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
+
+    try:
+        last_added_record = revisions()[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Titled(
@@ -902,8 +940,8 @@ def get(sess, page: str, max_page: int = 605):
                 create_revision_form("add"),
                 {
                     "page_id": page,
-                    "mode_id": sess.get("last_added_mode_id"),
-                    "plan_id": sess.get("last_added_plan_id"),
+                    "mode_id": defalut_mode_value,
+                    "plan_id": defalut_plan_value,
                 },
             ),
         ),
@@ -912,23 +950,21 @@ def get(sess, page: str, max_page: int = 605):
 
 
 @rt("/revision/add")
-def post(revision_details: Revision, sess):
+def post(revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+
     revisions.insert(revision_details)
 
     page = revision_details.page_id
-    sess["last_added_page"] = page
-    sess["last_added_mode_id"] = revision_details.mode_id
-    sess["last_added_plan_id"] = revision_details.plan_id
 
     return Redirect(f"/revision/add?page={page + 1}")
 
 
 @app.get("/revision/bulk_add")
 def get(
-    sess,
     page: str,
     mode_id: int = None,
     plan_id: int = None,
@@ -943,7 +979,7 @@ def get(
         page = int(page)
 
     if page >= max_page:
-        return Redirect(revision)
+        return Redirect(index)
 
     last_page = page + length
 
@@ -997,25 +1033,29 @@ def get(
     except IndexError:
         user_id = 1
 
+    try:
+        last_added_record = revisions()[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
+
     return main_area(
         H1(
             f"{page} - {pages[page].description} => {last_page - 1} - {pages[last_page - 1].description}"
         ),
         Form(
             Hidden(id="user_id", value=user_id),
-            Hidden(name="last_page", value=last_page),
             Hidden(name="length", value=length),
             Grid(
-                mode_dropdown(
-                    default_mode=(mode_id or sess.get("last_added_mode_id", 1)),
-                    required=True,
-                ),
+                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
                     "Plan ID",
                     name="plan_id",
                     type="number",
-                    required=True,
-                    value=(plan_id or sess.get("last_added_plan_id")),
+                    value=(plan_id or defalut_plan_value),
                 ),
             ),
             LabelInput(
@@ -1040,11 +1080,10 @@ async def post(
     revision_date: str,
     mode_id: int,
     plan_id: int,
-    last_page: int,
     length: int,
-    sess,
     req,
 ):
+    plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
 
     parsed_data = [
@@ -1060,16 +1099,15 @@ async def post(
         if page.startswith("rating-")
     ]
     revisions.insert_all(parsed_data)
-
-    if len(parsed_data) > 0:
-        sess["last_added_page"] = last_page = parsed_data[-1].page_id
-        sess["last_added_mode_id"] = mode_id
-        sess["last_added_plan_id"] = plan_id
+    if parsed_data:
+        last_page = parsed_data[-1].page_id
         # To show the next page
-        last_page += 1
+        next_page = last_page + 1
+    else:
+        return Redirect(index)
 
     return Redirect(
-        f"/revision/bulk_add?page={last_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
     )
 
 
