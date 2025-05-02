@@ -36,8 +36,12 @@ if pages not in tables:
     )
     pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
     pages.insert_all(pages_data)
-if revisions not in tables:
+if users not in tables:
     users.create(id=int, name=str, email=str, password=str, pk="id")
+    # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
+    # as it was currently not handled by session
+    users.insert({"name": "Siraj"})
+if revisions not in tables:
     revisions.create(
         id=int,
         mode_id=int,
