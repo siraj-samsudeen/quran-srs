@@ -245,38 +245,39 @@ def index():
     )
 
     ################### Overall summary ###################
-    qry = f"SELECT DISTINCT mode_id || '-' || plan_id AS combined_value FROM {revisions} ORDER BY combined_value"
+    # Sequential revision table
+    seq_id = "1"
+    qry = f"SELECT plan_id FROM {revisions} WHERE mode_id = {seq_id} ORDER BY revision_date DESC"
     result = db.q(qry)
-    unique_mode_and_plan_id = [i["combined_value"] for i in result]
-
-    # To get the unique page ranges for the combination of mode and plan_id
+    seq_plan_ids = [i["plan_id"] for i in result]
+    # when using the `DISTINCT` keyword in the query the original order of the rows is not preserved
+    # so we need to use the `dict.fromkeys` method to remove the duplicates which preserves the order
+    unique_seq_plan_id = list(dict.fromkeys(seq_plan_ids))
+    # To get the unique page ranges for the plan_id
     unique_page_ranges = []
-    for mp in unique_mode_and_plan_id:
-        if not mp:
+    for plan_id in unique_seq_plan_id:
+        if not plan_id:
             continue
-        mode_id, plan_id = mp.split("-")
         pages_list = sorted(
             [
                 r.page_id
                 for r in revisions(
-                    where=f"mode_id = '{mode_id}' AND plan_id = '{plan_id}'"
+                    where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
             ]
         )
         for p in compact_format(pages_list).split(", "):
-            unique_page_ranges.append(
-                {"mode_id": mode_id, "plan_id": plan_id, "page_range": p}
-            )
+            unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
-        plan_id, mode_id, page_range = o["plan_id"], o["mode_id"], o["page_range"]
+        plan_id, page_range = o["plan_id"], o["page_range"]
         if not page_range:
             return None
 
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
-        current_plan = plans(where=f"id = '{plan_id}' AND mode_id = '{mode_id}'")
+        current_plan = plans(where=f"id = '{plan_id}' AND mode_id = '{seq_id}'")
         if current_plan:
             is_completed = current_plan[0].completed
         else:
@@ -289,7 +290,7 @@ def index():
         else:
             continue_message = A(
                 render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={mode_id}&plan_id={plan_id}",
+                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
                 cls=AT.classic,
             )
 
