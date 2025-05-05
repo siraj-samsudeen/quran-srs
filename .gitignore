@@ -145,3 +145,8 @@ issues.xlsx
 # ignore virtual environment files
 .venv/
 venv/
+
+#  ignore test files and folders
+node_modules/
+playwright-report/
+test-results/

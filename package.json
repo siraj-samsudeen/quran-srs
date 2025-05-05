@@ -1,0 +1,25 @@
+{
+  "name": "quran-srs",
+  "version": "1.0.0",
+  "description": "An attempt to use the concept of Spaced Repetition System (SRS) to make the memorization and revision of Quran easier.",
+  "main": "script.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zaseem-BIsquared/quran-srs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Zaseem-BIsquared/quran-srs/issues"
+  },
+  "homepage": "https://github.com/Zaseem-BIsquared/quran-srs#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.14.1"
+  }
+}
