@@ -276,8 +276,6 @@ def index():
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
-        mode = modes[mode_id]
-
         current_plan = plans(where=f"id = '{plan_id}' AND mode_id = '{mode_id}'")
         if current_plan:
             is_completed = current_plan[0].completed
@@ -296,7 +294,6 @@ def index():
             )
 
         return Tr(
-            Td(mode.name if mode else mode_id),
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
             Td(render_page(start_page)),
@@ -305,11 +302,10 @@ def index():
         )
 
     overall_table = Div(
-        # H1("Overall summary"),
+        H4("Sequential Revision Round"),
         Table(
             Thead(
                 Tr(
-                    Th("Mode"),
                     Th("Plan Id"),
                     Th("Range"),
                     Th("Start"),
