@@ -290,7 +290,7 @@ def index():
         else:
             continue_message = A(
                 render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
+                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}&hide_id_fields=true",
                 cls=AT.classic,
             )
 
@@ -983,6 +983,7 @@ def get(
     revision_date: str = None,
     length: int = 5,
     max_page: int = 605,
+    hide_id_fields: bool = False,
 ):
 
     if "." in page:
@@ -1069,6 +1070,8 @@ def get(
                     type="number",
                     value=(plan_id or defalut_plan_value),
                 ),
+                # To hide the id fields on the when navigating through continue link
+                **({"cls": "hidden"} if hide_id_fields else {}),
             ),
             LabelInput(
                 "Revision Date",
