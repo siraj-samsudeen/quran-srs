@@ -86,6 +86,7 @@ def mode_dropdown(default_mode=1):
         map(mk_options, modes()),
         label="Mode Id",
         name="mode_id",
+        select_kwargs={"name": "mode_id"},
     )
 
 
