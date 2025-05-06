@@ -180,7 +180,10 @@ def index():
 
     def render_page(page):
         page_data = pages[page]
-        return Span(Span(page, cls=TextPresets.bold_sm), f" - {page_data.description}")
+        return Span(
+            Span(page, cls=TextPresets.bold_sm),
+            f" - {page_data.description or page_data.surah}",
+        )
 
     ################### Datewise summary ###################
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
@@ -948,9 +951,10 @@ def get(page: str, max_page: int = 605):
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
+    current_page_details = pages[page]
     return main_area(
         Titled(
-            f"{page} - {pages[page].description} - {pages[page].start}",
+            f"{page} - {current_page_details.description or current_page_details.surah} - {current_page_details.start}",
             fill_form(
                 create_revision_form("add"),
                 {
@@ -1016,10 +1020,11 @@ def get(
                 cls="space-x-2",
             )
 
+        current_page_details = pages[current_page]
         return Tr(
             Td(P(current_page)),
-            Td(pages[current_page].description),
-            Td(pages[current_page].start),
+            Td(current_page_details.description or current_page_details.surah),
+            Td(P(current_page_details.start, cls=(TextT.xl))),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -1057,10 +1062,13 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
+    start_page_details = pages[page]
+    end_page_details = pages[last_page - 1]
+
+    start_description = start_page_details.description or start_page_details.surah
+    end_description = end_page_details.description or end_page_details.surah
     return main_area(
-        H1(
-            f"{page} - {pages[page].description} => {last_page - 1} - {pages[last_page - 1].description}"
-        ),
+        H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
         Form(
             Hidden(id="user_id", value=user_id),
             Hidden(name="length", value=length),
