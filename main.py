@@ -1024,7 +1024,7 @@ def get(
         return Tr(
             Td(P(current_page)),
             Td(current_page_details.description or current_page_details.surah),
-            Td(current_page_details.start),
+            Td(P(current_page_details.start, cls=(TextT.xl))),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
