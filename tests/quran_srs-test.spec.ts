@@ -195,8 +195,10 @@ test('continue_with_bulk_add', async ({ page }) => {
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
-  expect(page.url()).toContain("http://localhost:5001/revision/bulk_add?page=");
+  expect(page.url()).toContain("mode_id=1");
+  expect(page.url()).toContain("plan_id=1");
   await page.getByRole('button', { name: 'Cancel' }).click();
+  expect(page.url()).toContain("http://localhost:5001/revision/bulk_add?page=61" );
   await expect(page.getByRole('link', { name: '61 - Juz 3 End' })).toBeVisible();
   await expect(page).toHaveURL("http://localhost:5001/");
 });
