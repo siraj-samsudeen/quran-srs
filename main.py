@@ -64,7 +64,19 @@ hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
+
+
+def before(req, sess):
+    auth = req.scope["auth"] = sess.get("auth", None)
+    if not auth:
+        return RedirectResponse("/user_selection", status_code=303)
+    revisions.xtra(user_id=auth)
+
+
+bware = Beforeware(before, skip=["/user_selection"])
+
 app, rt = fast_app(
+    before=bware,
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
@@ -144,8 +156,44 @@ def action_buttons(last_added_page=1, source="Home"):
     )
 
 
-def main_area(*args, active=None):
+@app.get("/user_selection")
+def user_selection(sess):
+    auth = sess.get("auth", "None")
+    return main_area(
+        LabelSelect(
+            *[
+                Option(
+                    user.name,
+                    value=user.id,
+                    selected=user.id == auth,
+                )
+                for user in users()
+            ],
+            label="Select User",
+            id="current_user_id",
+            hx_post="/user_selection",
+            hx_trigger="change",
+            hx_target="body",
+            hx_replace_url="true",
+        ),
+        auth=auth,
+    )
+
+
+@app.post("/user_selection")
+def change_usesr(current_user_id: int, sess):
+    sess["auth"] = current_user_id
+    return RedirectResponse("/", status_code=303)
+
+
+def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
+    title = A("Quran SRS", href=index)
+    user_name = A(
+        f"{users.get(auth).name if auth != "None" else "Select User"}",
+        href="/user_selection",
+        method="GET",
+    )
     return Title("Quran SRS"), Container(
         Div(
             NavBar(
@@ -153,18 +201,19 @@ def main_area(*args, active=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3(A("Quran SRS", href=index)),
+                brand=H3(title, Span(" - "), user_name),
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
         ),
         Main(*args, cls="p-4", id="main") if args else None,
         cls=ContainerT.xl,
+        auth=auth,
     )
 
 
 @rt
-def index():
+def index(auth):
     revision_data = revisions()
     last_added_page = revision_data[-1].page_id if revision_data else None
     # if it is greater than 604, we are reseting the last added page to None
@@ -333,11 +382,12 @@ def index():
         ),
         Div(overall_table, Divider(), datewise_table),
         active="Home",
+        auth=auth,
     )
 
 
 @app.get("/tables")
-def list_tables():
+def list_tables(auth):
     tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
     return main_area(
         Div(
@@ -350,11 +400,12 @@ def list_tables():
             ),
         ),
         active="Tables",
+        auth=auth,
     )
 
 
 @app.get("/tables/{table}")
-def view_table(table: str):
+def view_table(table: str, auth):
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
 
@@ -420,6 +471,7 @@ def view_table(table: str):
             cls="space-y-3",
         ),
         active="Tables",
+        auth=auth,
     )
 
 
@@ -461,7 +513,7 @@ def create_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int):
+def edit_record_view(table: str, record_id: int, auth):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -474,7 +526,9 @@ def edit_record_view(table: str, record_id: int):
     form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
 
     return main_area(
-        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="Tables"
+        Titled(f"Edit page - {table}", fill_form(form, current_data)),
+        active="Tables",
+        auth=auth,
     )
 
 
@@ -498,7 +552,7 @@ def delete_record(table: str, record_id: int):
 
 
 @app.get("/tables/{table}/new")
-def new_record_view(table: str):
+def new_record_view(table: str, auth):
     column_with_types = get_column_and_its_type(table)
     return main_area(
         Titled(
@@ -506,6 +560,7 @@ def new_record_view(table: str):
             create_input_form(column_with_types, hx_post=f"/tables/{table}"),
         ),
         active="Tables",
+        auth=auth,
     )
 
 
@@ -534,7 +589,7 @@ def export_specific_table(table: str):
 
 
 @app.get("/tables/{table}/import")
-def import_specific_table_view(table: str):
+def import_specific_table_view(table: str, auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -560,6 +615,7 @@ def import_specific_table_view(table: str):
             cls="space-y-4",
         ),
         active="Tables",
+        auth=auth,
     )
 
 
@@ -633,7 +689,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
 
 @app.get
-def revision(idx: int | None = 1):
+def revision(auth, idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -661,6 +717,7 @@ def revision(idx: int | None = 1):
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -721,13 +778,15 @@ def create_revision_form(type):
 
 
 @rt("/revision/edit/{revision_id}")
-def get(revision_id: int):
+def get(revision_id: int, auth):
     current_revision = revisions[revision_id]
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision.rating = str(current_revision.rating)
     form = create_revision_form("edit")
     return main_area(
-        Titled("Edit Revision", fill_form(form, current_revision)), active="Revision"
+        Titled("Edit Revision", fill_form(form, current_revision)),
+        active="Revision",
+        auth=auth,
     )
 
 
@@ -759,7 +818,7 @@ def bulk_edit_redirect(ids: List[str]):
 
 
 @app.get("/revision/bulk_edit")
-def bulk_edit_view(ids: str):
+def bulk_edit_view(ids: str, auth):
     ids = ids.split(",")
 
     # Get the default values from the first selected revision
@@ -895,6 +954,7 @@ def bulk_edit_view(ids: str):
             method="POST",
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -931,7 +991,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(page: str, max_page: int = 605):
+def get(auth, page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
@@ -963,6 +1023,7 @@ def get(page: str, max_page: int = 605):
             ),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -982,6 +1043,7 @@ def post(revision_details: Revision):
 
 @app.get("/revision/bulk_add")
 def get(
+    auth,
     page: str,
     mode_id: int = None,
     plan_id: int = None,
@@ -1095,6 +1157,7 @@ def get(
         ),
         Script(src="/script.js"),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -1136,7 +1199,7 @@ async def post(
 
 
 @app.get
-def import_csv():
+def import_csv(auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -1147,7 +1210,7 @@ def import_csv():
         action=import_csv,
         method="POST",
     )
-    return main_area(Titled("Upload CSV", form), active="Revision")
+    return main_area(Titled("Upload CSV", form), active="Revision", auth=auth)
 
 
 @app.post
@@ -1186,7 +1249,7 @@ def backup():
 
 
 @app.get
-def import_db():
+def import_db(auth):
     current_dbs = [
         Li(f, cls=ListT.circle) for f in os.listdir("data") if f.endswith(".db")
     ]
@@ -1207,6 +1270,7 @@ def import_db():
             cls="space-y-6",
         ),
         active="Revision",
+        auth=auth,
     )
 
 
