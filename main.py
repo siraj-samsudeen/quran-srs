@@ -163,6 +163,36 @@ def main_area(*args, active=None):
     )
 
 
+def tables_main_area(*args, active_table=None):
+    is_active = lambda x: "uk-active" if x == active_table else None
+
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    table_links = [
+        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
+        for t in tables_list
+    ]
+
+    side_nav = NavContainer(
+        NavParentLi(
+            H4("Tables", cls="pl-4"),
+            NavContainer(*table_links, parent=False),
+        )
+    )
+
+    return main_area(
+        Div(
+            Div(side_nav, cls="flex-1 p-2"),
+            (
+                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
+                if args
+                else None
+            ),
+            cls=(FlexT.block, FlexT.wrap),
+        ),
+        active="Tables",
+    )
+
+
 @rt
 def index():
     revision_data = revisions()
@@ -338,19 +368,7 @@ def index():
 
 @app.get("/tables")
 def list_tables():
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
-    return main_area(
-        Div(
-            H1("Tables"),
-            Ul(
-                *[
-                    Li(A(t, href=f"/tables/{t}", cls=AT.classic), cls=ListT.bullet)
-                    for t in tables_list
-                ]
-            ),
-        ),
-        active="Tables",
-    )
+    return tables_main_area()
 
 
 @app.get("/tables/{table}")
@@ -389,9 +407,8 @@ def view_table(table: str):
         Thead(Tr(*map(Th, columns), Th("Action"))),
         Tbody(*map(_render_rows, records)),
     )
-    return main_area(
+    return tables_main_area(
         Div(
-            H2(f"Table: {table}"),
             DivFullySpaced(
                 DivLAligned(
                     A(
@@ -419,11 +436,11 @@ def view_table(table: str):
             Div(table_element, cls="uk-overflow-auto"),
             cls="space-y-3",
         ),
-        active="Tables",
+        active_table=table,
     )
 
 
-def create_input_form(schema: dict, **kwargs):
+def create_dynamic_input_form(schema: dict, **kwargs):
     input_types_map = {"int": "number", "str": "text", "date": "date"}
 
     def create_input_field(o: dict):
@@ -471,10 +488,13 @@ def edit_record_view(table: str, record_id: int):
         current_data.completed = str(current_data.completed)
 
     column_with_types = get_column_and_its_type(table)
-    form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
+    form = create_dynamic_input_form(
+        column_with_types, hx_put=f"/tables/{table}/{record_id}"
+    )
 
-    return main_area(
-        Titled(f"Edit page - {table}", fill_form(form, current_data)), active="Tables"
+    return tables_main_area(
+        Titled(f"Edit page", fill_form(form, current_data)),
+        active_table=table,
     )
 
 
@@ -500,12 +520,12 @@ def delete_record(table: str, record_id: int):
 @app.get("/tables/{table}/new")
 def new_record_view(table: str):
     column_with_types = get_column_and_its_type(table)
-    return main_area(
+    return tables_main_area(
         Titled(
-            f"Add page - {table}",
-            create_input_form(column_with_types, hx_post=f"/tables/{table}"),
+            f"Add page",
+            create_dynamic_input_form(column_with_types, hx_post=f"/tables/{table}"),
         ),
-        active="Tables",
+        active_table=table,
     )
 
 
@@ -547,9 +567,9 @@ def import_specific_table_view(table: str):
         action=f"/tables/{table}/import",
         method="POST",
     )
-    return main_area(
+    return tables_main_area(
         Titled(
-            f"Upload CSV: {table}",
+            f"Upload CSV",
             P(
                 f"CSV should contain these columns: ",
                 Span(
@@ -559,7 +579,7 @@ def import_specific_table_view(table: str):
             form,
             cls="space-y-4",
         ),
-        active="Tables",
+        active_table=table,
     )
 
 
