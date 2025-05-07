@@ -562,7 +562,17 @@ def import_specific_table_view(table: str):
             accept="text/csv",
         ),
         DivFullySpaced(
-            Button("Submit"), Button("Cancel", type="button", onclick="history.back()")
+            Button("Submit"),
+            Button(
+                "Preview",
+                type="button",
+                hx_post=f"/tables/{table}/import/preview",
+                hx_include="#file",
+                hx_encoding="multipart/form-data",
+                target_id="preview_table",
+                hx_push_url="false",
+            ),
+            Button("Cancel", type="button", onclick="history.back()"),
         ),
         action=f"/tables/{table}/import",
         method="POST",
@@ -571,16 +581,43 @@ def import_specific_table_view(table: str):
         Titled(
             f"Upload CSV",
             P(
-                f"CSV should contain these columns: ",
+                f"CSV should contain only these columns: ",
                 Span(
                     " ,".join(get_column_headers(table)), cls=TextPresets.md_weight_sm
                 ),
             ),
             form,
+            Div(id="preview_table"),
             cls="space-y-4",
         ),
         active_table=table,
     )
+
+
+@app.post("/tables/{table}/import/preview")
+async def import_specific_table_preview(table: str, file: UploadFile):
+    file_content = await file.read()
+    imported_df = pd.read_csv(BytesIO(file_content)).fillna("")
+    columns = imported_df.columns.tolist()
+    records = imported_df.to_dict(orient="records")
+
+    # Check if the columns match the table's columns
+    if sorted(columns) != sorted(get_column_headers(table)):
+        return Div(
+            H3("Filename: ", file.filename),
+            P("Please check the columns in the CSV file", cls="text-red-500"),
+        )
+
+    def _render_rows(data: dict):
+        return Tr(
+            *map(lambda col: Td(data[col]), columns),
+        )
+
+    preview_table = Table(
+        Thead(Tr(*map(Th, columns))),
+        Tbody(*map(_render_rows, records)),
+    )
+    return Div(H3("Filename: ", file.filename), Div(preview_table))
 
 
 @app.post("/tables/{table}/import")
