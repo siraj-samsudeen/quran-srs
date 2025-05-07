@@ -183,6 +183,8 @@ test('continue_with_bulk_add', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('55');
   await page.getByRole('button', { name: 'Single Entry' }).click();
+  await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
+  await page.locator('uk-select[name="mode_id"]  >> a').filter({ hasText: 'SEQ' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -192,8 +194,6 @@ test('continue_with_bulk_add', async ({ page }) => {
   //enable continue with bulk add
   await expect(page.getByText('56 - 3 Aal-e-Imran')).toBeVisible();
   await page.getByRole('link', { name: '56 - 3 Aal-e-Imran' }).click();
-  await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
-  await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
   expect(page.url()).toContain("mode_id=1");
   expect(page.url()).toContain("plan_id=1");
