@@ -152,3 +152,21 @@ test('modes_export_import', async ({ page }) => {
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
   await expect(page).toHaveURL("http://localhost:5001/tables");
 });
+
+test('preview_import', async ({ page }) => {  
+  // Recording...
+  await page.goto('http://localhost:5001/tables');
+  await page.getByRole('link', { name: 'modes' }).click();;
+  await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import' }).click();
+  await page.getByRole('button', { name: 'Choose File' }).click();
+  await page.getByRole('button', { name: 'Choose File' }).setInputFiles('tests\\mode_import_for_test.csv');
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await expect(page.getByRole('heading', { name: 'Filename:' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Imported file - Done' })).toBeVisible();
+  await page.getByRole('button', { name: 'Choose File' }).click();
+  await page.getByRole('button', { name: 'Choose File' }).setInputFiles('tests\\incorrect_mode_for_test.csv');
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await expect(page.getByText('Please check the columns in')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Filename:' })).toBeVisible();
+});
