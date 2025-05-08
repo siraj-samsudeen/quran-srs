@@ -301,6 +301,36 @@ def main_area(*args, active=None, auth=None):
         ),
         Main(*args, cls="p-4", id="main") if args else None,
         cls=ContainerT.xl,
+    )
+
+
+def tables_main_area(*args, active_table=None, auth=None):
+    is_active = lambda x: "uk-active" if x == active_table else None
+
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    table_links = [
+        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
+        for t in tables_list
+    ]
+
+    side_nav = NavContainer(
+        NavParentLi(
+            H4("Tables", cls="pl-4"),
+            NavContainer(*table_links, parent=False),
+        )
+    )
+
+    return main_area(
+        Div(
+            Div(side_nav, cls="flex-1 p-2"),
+            (
+                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
+                if args
+                else None
+            ),
+            cls=(FlexT.block, FlexT.wrap),
+        ),
+        active="Tables",
         auth=auth,
     )
 
@@ -404,20 +434,7 @@ def index(auth):
 
 @app.get("/tables")
 def list_tables(auth):
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
-    return main_area(
-        Div(
-            H1("Tables"),
-            Ul(
-                *[
-                    Li(A(t, href=f"/tables/{t}", cls=AT.classic), cls=ListT.bullet)
-                    for t in tables_list
-                ]
-            ),
-        ),
-        active="Tables",
-        auth=auth,
-    )
+    return tables_main_area(auth=auth)
 
 
 @app.get("/tables/{table}")
@@ -456,9 +473,8 @@ def view_table(table: str, auth):
         Thead(Tr(*map(Th, columns), Th("Action"))),
         Tbody(*map(_render_rows, records)),
     )
-    return main_area(
+    return tables_main_area(
         Div(
-            H2(f"Table: {table}"),
             DivFullySpaced(
                 DivLAligned(
                     A(
@@ -486,12 +502,12 @@ def view_table(table: str, auth):
             Div(table_element, cls="uk-overflow-auto"),
             cls="space-y-3",
         ),
-        active="Tables",
+        active_table=table,
         auth=auth,
     )
 
 
-def create_input_form(schema: dict, **kwargs):
+def create_dynamic_input_form(schema: dict, **kwargs):
     input_types_map = {"int": "number", "str": "text", "date": "date"}
 
     def create_input_field(o: dict):
@@ -539,11 +555,13 @@ def edit_record_view(table: str, record_id: int, auth):
         current_data.completed = str(current_data.completed)
 
     column_with_types = get_column_and_its_type(table)
-    form = create_input_form(column_with_types, hx_put=f"/tables/{table}/{record_id}")
+    form = create_dynamic_input_form(
+        column_with_types, hx_put=f"/tables/{table}/{record_id}"
+    )
 
-    return main_area(
-        Titled(f"Edit page - {table}", fill_form(form, current_data)),
-        active="Tables",
+    return tables_main_area(
+        Titled(f"Edit page", fill_form(form, current_data)),
+        active_table=table,
         auth=auth,
     )
 
@@ -570,12 +588,12 @@ def delete_record(table: str, record_id: int):
 @app.get("/tables/{table}/new")
 def new_record_view(table: str, auth):
     column_with_types = get_column_and_its_type(table)
-    return main_area(
+    return tables_main_area(
         Titled(
-            f"Add page - {table}",
-            create_input_form(column_with_types, hx_post=f"/tables/{table}"),
+            f"Add page",
+            create_dynamic_input_form(column_with_types, hx_post=f"/tables/{table}"),
         ),
-        active="Tables",
+        active_table=table,
         auth=auth,
     )
 
@@ -596,11 +614,12 @@ def export_specific_table(table: str):
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
 
-    file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
+    # file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
+    file_name = f"{table}.csv"
     return StreamingResponse(
         csv_buffer,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
+        headers={"Content-Disposition": f"attachment; filename={file_name}"},
     )
 
 
@@ -613,26 +632,63 @@ def import_specific_table_view(table: str, auth):
             accept="text/csv",
         ),
         DivFullySpaced(
-            Button("Submit"), Button("Cancel", type="button", onclick="history.back()")
+            Button("Submit"),
+            Button(
+                "Preview",
+                type="button",
+                hx_post=f"/tables/{table}/import/preview",
+                hx_include="#file",
+                hx_encoding="multipart/form-data",
+                target_id="preview_table",
+                hx_push_url="false",
+            ),
+            Button("Cancel", type="button", onclick="history.back()"),
         ),
         action=f"/tables/{table}/import",
         method="POST",
     )
-    return main_area(
+    return tables_main_area(
         Titled(
-            f"Upload CSV: {table}",
+            f"Upload CSV",
             P(
-                f"CSV should contain these columns: ",
+                f"CSV should contain only these columns: ",
                 Span(
                     " ,".join(get_column_headers(table)), cls=TextPresets.md_weight_sm
                 ),
             ),
             form,
+            Div(id="preview_table"),
             cls="space-y-4",
         ),
-        active="Tables",
+        active_table=table,
         auth=auth,
     )
+
+
+@app.post("/tables/{table}/import/preview")
+async def import_specific_table_preview(table: str, file: UploadFile):
+    file_content = await file.read()
+    imported_df = pd.read_csv(BytesIO(file_content)).fillna("")
+    columns = imported_df.columns.tolist()
+    records = imported_df.to_dict(orient="records")
+
+    # Check if the columns match the table's columns
+    if sorted(columns) != sorted(get_column_headers(table)):
+        return Div(
+            H3("Filename: ", file.filename),
+            P("Please check the columns in the CSV file", cls="text-red-500"),
+        )
+
+    def _render_rows(data: dict):
+        return Tr(
+            *map(lambda col: Td(data[col]), columns),
+        )
+
+    preview_table = Table(
+        Thead(Tr(*map(Th, columns))),
+        Tbody(*map(_render_rows, records)),
+    )
+    return Div(H3("Filename: ", file.filename), Div(preview_table))
 
 
 @app.post("/tables/{table}/import")
