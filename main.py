@@ -174,12 +174,8 @@ def render_page(page):
 
 
 def datewise_summary_table(show=None, user_id=None):
-
-    qry = (
-        f"SELECT MIN(revision_date) AS earliest_date FROM {revisions} WHERE user_id = {user_id}"
-        if user_id
-        else f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
-    )
+    qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
+    qry = (qry + f" WHERE user_id = {user_id}") if user_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -191,10 +187,9 @@ def datewise_summary_table(show=None, user_id=None):
     date_range = date_range[:show] if show else date_range
 
     def _render_datewise_row(date):
-        revisions_query = (
-            revisions(where=f"revision_date = '{date}' AND user_id = {user_id}")
-            if user_id
-            else revisions(where=f"revision_date = '{date}'")
+        rev_query = f"revision_date = '{date}'"
+        revisions_query = revisions(
+            where=rev_query + f"AND user_id = {user_id}" if user_id else rev_query
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
         pages_list = sorted([r["page_id"] for r in current_date_revisions])
