@@ -545,11 +545,12 @@ def export_specific_table(table: str):
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
 
-    file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
+    # file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
+    file_name = f"{table}.csv"
     return StreamingResponse(
         csv_buffer,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
+        headers={"Content-Disposition": f"attachment; filename={file_name}"},
     )
 
 
