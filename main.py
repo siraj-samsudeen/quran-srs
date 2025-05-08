@@ -261,6 +261,8 @@ def render_user_card(user, auth):
 
 @app.get("/user_selection")
 def user_selection(sess):
+    # In beforeware we are adding the user_id filter using xtra
+    # we have to reset that xtra attribute in order to show revisions for all users
     revisions.xtra()
     auth = sess.get("auth", None)
     cards = [render_user_card(user, auth) for user in users()]
@@ -281,7 +283,7 @@ def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
     user_name = A(
-        f"{users.get(auth).name if auth is not None else "Select User"}",
+        f"{users[auth].name if auth is not None else "Select User"}",
         href="/user_selection",
         method="GET",
     )
