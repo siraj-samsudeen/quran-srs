@@ -64,7 +64,19 @@ hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
+
+
+def before(req, sess):
+    auth = req.scope["auth"] = sess.get("auth", None)
+    if not auth:
+        return RedirectResponse("/user_selection", status_code=303)
+    revisions.xtra(user_id=auth)
+
+
+bware = Beforeware(before, skip=["/user_selection"])
+
 app, rt = fast_app(
+    before=bware,
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
@@ -144,80 +156,26 @@ def action_buttons(last_added_page=1, source="Home"):
     )
 
 
-def main_area(*args, active=None):
-    is_active = lambda x: AT.primary if x == active else None
-    return Title("Quran SRS"), Container(
-        Div(
-            NavBar(
-                A("Home", href=index, cls=is_active("Home")),
-                A("Revision", href=revision, cls=is_active("Revision")),
-                A("Tables", href="/tables", cls=is_active("Tables")),
-                # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3(A("Quran SRS", href=index)),
-            ),
-            DividerLine(y_space=0),
-            cls="bg-white sticky top-0 z-10",
-        ),
-        Main(*args, cls="p-4", id="main") if args else None,
-        cls=ContainerT.xl,
+def split_page_range(page_range: str):
+    start_page, end_page = (
+        page_range.split("-") if "-" in page_range else [page_range, None]
+    )
+    start_page = int(start_page)
+    end_page = int(end_page) if end_page else None
+    return start_page, end_page
+
+
+def render_page(page):
+    page_data = pages[page]
+    return Span(
+        Span(page, cls=TextPresets.bold_sm),
+        f" - {page_data.description or page_data.surah}",
     )
 
 
-def tables_main_area(*args, active_table=None):
-    is_active = lambda x: "uk-active" if x == active_table else None
-
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
-    table_links = [
-        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
-        for t in tables_list
-    ]
-
-    side_nav = NavContainer(
-        NavParentLi(
-            H4("Tables", cls="pl-4"),
-            NavContainer(*table_links, parent=False),
-        )
-    )
-
-    return main_area(
-        Div(
-            Div(side_nav, cls="flex-1 p-2"),
-            (
-                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
-                if args
-                else None
-            ),
-            cls=(FlexT.block, FlexT.wrap),
-        ),
-        active="Tables",
-    )
-
-
-@rt
-def index():
-    revision_data = revisions()
-    last_added_page = revision_data[-1].page_id if revision_data else None
-    # if it is greater than 604, we are reseting the last added page to None
-    if isinstance(last_added_page, int) and last_added_page >= 604:
-        last_added_page = None
-
-    def split_page_range(page_range: str):
-        start_page, end_page = (
-            page_range.split("-") if "-" in page_range else [page_range, None]
-        )
-        start_page = int(start_page)
-        end_page = int(end_page) if end_page else None
-        return start_page, end_page
-
-    def render_page(page):
-        page_data = pages[page]
-        return Span(
-            Span(page, cls=TextPresets.bold_sm),
-            f" - {page_data.description or page_data.surah}",
-        )
-
-    ################### Datewise summary ###################
+def datewise_summary_table(show=None, user_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
+    qry = (qry + f" WHERE user_id = {user_id}") if user_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -226,11 +184,14 @@ def index():
         start=(earliest_date or current_date), end=current_date, freq="D"
     )
     date_range = [date.strftime("%Y-%m-%d") for date in date_range][::-1]
+    date_range = date_range[:show] if show else date_range
 
     def _render_datewise_row(date):
-        current_date_revisions = [
-            r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
-        ]
+        rev_query = f"revision_date = '{date}'"
+        revisions_query = revisions(
+            where=rev_query + f"AND user_id = {user_id}" if user_id else rev_query
+        )
+        current_date_revisions = [r.__dict__ for r in revisions_query]
         pages_list = sorted([r["page_id"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
@@ -277,6 +238,110 @@ def index():
         ),
         cls="uk-overflow-auto",
     )
+    return datewise_table
+
+
+def render_user_card(user, auth):
+    is_current_user = auth != user.id
+    return Card(
+        (Subtitle("last 3 revision")(datewise_summary_table(show=3, user_id=user.id)),),
+        header=DivFullySpaced(H3(user.name)),
+        footer=Button(
+            "Switch User" if is_current_user else "Go to home",
+            name="current_user_id",
+            value=user.id,
+            hx_post="/user_selection",
+            hx_target="body",
+            hx_replace_url="true",
+            cls=(ButtonT.primary if is_current_user else ButtonT.secondary),
+        ),
+        cls="min-w-[300px] max-w-[400px]",
+    )
+
+
+@app.get("/user_selection")
+def user_selection(sess):
+    # In beforeware we are adding the user_id filter using xtra
+    # we have to reset that xtra attribute in order to show revisions for all users
+    revisions.xtra()
+    auth = sess.get("auth", None)
+    cards = [render_user_card(user, auth) for user in users()]
+    return main_area(
+        H5("Select User"),
+        Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+        auth=auth,
+    )
+
+
+@app.post("/user_selection")
+def change_usesr(current_user_id: int, sess):
+    sess["auth"] = current_user_id
+    return RedirectResponse("/", status_code=303)
+
+
+def main_area(*args, active=None, auth=None):
+    is_active = lambda x: AT.primary if x == active else None
+    title = A("Quran SRS", href=index)
+    user_name = A(
+        f"{users[auth].name if auth is not None else "Select User"}",
+        href="/user_selection",
+        method="GET",
+    )
+    return Title("Quran SRS"), Container(
+        Div(
+            NavBar(
+                A("Home", href=index, cls=is_active("Home")),
+                A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
+                # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
+                brand=H3(title, Span(" - "), user_name),
+            ),
+            DividerLine(y_space=0),
+            cls="bg-white sticky top-0 z-10",
+        ),
+        Main(*args, cls="p-4", id="main") if args else None,
+        cls=ContainerT.xl,
+    )
+
+
+def tables_main_area(*args, active_table=None, auth=None):
+    is_active = lambda x: "uk-active" if x == active_table else None
+
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    table_links = [
+        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
+        for t in tables_list
+    ]
+
+    side_nav = NavContainer(
+        NavParentLi(
+            H4("Tables", cls="pl-4"),
+            NavContainer(*table_links, parent=False),
+        )
+    )
+
+    return main_area(
+        Div(
+            Div(side_nav, cls="flex-1 p-2"),
+            (
+                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
+                if args
+                else None
+            ),
+            cls=(FlexT.block, FlexT.wrap),
+        ),
+        active="Tables",
+        auth=auth,
+    )
+
+
+@rt
+def index(auth):
+    revision_data = revisions()
+    last_added_page = revision_data[-1].page_id if revision_data else None
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
+        last_added_page = None
 
     ################### Overall summary ###################
     # Sequential revision table
@@ -361,18 +426,19 @@ def index():
                 else {}
             )
         ),
-        Div(overall_table, Divider(), datewise_table),
+        Div(overall_table, Divider(), datewise_summary_table()),
         active="Home",
+        auth=auth,
     )
 
 
 @app.get("/tables")
-def list_tables():
-    return tables_main_area()
+def list_tables(auth):
+    return tables_main_area(auth=auth)
 
 
 @app.get("/tables/{table}")
-def view_table(table: str):
+def view_table(table: str, auth):
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
 
@@ -437,6 +503,7 @@ def view_table(table: str):
             cls="space-y-3",
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -478,7 +545,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int):
+def edit_record_view(table: str, record_id: int, auth):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -495,6 +562,7 @@ def edit_record_view(table: str, record_id: int):
     return tables_main_area(
         Titled(f"Edit page", fill_form(form, current_data)),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -518,7 +586,7 @@ def delete_record(table: str, record_id: int):
 
 
 @app.get("/tables/{table}/new")
-def new_record_view(table: str):
+def new_record_view(table: str, auth):
     column_with_types = get_column_and_its_type(table)
     return tables_main_area(
         Titled(
@@ -526,6 +594,7 @@ def new_record_view(table: str):
             create_dynamic_input_form(column_with_types, hx_post=f"/tables/{table}"),
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -555,7 +624,7 @@ def export_specific_table(table: str):
 
 
 @app.get("/tables/{table}/import")
-def import_specific_table_view(table: str):
+def import_specific_table_view(table: str, auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -592,6 +661,7 @@ def import_specific_table_view(table: str):
             cls="space-y-4",
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -691,7 +761,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
 
 @app.get
-def revision(idx: int | None = 1):
+def revision(auth, idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -719,6 +789,7 @@ def revision(idx: int | None = 1):
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -779,13 +850,15 @@ def create_revision_form(type):
 
 
 @rt("/revision/edit/{revision_id}")
-def get(revision_id: int):
+def get(revision_id: int, auth):
     current_revision = revisions[revision_id]
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision.rating = str(current_revision.rating)
     form = create_revision_form("edit")
     return main_area(
-        Titled("Edit Revision", fill_form(form, current_revision)), active="Revision"
+        Titled("Edit Revision", fill_form(form, current_revision)),
+        active="Revision",
+        auth=auth,
     )
 
 
@@ -817,7 +890,7 @@ def bulk_edit_redirect(ids: List[str]):
 
 
 @app.get("/revision/bulk_edit")
-def bulk_edit_view(ids: str):
+def bulk_edit_view(ids: str, auth):
     ids = ids.split(",")
 
     # Get the default values from the first selected revision
@@ -953,6 +1026,7 @@ def bulk_edit_view(ids: str):
             method="POST",
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -989,7 +1063,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(page: str, max_page: int = 605):
+def get(auth, page: str, max_page: int = 605):
     if "." in page:
         page = page.split(".")[0]
 
@@ -1021,6 +1095,7 @@ def get(page: str, max_page: int = 605):
             ),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -1040,6 +1115,7 @@ def post(revision_details: Revision):
 
 @app.get("/revision/bulk_add")
 def get(
+    auth,
     page: str,
     mode_id: int = None,
     plan_id: int = None,
@@ -1153,6 +1229,7 @@ def get(
         ),
         Script(src="/script.js"),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -1194,7 +1271,7 @@ async def post(
 
 
 @app.get
-def import_csv():
+def import_csv(auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -1205,7 +1282,7 @@ def import_csv():
         action=import_csv,
         method="POST",
     )
-    return main_area(Titled("Upload CSV", form), active="Revision")
+    return main_area(Titled("Upload CSV", form), active="Revision", auth=auth)
 
 
 @app.post
@@ -1244,7 +1321,7 @@ def backup():
 
 
 @app.get
-def import_db():
+def import_db(auth):
     current_dbs = [
         Li(f, cls=ListT.circle) for f in os.listdir("data") if f.endswith(".db")
     ]
@@ -1265,6 +1342,7 @@ def import_db():
             cls="space-y-6",
         ),
         active="Revision",
+        auth=auth,
     )
 
 

@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
 
+// before each test, go to the user selection page and switch to the first user
+test.beforeEach(async ({ page }) => {
+  await page.goto('http://localhost:5001/user_selection');
+  await expect(page.getByRole('button', { name: 'Switch User' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Switch User' }).first().click();
+});
+
+
 test('list_of_tables', async ({ page }) => {
   // Recording...
   await page.goto('http://localhost:5001/tables');
   await page.getByRole('link', { name: 'Tables' }).click();
   // check if the list of tables are visible
-  await expect(page.getByRole('link', { name: 'modes' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'pages' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'plans' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'revisions' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'users' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Modes' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Pages' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Plans' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Revisions' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
 });
 
 test('modes_table', async ({ page }) => {
@@ -70,8 +78,8 @@ test('user_table_CRUD', async ({ page }) => {
   // Recording...
   await page.goto('http://localhost:5001/tables');
   await page.getByRole('link', { name: 'Tables' }).click();
-  await expect(page.getByRole('link', { name: 'users' })).toBeVisible();
-  await page.getByRole('link', { name: 'users' }).click();
+  await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
+  await page.getByRole('link', { name: 'Users' }).click();
   // add new user
   await page.getByRole('button', { name: 'New' }).click();
   await page.getByRole('textbox', { name: 'name' }).click();
