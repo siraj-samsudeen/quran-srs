@@ -5,20 +5,27 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-DB_PATH = "data/quran_v3.db"
+DB_PATH = "data/quran_v4.db"
 
 db = database(DB_PATH)
 tables = db.t
 revisions, users = tables.revisions, tables.users
 plans, modes, pages = tables.plans, tables.modes, tables.pages
+surahs, revision_units = tables.surahs, tables.revision_units
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
     modes_data = pd.read_csv("metadata/modes.csv").to_dict("records")
     modes.insert_all(modes_data)
+if users not in tables:
+    users.create(id=int, name=str, email=str, password=str, pk="id")
+    # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
+    # as it was currently not handled by session
+    users.insert({"name": "Siraj"})
 if plans not in tables:
     plans.create(
         id=int,
         mode_id=str,
+        user_id=int,
         start_date=str,
         end_date=str,
         start_page=int,
@@ -28,26 +35,28 @@ if plans not in tables:
         completed=bool,
         pk="id",
         # foreign_key, reference_table, reference_column
-        foreign_keys=[("mode_id", "modes", "id")],
+        foreign_keys=[("mode_id", "modes", "id"), ("user_id", "users", "id")],
     )
 if pages not in tables:
     pages.create(
-        id=int, page=int, juz=str, surah=str, description=str, start=str, pk="id"
+        id=int,
+        mushaf_id=int,
+        number=int,
+        juz=str,
+        start_text=str,
+        starting_verse=str,
+        ending_verse=str,
+        pk="id",
     )
-    pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
-    pages.insert_all(pages_data)
-if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, pk="id")
-    # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
-    # as it was currently not handled by session
-    users.insert({"name": "Siraj"})
+    # pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
+    # pages.insert_all(pages_data)
 if revisions not in tables:
     revisions.create(
         id=int,
         mode_id=int,
         plan_id=int,
         user_id=int,
-        page_id=int,
+        revision_unit_id=int,
         revision_date=str,
         rating=int,
         pk="id",
@@ -57,8 +66,30 @@ if revisions not in tables:
             ("page_id", "pages", "id"),
         ],
     )
+if surahs not in tables:
+    surahs.create(id=int, number=int, name=str, pk="id")
+if revision_units not in tables:
+    revision_units.create(
+        id=int,
+        page_id=int,
+        surah_id=int,
+        unit_type=str,
+        part=int,
+        lines=str,
+        ayah=str,
+        active=bool,
+        user_id=int,
+        pk="id",
+        foreign_keys=[
+            ("user_id", "users", "id"),
+            ("page_id", "pages", "id"),
+            ("surah_id", "surahs", "id"),
+        ],
+    )
+
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
+RevisionUnit, Surah = revision_units.dataclass(), surahs.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
@@ -74,6 +105,12 @@ def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
     return columns
+
+
+def get_surah_name(page_id):
+    surah_id = revision_units[page_id].surah_id
+    surah_details = surahs[surah_id]
+    return f"{surah_details.number} {surah_details.name}"
 
 
 def mode_dropdown(default_mode=1):
@@ -196,7 +233,7 @@ def tables_main_area(*args, active_table=None):
 @rt
 def index():
     revision_data = revisions()
-    last_added_page = revision_data[-1].page_id if revision_data else None
+    last_added_page = revision_data[-1].revision_unit_id if revision_data else None
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
@@ -210,10 +247,9 @@ def index():
         return start_page, end_page
 
     def render_page(page):
-        page_data = pages[page]
         return Span(
             Span(page, cls=TextPresets.bold_sm),
-            f" - {page_data.description or page_data.surah}",
+            f" - {get_surah_name(page)}",
         )
 
     ################### Datewise summary ###################
@@ -231,7 +267,7 @@ def index():
         current_date_revisions = [
             r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
         ]
-        pages_list = sorted([r["page_id"] for r in current_date_revisions])
+        pages_list = sorted([r["revision_unit_id"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
@@ -240,7 +276,7 @@ def index():
                 str(d["id"])
                 for page in range(start_page, (end_page or start_page) + 1)
                 for d in current_date_revisions
-                if d.get("page_id") == page
+                if d.get("revision_unit_id") == page
             ]
             if end_page:
                 ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
@@ -294,7 +330,7 @@ def index():
             continue
         pages_list = sorted(
             [
-                r.page_id
+                r.revision_unit_id
                 for r in revisions(
                     where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
@@ -642,7 +678,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
     data = revisions(order_by="id desc")[start:end]
 
     def _render_rows(rev: Revision):
-        current_page_quran_data = pages[rev.page_id]
+        revision_unit_id = rev.revision_unit_id
 
         return Tr(
             # Td(rev.id),
@@ -655,13 +691,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                     _="on click send checkboxChanged to .toggle_btn",
                 )
             ),
-            Td(A(rev.page_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            Td(A(rev.revision_unit_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(current_page_quran_data.surah),
-            Td(current_page_quran_data.juz),
+            Td(get_surah_name(page_id=revision_unit_id)),
+            Td(pages[revision_unit_id].juz),
             Td(rev.revision_date),
             Td(
                 A(
@@ -762,7 +798,9 @@ def create_revision_form(type):
             type="date",
             value=current_time("%Y-%m-%d"),
         ),
-        LabelInput("Page", name="page_id", type="number", input_cls="text-2xl"),
+        LabelInput(
+            "Page", name="revision_unit_id", type="number", input_cls="text-2xl"
+        ),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -846,7 +884,7 @@ def bulk_edit_view(ids: str):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(current_revision.page_id)),
+            Td(P(current_revision.revision_unit_id)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
@@ -1007,14 +1045,13 @@ def get(page: str, max_page: int = 605):
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    current_page_details = pages[page]
     return main_area(
         Titled(
-            f"{page} - {current_page_details.description or current_page_details.surah} - {current_page_details.start}",
+            f"{page} - {get_surah_name(page)} - {pages[page].start_text}",
             fill_form(
                 create_revision_form("add"),
                 {
-                    "page_id": page,
+                    "revision_unit_id": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
                 },
@@ -1033,7 +1070,7 @@ def post(revision_details: Revision):
 
     revisions.insert(revision_details)
 
-    page = revision_details.page_id
+    page = revision_details.revision_unit_id
 
     return Redirect(f"/revision/add?page={page + 1}")
 
@@ -1080,8 +1117,8 @@ def get(
         current_page_details = pages[current_page]
         return Tr(
             Td(P(current_page)),
-            Td(current_page_details.description or current_page_details.surah),
-            Td(P(current_page_details.start, cls=(TextT.xl))),
+            Td(get_surah_name(current_page)),
+            Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
@@ -1119,11 +1156,8 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    start_page_details = pages[page]
-    end_page_details = pages[last_page - 1]
-
-    start_description = start_page_details.description or start_page_details.surah
-    end_description = end_page_details.description or end_page_details.surah
+    start_description = get_surah_name(page)
+    end_description = get_surah_name(last_page - 1)
     return main_area(
         H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
         Form(
@@ -1170,7 +1204,7 @@ async def post(
 
     parsed_data = [
         Revision(
-            page_id=int(page.split("-")[1]),
+            revision_unit_id=int(page.split("-")[1]),
             rating=int(rating),
             user_id=user_id,
             revision_date=revision_date,
@@ -1182,7 +1216,7 @@ async def post(
     ]
     revisions.insert_all(parsed_data)
     if parsed_data:
-        last_page = parsed_data[-1].page_id
+        last_page = parsed_data[-1].revision_unit_id
         # To show the next page
         next_page = last_page + 1
     else:
