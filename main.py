@@ -1227,7 +1227,7 @@ def get(
             action="/revision/bulk_add",
             method="POST",
         ),
-        Script(src="/script.js"),
+        Script(src="/public/script.js"),
         active="Revision",
         auth=auth,
     )
