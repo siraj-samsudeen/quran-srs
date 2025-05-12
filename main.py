@@ -1063,7 +1063,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(auth, page: str, max_page: int = 605):
+def get(auth, page: str, max_page: int = 605, date: str = None):
     if "." in page:
         page = page.split(".")[0]
 
@@ -1091,6 +1091,7 @@ def get(auth, page: str, max_page: int = 605):
                     "page_id": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
+                    "revision_date": date,
                 },
             ),
         ),
@@ -1106,11 +1107,9 @@ def post(revision_details: Revision):
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
-    revisions.insert(revision_details)
+    rev = revisions.insert(revision_details)
 
-    page = revision_details.page_id
-
-    return Redirect(f"/revision/add?page={page + 1}")
+    return Redirect(f"/revision/add?page={rev.page_id + 1}&date={rev.revision_date}")
 
 
 @app.get("/revision/bulk_add")
@@ -1227,7 +1226,7 @@ def get(
             action="/revision/bulk_add",
             method="POST",
         ),
-        Script(src="/script.js"),
+        Script(src="/public/script.js"),
         active="Revision",
         auth=auth,
     )
