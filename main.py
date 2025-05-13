@@ -1273,46 +1273,6 @@ async def post(
 
 
 @app.get
-def import_csv(auth):
-    form = Form(
-        UploadZone(
-            DivCentered(Span("Upload Zone"), UkIcon("upload")),
-            id="file",
-            accept="text/csv",
-        ),
-        Button("Submit"),
-        action=import_csv,
-        method="POST",
-    )
-    return main_area(Titled("Upload CSV", form), active="Revision", auth=auth)
-
-
-@app.post
-async def import_csv(file: UploadFile):
-    backup_sqlite_db(DB_PATH, "data/backup")
-    file_content = await file.read()
-    revisions.delete_where()  # Truncate the table before importing
-    db.import_file("revisions", file_content)
-    return Redirect(revision)
-
-
-@app.get
-def export_csv():
-    df = pd.DataFrame(revisions())
-
-    csv_buffer = BytesIO()
-    df.to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)
-
-    file_name = f"Quran_SRS_data_{current_time("%Y%m%d%I%M")}"
-    return StreamingResponse(
-        csv_buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
-    )
-
-
-@app.get
 def backup():
     if not os.path.exists(DB_PATH):
         return Titled("Error", P("Database file not found"))
