@@ -12,7 +12,7 @@ tables = db.t
 revisions, users = tables.revisions, tables.users
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 surahs, items = tables.surahs, tables.items
-users_items = tables.users_items
+mushafs, users_items = tables.mushafs, tables.users_items
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
 if users not in tables:
@@ -63,6 +63,10 @@ if revisions not in tables:
             ("page_id", "pages", "id"),
         ],
     )
+if mushafs not in tables:
+    mushafs.create(
+        id=int, name=str, description=str, total_pages=int, lines_per_page=int, pk="id"
+    )
 if surahs not in tables:
     surahs.create(id=int, number=int, name=str, pk="id")
 if items not in tables:
@@ -98,7 +102,7 @@ if users_items not in tables:
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 Item, Surah = items.dataclass(), surahs.dataclass()
-users_items = tables.users_items.dataclass()
+Mushaf, User_Item = mushafs.dataclass(), users_items.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
