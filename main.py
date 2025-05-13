@@ -146,8 +146,11 @@ def action_buttons(last_added_page=1, source="Home"):
             disabled=True,
             _=dynamic_enable_button_hyperscript,
         ),
-        # A(Button("Import"), href=import_csv),
-        A(Button("Export", type="button"), href=export_csv, hx_boost="false"),
+        A(
+            Button("Export", type="button"),
+            href="tables/revisions/export",
+            hx_boost="false",
+        ),
     )
     return DivFullySpaced(
         entry_buttons if source == "Home" else Div(),
