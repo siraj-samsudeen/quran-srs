@@ -52,7 +52,7 @@ if revisions not in tables:
         mode_id=int,
         plan_id=int,
         user_id=int,
-        items_id=int,
+        item_id=int,
         revision_date=str,
         rating=int,
         pk="id",
@@ -229,7 +229,7 @@ def tables_main_area(*args, active_table=None):
 @rt
 def index():
     revision_data = revisions()
-    last_added_page = revision_data[-1].revision_unit_id if revision_data else None
+    last_added_page = revision_data[-1].item_id if revision_data else None
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
@@ -263,7 +263,7 @@ def index():
         current_date_revisions = [
             r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
         ]
-        pages_list = sorted([r["revision_unit_id"] for r in current_date_revisions])
+        pages_list = sorted([r["item_id"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
@@ -272,7 +272,7 @@ def index():
                 str(d["id"])
                 for page in range(start_page, (end_page or start_page) + 1)
                 for d in current_date_revisions
-                if d.get("revision_unit_id") == page
+                if d.get("item_id") == page
             ]
             if end_page:
                 ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
@@ -326,7 +326,7 @@ def index():
             continue
         pages_list = sorted(
             [
-                r.revision_unit_id
+                r.item_id
                 for r in revisions(
                     where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
@@ -674,7 +674,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
     data = revisions(order_by="id desc")[start:end]
 
     def _render_rows(rev: Revision):
-        revision_unit_id = rev.revision_unit_id
+        item_id = rev.item_id
 
         return Tr(
             # Td(rev.id),
@@ -687,13 +687,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                     _="on click send checkboxChanged to .toggle_btn",
                 )
             ),
-            Td(A(rev.revision_unit_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            Td(A(rev.item_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(get_surah_name(page_id=revision_unit_id)),
-            Td(pages[revision_unit_id].juz),
+            Td(get_surah_name(page_id=item_id)),
+            Td(pages[item_id].juz),
             Td(rev.revision_date),
             Td(
                 A(
@@ -794,9 +794,7 @@ def create_revision_form(type):
             type="date",
             value=current_time("%Y-%m-%d"),
         ),
-        LabelInput(
-            "Page", name="revision_unit_id", type="number", input_cls="text-2xl"
-        ),
+        LabelInput("Page", name="item_id", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -880,7 +878,7 @@ def bulk_edit_view(ids: str):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(current_revision.revision_unit_id)),
+            Td(P(current_revision.item_id)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
@@ -1047,7 +1045,7 @@ def get(page: str, max_page: int = 605):
             fill_form(
                 create_revision_form("add"),
                 {
-                    "revision_unit_id": page,
+                    "item_id": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
                 },
@@ -1066,7 +1064,7 @@ def post(revision_details: Revision):
 
     revisions.insert(revision_details)
 
-    page = revision_details.revision_unit_id
+    page = revision_details.item_id
 
     return Redirect(f"/revision/add?page={page + 1}")
 
@@ -1200,7 +1198,7 @@ async def post(
 
     parsed_data = [
         Revision(
-            revision_unit_id=int(page.split("-")[1]),
+            item_id=int(page.split("-")[1]),
             rating=int(rating),
             user_id=user_id,
             revision_date=revision_date,
@@ -1212,7 +1210,7 @@ async def post(
     ]
     revisions.insert_all(parsed_data)
     if parsed_data:
-        last_page = parsed_data[-1].revision_unit_id
+        last_page = parsed_data[-1].item_id
         # To show the next page
         next_page = last_page + 1
     else:
