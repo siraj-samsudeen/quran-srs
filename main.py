@@ -12,6 +12,7 @@ tables = db.t
 revisions, users = tables.revisions, tables.users
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 surahs, items = tables.surahs, tables.items
+users_items = tables.users_items
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
 if users not in tables:
@@ -82,10 +83,22 @@ if items not in tables:
             ("surah_id", "surahs", "id"),
         ],
     )
-
+if users_items not in tables:
+    users_items.create(
+        id=int,
+        hafiz_id=int,
+        item_id=int,
+        status=str,
+        pk="id",
+        foreign_keys=[
+            # ("hafiz_id", "hafiz", "id"),
+            ("item_id", "items", "id"),
+        ],
+    )
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 Item, Surah = items.dataclass(), surahs.dataclass()
+users_items = tables.users_items.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
