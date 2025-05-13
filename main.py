@@ -9,11 +9,11 @@ DB_PATH = "data/quran_v3.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, haafiz, users, relations = (
+revisions, hafiz, users, users_hafiz = (
     tables.revisions,
-    tables.haafiz,
+    tables.hafiz,
     tables.users,
-    tables.relations,
+    tables.users_hafiz,
 )
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 if modes not in tables:
@@ -41,45 +41,45 @@ if pages not in tables:
     )
     pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
     pages.insert_all(pages_data)
-if haafiz not in tables:
-    haafiz.create(id=int, name=str, email=str, password=str, pk="id")
-    # FIXME: Add Siraj as a haafiz in order to select the haafiz_id when creating a new revision
+if hafiz not in tables:
+    hafiz.create(id=int, name=str, pk="id")
+    # FIXME: Add Siraj as a hafiz in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
-    haafiz.insert({"name": "Siraj"})
+    hafiz.insert({"name": "Siraj"})
 if users not in tables:
-    users.create(id=int, name=str, pk="id")
+    users.create(id=int, name=str, email=str, password=str, pk="id")
     users.insert({"name": "Siraj"})
-if relations not in tables:
-    relations.create(
+if users_hafiz not in tables:
+    users_hafiz.create(
         id=int,
         user_id=int,
-        haafiz_id=int,
+        hafiz_id=int,
         relation_type=str,
         pk="id",
-        foreign_keys=[("user_id", "users", "id"), ("haafiz_id", "haafiz", "id")],
+        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafiz", "id")],
     )
-    relations.insert({"user_id": 1, "haafiz_id": 1, "relation_type": "self"})
+    users_hafiz.insert({"user_id": 1, "hafiz_id": 1, "relation_type": "self"})
 if revisions not in tables:
     revisions.create(
         id=int,
         mode_id=int,
         plan_id=int,
-        relation_id=int,
+        users_hafiz_id=int,
         page_id=int,
         revision_date=str,
         rating=int,
         pk="id",
         foreign_keys=[
             ("mode_id", "modes", "id"),
-            ("relation_id", "relations", "id"),
+            ("users_hafiz_id", "users_hafiz", "id"),
             ("page_id", "pages", "id"),
         ],
     )
-Revision, Haafiz, User, Relation = (
+Revision, Hafiz, User, Users_hafiz = (
     revisions.dataclass(),
-    haafiz.dataclass(),
+    hafiz.dataclass(),
     users.dataclass(),
-    relations.dataclass(),
+    users_hafiz.dataclass(),
 )
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
@@ -92,11 +92,11 @@ alpinejs_header = Script(
 def before(req, sess):
     auth = req.scope["auth"] = sess.get("auth", None)
     if not auth:
-        return RedirectResponse("/haafiz_selection", status_code=303)
-    revisions.xtra(relation_id=auth)
+        return RedirectResponse("/hafiz_selection", status_code=303)
+    revisions.xtra(users_hafiz_id=auth)
 
 
-bware = Beforeware(before, skip=["/haafiz_selection"])
+bware = Beforeware(before, skip=["/hafiz_selection"])
 
 app, rt = fast_app(
     before=bware,
@@ -196,9 +196,9 @@ def render_page(page):
     )
 
 
-def datewise_summary_table(show=None, relation_id=None):
+def datewise_summary_table(show=None, users_hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
-    qry = (qry + f" WHERE relation_id = {relation_id}") if relation_id else qry
+    qry = (qry + f" WHERE users_hafiz_id = {users_hafiz_id}") if users_hafiz_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -213,8 +213,8 @@ def datewise_summary_table(show=None, relation_id=None):
         rev_query = f"revision_date = '{date}'"
         revisions_query = revisions(
             where=(
-                rev_query + f"AND relation_id = {relation_id}"
-                if relation_id
+                rev_query + f"AND users_hafiz_id = {users_hafiz_id}"
+                if users_hafiz_id
                 else rev_query
             )
         )
@@ -268,54 +268,54 @@ def datewise_summary_table(show=None, relation_id=None):
     return datewise_table
 
 
-def render_haafiz_card(relation, auth):
-    is_current_relation = auth != relation.id
+def render_hafiz_card(users_hafiz, auth):
+    is_current_users_hafiz = auth != users_hafiz.id
     return Card(
         (
             Subtitle("last 3 revision")(
-                datewise_summary_table(show=3, relation_id=relation.id)
+                datewise_summary_table(show=3, users_hafiz_id=users_hafiz.id)
             ),
         ),
-        header=DivFullySpaced(H3(haafiz[relation.id].name)),
+        header=DivFullySpaced(H3(hafiz[users_hafiz.id].name)),
         footer=Button(
-            "Switch Haafiz" if is_current_relation else "Go to home",
-            name="current_haafiz_id",
-            value=relation.id,
-            hx_post="/haafiz_selection",
+            "Switch hafiz" if is_current_users_hafiz else "Go to home",
+            name="current_hafiz_id",
+            value=users_hafiz.id,
+            hx_post="/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
-            cls=(ButtonT.primary if is_current_relation else ButtonT.secondary),
+            cls=(ButtonT.primary if is_current_users_hafiz else ButtonT.secondary),
         ),
         cls="min-w-[300px] max-w-[400px]",
     )
 
 
-@app.get("/haafiz_selection")
-def haafiz_selection(sess):
-    # In beforeware we are adding the haafiz_id filter using xtra
-    # we have to reset that xtra attribute in order to show revisions for all haafiz
+@app.get("/hafiz_selection")
+def hafiz_selection(sess):
+    # In beforeware we are adding the hafiz_id filter using xtra
+    # we have to reset that xtra attribute in order to show revisions for all hafiz
     revisions.xtra()
     auth = sess.get("auth", None)
-    cards = [render_haafiz_card(h, auth) for h in haafiz()]
+    cards = [render_hafiz_card(h, auth) for h in hafiz()]
     return main_area(
-        H5("Select Haafiz"),
+        H5("Select Hafiz"),
         Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
         auth=auth,
     )
 
 
-@app.post("/haafiz_selection")
-def change_haafiz(current_haafiz_id: int, sess):
-    sess["auth"] = current_haafiz_id
+@app.post("/hafiz_selection")
+def change_hafiz(current_hafiz_id: int, sess):
+    sess["auth"] = current_hafiz_id
     return RedirectResponse("/", status_code=303)
 
 
 def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
-    haafiz_name = A(
-        f"{haafiz[auth].name if auth is not None else "Select haafiz"}",
-        href="/haafiz_selection",
+    hafiz_name = A(
+        f"{hafiz[auth].name if auth is not None else "Select hafiz"}",
+        href="/hafiz_selection",
         method="GET",
     )
     return Title("Quran SRS"), Container(
@@ -325,7 +325,7 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3(title, Span(" - "), haafiz_name),
+                brand=H3(title, Span(" - "), hafiz_name),
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
@@ -852,7 +852,7 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, haafiz()), label="Haafiz Id", name="haafiz_id", cls="hidden"
+            *map(_option, hafiz()), label="hafiz Id", name="hafiz_id", cls="hidden"
         ),
         Grid(
             mode_dropdown(),
