@@ -14,8 +14,6 @@ plans, modes, pages = tables.plans, tables.modes, tables.pages
 surahs, revision_units = tables.surahs, tables.revision_units
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
-    modes_data = pd.read_csv("metadata/modes.csv").to_dict("records")
-    modes.insert_all(modes_data)
 if users not in tables:
     users.create(id=int, name=str, email=str, password=str, pk="id")
     # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
@@ -48,8 +46,6 @@ if pages not in tables:
         ending_verse=str,
         pk="id",
     )
-    # pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
-    # pages.insert_all(pages_data)
 if revisions not in tables:
     revisions.create(
         id=int,
