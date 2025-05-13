@@ -11,7 +11,7 @@ db = database(DB_PATH)
 tables = db.t
 revisions, users = tables.revisions, tables.users
 plans, modes, pages = tables.plans, tables.modes, tables.pages
-surahs, revision_units = tables.surahs, tables.revision_units
+surahs, items = tables.surahs, tables.items
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
 if users not in tables:
@@ -52,7 +52,7 @@ if revisions not in tables:
         mode_id=int,
         plan_id=int,
         user_id=int,
-        revision_unit_id=int,
+        items_id=int,
         revision_date=str,
         rating=int,
         pk="id",
@@ -64,8 +64,8 @@ if revisions not in tables:
     )
 if surahs not in tables:
     surahs.create(id=int, number=int, name=str, pk="id")
-if revision_units not in tables:
-    revision_units.create(
+if items not in tables:
+    items.create(
         id=int,
         page_id=int,
         surah_id=int,
@@ -85,7 +85,7 @@ if revision_units not in tables:
 
 Revision, User = revisions.dataclass(), users.dataclass()
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
-RevisionUnit, Surah = revision_units.dataclass(), surahs.dataclass()
+Item, Surah = items.dataclass(), surahs.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
@@ -104,7 +104,7 @@ def get_column_headers(table):
 
 
 def get_surah_name(page_id):
-    surah_id = revision_units[page_id].surah_id
+    surah_id = items[page_id].surah_id
     surah_details = surahs[surah_id]
     return f"{surah_details.number} {surah_details.name}"
 
