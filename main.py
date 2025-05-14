@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-DB_PATH = "data/quran_v4_.db"
+DB_PATH = "data/quran_v4.db"
 
 db = database(DB_PATH)
 tables = db.t
