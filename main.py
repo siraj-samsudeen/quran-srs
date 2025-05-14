@@ -67,14 +67,14 @@ if revisions not in tables:
         id=int,
         mode_id=int,
         plan_id=int,
-        users_hafiz_id=int,
+        hafiz_id=int,
         page_id=int,
         revision_date=str,
         rating=int,
         pk="id",
         foreign_keys=[
             ("mode_id", "modes", "id"),
-            ("users_hafiz_id", "users_hafiz", "id"),
+            ("hafiz_id", "hafiz", "id"),
             ("page_id", "pages", "id"),
         ],
     )
@@ -99,7 +99,7 @@ def before(req, sess):
     auth = req.scope["auth"] = sess.get("auth", None)
     if not auth:
         return RedirectResponse("/hafiz_selection", status_code=303)
-    revisions.xtra(users_hafiz_id=auth)
+    revisions.xtra(hafiz_id=auth)
 
 
 bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout"])
@@ -202,9 +202,9 @@ def render_page(page):
     )
 
 
-def datewise_summary_table(show=None, users_hafiz_id=None):
+def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
-    qry = (qry + f" WHERE users_hafiz_id = {users_hafiz_id}") if users_hafiz_id else qry
+    qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -218,11 +218,7 @@ def datewise_summary_table(show=None, users_hafiz_id=None):
     def _render_datewise_row(date):
         rev_query = f"revision_date = '{date}'"
         revisions_query = revisions(
-            where=(
-                rev_query + f"AND users_hafiz_id = {users_hafiz_id}"
-                if users_hafiz_id
-                else rev_query
-            )
+            where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
         pages_list = sorted([r["page_id"] for r in current_date_revisions])
@@ -275,18 +271,18 @@ def datewise_summary_table(show=None, users_hafiz_id=None):
 
 
 def render_hafiz_card(users_hafiz, auth):
-    is_current_users_hafiz = auth != users_hafiz.id
+    is_current_users_hafiz = auth != users_hafiz.hafiz_id
     return Card(
         (
             Subtitle("last 3 revision")(
-                datewise_summary_table(show=3, users_hafiz_id=users_hafiz.id)
+                datewise_summary_table(show=3, hafiz_id=users_hafiz.hafiz_id)
             ),
         ),
         header=DivFullySpaced(H3(hafiz[users_hafiz.hafiz_id].name)),
         footer=Button(
             "Switch hafiz" if is_current_users_hafiz else "Go to home",
             name="current_hafiz_id",
-            value=users_hafiz.id,
+            value=users_hafiz.hafiz_id,
             hx_post="/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
@@ -322,8 +318,8 @@ def login_post(login: Login, sess):
     if not login.email or not login.password:
         return login_redir
     try:
-        u = next(user for user in users() if user.email == login.email)
-    except NotFoundError:
+        u = users(where="email = '{}'".format(login.email))[0]
+    except IndexError:
         # u = users.insert(login)
         return login_redir
     if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
@@ -354,9 +350,6 @@ def hafiz_selection(sess):
     user_auth = sess.get("user_auth", None)
     if user_auth is None:
         return login_redir
-    for h in users_hafiz():
-        if h.user_id == user_auth:
-            print(h)
 
     # cards = [render_hafiz_card(h, auth) for h in hafiz()]
     cards = [
@@ -378,9 +371,8 @@ def change_hafiz(current_hafiz_id: int, sess):
 def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
-    hafiz_id = users_hafiz[auth].hafiz_id if auth is not None else None
     hafiz_name = A(
-        f"{hafiz[hafiz_id].name if auth is not None else "Select hafiz"}",
+        f"{hafiz[auth].name if auth is not None else "Select hafiz"}",
         href="/hafiz_selection",
         method="GET",
     )
