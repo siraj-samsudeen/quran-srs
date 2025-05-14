@@ -9,11 +9,11 @@ DB_PATH = "data/quran_v3.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, hafiz, users, users_hafiz = (
+revisions, hafizs, users, users_hafizs = (
     tables.revisions,
-    tables.hafiz,
+    tables.hafizs,
     tables.users,
-    tables.users_hafiz,
+    tables.users_hafizs,
 )
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 if modes not in tables:
@@ -41,27 +41,29 @@ if pages not in tables:
     )
     pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
     pages.insert_all(pages_data)
-if hafiz not in tables:
-    hafiz.create(id=int, name=str, pk="id")
-    # FIXME: Add Siraj as a hafiz in order to select the hafiz_id when creating a new revision
+if hafizs not in tables:
+    hafizs.create(id=int, name=str, age_group=str, daily_capacity=int, pk="id")
+    # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
-    hafiz.insert({"name": "Siraj"})
-    hafiz.insert({"name": "Firoza"})
+    hafizs.insert({"name": "Siraj"})
+    hafizs.insert({"name": "Firoza"})
 if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, pk="id")
+    users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
     users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
     users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
-if users_hafiz not in tables:
-    users_hafiz.create(
+if users_hafizs not in tables:
+    users_hafizs.create(
         id=int,
-        user_id=int,
         hafiz_id=int,
-        relation_type=str,
+        user_id=int,
+        relationship=str,
+        granted_by_user_id=int,
+        granted_at=str,
         pk="id",
-        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafiz", "id")],
+        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
     )
-    users_hafiz.insert({"user_id": 1, "hafiz_id": 1, "relation_type": "self"})
-    users_hafiz.insert({"user_id": 2, "hafiz_id": 2, "relation_type": "self"})
+    users_hafizs.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
+    users_hafizs.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
 if revisions not in tables:
     revisions.create(
         id=int,
@@ -74,15 +76,15 @@ if revisions not in tables:
         pk="id",
         foreign_keys=[
             ("mode_id", "modes", "id"),
-            ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafizs", "id"),
             ("page_id", "pages", "id"),
         ],
     )
 Revision, Hafiz, User, Users_hafiz = (
     revisions.dataclass(),
-    hafiz.dataclass(),
+    hafizs.dataclass(),
     users.dataclass(),
-    users_hafiz.dataclass(),
+    users_hafizs.dataclass(),
 )
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
@@ -278,7 +280,7 @@ def render_hafiz_card(users_hafiz, auth):
                 datewise_summary_table(show=3, hafiz_id=users_hafiz.hafiz_id)
             ),
         ),
-        header=DivFullySpaced(H3(hafiz[users_hafiz.hafiz_id].name)),
+        header=DivFullySpaced(H3(hafizs[users_hafiz.hafiz_id].name)),
         footer=Button(
             "Switch hafiz" if is_current_users_hafiz else "Go to home",
             name="current_hafiz_id",
@@ -298,7 +300,7 @@ login_redir = RedirectResponse("/login", status_code=303)
 @app.get("/login")
 def login():
     form = Form(
-        LabelInput(label="Email", name="email"),
+        LabelInput(label="Email", name="email", type="email"),
         LabelInput(label="Password", name="password", type="password"),
         Button("Login"),
         action="/login",
@@ -325,7 +327,7 @@ def login_post(login: Login, sess):
     if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
         return login_redir
     sess["user_auth"] = u.id
-    users_hafiz.xtra(id=u.id)
+    users_hafizs.xtra(id=u.id)
     return RedirectResponse("/", status_code=303)
 
 
@@ -345,15 +347,15 @@ def hafiz_selection(sess):
     # In beforeware we are adding the hafiz_id filter using xtra
     # we have to reset that xtra attribute in order to show revisions for all hafiz
     revisions.xtra()
-    users_hafiz.xtra()
+    users_hafizs.xtra()
     auth = sess.get("auth", None)
     user_auth = sess.get("user_auth", None)
     if user_auth is None:
         return login_redir
 
-    # cards = [render_hafiz_card(h, auth) for h in hafiz()]
+    # cards = [render_hafiz_card(h, auth) for h in hafizs()]
     cards = [
-        render_hafiz_card(h, auth) for h in users_hafiz() if h.user_id == user_auth
+        render_hafiz_card(h, auth) for h in users_hafizs() if h.user_id == user_auth
     ]
     return main_area(
         H5("Select Hafiz"),
@@ -372,7 +374,7 @@ def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
     hafiz_name = A(
-        f"{hafiz[auth].name if auth is not None else "Select hafiz"}",
+        f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
         href="/hafiz_selection",
         method="GET",
     )
@@ -911,7 +913,7 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, hafiz()), label="hafiz Id", name="hafiz_id", cls="hidden"
+            *map(_option, hafizs()), label="hafiz Id", name="hafiz_id", cls="hidden"
         ),
         Grid(
             mode_dropdown(),
