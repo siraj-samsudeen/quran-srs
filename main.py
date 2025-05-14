@@ -9,11 +9,11 @@ DB_PATH = "data/quran_v3.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, hafizs, users, users_hafizs = (
+revisions, hafizs, users, hafizs_users = (
     tables.revisions,
     tables.hafizs,
     tables.users,
-    tables.users_hafizs,
+    tables.hafizs_users,
 )
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 if modes not in tables:
@@ -51,19 +51,19 @@ if users not in tables:
     users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
     users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
     users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
-if users_hafizs not in tables:
-    users_hafizs.create(
+if hafizs_users not in tables:
+    hafizs_users.create(
         id=int,
-        hafiz_id=int,
         user_id=int,
+        hafiz_id=int,
         relationship=str,
         granted_by_user_id=int,
         granted_at=str,
         pk="id",
         foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
     )
-    users_hafizs.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
-    users_hafizs.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
+    hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
+    hafizs_users.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
 if revisions not in tables:
     revisions.create(
         id=int,
@@ -84,7 +84,7 @@ Revision, Hafiz, User, Users_hafiz = (
     revisions.dataclass(),
     hafizs.dataclass(),
     users.dataclass(),
-    users_hafizs.dataclass(),
+    hafizs_users.dataclass(),
 )
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
@@ -272,23 +272,23 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
-def render_hafiz_card(users_hafiz, auth):
-    is_current_users_hafiz = auth != users_hafiz.hafiz_id
+def render_hafiz_card(hafizs_user, auth):
+    is_current_hafizs_user = auth != hafizs_user.hafiz_id
     return Card(
         (
             Subtitle("last 3 revision")(
-                datewise_summary_table(show=3, hafiz_id=users_hafiz.hafiz_id)
+                datewise_summary_table(show=3, hafiz_id=hafizs_user.hafiz_id)
             ),
         ),
-        header=DivFullySpaced(H3(hafizs[users_hafiz.hafiz_id].name)),
+        header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
         footer=Button(
-            "Switch hafiz" if is_current_users_hafiz else "Go to home",
+            "Switch hafiz" if is_current_hafizs_user else "Go to home",
             name="current_hafiz_id",
-            value=users_hafiz.hafiz_id,
+            value=hafizs_user.hafiz_id,
             hx_post="/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
-            cls=(ButtonT.primary if is_current_users_hafiz else ButtonT.secondary),
+            cls=(ButtonT.primary if is_current_hafizs_user else ButtonT.secondary),
         ),
         cls="min-w-[300px] max-w-[400px]",
     )
@@ -327,7 +327,7 @@ def login_post(login: Login, sess):
     if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
         return login_redir
     sess["user_auth"] = u.id
-    users_hafizs.xtra(id=u.id)
+    hafizs_users.xtra(id=u.id)
     return RedirectResponse("/", status_code=303)
 
 
@@ -347,7 +347,7 @@ def hafiz_selection(sess):
     # In beforeware we are adding the hafiz_id filter using xtra
     # we have to reset that xtra attribute in order to show revisions for all hafiz
     revisions.xtra()
-    users_hafizs.xtra()
+    hafizs_users.xtra()
     auth = sess.get("auth", None)
     user_auth = sess.get("user_auth", None)
     if user_auth is None:
@@ -355,7 +355,7 @@ def hafiz_selection(sess):
 
     # cards = [render_hafiz_card(h, auth) for h in hafizs()]
     cards = [
-        render_hafiz_card(h, auth) for h in users_hafizs() if h.user_id == user_auth
+        render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
     return main_area(
         H5("Select Hafiz"),
