@@ -383,7 +383,7 @@ def index():
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
-        current_plan = plans(where=f"id = '{plan_id}' AND mode_id = '{seq_id}'")
+        current_plan = plans(where=f"id = '{plan_id}'")
         if current_plan:
             is_completed = current_plan[0].completed
         else:
@@ -733,7 +733,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
             Td(get_surah_name(page_id=item_id)),
-            Td(pages[item_id].juz),
+            Td(pages[item_id].juz_number),
             Td(rev.revision_date),
             Td(
                 A(
@@ -1240,7 +1240,7 @@ async def post(
         Revision(
             item_id=int(page.split("-")[1]),
             rating=int(rating),
-            user_id=user_id,
+            hafiz_id=user_id,
             revision_date=revision_date,
             mode_id=mode_id,
             plan_id=plan_id,
