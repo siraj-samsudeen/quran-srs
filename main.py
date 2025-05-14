@@ -46,9 +46,11 @@ if hafiz not in tables:
     # FIXME: Add Siraj as a hafiz in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
     hafiz.insert({"name": "Siraj"})
+    hafiz.insert({"name": "Firoza"})
 if users not in tables:
     users.create(id=int, name=str, email=str, password=str, pk="id")
-    users.insert({"name": "Siraj"})
+    users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
+    users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
 if users_hafiz not in tables:
     users_hafiz.create(
         id=int,
@@ -59,6 +61,7 @@ if users_hafiz not in tables:
         foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafiz", "id")],
     )
     users_hafiz.insert({"user_id": 1, "hafiz_id": 1, "relation_type": "self"})
+    users_hafiz.insert({"user_id": 2, "hafiz_id": 2, "relation_type": "self"})
 if revisions not in tables:
     revisions.create(
         id=int,
@@ -90,13 +93,16 @@ alpinejs_header = Script(
 
 
 def before(req, sess):
+    user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
+    if not user_auth:
+        return RedirectResponse("/login", status_code=303)
     auth = req.scope["auth"] = sess.get("auth", None)
     if not auth:
         return RedirectResponse("/hafiz_selection", status_code=303)
     revisions.xtra(users_hafiz_id=auth)
 
 
-bware = Beforeware(before, skip=["/hafiz_selection"])
+bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout"])
 
 app, rt = fast_app(
     before=bware,
@@ -276,7 +282,7 @@ def render_hafiz_card(users_hafiz, auth):
                 datewise_summary_table(show=3, users_hafiz_id=users_hafiz.id)
             ),
         ),
-        header=DivFullySpaced(H3(hafiz[users_hafiz.id].name)),
+        header=DivFullySpaced(H3(hafiz[users_hafiz.hafiz_id].name)),
         footer=Button(
             "Switch hafiz" if is_current_users_hafiz else "Go to home",
             name="current_hafiz_id",
@@ -290,13 +296,72 @@ def render_hafiz_card(users_hafiz, auth):
     )
 
 
+login_redir = RedirectResponse("/login", status_code=303)
+
+
+@app.get("/login")
+def login():
+    form = Form(
+        LabelInput(label="Email", name="email"),
+        LabelInput(label="Password", name="password", type="password"),
+        Button("Login"),
+        action="/login",
+        method="post",
+    )
+    return Titled("Login", form)
+
+
+@dataclass
+class Login:
+    email: str
+    password: str
+
+
+@app.post("/login")
+def login_post(login: Login, sess):
+    if not login.email or not login.password:
+        return login_redir
+    try:
+        u = next(user for user in users() if user.email == login.email)
+    except NotFoundError:
+        # u = users.insert(login)
+        return login_redir
+    if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
+        return login_redir
+    sess["user_auth"] = u.id
+    users_hafiz.xtra(id=u.id)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get("/logout")
+def logout(sess):
+    user_auth = sess.get("user_auth", None)
+    if user_auth is not None:
+        del sess["user_auth"]
+    auth = sess.get("auth", None)
+    if auth is not None:
+        del sess["auth"]
+    return RedirectResponse("/login", status_code=303)
+
+
 @app.get("/hafiz_selection")
 def hafiz_selection(sess):
     # In beforeware we are adding the hafiz_id filter using xtra
     # we have to reset that xtra attribute in order to show revisions for all hafiz
     revisions.xtra()
+    users_hafiz.xtra()
     auth = sess.get("auth", None)
-    cards = [render_hafiz_card(h, auth) for h in hafiz()]
+    user_auth = sess.get("user_auth", None)
+    if user_auth is None:
+        return login_redir
+    for h in users_hafiz():
+        if h.user_id == user_auth:
+            print(h)
+
+    # cards = [render_hafiz_card(h, auth) for h in hafiz()]
+    cards = [
+        render_hafiz_card(h, auth) for h in users_hafiz() if h.user_id == user_auth
+    ]
     return main_area(
         H5("Select Hafiz"),
         Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
@@ -313,8 +378,9 @@ def change_hafiz(current_hafiz_id: int, sess):
 def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
+    hafiz_id = users_hafiz[auth].hafiz_id if auth is not None else None
     hafiz_name = A(
-        f"{hafiz[auth].name if auth is not None else "Select hafiz"}",
+        f"{hafiz[hafiz_id].name if auth is not None else "Select hafiz"}",
         href="/hafiz_selection",
         method="GET",
     )
@@ -324,6 +390,7 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
+                A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
             ),
