@@ -5,14 +5,21 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-DB_PATH = "data/quran_v4.db"
+DB_PATH = "data/quran_v4_.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, users = tables.revisions, tables.users
-plans, modes, pages = tables.plans, tables.modes, tables.pages
-surahs, items = tables.surahs, tables.items
-mushafs, users_items = tables.mushafs, tables.users_items
+revisions, users, plans, modes, pages, surahs, items, mushafs, hafizs_items = (
+    tables.revisions,
+    tables.users,
+    tables.plans,
+    tables.modes,
+    tables.pages,
+    tables.surahs,
+    tables.items,
+    tables.mushafs,
+    tables.hafizs_items,
+)
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
 if users not in tables:
@@ -23,8 +30,7 @@ if users not in tables:
 if plans not in tables:
     plans.create(
         id=int,
-        mode_id=str,
-        user_id=int,
+        hafiz_id=int,
         start_date=str,
         end_date=str,
         start_page=int,
@@ -34,75 +40,92 @@ if plans not in tables:
         completed=bool,
         pk="id",
         # foreign_key, reference_table, reference_column
-        foreign_keys=[("mode_id", "modes", "id"), ("user_id", "users", "id")],
+        # foreign_keys=[("hafiz_id", "hafiz", "id")],
     )
 if pages not in tables:
     pages.create(
         id=int,
         mushaf_id=int,
-        number=int,
-        juz=str,
+        page_number=int,
+        juz_number=str,
         start_text=str,
         starting_verse=str,
         ending_verse=str,
         pk="id",
-    )
-if revisions not in tables:
-    revisions.create(
-        id=int,
-        mode_id=int,
-        plan_id=int,
-        user_id=int,
-        item_id=int,
-        revision_date=str,
-        rating=int,
-        pk="id",
-        foreign_keys=[
-            ("mode_id", "modes", "id"),
-            ("user_id", "users", "id"),
-            ("page_id", "pages", "id"),
-        ],
     )
 if mushafs not in tables:
     mushafs.create(
         id=int, name=str, description=str, total_pages=int, lines_per_page=int, pk="id"
     )
 if surahs not in tables:
-    surahs.create(id=int, number=int, name=str, pk="id")
+    surahs.create(id=int, number=int, name=str, total_ayat=int, pk="id")
 if items not in tables:
     items.create(
         id=int,
-        page_id=int,
+        item_type=str,
         surah_id=int,
-        unit_type=str,
-        part=int,
+        page_id=int,
+        part_number=int,
+        part_type=str,
+        hafiz_id=int,
         lines=str,
-        ayah=str,
-        active=bool,
-        user_id=int,
         pk="id",
         foreign_keys=[
-            ("user_id", "users", "id"),
+            # ("hafiz_id", "hafiz", "id"),
             ("page_id", "pages", "id"),
             ("surah_id", "surahs", "id"),
         ],
     )
-if users_items not in tables:
-    users_items.create(
+if hafizs_items not in tables:
+    hafizs_items.create(
         id=int,
         hafiz_id=int,
         item_id=int,
         status=str,
+        mode_id=int,
+        revision_count=int,
+        last_revision_date=str,
+        last_revision_rating=int,
+        total_score=int,
+        good_streak=int,
+        bad_streak=int,
         pk="id",
         foreign_keys=[
             # ("hafiz_id", "hafiz", "id"),
             ("item_id", "items", "id"),
+            ("mode_id", "modes", "id"),
         ],
     )
-Revision, User = revisions.dataclass(), users.dataclass()
-Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
-Item, Surah = items.dataclass(), surahs.dataclass()
-Mushaf, User_Item = mushafs.dataclass(), users_items.dataclass()
+if revisions not in tables:
+    revisions.create(
+        id=int,
+        hafiz_id=int,
+        item_id=int,
+        revision_date=str,
+        rating=int,
+        mode_id=int,
+        plan_id=int,
+        notes=str,
+        pk="id",
+        foreign_keys=[
+            # ("hafiz_id", "hafiz", "id"),
+            ("item_id", "items", "id"),
+            ("mode_id", "modes", "id"),
+            ("page_id", "pages", "id"),
+        ],
+    )
+
+Revision, User, Plan, Mode, Page, Item, Surah, Mushaf, Hafiz_Item = (
+    revisions.dataclass(),
+    users.dataclass(),
+    plans.dataclass(),
+    modes.dataclass(),
+    pages.dataclass(),
+    items.dataclass(),
+    surahs.dataclass(),
+    mushafs.dataclass(),
+    hafizs_items.dataclass(),
+)
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
