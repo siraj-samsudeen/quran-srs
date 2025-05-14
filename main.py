@@ -104,7 +104,7 @@ def before(req, sess):
     revisions.xtra(hafiz_id=auth)
 
 
-bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout"])
+bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
 
 app, rt = fast_app(
     before=bware,
@@ -342,6 +342,19 @@ def logout(sess):
     return RedirectResponse("/login", status_code=303)
 
 
+@app.post("/add_hafiz")
+def add_hafiz_and_relations(hafiz: Hafiz, relationship: str, sess):
+    hafiz_id = hafizs.insert(hafiz)
+    hafizs_users.insert(
+        hafiz_id=hafiz_id.id,
+        user_id=sess["user_auth"],
+        relationship=relationship,
+        granted_by_user_id=sess["user_auth"],
+        granted_at=datetime.now().strftime("%d-%m-%y %H:%M:%S"),
+    )
+    return RedirectResponse("/hafiz_selection", status_code=303)
+
+
 @app.get("/hafiz_selection")
 def hafiz_selection(sess):
     # In beforeware we are adding the hafiz_id filter using xtra
@@ -357,9 +370,45 @@ def hafiz_selection(sess):
     cards = [
         render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
+    age_groups = ["child", "teen", "adult"]
+    relationships = ["self", "parent", "teacher", "sibling"]
+
+    def mk_options(option):
+        return Option(
+            option.capitalize(),
+            value=option,
+        )
+
+    hafiz_form = Card(
+        Titled(
+            "Add Hafiz",
+            Form(
+                LabelInput(label="Hafiz Name", name="name", required=True),
+                LabelSelect(
+                    *map(mk_options, age_groups),
+                    label="Age Group",
+                    name="age_group",
+                ),
+                LabelInput(
+                    label="Daily Capacity", name="daily_capacity", type="number"
+                ),
+                LabelSelect(
+                    *map(mk_options, relationships),
+                    label="Relationship",
+                    name="relationship",
+                ),
+                Button("Add Hafiz"),
+                action="/add_hafiz",
+                method="post",
+                cls="space-y-3",
+            ),
+        ),
+        cls="w-[300px]",
+    )
     return main_area(
         H5("Select Hafiz"),
         Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+        Div(hafiz_form),
         auth=auth,
     )
 
