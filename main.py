@@ -826,7 +826,7 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, users()), label="User Id", name="user_id", cls="hidden"
+            *map(_option, users()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         Grid(
             mode_dropdown(),
@@ -1181,9 +1181,9 @@ def get(
 
     # TODO: Later handle the user selection by session, for now temporarily setting it to siraj
     try:
-        user_id = users(where="name='Siraj'")[0].id
+        hafiz_id = users(where="name='Siraj'")[0].id
     except IndexError:
-        user_id = 1
+        hafiz_id = 1
 
     try:
         last_added_record = revisions()[-1]
@@ -1199,7 +1199,7 @@ def get(
     return main_area(
         H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
         Form(
-            Hidden(id="user_id", value=user_id),
+            Hidden(id="user_id", value=hafiz_id),
             Hidden(name="length", value=length),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
@@ -1230,7 +1230,7 @@ def get(
 
 @rt("/revision/bulk_add")
 async def post(
-    user_id: int,
+    hafiz_id: int,
     revision_date: str,
     mode_id: int,
     plan_id: int,
@@ -1244,7 +1244,7 @@ async def post(
         Revision(
             item_id=int(page.split("-")[1]),
             rating=int(rating),
-            hafiz_id=user_id,
+            hafiz_id=hafiz_id,
             revision_date=revision_date,
             mode_id=mode_id,
             plan_id=plan_id,
