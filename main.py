@@ -89,6 +89,7 @@ if hafizs_items not in tables:
         part_type=str,
         status=str,
         mode_id=int,
+        active=bool,
         revision_count=int,
         last_revision_date=str,
         last_revision_rating=int,
