@@ -8,9 +8,15 @@ const currentDate = now.toISOString().split('T')[0];
 
 // before each test, go to the user selection page and switch to the first user
 test.beforeEach(async ({ page }) => {
-  await page.goto('http://localhost:5001/user_selection');
-  await expect(page.getByRole('button', { name: 'Switch User' }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Switch User' }).first().click();
+  await page.goto('http://localhost:5001/login');
+  await page.getByRole('textbox', { name: 'Email' }).click();
+  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('123');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page).toHaveURL("http://localhost:5001/hafiz_selection");
+  await expect(page.getByRole('button', { name: 'Switch Hafiz' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Switch Hafiz' }).first().click();
 });
 
 test('navigation', async ({ page }) => {
@@ -366,29 +372,6 @@ test('started_word_of_the_page', async ({ page }) => {
 });
 
 
-test('page_field_fill_with_last_added_page_no', async ({ page }) => {  
-  // Recording...
-  await page.goto('http://localhost:5001/');
-  await page.getByRole('textbox', { name: 'page' }).click();
-  // single entry
-  await page.getByRole('textbox', { name: 'page' }).fill('410');
-  await page.getByRole('button', { name: 'Single Entry' }).click();
-  await expect(page.locator('h1')).toContainText('410 - 30 Rum End - وَلَئِنْ أَرْسَلْنَا رِيحًا');
-  await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('410');
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('h1')).toContainText('411 - 31 Luqman Start - الم تِلْكَ آيَاتُ');
-  await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('411');
-  await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('411');
-  // after bulk entry
-  await page.getByRole('button', { name: 'Bulk Entry' }).click();
-  await expect(page.getByRole('heading', { name: '411 - 31 Luqman Start => 415' })).toBeVisible();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('416');
-});
-
-
 test('page_exceed', async ({ page }) => {  
   // Recording...
   await page.goto('http://localhost:5001/');
@@ -425,3 +408,25 @@ test('page_feild_with_empty', async ({ page }) => {
 });
 
 
+
+test('page_field_fill_with_last_added_page_no', async ({ page }) => {  
+  // Recording...
+  await page.goto('http://localhost:5001/');
+  await page.getByRole('textbox', { name: 'page' }).click();
+  // single entry
+  await page.getByRole('textbox', { name: 'page' }).fill('410');
+  await page.getByRole('button', { name: 'Single Entry' }).click();
+  await expect(page.locator('h1')).toContainText('410 - 30 Rum End - وَلَئِنْ أَرْسَلْنَا رِيحًا');
+  await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('410');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('h1')).toContainText('411 - 31 Luqman Start - الم تِلْكَ آيَاتُ');
+  await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('411');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('411');
+  // after bulk entry
+  await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await expect(page.getByRole('heading', { name: '411 - 31 Luqman Start => 415' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('416');
+});

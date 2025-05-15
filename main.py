@@ -9,7 +9,12 @@ DB_PATH = "data/quran_v3.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, users = tables.revisions, tables.users
+revisions, hafizs, users, hafizs_users = (
+    tables.revisions,
+    tables.hafizs,
+    tables.users,
+    tables.hafizs_users,
+)
 plans, modes, pages = tables.plans, tables.modes, tables.pages
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
@@ -36,28 +41,51 @@ if pages not in tables:
     )
     pages_data = pd.read_csv("metadata/pages.csv").to_dict("records")
     pages.insert_all(pages_data)
-if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, pk="id")
-    # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
+if hafizs not in tables:
+    hafizs.create(id=int, name=str, age_group=str, daily_capacity=int, pk="id")
+    # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
-    users.insert({"name": "Siraj"})
+    hafizs.insert({"name": "Siraj"})
+    hafizs.insert({"name": "Firoza"})
+if users not in tables:
+    users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
+    users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
+    users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
+if hafizs_users not in tables:
+    hafizs_users.create(
+        id=int,
+        user_id=int,
+        hafiz_id=int,
+        relationship=str,
+        granted_by_user_id=int,
+        granted_at=str,
+        pk="id",
+        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
+    )
+    hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
+    hafizs_users.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
 if revisions not in tables:
     revisions.create(
         id=int,
         mode_id=int,
         plan_id=int,
-        user_id=int,
+        hafiz_id=int,
         page_id=int,
         revision_date=str,
         rating=int,
         pk="id",
         foreign_keys=[
             ("mode_id", "modes", "id"),
-            ("user_id", "users", "id"),
+            ("hafiz_id", "hafizs", "id"),
             ("page_id", "pages", "id"),
         ],
     )
-Revision, User = revisions.dataclass(), users.dataclass()
+Revision, Hafiz, User, Users_hafiz = (
+    revisions.dataclass(),
+    hafizs.dataclass(),
+    users.dataclass(),
+    hafizs_users.dataclass(),
+)
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
@@ -67,13 +95,16 @@ alpinejs_header = Script(
 
 
 def before(req, sess):
+    user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
+    if not user_auth:
+        return RedirectResponse("/login", status_code=303)
     auth = req.scope["auth"] = sess.get("auth", None)
     if not auth:
-        return RedirectResponse("/user_selection", status_code=303)
-    revisions.xtra(user_id=auth)
+        return RedirectResponse("/hafiz_selection", status_code=303)
+    revisions.xtra(hafiz_id=auth)
 
 
-bware = Beforeware(before, skip=["/user_selection"])
+bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
 
 app, rt = fast_app(
     before=bware,
@@ -176,9 +207,9 @@ def render_page(page):
     )
 
 
-def datewise_summary_table(show=None, user_id=None):
+def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
-    qry = (qry + f" WHERE user_id = {user_id}") if user_id else qry
+    qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -192,7 +223,7 @@ def datewise_summary_table(show=None, user_id=None):
     def _render_datewise_row(date):
         rev_query = f"revision_date = '{date}'"
         revisions_query = revisions(
-            where=rev_query + f"AND user_id = {user_id}" if user_id else rev_query
+            where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
         pages_list = sorted([r["page_id"] for r in current_date_revisions])
@@ -244,50 +275,165 @@ def datewise_summary_table(show=None, user_id=None):
     return datewise_table
 
 
-def render_user_card(user, auth):
-    is_current_user = auth != user.id
+def render_hafiz_card(hafizs_user, auth):
+    is_current_hafizs_user = auth != hafizs_user.hafiz_id
     return Card(
-        (Subtitle("last 3 revision")(datewise_summary_table(show=3, user_id=user.id)),),
-        header=DivFullySpaced(H3(user.name)),
+        (
+            Subtitle("last 3 revision")(
+                datewise_summary_table(show=3, hafiz_id=hafizs_user.hafiz_id)
+            ),
+        ),
+        header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
         footer=Button(
-            "Switch User" if is_current_user else "Go to home",
-            name="current_user_id",
-            value=user.id,
-            hx_post="/user_selection",
+            "Switch hafiz" if is_current_hafizs_user else "Go to home",
+            name="current_hafiz_id",
+            value=hafizs_user.hafiz_id,
+            hx_post="/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
-            cls=(ButtonT.primary if is_current_user else ButtonT.secondary),
+            id=f"btn-{hafizs[hafizs_user.hafiz_id].name}",
+            cls=(ButtonT.primary if is_current_hafizs_user else ButtonT.secondary),
         ),
         cls="min-w-[300px] max-w-[400px]",
     )
 
 
-@app.get("/user_selection")
-def user_selection(sess):
-    # In beforeware we are adding the user_id filter using xtra
-    # we have to reset that xtra attribute in order to show revisions for all users
-    revisions.xtra()
+login_redir = RedirectResponse("/login", status_code=303)
+
+
+@app.get("/login")
+def login():
+    form = Form(
+        LabelInput(label="Email", name="email", type="email"),
+        LabelInput(label="Password", name="password", type="password"),
+        Button("Login"),
+        action="/login",
+        method="post",
+    )
+    return Titled("Login", form)
+
+
+@dataclass
+class Login:
+    email: str
+    password: str
+
+
+@app.post("/login")
+def login_post(login: Login, sess):
+    if not login.email or not login.password:
+        return login_redir
+    try:
+        u = users(where="email = '{}'".format(login.email))[0]
+    except IndexError:
+        # u = users.insert(login)
+        return login_redir
+    if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
+        return login_redir
+    sess["user_auth"] = u.id
+    hafizs_users.xtra(id=u.id)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get("/logout")
+def logout(sess):
+    user_auth = sess.get("user_auth", None)
+    if user_auth is not None:
+        del sess["user_auth"]
     auth = sess.get("auth", None)
-    cards = [render_user_card(user, auth) for user in users()]
+    if auth is not None:
+        del sess["auth"]
+    return RedirectResponse("/login", status_code=303)
+
+
+@app.post("/add_hafiz")
+def add_hafiz_and_relations(hafiz: Hafiz, relationship: str, sess):
+    hafiz_id = hafizs.insert(hafiz)
+    hafizs_users.insert(
+        hafiz_id=hafiz_id.id,
+        user_id=sess["user_auth"],
+        relationship=relationship,
+        granted_by_user_id=sess["user_auth"],
+        granted_at=datetime.now().strftime("%d-%m-%y %H:%M:%S"),
+    )
+    return RedirectResponse("/hafiz_selection", status_code=303)
+
+
+@app.get("/hafiz_selection")
+def hafiz_selection(sess):
+    # In beforeware we are adding the hafiz_id filter using xtra
+    # we have to reset that xtra attribute in order to show revisions for all hafiz
+    revisions.xtra()
+    hafizs_users.xtra()
+    auth = sess.get("auth", None)
+    user_auth = sess.get("user_auth", None)
+    if user_auth is None:
+        return login_redir
+
+    # cards = [render_hafiz_card(h, auth) for h in hafizs()]
+    cards = [
+        render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
+    ]
+    age_groups = ["child", "teen", "adult"]
+    relationships = ["self", "parent", "teacher", "sibling"]
+
+    def mk_options(option):
+        return Option(
+            option.capitalize(),
+            value=option,
+        )
+
+    hafiz_form = Card(
+        Titled(
+            "Add Hafiz",
+            Form(
+                LabelInput(label="Hafiz Name", name="name", required=True),
+                LabelSelect(
+                    *map(mk_options, age_groups),
+                    label="Age Group",
+                    name="age_group",
+                ),
+                LabelInput(
+                    label="Daily Capacity",
+                    name="daily_capacity",
+                    type="number",
+                    min="1",
+                    value="1",
+                    required=True,
+                ),
+                LabelSelect(
+                    *map(mk_options, relationships),
+                    label="Relationship",
+                    name="relationship",
+                ),
+                Button("Add Hafiz"),
+                action="/add_hafiz",
+                method="post",
+                cls="space-y-3",
+            ),
+        ),
+        cls="w-[300px]",
+    )
     return main_area(
-        H5("Select User"),
+        H5("Select Hafiz"),
         Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+        Div(hafiz_form),
         auth=auth,
     )
 
 
-@app.post("/user_selection")
-def change_usesr(current_user_id: int, sess):
-    sess["auth"] = current_user_id
+@app.post("/hafiz_selection")
+def change_hafiz(current_hafiz_id: int, sess):
+    sess["auth"] = current_hafiz_id
     return RedirectResponse("/", status_code=303)
 
 
 def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href=index)
-    user_name = A(
-        f"{users[auth].name if auth is not None else "Select User"}",
-        href="/user_selection",
+    hafiz_name = A(
+        f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
+        href="/hafiz_selection",
         method="GET",
     )
     return Title("Quran SRS"), Container(
@@ -296,8 +442,9 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
+                A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3(title, Span(" - "), user_name),
+                brand=H3(title, Span(" - "), hafiz_name),
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
@@ -824,7 +971,7 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, users()), label="User Id", name="user_id", cls="hidden"
+            *map(_option, hafizs()), label="hafiz Id", name="hafiz_id", cls="hidden"
         ),
         Grid(
             mode_dropdown(),
@@ -1182,12 +1329,6 @@ def get(
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
-    # TODO: Later handle the user selection by session, for now temporarily setting it to siraj
-    try:
-        user_id = users(where="name='Siraj'")[0].id
-    except IndexError:
-        user_id = 1
-
     try:
         last_added_record = revisions()[-1]
     except IndexError:
@@ -1205,7 +1346,6 @@ def get(
     return main_area(
         H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
         Form(
-            Hidden(id="user_id", value=user_id),
             Hidden(name="length", value=length),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
@@ -1237,7 +1377,6 @@ def get(
 
 @rt("/revision/bulk_add")
 async def post(
-    user_id: int,
     revision_date: str,
     mode_id: int,
     plan_id: int,
@@ -1251,7 +1390,6 @@ async def post(
         Revision(
             page_id=int(page.split("-")[1]),
             rating=int(rating),
-            user_id=user_id,
             revision_date=revision_date,
             mode_id=mode_id,
             plan_id=plan_id,
