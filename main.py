@@ -391,7 +391,12 @@ def hafiz_selection(sess):
                     name="age_group",
                 ),
                 LabelInput(
-                    label="Daily Capacity", name="daily_capacity", type="number"
+                    label="Daily Capacity",
+                    name="daily_capacity",
+                    type="number",
+                    min="1",
+                    value="1",
+                    required=True,
                 ),
                 LabelSelect(
                     *map(mk_options, relationships),
