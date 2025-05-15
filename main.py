@@ -288,6 +288,7 @@ def render_hafiz_card(hafizs_user, auth):
             hx_post="/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
+            id=f"btn-{hafizs[hafizs_user.hafiz_id].name}",
             cls=(ButtonT.primary if is_current_hafizs_user else ButtonT.secondary),
         ),
         cls="min-w-[300px] max-w-[400px]",
