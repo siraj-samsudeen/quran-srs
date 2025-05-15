@@ -956,34 +956,7 @@ def bulk_edit_view(ids: str):
         ),
         Tbody(*[_render_row(i) for i in ids]),
         # defining the reactive data for for component to reference (alpine.js)
-        x_data="""
-        { 
-        selectAll: true,
-        updateSelectAll() {
-            const checkboxes = [...$el.querySelectorAll('.revision_ids')];
-          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
-        },
-        toggleAll() {
-          $el.querySelectorAll('.revision_ids').forEach(cb => {
-            cb.checked = this.selectAll;
-          });
-        },
-        handleCheckboxClick(e) {
-            // Handle shift+click selection
-            if (e.shiftKey) {
-                const checkboxes = [...$el.querySelectorAll('.revision_ids')];
-                const currentCheckboxIndex = checkboxes.indexOf(e.target);
-                
-                // loop through the checkboxes backwards untll we find one that is checked
-                for (let i = currentCheckboxIndex; i >= 0; i--) {
-                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
-                    checkboxes[i].checked = true;
-                }
-            }
-            this.updateSelectAll();
-        }
-      }  
-    """,
+        x_data=select_all_checkbox_x_data(class_name="revision_ids"),
         # initializing the toggleAll function to select all the checkboxes by default.
         x_init="toggleAll()",
     )

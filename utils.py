@@ -4,6 +4,39 @@ import sqlite3
 import os
 
 
+def select_all_checkbox_x_data(class_name):
+    template = """
+        { 
+        selectAll: true,
+        updateSelectAll() {
+            const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        },
+        toggleAll() {
+          $el.querySelectorAll('.CLASS_NAME_PLACEHOLDER').forEach(cb => {
+            cb.checked = this.selectAll;
+          });
+        },
+        handleCheckboxClick(e) {
+            // Handle shift+click selection
+            if (e.shiftKey) {
+                const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+                const currentCheckboxIndex = checkboxes.indexOf(e.target);
+                
+                // loop through the checkboxes backwards untll we find one that is checked
+                for (let i = currentCheckboxIndex; i >= 0; i--) {
+                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
+                    checkboxes[i].checked = true;
+                }
+            }
+            this.updateSelectAll();
+        }
+      }  
+    """
+
+    return template.replace("CLASS_NAME_PLACEHOLDER", class_name)
+
+
 # Util function
 def standardize_column(column_name):
     cleaned_column = column_name.strip().lower()
