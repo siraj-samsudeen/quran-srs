@@ -88,6 +88,13 @@ Revision, Hafiz, User, Users_hafiz = (
 )
 Plan, Mode, Page = plans.dataclass(), modes.dataclass(), pages.dataclass()
 
+# TODO: remove this later
+user = users[1]
+user.email = "siraj@bisquared.com"
+user.password = "123"
+users.update(user)
+
+
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
