@@ -2,9 +2,15 @@ import { test, expect } from '@playwright/test';
 
 // before each test, go to the user selection page and switch to the first user
 test.beforeEach(async ({ page }) => {
-  await page.goto('http://localhost:5001/user_selection');
-  await expect(page.getByRole('button', { name: 'Switch User' }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Switch User' }).first().click();
+  await page.goto('http://localhost:5001/login');
+  await page.getByRole('textbox', { name: 'Email' }).click();
+  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('123');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page).toHaveURL("http://localhost:5001/hafiz_selection");
+  await expect(page.getByRole('button', { name: 'Switch Hafiz' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Switch Hafiz' }).first().click();
 });
 
 
@@ -13,27 +19,30 @@ test('list_of_tables', async ({ page }) => {
   await page.goto('http://localhost:5001/tables');
   await page.getByRole('link', { name: 'Tables' }).click();
   // check if the list of tables are visible
-  await expect(page.getByRole('link', { name: 'Modes' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Pages' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Plans' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Revisions' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Modes', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Pages', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Plans', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Revisions', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Users', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Hafizs', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Hafizs_users', exact: true })).toBeVisible();
+
 });
 
 test('modes_table', async ({ page }) => {
   // Recording...
   await page.goto('http://localhost:5001/tables');
   await page.getByRole('link', { name: 'Tables' }).click();
-  await expect(page.getByRole('link', { name: 'modes' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Modes' })).toBeVisible();
   await page.getByRole('link', { name: 'modes' }).click();
   // check if the table is visible
-  await expect(page.locator('#row-1')).toContainText('SEQ');
+  await expect(page.locator('#row-1')).toContainText('Sequential');
   await expect(page.locator('#row-2')).toContainText('SRS');
-  await expect(page.locator('#row-3')).toContainText('Watch List');
-  await expect(page.locator('#row-4')).toContainText('New Memorization');
+  await expect(page.locator('#row-3')).toContainText('New Memorization');
+  await expect(page.locator('#row-4')).toContainText('Watch List');
   // update mode description
   await page.getByRole('link', { name: '1' }).click();
-  await expect(page.getByRole('textbox', { name: 'name' })).toHaveValue('SEQ');
+  await expect(page.getByRole('textbox', { name: 'name' })).toHaveValue('Sequential');
   await page.getByRole('textbox', { name: 'description' }).click();
   await page.getByRole('textbox', { name: 'description' }).fill('Added test description for update SEQ');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -78,8 +87,8 @@ test('user_table_CRUD', async ({ page }) => {
   // Recording...
   await page.goto('http://localhost:5001/tables');
   await page.getByRole('link', { name: 'Tables' }).click();
-  await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
-  await page.getByRole('link', { name: 'Users' }).click();
+  await expect(page.getByRole('link', { name: 'Users', exact: true})).toBeVisible();
+  await page.getByRole('link', { name: 'Users', exact: true }).click();
   // add new user
   await page.getByRole('button', { name: 'New' }).click();
   await page.getByRole('textbox', { name: 'name' }).click();
@@ -113,23 +122,31 @@ test('user_table_CRUD', async ({ page }) => {
 test('visibility_export_import_for_tables', async ({ page }) => {  
   // Recording...
   await page.goto('http://localhost:5001/tables');
-  await page.getByRole('link', { name: 'modes' }).click();
+  await page.getByRole('link', { name: 'Modes' }).click();
   await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
-  await page.getByRole('link', { name: 'pages' }).click();
+  await page.getByRole('link', { name: 'Pages' }).click();
   await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
-  await page.getByRole('link', { name: 'plans' }).click();
+  await page.getByRole('link', { name: 'Plans' }).click();
   await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
-  await page.getByRole('link', { name: 'revisions' }).click();
+  await page.getByRole('link', { name: 'Revisions' }).click();
   await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
-  await page.getByRole('link', { name: 'users' }).click();
+  await page.getByRole('link', { name: 'Users', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
+  await page.getByRole('link').filter({ hasText: /^$/ }).click();
+  await page.getByRole('link', { name: 'Hafizs', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
+  await page.getByRole('link').filter({ hasText: /^$/ }).click();
+  await page.getByRole('link', { name: 'Hafizs_users', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Export' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import' })).toBeVisible();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
