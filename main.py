@@ -1220,6 +1220,7 @@ def bulk_edit_view(ids: str, auth):
                 cls="space-x-2",
             )
 
+        item_details = items[current_revision.item_id]
         return Tr(
             Td(
                 CheckboxX(
@@ -1230,7 +1231,11 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(items[current_revision.item_id].page_number)),
+            Td(P(item_details.item_type)),
+            Td(P(item_details.page_number)),
+            Td(P(item_details.surah_name)),
+            Td(P(item_details.part_number)),
+            Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
@@ -1252,7 +1257,11 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Page"),
+                Th("Type"),
+                Th("No"),
+                Th("Surah"),
+                Th("Part"),
+                Th("Start"),
                 Th("Date"),
                 Th("Mode"),
                 Th("Plan ID"),
@@ -1483,7 +1492,7 @@ def get(
                 ),
                 Th("Type"),
                 Th("No"),
-                Th("Page"),
+                Th("Surah"),
                 Th("Part"),
                 Th("Start"),
                 Th("Rating"),
