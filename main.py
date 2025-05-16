@@ -201,6 +201,7 @@ def before(req, sess):
     if not auth:
         return RedirectResponse("/hafiz_selection", status_code=303)
     revisions.xtra(hafiz_id=auth)
+    hafizs_items.xtra(hafiz_id=auth)
 
 
 bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
@@ -210,6 +211,46 @@ app, rt = fast_app(
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
+
+
+def get_item_id(page_number: int):
+    """
+    This function will lookup the page_number in the `hafizs_items` table
+    if there is no record for that page and then create new records for that page
+    by looking up the `items` table
+
+    Each page may contain more than one record (including the page_part)
+
+    Then filter out the in_active hafizs_items and return the item_id
+
+    Returns:
+    list of item_id
+    """
+
+    qry = f"page_number = {page_number}"
+    hafiz_data = hafizs_items(where=qry)
+
+    if not hafiz_data:
+        page_items = items(where=f"page_number = {page_number}")
+        for item in page_items:
+            hafizs_items.insert(
+                Hafiz_Items(
+                    item_id=item.id,
+                    page_number=item.page_number,
+                    item_type=item.item_type,
+                    part_type=item.part_type,
+                    mode_id=1,
+                    # active=True,
+                )
+            )
+    hafiz_data = hafizs_items(where=qry)
+
+    item_ids = [
+        hafiz_item.item_id
+        for hafiz_item in hafiz_data
+        # if hafiz_item.active or hafiz_item.active is None
+    ]
+    return item_ids
 
 
 def get_column_headers(table):
@@ -1364,13 +1405,14 @@ def get(
     if last_page > max_page:
         last_page = max_page
 
-    def _render_row(current_page):
+    def _render_row(item_id):
+
         def _render_radio(o):
             value, label = o
             is_checked = True if value == "1" else False
             return FormLabel(
                 Radio(
-                    id=f"rating-{current_page}",
+                    id=f"rating-{item_id}",
                     value=value,
                     checked=is_checked,
                     cls="toggleable-radio",
@@ -1379,10 +1421,19 @@ def get(
                 cls="space-x-2",
             )
 
-        current_page_details = pages[current_page]
+        current_page_details = items[item_id]
         return Tr(
-            Td(P(current_page)),
-            Td(get_surah_name(current_page)),
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=item_id,
+                    cls="revision_ids",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(P(current_page_details.page_number)),
+            Td(current_page_details.surah_name),
+            Td(current_page_details.part_number),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 Div(
@@ -1392,9 +1443,30 @@ def get(
             ),
         )
 
+    item_ids = flatten_list(
+        [get_item_id(page_number=p) for p in range(page, last_page)]
+    )
+
     table = Table(
-        Thead(Tr(Th("No"), Th("Page"), Th("Start"), Th("Rating"))),
-        Tbody(*[_render_row(i) for i in range(page, last_page)]),
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
+                    )
+                ),
+                Th("No"),
+                Th("Page"),
+                Th("Part"),
+                Th("Start"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*map(_render_row, item_ids)),
+        x_data=select_all_checkbox_x_data(
+            class_name="revision_ids",
+        ),
+        x_init="toggleAll()",
     )
 
     action_buttons = Div(
@@ -1455,22 +1527,33 @@ async def post(
     mode_id: int,
     plan_id: int,
     length: int,
+    auth,
     req,
 ):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
+    item_ids = form_data.getlist("ids")
 
-    parsed_data = [
-        Revision(
-            item_id=int(page.split("-")[1]),
-            rating=int(rating),
-            revision_date=revision_date,
-            mode_id=mode_id,
-            plan_id=plan_id,
-        )
-        for page, rating in form_data.items()
-        if page.startswith("rating-")
-    ]
+    parsed_data = []
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            item_id = name.split("-")[1]
+            if item_id in item_ids:
+                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+                hafizs_items.update(
+                    {"status": "memorized", "active": True}, hafizs_items_id
+                )
+                parsed_data.append(
+                    Revision(
+                        item_id=int(item_id),
+                        rating=int(value),
+                        hafiz_id=auth,
+                        revision_date=revision_date,
+                        mode_id=mode_id,
+                        plan_id=plan_id,
+                    )
+                )
+
     revisions.insert_all(parsed_data)
     if parsed_data:
         last_page = parsed_data[-1].item_id

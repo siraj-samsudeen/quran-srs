@@ -2,9 +2,13 @@ from datetime import datetime
 import re
 import sqlite3
 import os
+import itertools
 
 
-def select_all_checkbox_x_data(class_name):
+def flatten_list(list_of_lists):
+    return list(itertools.chain(*list_of_lists))
+
+
     template = """
         { 
         selectAll: true,
