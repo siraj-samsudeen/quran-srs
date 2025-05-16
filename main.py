@@ -1368,7 +1368,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
             fill_form(
                 create_revision_form("add"),
                 {
-                    "item_id": page,
+                    "page_no": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
                     "revision_date": date,
@@ -1381,15 +1381,17 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
 
 @rt("/revision/add")
-def post(revision_details: Revision):
+def post(page_no: int, revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
+    revision_details.item_id = items(where=f"page_number = {page_no}")[0].id
+
     rev = revisions.insert(revision_details)
 
-    return Redirect(f"/revision/add?page={rev.item_id + 1}&date={rev.revision_date}")
+    return Redirect(f"/revision/add?page={page_no + 1}&date={rev.revision_date}")
 
 
 @app.get("/revision/bulk_add")
