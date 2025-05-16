@@ -1439,6 +1439,7 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
+            Td(P(current_page_details.item_type)),
             Td(P(current_page_details.page_number)),
             Td(current_page_details.surah_name),
             Td(current_page_details.part_number),
@@ -1463,6 +1464,7 @@ def get(
                         cls="select_all", x_model="selectAll", _at_change="toggleAll()"
                     )
                 ),
+                Th("Type"),
                 Th("No"),
                 Th("Page"),
                 Th("Part"),
