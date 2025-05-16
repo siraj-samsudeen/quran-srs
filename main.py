@@ -1137,7 +1137,7 @@ def create_revision_form(type):
             type="date",
             value=current_time("%Y-%m-%d"),
         ),
-        LabelInput("Page", name="item_id", type="number", input_cls="text-2xl"),
+        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1155,9 +1155,10 @@ def create_revision_form(type):
 
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int, auth):
-    current_revision = revisions[revision_id]
+    current_revision = revisions[revision_id].__dict__
+    current_revision["page_no"] = items[current_revision["item_id"]].page_number
     # Convert rating to string in order to make the fill_form to select the option.
-    current_revision.rating = str(current_revision.rating)
+    current_revision["rating"] = str(current_revision["rating"])
     form = create_revision_form("edit")
     return main_area(
         Titled("Edit Revision", fill_form(form, current_revision)),
