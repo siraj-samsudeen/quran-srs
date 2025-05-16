@@ -72,7 +72,7 @@ if plans not in tables:
         completed=bool,
         pk="id",
         # foreign_key, reference_table, reference_column
-        foreign_keys=[("hafiz_id", "hafiz", "id")],
+        foreign_keys=[("hafiz_id", "hafizs", "id")],
     )
 if pages not in tables:
     pages.create(
@@ -106,7 +106,7 @@ if items not in tables:
         lines=str,
         pk="id",
         foreign_keys=[
-            ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafizs", "id"),
             ("page_id", "pages", "id"),
             ("surah_id", "surahs", "id"),
         ],
@@ -130,7 +130,7 @@ if hafizs_items not in tables:
         bad_streak=int,
         pk="id",
         foreign_keys=[
-            ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafizs", "id"),
             ("item_id", "items", "id"),
             ("mode_id", "modes", "id"),
         ],
@@ -147,7 +147,7 @@ if revisions not in tables:
         notes=str,
         pk="id",
         foreign_keys=[
-            ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafizs", "id"),
             ("item_id", "items", "id"),
             ("mode_id", "modes", "id"),
             ("page_id", "pages", "id"),
@@ -954,8 +954,15 @@ async def import_specific_table(table: str, file: UploadFile):
     # so we cannot truncate the table
     file_content = await file.read()
     data = pd.read_csv(BytesIO(file_content)).to_dict("records")
-    for row in data:
-        tables[table].upsert(row)
+
+    qry = """
+
+    DELETE FROM TABLE_TO_TRUNCATE;
+
+    """
+    db.q(qry.replace("TABLE_TO_TRUNCATE", table))
+
+    tables[table].insert_all(data)
 
     return Redirect(f"/tables/{table}")
 
