@@ -2,6 +2,46 @@ from datetime import datetime
 import re
 import sqlite3
 import os
+import itertools
+
+
+def flatten_list(list_of_lists):
+    return list(itertools.chain(*list_of_lists))
+
+
+def select_all_checkbox_x_data(class_name, is_select_all="true"):
+    template = """
+        { 
+        selectAll: SELECT_ALL_PLACEHOLDER,
+        updateSelectAll() {
+            const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        },
+        toggleAll() {
+          $el.querySelectorAll('.CLASS_NAME_PLACEHOLDER').forEach(cb => {
+            cb.checked = this.selectAll;
+          });
+        },
+        handleCheckboxClick(e) {
+            // Handle shift+click selection
+            if (e.shiftKey) {
+                const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+                const currentCheckboxIndex = checkboxes.indexOf(e.target);
+                
+                // loop through the checkboxes backwards untll we find one that is checked
+                for (let i = currentCheckboxIndex; i >= 0; i--) {
+                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
+                    checkboxes[i].checked = true;
+                }
+            }
+            this.updateSelectAll();
+        }
+      }  
+    """
+
+    return template.replace("CLASS_NAME_PLACEHOLDER", class_name).replace(
+        "SELECT_ALL_PLACEHOLDER", is_select_all
+    )
 
 
 # Util function
