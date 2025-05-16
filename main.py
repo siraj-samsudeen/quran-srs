@@ -346,7 +346,6 @@ def split_page_range(page_range: str):
 
 
 def render_page(page):
-    page_data = pages[page]
     return Span(
         Span(page, cls=TextPresets.bold_sm),
         f" - {get_surah_name(page)}",
@@ -372,7 +371,9 @@ def datewise_summary_table(show=None, hafiz_id=None):
             where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
-        pages_list = sorted([r["item_id"] for r in current_date_revisions])
+        pages_list = sorted(
+            [items[r["item_id"]].page_number for r in current_date_revisions]
+        )
 
         def _render_page_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
@@ -634,7 +635,8 @@ def tables_main_area(*args, active_table=None, auth=None):
 @rt
 def index(auth):
     revision_data = revisions()
-    last_added_page = revision_data[-1].item_id if revision_data else None
+    last_added_item_id = revision_data[-1].item_id if revision_data else None
+    last_added_page = items[last_added_item_id].page_number
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
@@ -655,7 +657,7 @@ def index(auth):
             continue
         pages_list = sorted(
             [
-                r.item_id
+                items[r.item_id].page_number
                 for r in revisions(
                     where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
