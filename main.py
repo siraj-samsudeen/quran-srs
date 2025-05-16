@@ -1023,7 +1023,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                     _="on click send checkboxChanged to .toggle_btn",
                 )
             ),
-            Td(A(rev.item_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            Td(
+                A(
+                    items[rev.item_id].page_number,
+                    href=f"/revision/edit/{rev.id}",
+                    cls=AT.muted,
+                )
+            ),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
             Td(rev.mode_id),
             Td(rev.plan_id),
