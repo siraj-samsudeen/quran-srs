@@ -41,11 +41,9 @@ if hafizs not in tables:
     # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
     hafizs.insert({"name": "Siraj"})
-    hafizs.insert({"name": "Firoza"})
 if users not in tables:
     users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
-    users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
-    users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
+    users.insert({"name": "Siraj", "email": "mailsiraj@gmail.com", "password": "123"})
 if hafizs_users not in tables:
     hafizs_users.create(
         id=int,
@@ -58,7 +56,6 @@ if hafizs_users not in tables:
         foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
     )
     hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
-    hafizs_users.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
 if plans not in tables:
     plans.create(
         id=int,
@@ -179,12 +176,6 @@ if revisions not in tables:
     mushafs.dataclass(),
     hafizs_items.dataclass(),
 )
-
-# TODO: remove this later
-user = users[1]
-user.email = "siraj@bisquared.com"
-user.password = "123"
-users.update(user)
 
 
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
@@ -955,12 +946,7 @@ async def import_specific_table(table: str, file: UploadFile):
     file_content = await file.read()
     data = pd.read_csv(BytesIO(file_content)).to_dict("records")
 
-    qry = """
-
-    DELETE FROM TABLE_TO_TRUNCATE;
-
-    """
-    db.q(qry.replace("TABLE_TO_TRUNCATE", table))
+    tables[table].delete_where()
 
     tables[table].insert_all(data)
 
