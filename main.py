@@ -869,6 +869,8 @@ def get_column_and_its_type(table):
 async def update_record(table: str, record_id: int, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
+    # remove the key if the value is empty
+    current_data = {key: value for key, value in current_data.items() if value != ""}
     tables[table].update(current_data, record_id)
 
     return Redirect(f"/tables/{table}")
