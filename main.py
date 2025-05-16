@@ -192,6 +192,7 @@ def before(req, sess):
     if not auth:
         return RedirectResponse("/hafiz_selection", status_code=303)
     revisions.xtra(hafiz_id=auth)
+    hafizs_items.xtra(hafiz_id=auth)
 
 
 bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
@@ -203,6 +204,46 @@ app, rt = fast_app(
 )
 
 
+def get_item_id(page_number: int):
+    """
+    This function will lookup the page_number in the `hafizs_items` table
+    if there is no record for that page and then create new records for that page
+    by looking up the `items` table
+
+    Each page may contain more than one record (including the page_part)
+
+    Then filter out the in_active hafizs_items and return the item_id
+
+    Returns:
+    list of item_id
+    """
+
+    qry = f"page_number = {page_number}"
+    hafiz_data = hafizs_items(where=qry)
+
+    if not hafiz_data:
+        page_items = items(where=f"page_number = {page_number}")
+        for item in page_items:
+            hafizs_items.insert(
+                Hafiz_Items(
+                    item_id=item.id,
+                    page_number=item.page_number,
+                    item_type=item.item_type,
+                    part_type=item.part_type,
+                    mode_id=1,
+                    # active=True,
+                )
+            )
+    hafiz_data = hafizs_items(where=qry)
+
+    item_ids = [
+        hafiz_item.item_id
+        for hafiz_item in hafiz_data
+        # if hafiz_item.active or hafiz_item.active is None
+    ]
+    return item_ids
+
+
 def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
@@ -210,7 +251,7 @@ def get_column_headers(table):
 
 
 def get_surah_name(page_id):
-    surah_id = items[page_id].surah_id
+    surah_id = items(where=f"page_number = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
     return f"{surah_details.number} {surah_details.name}"
 
@@ -286,17 +327,17 @@ def action_buttons(last_added_page=1, source="Home"):
     )
 
 
-def split_page_range(page_range: str):
-    start_page, end_page = (
-        page_range.split("-") if "-" in page_range else [page_range, None]
+def split_items_id_range(item_range: str):
+    start_id, end_id = (
+        item_range.split("-") if "-" in item_range else [item_range, None]
     )
-    start_page = int(start_page)
-    end_page = int(end_page) if end_page else None
-    return start_page, end_page
+    start_id = int(start_id)
+    end_id = int(end_id) if end_id else None
+    return start_id, end_id
 
 
-def render_page(page):
-    page_data = pages[page]
+def render_page(item_id):
+    page = items[item_id].page_number
     return Span(
         Span(page, cls=TextPresets.bold_sm),
         f" - {get_surah_name(page)}",
@@ -322,21 +363,21 @@ def datewise_summary_table(show=None, hafiz_id=None):
             where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
-        pages_list = sorted([r["item_id"] for r in current_date_revisions])
+        item_ids = sorted([r["item_id"] for r in current_date_revisions])
 
-        def _render_page_range(page_range: str):
-            start_page, end_page = split_page_range(page_range)
+        def _render_items_range(items_range: str):
+            start_id, end_id = split_items_id_range(items_range)
             # Get the ids for all the pages for the particular date
             ids = [
                 str(d["id"])
-                for page in range(start_page, (end_page or start_page) + 1)
+                for item_id in range(start_id, (end_id or start_id) + 1)
                 for d in current_date_revisions
-                if d.get("item_id") == page
+                if d.get("item_id") == item_id
             ]
-            if end_page:
-                ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
+            if end_id:
+                ctn = (render_page(start_id), Span(" -> "), render_page(end_id))
             else:
-                ctn = render_page(start_page)
+                ctn = render_page(start_id)
             return P(
                 A(
                     *ctn,
@@ -349,11 +390,11 @@ def datewise_summary_table(show=None, hafiz_id=None):
 
         return Tr(
             Td(date_to_human_readable(date)),
-            Td(len(pages_list)),
+            Td(len(item_ids)),
             Td(
                 *(
-                    map(_render_page_range, compact_format(pages_list).split(", "))
-                    if pages_list
+                    map(_render_items_range, compact_format(item_ids).split(", "))
+                    if item_ids
                     else "-"
                 ),
                 cls="space-y-3",
@@ -584,7 +625,8 @@ def tables_main_area(*args, active_table=None, auth=None):
 @rt
 def index(auth):
     revision_data = revisions()
-    last_added_page = revision_data[-1].item_id if revision_data else None
+    last_added_item_id = revision_data[-1].item_id if revision_data else None
+    last_added_page = items[last_added_item_id].page_number
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
@@ -605,7 +647,7 @@ def index(auth):
             continue
         pages_list = sorted(
             [
-                r.item_id
+                items[r.item_id].page_number
                 for r in revisions(
                     where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
@@ -615,11 +657,17 @@ def index(auth):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
+        def _render_page(page):
+            return Span(
+                Span(page, cls=TextPresets.bold_sm),
+                f" - {get_surah_name(page)}",
+            )
+
         plan_id, page_range = o["plan_id"], o["page_range"]
         if not page_range:
             return None
 
-        start_page, end_page = split_page_range(page_range)
+        start_page, end_page = split_items_id_range(page_range)
         next_page = (end_page or start_page) + 1
 
         current_plan = plans(where=f"id = '{plan_id}'")
@@ -634,7 +682,7 @@ def index(auth):
             continue_message = "No further page"
         else:
             continue_message = A(
-                render_page(next_page),
+                _render_page(next_page),
                 href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}&hide_id_fields=true",
                 cls=AT.classic,
             )
@@ -642,8 +690,8 @@ def index(auth):
         return Tr(
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
-            Td(render_page(start_page)),
-            (Td(render_page(end_page) if end_page else None)),
+            Td(_render_page(start_page)),
+            (Td(_render_page(end_page) if end_page else None)),
             Td(continue_message),
         )
 
@@ -973,7 +1021,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                     _="on click send checkboxChanged to .toggle_btn",
                 )
             ),
-            Td(A(rev.item_id, href=f"/revision/edit/{rev.id}", cls=AT.muted)),
+            Td(
+                A(
+                    items[rev.item_id].page_number,
+                    href=f"/revision/edit/{rev.id}",
+                    cls=AT.muted,
+                )
+            ),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
             Td(rev.mode_id),
             Td(rev.plan_id),
@@ -1081,7 +1135,7 @@ def create_revision_form(type):
             type="date",
             value=current_time("%Y-%m-%d"),
         ),
-        LabelInput("Page", name="item_id", type="number", input_cls="text-2xl"),
+        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1099,9 +1153,10 @@ def create_revision_form(type):
 
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int, auth):
-    current_revision = revisions[revision_id]
+    current_revision = revisions[revision_id].__dict__
+    current_revision["page_no"] = items[current_revision["item_id"]].page_number
     # Convert rating to string in order to make the fill_form to select the option.
-    current_revision.rating = str(current_revision.rating)
+    current_revision["rating"] = str(current_revision["rating"])
     form = create_revision_form("edit")
     return main_area(
         Titled("Edit Revision", fill_form(form, current_revision)),
@@ -1157,6 +1212,7 @@ def bulk_edit_view(ids: str, auth):
                 cls="space-x-2",
             )
 
+        item_details = items[current_revision.item_id]
         return Tr(
             Td(
                 CheckboxX(
@@ -1167,7 +1223,11 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(current_revision.item_id)),
+            Td(P(item_details.item_type)),
+            Td(P(item_details.page_number)),
+            Td(P(item_details.surah_name)),
+            Td(P(item_details.part_number)),
+            Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
@@ -1189,7 +1249,11 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Page"),
+                Th("Type"),
+                Th("No"),
+                Th("Surah"),
+                Th("Part"),
+                Th("Start"),
                 Th("Date"),
                 Th("Mode"),
                 Th("Plan ID"),
@@ -1198,34 +1262,7 @@ def bulk_edit_view(ids: str, auth):
         ),
         Tbody(*[_render_row(i) for i in ids]),
         # defining the reactive data for for component to reference (alpine.js)
-        x_data="""
-        { 
-        selectAll: true,
-        updateSelectAll() {
-            const checkboxes = [...$el.querySelectorAll('.revision_ids')];
-          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
-        },
-        toggleAll() {
-          $el.querySelectorAll('.revision_ids').forEach(cb => {
-            cb.checked = this.selectAll;
-          });
-        },
-        handleCheckboxClick(e) {
-            // Handle shift+click selection
-            if (e.shiftKey) {
-                const checkboxes = [...$el.querySelectorAll('.revision_ids')];
-                const currentCheckboxIndex = checkboxes.indexOf(e.target);
-                
-                // loop through the checkboxes backwards untll we find one that is checked
-                for (let i = currentCheckboxIndex; i >= 0; i--) {
-                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
-                    checkboxes[i].checked = true;
-                }
-            }
-            this.updateSelectAll();
-        }
-      }  
-    """,
+        x_data=select_all_checkbox_x_data(class_name="revision_ids"),
         # initializing the toggleAll function to select all the checkboxes by default.
         x_init="toggleAll()",
     )
@@ -1320,6 +1357,9 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
     if page >= max_page:
         return Redirect(index)
 
+    if len(get_item_id(page_number=page)) > 1:
+        return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
+
     try:
         last_added_record = revisions()[-1]
     except IndexError:
@@ -1335,7 +1375,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
             fill_form(
                 create_revision_form("add"),
                 {
-                    "item_id": page,
+                    "page_no": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
                     "revision_date": date,
@@ -1348,21 +1388,25 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
 
 @rt("/revision/add")
-def post(revision_details: Revision):
+def post(page_no: int, revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
+    revision_details.item_id = items(where=f"page_number = {page_no}")[0].id
+
     rev = revisions.insert(revision_details)
 
-    return Redirect(f"/revision/add?page={rev.item_id + 1}&date={rev.revision_date}")
+    return Redirect(f"/revision/add?page={page_no + 1}&date={rev.revision_date}")
 
 
 @app.get("/revision/bulk_add")
 def get(
     auth,
     page: str,
+    # is_part is to determine whether it came from single entry page or not
+    is_part: bool = False,
     mode_id: int = None,
     plan_id: int = None,
     revision_date: str = None,
@@ -1376,6 +1420,9 @@ def get(
     else:
         page = int(page)
 
+    if is_part:
+        length = 1
+
     if page >= max_page:
         return Redirect(index)
 
@@ -1384,13 +1431,14 @@ def get(
     if last_page > max_page:
         last_page = max_page
 
-    def _render_row(current_page):
+    def _render_row(item_id):
+
         def _render_radio(o):
             value, label = o
             is_checked = True if value == "1" else False
             return FormLabel(
                 Radio(
-                    id=f"rating-{current_page}",
+                    id=f"rating-{item_id}",
                     value=value,
                     checked=is_checked,
                     cls="toggleable-radio",
@@ -1399,10 +1447,20 @@ def get(
                 cls="space-x-2",
             )
 
-        current_page_details = pages[current_page]
+        current_page_details = items[item_id]
         return Tr(
-            Td(P(current_page)),
-            Td(get_surah_name(current_page)),
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=item_id,
+                    cls="revision_ids",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(P(current_page_details.item_type)),
+            Td(P(current_page_details.page_number)),
+            Td(current_page_details.surah_name),
+            Td(current_page_details.part_number),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 Div(
@@ -1412,9 +1470,32 @@ def get(
             ),
         )
 
+    item_ids = flatten_list(
+        [get_item_id(page_number=p) for p in range(page, last_page)]
+    )
+
     table = Table(
-        Thead(Tr(Th("No"), Th("Page"), Th("Start"), Th("Rating"))),
-        Tbody(*[_render_row(i) for i in range(page, last_page)]),
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
+                    )
+                ),
+                Th("Type"),
+                Th("No"),
+                Th("Surah"),
+                Th("Part"),
+                Th("Start"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*map(_render_row, item_ids)),
+        x_data=select_all_checkbox_x_data(
+            class_name="revision_ids",
+            is_select_all="false" if is_part else "true",
+        ),
+        x_init="toggleAll()",
     )
 
     action_buttons = Div(
@@ -1436,11 +1517,16 @@ def get(
         defalut_plan_value = last_added_record.plan_id
 
     start_description = get_surah_name(page)
-    end_description = get_surah_name(last_page - 1)
+    end_description = (
+        f"=> {last_page - 1} - {get_surah_name(last_page - 1)}"
+        if not is_part
+        else f"- {pages[page].start_text}"
+    )
     return main_area(
-        H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
+        H1(f"{page} - {start_description} {end_description}"),
         Form(
             Hidden(name="length", value=length),
+            Hidden(name="is_part", value=str(is_part)),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
@@ -1475,29 +1561,44 @@ async def post(
     mode_id: int,
     plan_id: int,
     length: int,
+    is_part: bool,
+    auth,
     req,
 ):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
+    item_ids = form_data.getlist("ids")
 
-    parsed_data = [
-        Revision(
-            item_id=int(page.split("-")[1]),
-            rating=int(rating),
-            revision_date=revision_date,
-            mode_id=mode_id,
-            plan_id=plan_id,
-        )
-        for page, rating in form_data.items()
-        if page.startswith("rating-")
-    ]
+    parsed_data = []
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            item_id = name.split("-")[1]
+            if item_id in item_ids:
+                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+                hafizs_items.update(
+                    {"status": "memorized", "active": True}, hafizs_items_id
+                )
+                parsed_data.append(
+                    Revision(
+                        item_id=int(item_id),
+                        rating=int(value),
+                        hafiz_id=auth,
+                        revision_date=revision_date,
+                        mode_id=mode_id,
+                        plan_id=plan_id,
+                    )
+                )
+
     revisions.insert_all(parsed_data)
     if parsed_data:
-        last_page = parsed_data[-1].item_id
+        last_item_id = parsed_data[-1].item_id
         # To show the next page
-        next_page = last_page + 1
+        next_page = items[last_item_id].page_number + 1
     else:
         return Redirect(index)
+
+    if is_part:
+        return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
 
     return Redirect(
         f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
