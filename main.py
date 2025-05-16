@@ -1224,7 +1224,7 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(current_revision.item_id)),
+            Td(P(items[current_revision.item_id].page_number)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
