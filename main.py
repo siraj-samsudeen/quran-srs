@@ -383,7 +383,6 @@ def datewise_summary_table(show=None, hafiz_id=None):
                 for d in current_date_revisions
                 if d.get("item_id") == item_id
             ]
-            print(ids)
             if end_id:
                 ctn = (render_page(start_id), Span(" -> "), render_page(end_id))
             else:
