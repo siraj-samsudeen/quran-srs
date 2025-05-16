@@ -9,9 +9,23 @@ DB_PATH = "data/quran_v4.db"
 
 db = database(DB_PATH)
 tables = db.t
-revisions, users, plans, modes, pages, surahs, items, mushafs, hafizs_items = (
+(
+    revisions,
+    hafizs,
+    users,
+    hafizs_users,
+    plans,
+    modes,
+    pages,
+    surahs,
+    items,
+    mushafs,
+    hafizs_items,
+) = (
     tables.revisions,
+    tables.hafizs,
     tables.users,
+    tables.hafizs_users,
     tables.plans,
     tables.modes,
     tables.pages,
@@ -22,11 +36,29 @@ revisions, users, plans, modes, pages, surahs, items, mushafs, hafizs_items = (
 )
 if modes not in tables:
     modes.create(id=int, name=str, description=str, pk="id")
-if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, pk="id")
-    # FIXME: Add Siraj as a user in order to select the user_id when creating a new revision
+if hafizs not in tables:
+    hafizs.create(id=int, name=str, age_group=str, daily_capacity=int, pk="id")
+    # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
     # as it was currently not handled by session
-    users.insert({"name": "Siraj", "email": "mailsiraj@gmail.com", "password": "123"})
+    hafizs.insert({"name": "Siraj"})
+    hafizs.insert({"name": "Firoza"})
+if users not in tables:
+    users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
+    users.insert({"name": "Siraj", "email": "siraj@bisquared.com", "password": "123"})
+    users.insert({"name": "Firoza", "email": "firoza@bisquared.com", "password": "123"})
+if hafizs_users not in tables:
+    hafizs_users.create(
+        id=int,
+        user_id=int,
+        hafiz_id=int,
+        relationship=str,
+        granted_by_user_id=int,
+        granted_at=str,
+        pk="id",
+        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
+    )
+    hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
+    hafizs_users.insert({"user_id": 2, "hafiz_id": 2, "relationship": "self"})
 if plans not in tables:
     plans.create(
         id=int,
@@ -40,7 +72,7 @@ if plans not in tables:
         completed=bool,
         pk="id",
         # foreign_key, reference_table, reference_column
-        # foreign_keys=[("hafiz_id", "hafiz", "id")],
+        foreign_keys=[("hafiz_id", "hafiz", "id")],
     )
 if pages not in tables:
     pages.create(
@@ -74,7 +106,7 @@ if items not in tables:
         lines=str,
         pk="id",
         foreign_keys=[
-            # ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafiz", "id"),
             ("page_id", "pages", "id"),
             ("surah_id", "surahs", "id"),
         ],
@@ -98,7 +130,7 @@ if hafizs_items not in tables:
         bad_streak=int,
         pk="id",
         foreign_keys=[
-            # ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafiz", "id"),
             ("item_id", "items", "id"),
             ("mode_id", "modes", "id"),
         ],
@@ -115,16 +147,30 @@ if revisions not in tables:
         notes=str,
         pk="id",
         foreign_keys=[
-            # ("hafiz_id", "hafiz", "id"),
+            ("hafiz_id", "hafiz", "id"),
             ("item_id", "items", "id"),
             ("mode_id", "modes", "id"),
             ("page_id", "pages", "id"),
         ],
     )
 
-Revision, User, Plan, Mode, Page, Item, Surah, Mushaf, Hafiz_Item = (
+(
+    Revision,
+    Hafiz,
+    User,
+    Hafiz_Users,
+    Plan,
+    Mode,
+    Page,
+    Item,
+    Surah,
+    Mushaf,
+    Hafiz_Items,
+) = (
     revisions.dataclass(),
+    hafizs.dataclass(),
     users.dataclass(),
+    hafizs_users.dataclass(),
     plans.dataclass(),
     modes.dataclass(),
     pages.dataclass(),
@@ -134,11 +180,33 @@ Revision, User, Plan, Mode, Page, Item, Surah, Mushaf, Hafiz_Item = (
     hafizs_items.dataclass(),
 )
 
+# TODO: remove this later
+user = users[1]
+user.email = "siraj@bisquared.com"
+user.password = "123"
+users.update(user)
+
+
 hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
+
+
+def before(req, sess):
+    user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
+    if not user_auth:
+        return RedirectResponse("/login", status_code=303)
+    auth = req.scope["auth"] = sess.get("auth", None)
+    if not auth:
+        return RedirectResponse("/hafiz_selection", status_code=303)
+    revisions.xtra(hafiz_id=auth)
+
+
+bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
+
 app, rt = fast_app(
+    before=bware,
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
@@ -214,8 +282,11 @@ def action_buttons(last_added_page=1, source="Home"):
             disabled=True,
             _=dynamic_enable_button_hyperscript,
         ),
-        # A(Button("Import"), href=import_csv),
-        A(Button("Export", type="button"), href=export_csv, hx_boost="false"),
+        A(
+            Button("Export", type="button"),
+            href="tables/revisions/export",
+            hx_boost="false",
+        ),
     )
     return DivFullySpaced(
         entry_buttons if source == "Home" else Div(),
@@ -224,79 +295,26 @@ def action_buttons(last_added_page=1, source="Home"):
     )
 
 
-def main_area(*args, active=None):
-    is_active = lambda x: AT.primary if x == active else None
-    return Title("Quran SRS"), Container(
-        Div(
-            NavBar(
-                A("Home", href=index, cls=is_active("Home")),
-                A("Revision", href=revision, cls=is_active("Revision")),
-                A("Tables", href="/tables", cls=is_active("Tables")),
-                # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
-                brand=H3(A("Quran SRS", href=index)),
-            ),
-            DividerLine(y_space=0),
-            cls="bg-white sticky top-0 z-10",
-        ),
-        Main(*args, cls="p-4", id="main") if args else None,
-        cls=ContainerT.xl,
+def split_page_range(page_range: str):
+    start_page, end_page = (
+        page_range.split("-") if "-" in page_range else [page_range, None]
+    )
+    start_page = int(start_page)
+    end_page = int(end_page) if end_page else None
+    return start_page, end_page
+
+
+def render_page(page):
+    page_data = pages[page]
+    return Span(
+        Span(page, cls=TextPresets.bold_sm),
+        f" - {get_surah_name(page)}",
     )
 
 
-def tables_main_area(*args, active_table=None):
-    is_active = lambda x: "uk-active" if x == active_table else None
-
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
-    table_links = [
-        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
-        for t in tables_list
-    ]
-
-    side_nav = NavContainer(
-        NavParentLi(
-            H4("Tables", cls="pl-4"),
-            NavContainer(*table_links, parent=False),
-        )
-    )
-
-    return main_area(
-        Div(
-            Div(side_nav, cls="flex-1 p-2"),
-            (
-                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
-                if args
-                else None
-            ),
-            cls=(FlexT.block, FlexT.wrap),
-        ),
-        active="Tables",
-    )
-
-
-@rt
-def index():
-    revision_data = revisions()
-    last_added_page = revision_data[-1].item_id if revision_data else None
-    # if it is greater than 604, we are reseting the last added page to None
-    if isinstance(last_added_page, int) and last_added_page >= 604:
-        last_added_page = None
-
-    def split_page_range(page_range: str):
-        start_page, end_page = (
-            page_range.split("-") if "-" in page_range else [page_range, None]
-        )
-        start_page = int(start_page)
-        end_page = int(end_page) if end_page else None
-        return start_page, end_page
-
-    def render_page(page):
-        return Span(
-            Span(page, cls=TextPresets.bold_sm),
-            f" - {get_surah_name(page)}",
-        )
-
-    ################### Datewise summary ###################
+def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
+    qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
     current_date = current_time("%Y-%m-%d")
@@ -305,11 +323,14 @@ def index():
         start=(earliest_date or current_date), end=current_date, freq="D"
     )
     date_range = [date.strftime("%Y-%m-%d") for date in date_range][::-1]
+    date_range = date_range[:show] if show else date_range
 
     def _render_datewise_row(date):
-        current_date_revisions = [
-            r.__dict__ for r in revisions(where=f"revision_date = '{date}'")
-        ]
+        rev_query = f"revision_date = '{date}'"
+        revisions_query = revisions(
+            where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
+        )
+        current_date_revisions = [r.__dict__ for r in revisions_query]
         pages_list = sorted([r["item_id"] for r in current_date_revisions])
 
         def _render_page_range(page_range: str):
@@ -356,6 +377,226 @@ def index():
         ),
         cls="uk-overflow-auto",
     )
+    return datewise_table
+
+
+def render_hafiz_card(hafizs_user, auth):
+    is_current_hafizs_user = auth != hafizs_user.hafiz_id
+    return Card(
+        (
+            Subtitle("last 3 revision")(
+                datewise_summary_table(show=3, hafiz_id=hafizs_user.hafiz_id)
+            ),
+        ),
+        header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
+        footer=Button(
+            "Switch hafiz" if is_current_hafizs_user else "Go to home",
+            name="current_hafiz_id",
+            value=hafizs_user.hafiz_id,
+            hx_post="/hafiz_selection",
+            hx_target="body",
+            hx_replace_url="true",
+            id=f"btn-{hafizs[hafizs_user.hafiz_id].name}",
+            cls=(ButtonT.primary if is_current_hafizs_user else ButtonT.secondary),
+        ),
+        cls="min-w-[300px] max-w-[400px]",
+    )
+
+
+login_redir = RedirectResponse("/login", status_code=303)
+
+
+@app.get("/login")
+def login():
+    form = Form(
+        LabelInput(label="Email", name="email", type="email"),
+        LabelInput(label="Password", name="password", type="password"),
+        Button("Login"),
+        action="/login",
+        method="post",
+    )
+    return Titled("Login", form)
+
+
+@dataclass
+class Login:
+    email: str
+    password: str
+
+
+@app.post("/login")
+def login_post(login: Login, sess):
+    if not login.email or not login.password:
+        return login_redir
+    try:
+        u = users(where="email = '{}'".format(login.email))[0]
+    except IndexError:
+        # u = users.insert(login)
+        return login_redir
+    if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
+        return login_redir
+    sess["user_auth"] = u.id
+    hafizs_users.xtra(id=u.id)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get("/logout")
+def logout(sess):
+    user_auth = sess.get("user_auth", None)
+    if user_auth is not None:
+        del sess["user_auth"]
+    auth = sess.get("auth", None)
+    if auth is not None:
+        del sess["auth"]
+    return RedirectResponse("/login", status_code=303)
+
+
+@app.post("/add_hafiz")
+def add_hafiz_and_relations(hafiz: Hafiz, relationship: str, sess):
+    hafiz_id = hafizs.insert(hafiz)
+    hafizs_users.insert(
+        hafiz_id=hafiz_id.id,
+        user_id=sess["user_auth"],
+        relationship=relationship,
+        granted_by_user_id=sess["user_auth"],
+        granted_at=datetime.now().strftime("%d-%m-%y %H:%M:%S"),
+    )
+    return RedirectResponse("/hafiz_selection", status_code=303)
+
+
+@app.get("/hafiz_selection")
+def hafiz_selection(sess):
+    # In beforeware we are adding the hafiz_id filter using xtra
+    # we have to reset that xtra attribute in order to show revisions for all hafiz
+    revisions.xtra()
+    hafizs_users.xtra()
+    auth = sess.get("auth", None)
+    user_auth = sess.get("user_auth", None)
+    if user_auth is None:
+        return login_redir
+
+    # cards = [render_hafiz_card(h, auth) for h in hafizs()]
+    cards = [
+        render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
+    ]
+    age_groups = ["child", "teen", "adult"]
+    relationships = ["self", "parent", "teacher", "sibling"]
+
+    def mk_options(option):
+        return Option(
+            option.capitalize(),
+            value=option,
+        )
+
+    hafiz_form = Card(
+        Titled(
+            "Add Hafiz",
+            Form(
+                LabelInput(label="Hafiz Name", name="name", required=True),
+                LabelSelect(
+                    *map(mk_options, age_groups),
+                    label="Age Group",
+                    name="age_group",
+                ),
+                LabelInput(
+                    label="Daily Capacity",
+                    name="daily_capacity",
+                    type="number",
+                    min="1",
+                    value="1",
+                    required=True,
+                ),
+                LabelSelect(
+                    *map(mk_options, relationships),
+                    label="Relationship",
+                    name="relationship",
+                ),
+                Button("Add Hafiz"),
+                action="/add_hafiz",
+                method="post",
+                cls="space-y-3",
+            ),
+        ),
+        cls="w-[300px]",
+    )
+    return main_area(
+        H5("Select Hafiz"),
+        Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+        Div(hafiz_form),
+        auth=auth,
+    )
+
+
+@app.post("/hafiz_selection")
+def change_hafiz(current_hafiz_id: int, sess):
+    sess["auth"] = current_hafiz_id
+    return RedirectResponse("/", status_code=303)
+
+
+def main_area(*args, active=None, auth=None):
+    is_active = lambda x: AT.primary if x == active else None
+    title = A("Quran SRS", href=index)
+    hafiz_name = A(
+        f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
+        href="/hafiz_selection",
+        method="GET",
+    )
+    return Title("Quran SRS"), Container(
+        Div(
+            NavBar(
+                A("Home", href=index, cls=is_active("Home")),
+                A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
+                A("logout", href="/logout"),
+                # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
+                brand=H3(title, Span(" - "), hafiz_name),
+            ),
+            DividerLine(y_space=0),
+            cls="bg-white sticky top-0 z-10",
+        ),
+        Main(*args, cls="p-4", id="main") if args else None,
+        cls=ContainerT.xl,
+    )
+
+
+def tables_main_area(*args, active_table=None, auth=None):
+    is_active = lambda x: "uk-active" if x == active_table else None
+
+    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    table_links = [
+        Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
+        for t in tables_list
+    ]
+
+    side_nav = NavContainer(
+        NavParentLi(
+            H4("Tables", cls="pl-4"),
+            NavContainer(*table_links, parent=False),
+        )
+    )
+
+    return main_area(
+        Div(
+            Div(side_nav, cls="flex-1 p-2"),
+            (
+                Div(*args, cls="flex-[4] border-l-2 p-4", id="table_view")
+                if args
+                else None
+            ),
+            cls=(FlexT.block, FlexT.wrap),
+        ),
+        active="Tables",
+        auth=auth,
+    )
+
+
+@rt
+def index(auth):
+    revision_data = revisions()
+    last_added_page = revision_data[-1].item_id if revision_data else None
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
+        last_added_page = None
 
     ################### Overall summary ###################
     # Sequential revision table
@@ -440,18 +681,19 @@ def index():
                 else {}
             )
         ),
-        Div(overall_table, Divider(), datewise_table),
+        Div(overall_table, Divider(), datewise_summary_table()),
         active="Home",
+        auth=auth,
     )
 
 
 @app.get("/tables")
-def list_tables():
-    return tables_main_area()
+def list_tables(auth):
+    return tables_main_area(auth=auth)
 
 
 @app.get("/tables/{table}")
-def view_table(table: str):
+def view_table(table: str, auth):
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
 
@@ -516,6 +758,7 @@ def view_table(table: str):
             cls="space-y-3",
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -557,7 +800,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int):
+def edit_record_view(table: str, record_id: int, auth):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -574,6 +817,7 @@ def edit_record_view(table: str, record_id: int):
     return tables_main_area(
         Titled(f"Edit page", fill_form(form, current_data)),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -597,7 +841,7 @@ def delete_record(table: str, record_id: int):
 
 
 @app.get("/tables/{table}/new")
-def new_record_view(table: str):
+def new_record_view(table: str, auth):
     column_with_types = get_column_and_its_type(table)
     return tables_main_area(
         Titled(
@@ -605,6 +849,7 @@ def new_record_view(table: str):
             create_dynamic_input_form(column_with_types, hx_post=f"/tables/{table}"),
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -634,7 +879,7 @@ def export_specific_table(table: str):
 
 
 @app.get("/tables/{table}/import")
-def import_specific_table_view(table: str):
+def import_specific_table_view(table: str, auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -671,6 +916,7 @@ def import_specific_table_view(table: str):
             cls="space-y-4",
         ),
         active_table=table,
+        auth=auth,
     )
 
 
@@ -770,7 +1016,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
 
 @app.get
-def revision(idx: int | None = 1):
+def revision(auth, idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -798,6 +1044,7 @@ def revision(idx: int | None = 1):
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -829,7 +1076,7 @@ def create_revision_form(type):
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
-            *map(_option, users()), label="Hafiz Id", name="hafiz_id", cls="hidden"
+            *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         Grid(
             mode_dropdown(),
@@ -858,13 +1105,15 @@ def create_revision_form(type):
 
 
 @rt("/revision/edit/{revision_id}")
-def get(revision_id: int):
+def get(revision_id: int, auth):
     current_revision = revisions[revision_id]
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision.rating = str(current_revision.rating)
     form = create_revision_form("edit")
     return main_area(
-        Titled("Edit Revision", fill_form(form, current_revision)), active="Revision"
+        Titled("Edit Revision", fill_form(form, current_revision)),
+        active="Revision",
+        auth=auth,
     )
 
 
@@ -896,7 +1145,7 @@ def bulk_edit_redirect(ids: List[str]):
 
 
 @app.get("/revision/bulk_edit")
-def bulk_edit_view(ids: str):
+def bulk_edit_view(ids: str, auth):
     ids = ids.split(",")
 
     # Get the default values from the first selected revision
@@ -1032,6 +1281,7 @@ def bulk_edit_view(ids: str):
             method="POST",
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -1068,7 +1318,7 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(page: str, max_page: int = 605):
+def get(auth, page: str, max_page: int = 605, date: str = None):
     if "." in page:
         page = page.split(".")[0]
 
@@ -1095,10 +1345,12 @@ def get(page: str, max_page: int = 605):
                     "item_id": page,
                     "mode_id": defalut_mode_value,
                     "plan_id": defalut_plan_value,
+                    "revision_date": date,
                 },
             ),
         ),
         active="Revision",
+        auth=auth,
     )
 
 
@@ -1109,15 +1361,14 @@ def post(revision_details: Revision):
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
-    revisions.insert(revision_details)
+    rev = revisions.insert(revision_details)
 
-    page = revision_details.item_id
-
-    return Redirect(f"/revision/add?page={page + 1}")
+    return Redirect(f"/revision/add?page={rev.item_id + 1}&date={rev.revision_date}")
 
 
 @app.get("/revision/bulk_add")
 def get(
+    auth,
     page: str,
     mode_id: int = None,
     plan_id: int = None,
@@ -1182,12 +1433,6 @@ def get(
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
-    # TODO: Later handle the user selection by session, for now temporarily setting it to siraj
-    try:
-        hafiz_id = users(where="name='Siraj'")[0].id
-    except IndexError:
-        hafiz_id = 1
-
     try:
         last_added_record = revisions()[-1]
     except IndexError:
@@ -1202,7 +1447,6 @@ def get(
     return main_area(
         H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
         Form(
-            Hidden(id="user_id", value=hafiz_id),
             Hidden(name="length", value=length),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
@@ -1226,14 +1470,14 @@ def get(
             action="/revision/bulk_add",
             method="POST",
         ),
-        Script(src="/script.js"),
+        Script(src="/public/script.js"),
         active="Revision",
+        auth=auth,
     )
 
 
 @rt("/revision/bulk_add")
 async def post(
-    hafiz_id: int,
     revision_date: str,
     mode_id: int,
     plan_id: int,
@@ -1247,7 +1491,6 @@ async def post(
         Revision(
             item_id=int(page.split("-")[1]),
             rating=int(rating),
-            hafiz_id=hafiz_id,
             revision_date=revision_date,
             mode_id=mode_id,
             plan_id=plan_id,
@@ -1269,46 +1512,6 @@ async def post(
 
 
 @app.get
-def import_csv():
-    form = Form(
-        UploadZone(
-            DivCentered(Span("Upload Zone"), UkIcon("upload")),
-            id="file",
-            accept="text/csv",
-        ),
-        Button("Submit"),
-        action=import_csv,
-        method="POST",
-    )
-    return main_area(Titled("Upload CSV", form), active="Revision")
-
-
-@app.post
-async def import_csv(file: UploadFile):
-    backup_sqlite_db(DB_PATH, "data/backup")
-    file_content = await file.read()
-    revisions.delete_where()  # Truncate the table before importing
-    db.import_file("revisions", file_content)
-    return Redirect(revision)
-
-
-@app.get
-def export_csv():
-    df = pd.DataFrame(revisions())
-
-    csv_buffer = BytesIO()
-    df.to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)
-
-    file_name = f"Quran_SRS_data_{current_time("%Y%m%d%I%M")}"
-    return StreamingResponse(
-        csv_buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}.csv"},
-    )
-
-
-@app.get
 def backup():
     if not os.path.exists(DB_PATH):
         return Titled("Error", P("Database file not found"))
@@ -1319,7 +1522,7 @@ def backup():
 
 
 @app.get
-def import_db():
+def import_db(auth):
     current_dbs = [
         Li(f, cls=ListT.circle) for f in os.listdir("data") if f.endswith(".db")
     ]
@@ -1340,6 +1543,7 @@ def import_db():
             cls="space-y-6",
         ),
         active="Revision",
+        auth=auth,
     )
 
 
