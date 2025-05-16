@@ -9,9 +9,10 @@ def flatten_list(list_of_lists):
     return list(itertools.chain(*list_of_lists))
 
 
+def select_all_checkbox_x_data(class_name, is_select_all="true"):
     template = """
         { 
-        selectAll: true,
+        selectAll: SELECT_ALL_PLACEHOLDER,
         updateSelectAll() {
             const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
           this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
@@ -38,7 +39,9 @@ def flatten_list(list_of_lists):
       }  
     """
 
-    return template.replace("CLASS_NAME_PLACEHOLDER", class_name)
+    return template.replace("CLASS_NAME_PLACEHOLDER", class_name).replace(
+        "SELECT_ALL_PLACEHOLDER", is_select_all
+    )
 
 
 # Util function

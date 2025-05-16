@@ -1341,6 +1341,9 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
     if page >= max_page:
         return Redirect(index)
 
+    if len(get_item_id(page_number=page)) > 1:
+        return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
+
     try:
         last_added_record = revisions()[-1]
     except IndexError:
@@ -1384,6 +1387,8 @@ def post(revision_details: Revision):
 def get(
     auth,
     page: str,
+    # is_part is to determine whether it came from single entry page or not
+    is_part: bool = False,
     mode_id: int = None,
     plan_id: int = None,
     revision_date: str = None,
@@ -1396,6 +1401,9 @@ def get(
         page, length = map(int, page.split("."))
     else:
         page = int(page)
+
+    if is_part:
+        length = 1
 
     if page >= max_page:
         return Redirect(index)
@@ -1465,6 +1473,7 @@ def get(
         Tbody(*map(_render_row, item_ids)),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
+            is_select_all="false" if is_part else "true",
         ),
         x_init="toggleAll()",
     )
@@ -1488,11 +1497,16 @@ def get(
         defalut_plan_value = last_added_record.plan_id
 
     start_description = get_surah_name(page)
-    end_description = get_surah_name(last_page - 1)
+    end_description = (
+        f"=> {last_page - 1} - {get_surah_name(last_page - 1)}"
+        if not is_part
+        else f"- {pages[page].start_text}"
+    )
     return main_area(
-        H1(f"{page} - {start_description} => {last_page - 1} - {end_description}"),
+        H1(f"{page} - {start_description} {end_description}"),
         Form(
             Hidden(name="length", value=length),
+            Hidden(name="is_part", value=str(is_part)),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
@@ -1527,6 +1541,7 @@ async def post(
     mode_id: int,
     plan_id: int,
     length: int,
+    is_part: bool,
     auth,
     req,
 ):
@@ -1556,11 +1571,14 @@ async def post(
 
     revisions.insert_all(parsed_data)
     if parsed_data:
-        last_page = parsed_data[-1].item_id
+        last_item_id = parsed_data[-1].item_id
         # To show the next page
-        next_page = last_page + 1
+        next_page = items[last_item_id].page_number + 1
     else:
         return Redirect(index)
+
+    if is_part:
+        return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
 
     return Redirect(
         f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
