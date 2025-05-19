@@ -7,6 +7,9 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 DB_PATH = "data/quran_v5.db"
 
+# This function will handle table creation and migration using fastmigrate
+create_and_migrate_db(DB_PATH)
+
 db = database(DB_PATH)
 tables = db.t
 (
@@ -34,123 +37,6 @@ tables = db.t
     tables.mushafs,
     tables.hafizs_items,
 )
-if modes not in tables:
-    modes.create(id=int, name=str, description=str, pk="id")
-if hafizs not in tables:
-    hafizs.create(id=int, name=str, age_group=str, daily_capacity=int, pk="id")
-    # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
-    # as it was currently not handled by session
-    hafizs.insert({"name": "Siraj"})
-if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
-    users.insert({"name": "Siraj", "email": "mailsiraj@gmail.com", "password": "123"})
-if hafizs_users not in tables:
-    hafizs_users.create(
-        id=int,
-        user_id=int,
-        hafiz_id=int,
-        relationship=str,
-        granted_by_user_id=int,
-        granted_at=str,
-        pk="id",
-        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
-    )
-    hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
-if plans not in tables:
-    plans.create(
-        id=int,
-        hafiz_id=int,
-        start_date=str,
-        end_date=str,
-        start_page=int,
-        end_page=int,
-        revision_count=int,
-        page_count=int,
-        completed=bool,
-        pk="id",
-        # foreign_key, reference_table, reference_column
-        foreign_keys=[("hafiz_id", "hafizs", "id")],
-    )
-if pages not in tables:
-    pages.create(
-        id=int,
-        mushaf_id=int,
-        page_number=int,
-        juz_number=str,
-        start_text=str,
-        starting_verse=str,
-        ending_verse=str,
-        pk="id",
-    )
-if mushafs not in tables:
-    mushafs.create(
-        id=int, name=str, description=str, total_pages=int, lines_per_page=int, pk="id"
-    )
-if surahs not in tables:
-    surahs.create(id=int, number=int, name=str, total_ayat=int, pk="id")
-if items not in tables:
-    items.create(
-        id=int,
-        item_type=str,
-        surah_id=int,
-        surah_name=str,
-        page_id=int,
-        page_number=int,
-        part_number=int,
-        start_text=str,
-        part_type=str,
-        hafiz_id=int,
-        lines=str,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("page_id", "pages", "id"),
-            ("surah_id", "surahs", "id"),
-        ],
-    )
-if hafizs_items not in tables:
-    hafizs_items.create(
-        id=int,
-        hafiz_id=int,
-        item_id=int,
-        page_number=int,
-        item_type=str,
-        part_type=str,
-        status=str,
-        mode_id=int,
-        active=bool,
-        revision_count=int,
-        last_revision_date=str,
-        last_revision_rating=int,
-        total_score=int,
-        good_streak=int,
-        bad_streak=int,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("item_id", "items", "id"),
-            ("mode_id", "modes", "id"),
-        ],
-    )
-if revisions not in tables:
-    revisions.create(
-        id=int,
-        hafiz_id=int,
-        item_id=int,
-        revision_date=str,
-        rating=int,
-        mode_id=int,
-        plan_id=int,
-        notes=str,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("item_id", "items", "id"),
-            ("mode_id", "modes", "id"),
-            ("page_id", "pages", "id"),
-        ],
-    )
-
 (
     Revision,
     Hafiz,
@@ -327,17 +213,16 @@ def action_buttons(last_added_page=1, source="Home"):
     )
 
 
-def split_items_id_range(item_range: str):
+def split_page_range(page_range: str):
     start_id, end_id = (
-        item_range.split("-") if "-" in item_range else [item_range, None]
+        page_range.split("-") if "-" in page_range else [page_range, None]
     )
     start_id = int(start_id)
     end_id = int(end_id) if end_id else None
     return start_id, end_id
 
 
-def render_page(item_id):
-    page = items[item_id].page_number
+def render_page(page):
     return Span(
         Span(page, cls=TextPresets.bold_sm),
         f" - {get_surah_name(page)}",
@@ -363,21 +248,23 @@ def datewise_summary_table(show=None, hafiz_id=None):
             where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
-        item_ids = sorted([r["item_id"] for r in current_date_revisions])
+        page_ids = sorted(
+            [items[r["item_id"]].page_number for r in current_date_revisions]
+        )
 
-        def _render_items_range(items_range: str):
-            start_id, end_id = split_items_id_range(items_range)
+        def _render_pages_range(page_range: str):
+            start_page, end_page = split_page_range(page_range)
             # Get the ids for all the pages for the particular date
             ids = [
                 str(d["id"])
-                for item_id in range(start_id, (end_id or start_id) + 1)
+                for page in range(start_page, (end_page or start_page) + 1)
                 for d in current_date_revisions
-                if d.get("item_id") == item_id
+                if items[d.get("item_id")].page_number == page
             ]
-            if end_id:
-                ctn = (render_page(start_id), Span(" -> "), render_page(end_id))
+            if end_page:
+                ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
             else:
-                ctn = render_page(start_id)
+                ctn = render_page(start_page)
             return P(
                 A(
                     *ctn,
@@ -390,11 +277,11 @@ def datewise_summary_table(show=None, hafiz_id=None):
 
         return Tr(
             Td(date_to_human_readable(date)),
-            Td(len(item_ids)),
+            Td(len(page_ids)),
             Td(
                 *(
-                    map(_render_items_range, compact_format(item_ids).split(", "))
-                    if item_ids
+                    map(_render_pages_range, compact_format(page_ids).split(", "))
+                    if page_ids
                     else "-"
                 ),
                 cls="space-y-3",
@@ -594,7 +481,9 @@ def main_area(*args, active=None, auth=None):
 def tables_main_area(*args, active_table=None, auth=None):
     is_active = lambda x: "uk-active" if x == active_table else None
 
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    tables_list = [
+        t for t in str(tables).split(", ") if not t.startswith(("sqlite", "_"))
+    ]
     table_links = [
         Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
         for t in tables_list
@@ -662,17 +551,11 @@ def index(auth):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
-        def _render_page(page):
-            return Span(
-                Span(page, cls=TextPresets.bold_sm),
-                f" - {get_surah_name(page)}",
-            )
-
         plan_id, page_range = o["plan_id"], o["page_range"]
         if not page_range:
             return None
 
-        start_page, end_page = split_items_id_range(page_range)
+        start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
         current_plan = plans(where=f"id = '{plan_id}'")
@@ -687,7 +570,7 @@ def index(auth):
             continue_message = "No further page"
         else:
             continue_message = A(
-                _render_page(next_page),
+                render_page(next_page),
                 href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}&hide_id_fields=true",
                 cls=AT.classic,
             )
@@ -695,8 +578,8 @@ def index(auth):
         return Tr(
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(page_range),
-            Td(_render_page(start_page)),
-            (Td(_render_page(end_page) if end_page else None)),
+            Td(render_page(start_page)),
+            (Td(render_page(end_page) if end_page else None)),
             Td(continue_message),
         )
 
@@ -1016,7 +899,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
     def _render_rows(rev: Revision):
         item_id = rev.item_id
-
+        page = items[item_id].page_number
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
@@ -1024,8 +907,10 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                 CheckboxX(
                     name="ids",
                     value=rev.id,
+                    cls="revision_ids",
                     # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
                     _="on click send checkboxChanged to .toggle_btn",
+                    _at_click="handleCheckboxClick($event)",
                 )
             ),
             Td(
@@ -1039,8 +924,8 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(get_surah_name(page_id=item_id)),
-            Td(pages[item_id].juz_number),
+            Td(get_surah_name(page_id=page)),
+            Td(pages[page].juz_number),
             Td(rev.revision_date),
             Td(
                 A(
@@ -1090,6 +975,7 @@ def revision(auth, idx: int | None = 1):
             )
         ),
         Tbody(*generate_revision_table_part(part_num=idx)),
+        x_data=select_all_checkbox_x_data(class_name="revision_ids"),
     )
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
@@ -1534,6 +1420,7 @@ def get(
         Form(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
+            Hidden(name="hide_id_fields", value=str(hide_id_fields)),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
@@ -1569,6 +1456,7 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
+    hide_id_fields: bool,
     auth,
     req,
 ):
@@ -1608,7 +1496,7 @@ async def post(
         return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
     )
 
 

@@ -3,7 +3,7 @@ import { test, expect} from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.goto('http://localhost:5001/login');
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailsiraj@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).click();
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
@@ -17,12 +17,12 @@ test('login_and_logout', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'logout' })).toBeVisible();
   await page.getByRole('link', { name: 'logout' }).click();
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailsiraj@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
   await page.getByRole('link', { name: 'logout' }).click();
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('firoza@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailfiroz@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page.getByRole('heading', { name: 'Firoza' })).toBeVisible();
@@ -47,7 +47,7 @@ test('add_new_hafiz', async ({ page }) => {
   await page.getByRole('link', { name: 'Tables' }).click();
   await page.getByRole('link', { name: 'Hafizs', exact: true }).click();
   page.on('dialog', dialog => dialog.accept());
-  await page.locator('tr', { hasText: 'Adhil' }).getByRole('link', { name: 'Delete' }).click();
+  await page.locator('tr', { hasText: 'Adhil' }).getByRole('link', { name: 'Delete' }).first().click();
 });
 
 test('hafiz_selection', async ({ page }) => {
@@ -127,7 +127,7 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.getByRole('link', { name: 'logout' }).click();
   // login as Firoza
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('firoza@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailfiroz@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page.getByRole('heading', { name: 'Zaseem' }).first()).toBeVisible();
@@ -135,20 +135,21 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Zaseem' })).toBeVisible();
    await expect(page).toHaveURL("http://localhost:5001/");
   await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('205');
-  await page.getByRole('link', { name: '- 9 At Tawbah -> 204 - 9 At Tawbah' }).click();
+  await page.getByRole('link', { name: '200 - 9 At-Tawbah -> 204 - 9 At-Tawbah' }).click();
   // modify data as Zaseem from the user Firoza
-  await page.getByRole('row', { name: '200 2025-05-15 1 1 ✅ Good 😄' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '201 2025-05-15 1 1 ✅ Good 😄' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '202 2025-05-15 1 1 ✅ Good 😄' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '203 2025-05-15 1 1 ✅ Good 😄' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '204 2025-05-15 1 1 ✅ Good 😄' }).first().getByLabel('❌ Bad').check();
+
+  await page.getByRole('row', { name: 'page 200 At-Tawbah' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 201 At-Tawbah' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 202 At-Tawbah' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 203 At-Tawbah' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 204 At-Tawbah' }).first().getByLabel('❌ Bad').check();
   await page.getByRole('button', { name: 'Save' }).click();
   page.on('dialog', dialog => dialog.accept());
   await page.locator('tr', { hasText: '204' }).first().getByRole('link', { name: 'Delete' }).click();
   await page.getByRole('link', { name: 'logout' }).click();
   // login as Siraj and ensure that the data is updated
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailsiraj@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
   await page.locator('#btn-Zaseem').first().click();
