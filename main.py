@@ -5,6 +5,11 @@ import pandas as pd
 from io import BytesIO
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+OPTION_MAP = {
+    "role": ["hafiz", "parent", "teacher", "parent_hafiz"],
+    "age_group": ["child", "teen", "adult"],
+    "relationship": ["self", "parent", "teacher", "sibling"],
+}
 DB_PATH = "data/quran_v5.db"
 
 # This function will handle table creation and migration using fastmigrate
@@ -322,6 +327,13 @@ def render_hafiz_card(hafizs_user, auth):
     )
 
 
+def render_options(option):
+    return Option(
+        option.capitalize(),
+        value=option,
+    )
+
+
 login_redir = RedirectResponse("/login", status_code=303)
 
 
@@ -398,22 +410,13 @@ def hafiz_selection(sess):
     cards = [
         render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
-    age_groups = ["child", "teen", "adult"]
-    relationships = ["self", "parent", "teacher", "sibling"]
-
-    def mk_options(option):
-        return Option(
-            option.capitalize(),
-            value=option,
-        )
-
     hafiz_form = Card(
         Titled(
             "Add Hafiz",
             Form(
                 LabelInput(label="Hafiz Name", name="name", required=True),
                 LabelSelect(
-                    *map(mk_options, age_groups),
+                    *map(render_options, OPTION_MAP["age_group"]),
                     label="Age Group",
                     name="age_group",
                 ),
@@ -426,7 +429,7 @@ def hafiz_selection(sess):
                     required=True,
                 ),
                 LabelSelect(
-                    *map(mk_options, relationships),
+                    *map(render_options, OPTION_MAP["relationship"]),
                     label="Relationship",
                     name="relationship",
                 ),
@@ -608,7 +611,7 @@ def index(auth):
                 else {}
             )
         ),
-        Div(overall_table, Divider(), datewise_summary_table()),
+        Div(overall_table, Divider(), datewise_summary_table(hafiz_id=auth)),
         active="Home",
         auth=auth,
     )
@@ -712,6 +715,14 @@ def create_dynamic_input_form(schema: dict, **kwargs):
                 LabelRadio(label="True", id=f"{column}-1", name=column, value="1"),
                 LabelRadio(label="False", id=f"{column}-2", name=column, value="0"),
                 cls="space-y-2",
+            )
+        if column in ["role", "age_group", "relationship"]:
+            return (
+                LabelSelect(
+                    *map(render_options, OPTION_MAP[column]),
+                    label=column.capitalize(),
+                    name=column,
+                ),
             )
         return LabelInput(column, type=input_type)
 
@@ -899,7 +910,8 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
     def _render_rows(rev: Revision):
         item_id = rev.item_id
-        page = items[item_id].page_number
+        item_details = items[item_id]
+        page = item_details.page_number
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
@@ -915,12 +927,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             ),
             Td(
                 A(
-                    items[rev.item_id].page_number,
+                    page,
                     href=f"/revision/edit/{rev.id}",
                     cls=AT.muted,
                 )
             ),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+            Td(item_details.part_number),
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
@@ -964,6 +977,7 @@ def revision(auth, idx: int | None = 1):
                 # Th("User Id"),
                 Th(),  # empty header for checkbox
                 Th("Page"),
+                Th("Part"),
                 # FIXME: Added temporarly to check is the date is added correctly and need to remove this
                 Th("Mode"),
                 Th("Plan Id"),

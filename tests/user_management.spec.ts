@@ -108,8 +108,8 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.getByRole('spinbutton', { name: 'user_id', exact: true }).fill('2');
   await page.getByRole('spinbutton', { name: 'hafiz_id' }).click();
   await page.getByRole('spinbutton', { name: 'hafiz_id' }).fill('3');
-  await page.getByRole('textbox', { name: 'relationship' }).click();
-  await page.getByRole('textbox', { name: 'relationship' }).fill('Teacher');
+  await page.getByRole('button', { name: 'Select an option' }).first().click();
+  await page.locator('a').filter({ hasText: 'Teacher' }).click();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('heading', { name: 'Zaseem' })).toBeVisible();
   await page.getByRole('link', { name: 'Quran SRS' }).click();

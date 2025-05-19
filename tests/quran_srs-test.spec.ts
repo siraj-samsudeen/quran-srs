@@ -344,10 +344,10 @@ test('shift_selection', async ({ page }) => {
   await page.keyboard.down('Shift');
   await page.getByRole('row', { name: '355 1 2 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
   await page.keyboard.up('Shift');
-  await expect(page.getByRole('row', { name: '355 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
-  await expect(page.getByRole('row', { name: '356 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
-  await expect(page.getByRole('row', { name: '357 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
-  await expect(page.getByRole('row', { name: '358 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '355 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: '356 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: '357 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: '358 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).toBeChecked();
   await expect(page.getByRole('row', { name: '359 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).not.toBeChecked();
 });
 
