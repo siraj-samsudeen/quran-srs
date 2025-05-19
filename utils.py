@@ -3,6 +3,26 @@ import re
 import sqlite3
 import os
 import itertools
+from fastmigrate.core import (
+    create_db,
+    run_migrations,
+    _ensure_meta_table,
+    _set_db_version,
+)
+
+
+def create_and_migrate_db(db_path):
+    migrations_dir = "migrations/"
+    try:
+        create_db(db_path)
+    except sqlite3.Error:
+        # if the table is already exsist, and doesn't have meta table, create it
+        _ensure_meta_table(db_path)
+        _set_db_version(db_path, 1)
+    success = run_migrations(db_path, migrations_dir, verbose=False)
+    if not success:
+        # Handle migration failure
+        print("Database migration failed!")
 
 
 def flatten_list(list_of_lists):
