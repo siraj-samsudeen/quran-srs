@@ -1529,6 +1529,7 @@ def get(
         Form(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
+            Hidden(name="hide_id_fields", value=str(hide_id_fields)),
             Grid(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
@@ -1564,6 +1565,7 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
+    hide_id_fields: bool,
     auth,
     req,
 ):
@@ -1603,7 +1605,7 @@ async def post(
         return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
     )
 
 
