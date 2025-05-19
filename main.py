@@ -626,7 +626,12 @@ def tables_main_area(*args, active_table=None, auth=None):
 def index(auth):
     revision_data = revisions()
     last_added_item_id = revision_data[-1].item_id if revision_data else None
-    last_added_page = items[last_added_item_id].page_number
+
+    if last_added_item_id:
+        last_added_page = items[last_added_item_id].page_number
+    else:
+        last_added_page = None
+
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
