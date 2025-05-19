@@ -7,6 +7,9 @@ from io import BytesIO
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 DB_PATH = "data/quran_v5.db"
 
+# This function will handle table creation and migration using fastmigrate
+create_and_migrate_db(DB_PATH)
+
 db = database(DB_PATH)
 tables = db.t
 (
@@ -34,123 +37,6 @@ tables = db.t
     tables.mushafs,
     tables.hafizs_items,
 )
-if modes not in tables:
-    modes.create(id=int, name=str, description=str, pk="id")
-if hafizs not in tables:
-    hafizs.create(id=int, name=str, age_group=str, daily_capacity=int, pk="id")
-    # FIXME: Add Siraj as a hafizs in order to select the hafiz_id when creating a new revision
-    # as it was currently not handled by session
-    hafizs.insert({"name": "Siraj"})
-if users not in tables:
-    users.create(id=int, name=str, email=str, password=str, role=str, pk="id")
-    users.insert({"name": "Siraj", "email": "mailsiraj@gmail.com", "password": "123"})
-if hafizs_users not in tables:
-    hafizs_users.create(
-        id=int,
-        user_id=int,
-        hafiz_id=int,
-        relationship=str,
-        granted_by_user_id=int,
-        granted_at=str,
-        pk="id",
-        foreign_keys=[("user_id", "users", "id"), ("hafiz_id", "hafizs", "id")],
-    )
-    hafizs_users.insert({"user_id": 1, "hafiz_id": 1, "relationship": "self"})
-if plans not in tables:
-    plans.create(
-        id=int,
-        hafiz_id=int,
-        start_date=str,
-        end_date=str,
-        start_page=int,
-        end_page=int,
-        revision_count=int,
-        page_count=int,
-        completed=bool,
-        pk="id",
-        # foreign_key, reference_table, reference_column
-        foreign_keys=[("hafiz_id", "hafizs", "id")],
-    )
-if pages not in tables:
-    pages.create(
-        id=int,
-        mushaf_id=int,
-        page_number=int,
-        juz_number=str,
-        start_text=str,
-        starting_verse=str,
-        ending_verse=str,
-        pk="id",
-    )
-if mushafs not in tables:
-    mushafs.create(
-        id=int, name=str, description=str, total_pages=int, lines_per_page=int, pk="id"
-    )
-if surahs not in tables:
-    surahs.create(id=int, number=int, name=str, total_ayat=int, pk="id")
-if items not in tables:
-    items.create(
-        id=int,
-        item_type=str,
-        surah_id=int,
-        surah_name=str,
-        page_id=int,
-        page_number=int,
-        part_number=int,
-        start_text=str,
-        part_type=str,
-        hafiz_id=int,
-        lines=str,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("page_id", "pages", "id"),
-            ("surah_id", "surahs", "id"),
-        ],
-    )
-if hafizs_items not in tables:
-    hafizs_items.create(
-        id=int,
-        hafiz_id=int,
-        item_id=int,
-        page_number=int,
-        item_type=str,
-        part_type=str,
-        status=str,
-        mode_id=int,
-        active=bool,
-        revision_count=int,
-        last_revision_date=str,
-        last_revision_rating=int,
-        total_score=int,
-        good_streak=int,
-        bad_streak=int,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("item_id", "items", "id"),
-            ("mode_id", "modes", "id"),
-        ],
-    )
-if revisions not in tables:
-    revisions.create(
-        id=int,
-        hafiz_id=int,
-        item_id=int,
-        revision_date=str,
-        rating=int,
-        mode_id=int,
-        plan_id=int,
-        notes=str,
-        pk="id",
-        foreign_keys=[
-            ("hafiz_id", "hafizs", "id"),
-            ("item_id", "items", "id"),
-            ("mode_id", "modes", "id"),
-            ("page_id", "pages", "id"),
-        ],
-    )
-
 (
     Revision,
     Hafiz,
@@ -594,7 +480,9 @@ def main_area(*args, active=None, auth=None):
 def tables_main_area(*args, active_table=None, auth=None):
     is_active = lambda x: "uk-active" if x == active_table else None
 
-    tables_list = [t for t in str(tables).split(", ") if not t.startswith("sqlite")]
+    tables_list = [
+        t for t in str(tables).split(", ") if not t.startswith(("sqlite", "_"))
+    ]
     table_links = [
         Li(A(t.capitalize(), href=f"/tables/{t}"), cls=is_active(t))
         for t in tables_list
