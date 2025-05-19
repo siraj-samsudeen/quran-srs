@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 
+// Need to import master data before running the test.
 // #TODO: During run all test, few test fails sometimes, need to figure out why.
 
 // dymamically get the current date
@@ -10,7 +11,7 @@ const currentDate = now.toISOString().split('T')[0];
 test.beforeEach(async ({ page }) => {
   await page.goto('http://localhost:5001/login');
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('mailsiraj@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).click();
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
@@ -130,18 +131,18 @@ test('revision_bulk_update', async ({ page }) => {
   await expect(page.getByRole('button',{name:'Export'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Bulk Edit'})).toBeDisabled();
   await expect(page.getByRole('button',{name:'Bulk Delete'})).toBeDisabled();
-  await page.getByRole('row', { name: '99 1 1 ✅ Good 4 An-Nisa Juz' }).getByRole('checkbox').check();
-  await page.getByRole('row', { name: '100 1 1 ✅ Good 4 An-Nisa Juz' }).getByRole('checkbox').check();
+  await page.getByRole('row', { name: '99 1 1 ✅ Good 4 An-Nisa 5' }).getByRole('checkbox').check();
+  await page.getByRole('row', { name: '100 1 1 ✅ Good 4 An-Nisa 5' }).getByRole('checkbox').check();
   await expect(page.getByRole('button',{name:'Bulk Edit'})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Bulk Delete'})).toBeEnabled();
   await page.getByRole('button', { name: 'Bulk Edit' }).click();
-  await page.getByRole('row', { name: `100 ${currentDate} 1 1 ✅ Good 😄` }).getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: `99 ${currentDate} 1 1 ✅ Good 😄` }).getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 100 An-Nisa' }).getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: 'page 99 An-Nisa' }).getByLabel('❌ Bad').check();
   await page.getByRole('textbox', { name: 'Revision Date' }).fill('2025-04-20');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL("http://localhost:5001/revision");
-  await expect(page.getByRole('row', { name: '100 1 1 ❌ Bad 4 An-Nisa Juz' }).getByRole('checkbox')).toBeVisible();
-  await expect(page.getByRole('row', { name: '99 1 1 ❌ Bad 4 An-Nisa Juz 5' }).getByRole('checkbox')).toBeVisible();
+  await expect(page.getByRole('row', { name: '100 1 1 ❌ Bad 4 An-Nisa 5' }).getByRole('checkbox')).toBeVisible();
+  await expect(page.getByRole('row', { name: '99 1 1 ❌ Bad 4 An-Nisa 5' }).getByRole('checkbox')).toBeVisible();
   await page.getByRole('link', { name: 'Home' }).click();
   await expect(page).toHaveURL("http://localhost:5001/");
 });
@@ -181,11 +182,17 @@ test('bulk_edit_revision_range', async ({ page }) => {
  await page.getByRole('button', { name: 'Cancel' }).click();
  await expect(page).toHaveURL("http://localhost:5001/");
  await page.getByRole('link', { name: '- 2 Al-Baqarah -> 37 - 2 Al-Baqarah' }).click();
- await page.getByRole('row', { name: `33 ${currentDate} 1 1 ✅ Good 😄` }).getByLabel('😄 Ok').first().check();
- await page.getByRole('row', { name: `34 ${currentDate} 1 1 ✅ Good 😄` }).getByLabel('😄 Ok').first().check();
- await page.getByRole('row', { name: `35 ${currentDate} 1 1 ✅ Good 😄` }).getByLabel('😄 Ok').first().check();
+ await page.getByRole('row', { name: 'page 33 Al-Baqarah' }).getByLabel('😄 Ok').check();
+ await page.getByRole('row', { name: 'page 34 Al-Baqarah' }).getByLabel('😄 Ok').check();
+ await page.getByRole('row', { name: 'page 35 Al-Baqarah' }).getByLabel('😄 Ok').check();
  await page.getByRole('button', { name: 'Save' }).click();
- expect(page.url()).toContain("http://localhost:5001/revision/bulk_edit?ids=");
+ expect(page.url()).toContain("http://localhost:5001/revision");
+ await expect(page.getByRole('row', { name: '37 1 1 ✅ Good 2 Al-Baqarah 2' })).toBeVisible();
+ await expect(page.getByRole('row', { name: '36 1 1 ✅ Good 2 Al-Baqarah 2' })).toBeVisible();
+ await expect(page.getByRole('row', { name: '35 1 1 😄 Ok 2 Al-Baqarah 2' })).toBeVisible();
+ await expect(page.getByRole('row', { name: '34 1 1 😄 Ok 2 Al-Baqarah 2' })).toBeVisible();
+ await expect(page.getByRole('row', { name: '33 1 1 😄 Ok 2 Al-Baqarah 2' })).toBeVisible();
+
 });
 
 
@@ -199,7 +206,7 @@ test('continue_with_bulk_add', async ({ page }) => {
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
   await page.locator('uk-select[name="mode_id"]  >> a').filter({ hasText: 'Sequential' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
-  await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
+  await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('2');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page).toHaveURL("http://localhost:5001/");
@@ -207,9 +214,13 @@ test('continue_with_bulk_add', async ({ page }) => {
   //enable continue with bulk add
   await expect(page.getByText("56 - 3 Ali 'Imran")).toBeVisible();
   await page.getByRole('link', { name: "56 - 3 Ali 'Imran" }).click();
+  await expect(page.getByText('Mode Id SequentialSRSNew')).not.toBeVisible();
+  await expect(page.locator('div').filter({ hasText: 'Plan ID' }).nth(2)).not.toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   expect(page.url()).toContain("mode_id=1");
-  expect(page.url()).toContain("plan_id=1"); 
+  expect(page.url()).toContain("plan_id=2"); 
+  await expect(page.getByText('Mode Id SequentialSRSNew')).not.toBeVisible();
+  await expect(page.locator('div').filter({ hasText: 'Plan ID' }).nth(2)).not.toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('link', { name: '61 - 3 Ali \'Imran' })).toBeVisible();
   await expect(page).toHaveURL("http://localhost:5001/");
@@ -292,8 +303,9 @@ test('single_add_with_custom_range', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).fill('255.10');
   await page.getByRole('button', { name: 'Single Entry' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
-  await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('3');
+  await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('2');
   await expect(page.getByRole('heading', { name: '255 - 13 Ar-Ra\'d' })).toBeVisible();
+  await page.getByRole('row', { name: 'page 255 Ar-Ra\'d' }).getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Save' }).click();
   expect(page.url()).toContain("http://localhost:5001/revision/add?page=");
   await expect(page.getByRole('heading', { name: '256 - 14 Ibrahim' })).toBeVisible();
@@ -316,16 +328,28 @@ test('shift_selection', async ({ page }) => {
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('link', { name: '- 24 An-Nur -> 359 - 24 An-Nur' }).click();
-  await page.getByRole('row', { name: 'Page Date Mode Plan ID Rating' }).getByRole('checkbox').uncheck();
-  await page.getByRole('row', { name: `355 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first().check();
+  await page.getByRole('row', { name: 'Type No Surah Part Start Date' }).getByRole('checkbox').uncheck();
+  await page.getByRole('row', { name: 'page 355 An-Nur' }).first().getByRole('checkbox').check();
   await page.keyboard.down('Shift');
-  await page.getByRole('row', { name: `358 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first().check();
+  await page.getByRole('row', { name: 'page 358 An-Nur' }).first().getByRole('checkbox').check();
   await page.keyboard.up('Shift');
-  await expect(page.getByRole('row', { name: `355 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first()).toBeChecked();
-  await expect(page.getByRole('row', { name: `356 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first()).toBeChecked();
-  await expect(page.getByRole('row', { name: `357 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first()).toBeChecked();
-  await expect(page.getByRole('row', { name: `358 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first()).toBeChecked();
-  await expect(page.getByRole('row', { name: `359 ${currentDate} 1 2 ✅ Good 😄` }).getByRole('checkbox').first()).not.toBeChecked();
+  await expect(page.getByRole('row', { name: 'page 355 An-Nur' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: 'page 356 An-Nur' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: 'page 357 An-Nur' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: 'page 358 An-Nur' }).getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByRole('row', { name: 'page 359 An-Nur' }).getByRole('checkbox').first()).not.toBeChecked();
+  // revision page
+  
+  await page.getByRole('link', { name: 'Revision' }).click();
+  await page.getByRole('row', { name: '358 1 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
+  await page.keyboard.down('Shift');
+  await page.getByRole('row', { name: '355 1 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
+  await page.keyboard.up('Shift');
+  await expect(page.getByRole('row', { name: '355 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '356 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).not.toBeChecked();
+  await expect(page.getByRole('row', { name: '357 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).not.toBeChecked();
+  await expect(page.getByRole('row', { name: '358 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '359 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).not.toBeChecked();
 });
 
 
@@ -429,4 +453,23 @@ test('page_field_fill_with_last_added_page_no', async ({ page }) => {
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('416');
+});
+
+test('radio_feild_with_empty', async ({ page }) => {
+  // Recording...
+  await page.goto('http://localhost:5001/');
+  await page.getByRole('textbox', { name: 'page' }).click();
+  await page.getByRole('textbox', { name: 'page' }).fill('10');
+  await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await expect(page.getByRole('heading', { name: '10 - 2 Al-Baqarah => 14 - 2' })).toBeVisible();
+  await page.getByRole('row', { name: 'page 14 Al-Baqarah' }).getByLabel('✅ Good').uncheck();
+  await page.getByRole('row', { name: 'page 13 Al-Baqarah' }).getByLabel('✅ Good').uncheck();
+  await page.getByRole('row', { name: 'page 12 Al-Baqarah' }).getByLabel('✅ Good').uncheck();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('heading', { name: '12 - 2 Al-Baqarah => 16 - 2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page).toHaveURL('http://localhost:5001/');
+  await page.getByRole('link', { name: 'Revision' }).click();
+  await expect(page.getByRole('row', { name: '11 1 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
+  await expect(page.getByRole('row', { name: '10 1 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
 });

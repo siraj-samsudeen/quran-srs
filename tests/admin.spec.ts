@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.goto('http://localhost:5001/login');
   await page.getByRole('textbox', { name: 'Email' }).click();
-  await page.getByRole('textbox', { name: 'Email' }).fill('siraj@bisquared.com');
+  await page.getByRole('textbox', { name: 'Email' }).fill('	mailsiraj@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).click();
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
