@@ -1011,7 +1011,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
     def _render_rows(rev: Revision):
         item_id = rev.item_id
-
+        page = items[item_id].page_number
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
@@ -1034,8 +1034,8 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(get_surah_name(page_id=item_id)),
-            Td(pages[item_id].juz_number),
+            Td(get_surah_name(page_id=page)),
+            Td(pages[page].juz_number),
             Td(rev.revision_date),
             Td(
                 A(
