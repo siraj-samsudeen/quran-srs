@@ -339,17 +339,16 @@ test('shift_selection', async ({ page }) => {
   await expect(page.getByRole('row', { name: 'page 358 An-Nur' }).getByRole('checkbox').first()).toBeChecked();
   await expect(page.getByRole('row', { name: 'page 359 An-Nur' }).getByRole('checkbox').first()).not.toBeChecked();
   // revision page
-  
   await page.getByRole('link', { name: 'Revision' }).click();
-  await page.getByRole('row', { name: '358 1 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
+  await page.getByRole('row', { name: '358 1 2 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
   await page.keyboard.down('Shift');
-  await page.getByRole('row', { name: '355 1 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
+  await page.getByRole('row', { name: '355 1 2 ✅ Good 24 An-Nur 18' }).first().getByRole('checkbox').check();
   await page.keyboard.up('Shift');
-  await expect(page.getByRole('row', { name: '355 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
-  await expect(page.getByRole('row', { name: '356 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).not.toBeChecked();
-  await expect(page.getByRole('row', { name: '357 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).not.toBeChecked();
-  await expect(page.getByRole('row', { name: '358 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
-  await expect(page.getByRole('row', { name: '359 1 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).not.toBeChecked();
+  await expect(page.getByRole('row', { name: '355 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '356 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '357 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '358 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox')).toBeChecked();
+  await expect(page.getByRole('row', { name: '359 1 2 ✅ Good 24 An-Nur 18' }).getByRole('checkbox').first()).not.toBeChecked();
 });
 
 
@@ -470,6 +469,6 @@ test('radio_feild_with_empty', async ({ page }) => {
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page).toHaveURL('http://localhost:5001/');
   await page.getByRole('link', { name: 'Revision' }).click();
-  await expect(page.getByRole('row', { name: '11 1 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
-  await expect(page.getByRole('row', { name: '10 1 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
+  await expect(page.getByRole('row', { name: '11 1 2 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
+  await expect(page.getByRole('row', { name: '10 1 2 ✅ Good 2 Al-Baqarah 1' }).first().getByRole('checkbox')).toBeVisible();
 });
