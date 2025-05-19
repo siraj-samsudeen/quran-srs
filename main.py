@@ -608,7 +608,7 @@ def index(auth):
                 else {}
             )
         ),
-        Div(overall_table, Divider(), datewise_summary_table()),
+        Div(overall_table, Divider(), datewise_summary_table(hafiz_id=auth)),
         active="Home",
         auth=auth,
     )
@@ -899,7 +899,8 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
     def _render_rows(rev: Revision):
         item_id = rev.item_id
-        page = items[item_id].page_number
+        item_details = items[item_id]
+        page = item_details.page_number
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
@@ -915,12 +916,13 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             ),
             Td(
                 A(
-                    items[rev.item_id].page_number,
+                    page,
                     href=f"/revision/edit/{rev.id}",
                     cls=AT.muted,
                 )
             ),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
+            Td(item_details.part_number),
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
@@ -964,6 +966,7 @@ def revision(auth, idx: int | None = 1):
                 # Th("User Id"),
                 Th(),  # empty header for checkbox
                 Th("Page"),
+                Th("Part"),
                 # FIXME: Added temporarly to check is the date is added correctly and need to remove this
                 Th("Mode"),
                 Th("Plan Id"),
