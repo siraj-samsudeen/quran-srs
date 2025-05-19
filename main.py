@@ -907,8 +907,10 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                 CheckboxX(
                     name="ids",
                     value=rev.id,
+                    cls="revision_ids",
                     # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
                     _="on click send checkboxChanged to .toggle_btn",
+                    _at_click="handleCheckboxClick($event)",
                 )
             ),
             Td(
@@ -973,6 +975,7 @@ def revision(auth, idx: int | None = 1):
             )
         ),
         Tbody(*generate_revision_table_part(part_num=idx)),
+        x_data=select_all_checkbox_x_data(class_name="revision_ids"),
     )
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
