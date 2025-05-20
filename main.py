@@ -10,7 +10,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
-DB_PATH = "data/quran_v5.db"
+DB_PATH = "data/quran_v6.db"
 
 # This function will handle table creation and migration using fastmigrate
 create_and_migrate_db(DB_PATH)
@@ -142,7 +142,7 @@ def get_column_headers(table):
 def get_surah_name(page_id):
     surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
-    return f"{surah_details.number} {surah_details.name}"
+    return surah_details.name
 
 
 def mode_dropdown(default_mode=1):
@@ -773,7 +773,10 @@ async def update_record(table: str, record_id: int, req: Request):
 
 @app.delete("/tables/{table}/{record_id}")
 def delete_record(table: str, record_id: int):
-    tables[table].delete(record_id)
+    try:
+        tables[table].delete(record_id)
+    except Exception as e:
+        return Tr(Td(P(f"Error: {e}"), colspan="11", cls="text-center"))
 
 
 @app.get("/tables/{table}/new")
