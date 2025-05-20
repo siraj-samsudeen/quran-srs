@@ -23,10 +23,10 @@ CREATE TABLE items (
                                              ON DELETE CASCADE,
     part       TEXT,
     start_text TEXT,
+    lines      TEXT,
     part_type  TEXT,
     hafiz_id   INTEGER REFERENCES hafizs (id) ON UPDATE CASCADE
                                               ON DELETE CASCADE,
-    lines      TEXT,
     active     INTEGER
 );
 
@@ -38,9 +38,9 @@ INSERT INTO items (
                       page_id,
                       part,
                       start_text,
+                      lines,
                       part_type,
                       hafiz_id,
-                      lines,
                       active
                   )
                   SELECT id,
@@ -50,9 +50,9 @@ INSERT INTO items (
                          page_id,
                          part,
                          start_text,
+                         lines,
                          part_type,
                          hafiz_id,
-                         lines,
                          active
                     FROM temp_table;
 
