@@ -890,10 +890,8 @@ async def import_specific_table(table: str, file: UploadFile):
     # so we cannot truncate the table
     file_content = await file.read()
     data = pd.read_csv(BytesIO(file_content)).to_dict("records")
-
-    tables[table].delete_where()
-
-    tables[table].insert_all(data)
+    for record in data:
+        tables[table].upsert(record)
 
     return Redirect(f"/tables/{table}")
 
