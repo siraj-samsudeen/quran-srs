@@ -113,14 +113,12 @@ def get_item_id(page_number: int):
     hafiz_data = hafizs_items(where=qry)
 
     if not hafiz_data:
-        page_items = items(where=f"page_number = {page_number}")
+        page_items = items(where=f"page_id = {page_number}")
         for item in page_items:
             hafizs_items.insert(
                 Hafiz_Items(
                     item_id=item.id,
-                    page_number=item.page_number,
-                    item_type=item.item_type,
-                    part_type=item.part_type,
+                    page_number=item.page_id,
                     mode_id=1,
                     # active=True,
                 )
@@ -142,7 +140,7 @@ def get_column_headers(table):
 
 
 def get_surah_name(page_id):
-    surah_id = items(where=f"page_number = {page_id}")[0].surah_id
+    surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
     return f"{surah_details.number} {surah_details.name}"
 
@@ -253,9 +251,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
             where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
         )
         current_date_revisions = [r.__dict__ for r in revisions_query]
-        page_ids = sorted(
-            [items[r["item_id"]].page_number for r in current_date_revisions]
-        )
+        page_ids = sorted([items[r["item_id"]].page_id for r in current_date_revisions])
 
         def _render_pages_range(page_range: str):
             start_page, end_page = split_page_range(page_range)
@@ -264,7 +260,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                 str(d["id"])
                 for page in range(start_page, (end_page or start_page) + 1)
                 for d in current_date_revisions
-                if items[d.get("item_id")].page_number == page
+                if items[d.get("item_id")].page_id == page
             ]
             if end_page:
                 ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
@@ -520,7 +516,7 @@ def index(auth):
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
-        last_added_page = items[last_added_item_id].page_number
+        last_added_page = items[last_added_item_id].page_id
     else:
         last_added_page = None
 
@@ -544,7 +540,7 @@ def index(auth):
             continue
         pages_list = sorted(
             [
-                items[r.item_id].page_number
+                items[r.item_id].page_id
                 for r in revisions(
                     where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
                 )
@@ -911,7 +907,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
     def _render_rows(rev: Revision):
         item_id = rev.item_id
         item_details = items[item_id]
-        page = item_details.page_number
+        page = item_details.page_id
         return Tr(
             # Td(rev.id),
             # Td(rev.user_id),
@@ -933,7 +929,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                 )
             ),
             # FIXME: Added temporarly to check is the date is added correctly and need to remove this
-            Td(item_details.part_number),
+            Td(item_details.part),
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
@@ -1061,7 +1057,7 @@ def create_revision_form(type):
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int, auth):
     current_revision = revisions[revision_id].__dict__
-    current_revision["page_no"] = items[current_revision["item_id"]].page_number
+    current_revision["page_no"] = items[current_revision["item_id"]].page_id
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     form = create_revision_form("edit")
@@ -1131,9 +1127,9 @@ def bulk_edit_view(ids: str, auth):
                 )
             ),
             Td(P(item_details.item_type)),
-            Td(P(item_details.page_number)),
+            Td(P(item_details.page_id)),
             Td(P(item_details.surah_name)),
-            Td(P(item_details.part_number)),
+            Td(P(item_details.part)),
             Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
@@ -1301,7 +1297,7 @@ def post(page_no: int, revision_details: Revision):
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
-    revision_details.item_id = items(where=f"page_number = {page_no}")[0].id
+    revision_details.item_id = items(where=f"page_id = {page_no}")[0].id
 
     rev = revisions.insert(revision_details)
 
@@ -1365,9 +1361,9 @@ def get(
                 )
             ),
             Td(P(current_page_details.item_type)),
-            Td(P(current_page_details.page_number)),
+            Td(P(current_page_details.page_id)),
             Td(current_page_details.surah_name),
-            Td(current_page_details.part_number),
+            Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 Div(
@@ -1484,9 +1480,7 @@ async def post(
             item_id = name.split("-")[1]
             if item_id in item_ids:
                 hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update(
-                    {"status": "memorized", "active": True}, hafizs_items_id
-                )
+                hafizs_items.update({"status": "memorized"}, hafizs_items_id)
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
@@ -1502,7 +1496,7 @@ async def post(
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
         # To show the next page
-        next_page = items[last_item_id].page_number + 1
+        next_page = items[last_item_id].page_id + 1
     else:
         return Redirect(index)
 
