@@ -142,7 +142,7 @@ def get_column_headers(table):
 def get_surah_name(page_id):
     surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
-    return f"{surah_details.number} {surah_details.name}"
+    return surah_details.name
 
 
 def mode_dropdown(default_mode=1):
