@@ -113,7 +113,7 @@ def get_item_id(page_number: int):
     hafiz_data = hafizs_items(where=qry)
 
     if not hafiz_data:
-        page_items = items(where=f"page_id = {page_number}")
+        page_items = items(where=f"page_id = {page_number} AND active = 1")
         for item in page_items:
             hafizs_items.insert(
                 Hafiz_Items(
@@ -128,7 +128,7 @@ def get_item_id(page_number: int):
     item_ids = [
         hafiz_item.item_id
         for hafiz_item in hafiz_data
-        # if hafiz_item.active or hafiz_item.active is None
+        if items[hafiz_item.item_id].active
     ]
     return item_ids
 
@@ -546,6 +546,14 @@ def index(auth):
                 )
             ]
         )
+        # If the plan is completed then we are not showing the gaps (such as showing them in diff rows)
+        # instead we'll show the start and end page of the plan
+        if plans[plan_id].completed:
+            unique_page_ranges.append(
+                {"plan_id": plan_id, "page_range": f"{pages_list[0]}-{pages_list[-1]}"}
+            )
+            continue
+
         for p in compact_format(pages_list).split(", "):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
@@ -1127,9 +1135,8 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(item_details.item_type)),
-            Td(P(item_details.page_id)),
             Td(P(item_details.surah_name)),
+            Td(P(item_details.page_id)),
             Td(P(item_details.part)),
             Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
@@ -1153,9 +1160,8 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Type"),
-                Th("No"),
                 Th("Surah"),
+                Th("Page"),
                 Th("Part"),
                 Th("Start"),
                 Th("Date"),
@@ -1361,9 +1367,8 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(current_page_details.item_type)),
-            Td(P(current_page_details.page_id)),
             Td(current_page_details.surah_name),
+            Td(P(current_page_details.page_id)),
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
@@ -1386,9 +1391,8 @@ def get(
                         cls="select_all", x_model="selectAll", _at_change="toggleAll()"
                     )
                 ),
-                Th("Type"),
-                Th("No"),
                 Th("Surah"),
+                Th("Page"),
                 Th("Part"),
                 Th("Start"),
                 Th("Rating"),
