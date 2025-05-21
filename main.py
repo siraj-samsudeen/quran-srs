@@ -464,6 +464,11 @@ def main_area(*args, active=None, auth=None):
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
+                A(
+                    "New Memorization",
+                    href=new_memorization,
+                    cls=is_active("New Memorization"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -619,6 +624,138 @@ def index(auth):
         active="Home",
         auth=auth,
     )
+
+
+def render_new_memorization_rows(data: dict):
+    columns = ["surah_id", "surah_name", "page_id", "part", "start_text", "status"]
+    status = ["memorized", "not memorized"]
+    row_id = data["id"]
+    # print(row_id)
+    return Tr(
+        *map(
+            lambda col: (
+                Td(
+                    Select(
+                        *map(
+                            lambda s: Option(
+                                s.capitalize(), value=s, selected=data[col] == s
+                            ),
+                            status,
+                        ),
+                        id=f"status-{row_id}",
+                        name=col,
+                    ),
+                    Input(
+                        type="hidden",
+                        name="item_id",
+                        id=f"item-id-{row_id}",
+                        value=row_id,
+                    ),
+                    Input(
+                        type="hidden",
+                        name="page_id",
+                        id=f"page-id-{row_id}",
+                        value=data["page_id"],
+                    ),
+                )
+                if col == "status"
+                else Td(data[col])
+            ),
+            columns,
+        ),
+        Td(
+            A(
+                "Save",
+                hx_post=f"/new_memorization",
+                hx_include=f"#status-{row_id}, #item-id-{row_id}, #page-id-{row_id}",
+                target_id=f"row-{row_id}",
+                hx_swap="outerHTML",
+                cls=AT.muted,
+            ),
+        ),
+        id=f"row-{row_id}",
+    )
+
+
+@app.get("/new_memorization")
+def new_memorization(auth):
+    # used explicit column selection in JOIN to avoid overwriting
+    combined_table = """SELECT 
+                    items.id,
+                    items.surah_id,
+                    items.surah_name,
+                    items.page_id,
+                    items.part,
+                    items.start_text,
+                    items.active,
+                    hafizs_items.id AS hafiz_item_id,
+                    hafizs_items.hafiz_id,
+                    hafizs_items.item_id,
+                    hafizs_items.page_number,
+                    hafizs_items.status,
+                    hafizs_items.mode_id
+                    FROM items 
+                    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id 
+                    WHERE items.surah_id = 49 AND items.active != 0;
+                    """
+    ct = db.q(combined_table)
+    display_columns = [
+        "Surah Number",
+        "Surah",
+        "Page Number",
+        "Part",
+        "Start Text",
+        "Status",
+    ]
+
+    table = Table(
+        Thead(Tr(*map(Th, display_columns), Th("Action"))),
+        Tbody(map(render_new_memorization_rows, ct)),
+    )
+    return main_area(
+        H1("New Memorization"),
+        Div(table, cls="uk-overflow-auto"),
+        active="New Memorization",
+        auth=auth,
+    )
+
+
+@app.post("/new_memorization")
+def new_memorization_edit_post(status: str, item_id: int, page_id: int, auth):
+    try:
+        hafizs_items(where=f"item_id = {item_id}")[0].id
+        # print("recordfound")
+    except IndexError:
+        hafizs_items.insert(
+            {
+                "hafiz_id": auth,
+                "item_id": item_id,
+                "status": status,
+                "page_number": page_id,
+                "mode_id": 2,  # mode_id 2 for new memorization
+            }
+        )
+    # print("inserted")
+    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+    # print(hafizs_items(where=f"id = {hafizs_items_id}")[0])
+    hafizs_items.update({"status": status}, hafizs_items_id)
+    updated_row = db.q(
+        f"""SELECT items.id,
+                    items.surah_id,
+                    items.surah_name,
+                    items.page_id,
+                    items.part,
+                    items.start_text,
+                    hafizs_items.hafiz_id,
+                    hafizs_items.item_id,
+                    hafizs_items.status,
+                    hafizs_items.mode_id FROM items 
+                    JOIN hafizs_items ON items.id = hafizs_items.item_id 
+                    WHERE items.id = {item_id}"""
+    )
+    # print(f"updated row: {updated_row[0]}")
+    return render_new_memorization_rows(updated_row[0])
+    # return Redirect("/new_memorization")
 
 
 @app.get("/tables")
