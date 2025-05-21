@@ -36,13 +36,14 @@ test('modes_table', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Modes' })).toBeVisible();
   await page.getByRole('link', { name: 'modes' }).click();
   // check if the table is visible
-  await expect(page.locator('#row-1')).toContainText('Sequential');
-  await expect(page.locator('#row-2')).toContainText('SRS');
-  await expect(page.locator('#row-3')).toContainText('New Memorization');
-  await expect(page.locator('#row-4')).toContainText('Watch List');
+  await expect(page.locator('#row-1')).toContainText('1. Full Cycle');
+  await expect(page.locator('#row-2')).toContainText('2. New Memorization');
+  await expect(page.locator('#row-3')).toContainText('3. Recent Review');
+  await expect(page.locator('#row-4')).toContainText('4. Watch List');
+  await expect(page.locator('#row-5')).toContainText('5. SRS');
   // update mode description
   await page.getByRole('link', { name: '1' }).click();
-  await expect(page.getByRole('textbox', { name: 'name' })).toHaveValue('Sequential');
+  await expect(page.getByRole('textbox', { name: 'name' })).toHaveValue('1. Full Cycle');
   await page.getByRole('textbox', { name: 'description' }).click();
   await page.getByRole('textbox', { name: 'description' }).fill('Added test description for update SEQ');
   await page.getByRole('button', { name: 'Save' }).click();

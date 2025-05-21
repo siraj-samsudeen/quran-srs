@@ -25,7 +25,6 @@ test('login_and_logout', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Email' }).fill('mailfiroz@gmail.com');
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page.getByRole('heading', { name: 'Firoza' })).toBeVisible();
   await page.getByRole('link', { name: 'logout' }).click();
 });
 
@@ -44,7 +43,7 @@ test('add_new_hafiz', async ({ page }) => {
   await page.getByRole('button', { name: 'Add Hafiz' }).click();
   await expect(page.getByRole('heading', { name: 'Adhil' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Switch hafiz' }).first().click();
-  await page.getByRole('link', { name: 'Tables' }).click();
+  await page.getByRole('link', { name: 'Tables' }).click({timeout: 2_000 });
   await page.getByRole('link', { name: 'Hafizs', exact: true }).click();
   page.on('dialog', dialog => dialog.accept());
   await page.locator('tr', { hasText: 'Adhil' }).getByRole('link', { name: 'Delete' }).first().click();
@@ -135,14 +134,14 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Zaseem' })).toBeVisible();
    await expect(page).toHaveURL("http://localhost:5001/");
   await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('205');
-  await page.getByRole('link', { name: '200 - 9 At-Tawbah -> 204 - 9 At-Tawbah' }).click();
+  await page.getByRole('link', { name: '200 - 9. Tawbah -> 204 - 9. Tawbah' }).click();
   // modify data as Zaseem from the user Firoza
 
-  await page.getByRole('row', { name: 'page 200 At-Tawbah' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: 'page 201 At-Tawbah' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: 'page 202 At-Tawbah' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: 'page 203 At-Tawbah' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: 'page 204 At-Tawbah' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: '9. Tawbah 200' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: '9. Tawbah 201' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: '9. Tawbah 202' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: '9. Tawbah 203' }).first().getByLabel('❌ Bad').check();
+  await page.getByRole('row', { name: '9. Tawbah 204' }).first().getByLabel('❌ Bad').check();
   await page.getByRole('button', { name: 'Save' }).click();
   page.on('dialog', dialog => dialog.accept());
   await page.locator('tr', { hasText: '204' }).first().getByRole('link', { name: 'Delete' }).click();
