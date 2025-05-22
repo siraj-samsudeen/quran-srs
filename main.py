@@ -1372,7 +1372,12 @@ def post(page_no: int, revision_details: Revision):
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
-    revision_details.item_id = items(where=f"page_id = {page_no}")[0].id
+    item_id = items(where=f"page_id = {page_no}")[0].id
+    revision_details.item_id = item_id
+
+    # updating the status of the item to memorized
+    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+    hafizs_items.update({"status": "memorized"}, hafizs_items_id)
 
     rev = revisions.insert(revision_details)
 
