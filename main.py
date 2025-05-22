@@ -3,6 +3,7 @@ from monsterui.all import *
 from utils import *
 import pandas as pd
 from io import BytesIO
+from collections import defaultdict
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -528,7 +529,7 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A(
                     "New Memorization",
-                    href=new_memorization,
+                    href="/new_memorization/juz",
                     cls=is_active("New Memorization"),
                 ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
@@ -694,136 +695,117 @@ def index(auth):
     )
 
 
-def render_new_memorization_rows(data: dict):
-    columns = ["surah_id", "surah_name", "page_id", "part", "start_text", "status"]
-    status = ["memorized", "not memorized"]
-    row_id = data["id"]
-    # print(row_id)
-    return Tr(
-        *map(
-            lambda col: (
-                Td(
-                    Select(
-                        *map(
-                            lambda s: Option(
-                                s.capitalize(), value=s, selected=data[col] == s
-                            ),
-                            status,
-                        ),
-                        id=f"status-{row_id}",
-                        name=col,
-                    ),
-                    Input(
-                        type="hidden",
-                        name="item_id",
-                        id=f"item-id-{row_id}",
-                        value=row_id,
-                    ),
-                    Input(
-                        type="hidden",
-                        name="page_id",
-                        id=f"page-id-{row_id}",
-                        value=data["page_id"],
-                    ),
-                )
-                if col == "status"
-                else Td(data[col])
-            ),
-            columns,
-        ),
-        Td(
-            A(
-                "Save",
-                hx_post=f"/new_memorization",
-                hx_include=f"#status-{row_id}, #item-id-{row_id}, #page-id-{row_id}",
-                target_id=f"row-{row_id}",
-                hx_swap="outerHTML",
-                cls=AT.muted,
-            ),
-        ),
-        id=f"row-{row_id}",
+def render_row_based_on_type(type_number: int, records: list, current_type):
+    surahs = sorted({r["surah_name"] for r in records})
+    pages = sorted([r["page_id"] for r in records])
+    juzs = sorted({r["juz_number"] for r in records})
+    print(surahs)
+    surah_range = f"{surahs[0]} – {surahs[-1]}" if len(surahs) > 1 else surahs[0]
+    page_range = (
+        f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
     )
+    juz_range = f"Juz {juzs[0]} – {juzs[-1]}" if len(juzs) > 1 else f"Juz {juzs[0]}"
 
+    if current_type == "juz":
+        details = f"{surah_range} ({page_range})"
+    elif current_type == "surah":
+        details = f"{juz_range} ({page_range})"
+    elif current_type == "page":
+        details = f"{juz_range} | {surah_range}"
 
-@app.get("/new_memorization")
-def new_memorization(auth):
-    # used explicit column selection in JOIN to avoid overwriting
-    combined_table = """SELECT 
-                    items.id,
-                    items.surah_id,
-                    items.surah_name,
-                    items.page_id,
-                    items.part,
-                    items.start_text,
-                    items.active,
-                    hafizs_items.id AS hafiz_item_id,
-                    hafizs_items.hafiz_id,
-                    hafizs_items.item_id,
-                    hafizs_items.page_number,
-                    hafizs_items.status,
-                    hafizs_items.mode_id
-                    FROM items 
-                    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id 
-                    WHERE items.surah_id = 49 AND items.active != 0;
-                    """
-    ct = db.q(combined_table)
-    display_columns = [
-        "Surah Number",
-        "Surah",
-        "Page Number",
-        "Part",
-        "Start Text",
-        "Status",
+    # Hidden inputs for all pages in type
+    hidden_inputs = [
+        Input(type="hidden", name="page", value=page_id, id=f"page_{page_id}")
+        for page_id in pages
     ]
 
-    table = Table(
-        Thead(Tr(*map(Th, display_columns), Th("Action"))),
-        Tbody(map(render_new_memorization_rows, ct)),
+    return Tr(
+        Td(
+            f"{current_type.capitalize()} {type_number}"
+            if current_type != "surah"
+            else surah_range
+        ),
+        Td(details),
+        *hidden_inputs,  # Add hidden inputs here for htmx include
+        Td(
+            A(
+                "Start Memorize",
+                hx_get="/revision/add",
+                hx_include=",".join(f"#page_{pid}" for pid in pages),
+                hx_target="#entry_form",
+                cls=AT.muted,
+            )
+        ),
+        hx_trigger="click",
+        hx_get="/revision/add",
+        hx_include=",".join(f"#page_{pid}" for pid in pages),
+        hx_target="#entry_form",
     )
+
+
+def group_by_type(data, current_type):
+    columns_map = {
+        "juz": "juz_number",
+        "surah": "surah_id",
+        "page": "page_id",
+    }
+    grouped = defaultdict(
+        list
+    )  # defaultdict() is creating the key as the each column_map number and value as the list of records
+    for row in data:
+        grouped[row[columns_map[current_type]]].append(row)
+    print(grouped)
+    return grouped
+
+
+@app.get("/new_memorization/{current_type}")
+def new_memorization(current_type: str, auth):
+    def render_navigation_item(_type: str):
+        return Li(
+            A(f"By {_type.capitalize()}", href=f"/new_memorization/{_type}"),
+            cls=("uk-active" if _type == current_type else None),
+        )
+
+    if not current_type:
+        current_type = "juz"
+    not_memorized_tb = """SELECT items.id, items.surah_id, items.surah_name, items.page_id, 
+                          hafizs_items.item_id, hafizs_items.status, pages.juz_number FROM items 
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE hafizs_items.status IS NULL AND items.active != 0;"""
+    ct = db.q(not_memorized_tb)
+
+    grouped = group_by_type(ct, current_type)
+    rows = [
+        render_row_based_on_type(type_number, records, current_type)
+        for type_number, records in grouped.items()
+    ]
+    table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th("Name"),
+                    Th("Range/Details"),
+                    Th("Action"),
+                ),
+            ),
+            Tbody(*rows),
+        ),
+        cls="h-[30vh] uk-overflow-auto",
+    )
+
     return main_area(
         H1("New Memorization"),
-        Div(table, cls="uk-overflow-auto"),
+        Div(
+            TabContainer(
+                *map(render_navigation_item, ["juz", "surah", "page"]),
+            ),
+            table,
+            Div(id="entry_form"),
+        ),
         active="New Memorization",
         auth=auth,
     )
-
-
-@app.post("/new_memorization")
-def new_memorization_edit_post(status: str, item_id: int, page_id: int, auth):
-    try:
-        hafizs_items(where=f"item_id = {item_id}")[0].id
-        # print("recordfound")
-    except IndexError:
-        hafizs_items.insert(
-            {
-                "hafiz_id": auth,
-                "item_id": item_id,
-                "status": status,
-                "page_number": page_id,
-                "mode_id": 2,  # mode_id 2 for new memorization
-            }
-        )
-    # print("inserted")
-    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    # print(hafizs_items(where=f"id = {hafizs_items_id}")[0])
-    hafizs_items.update({"status": status}, hafizs_items_id)
-    updated_row = db.q(
-        f"""SELECT items.id,
-                    items.surah_id,
-                    items.surah_name,
-                    items.page_id,
-                    items.part,
-                    items.start_text,
-                    hafizs_items.hafiz_id,
-                    hafizs_items.item_id,
-                    hafizs_items.status,
-                    hafizs_items.mode_id FROM items 
-                    JOIN hafizs_items ON items.id = hafizs_items.item_id 
-                    WHERE items.id = {item_id}"""
-    )
-    # print(f"updated row: {updated_row[0]}")
-    return render_new_memorization_rows(updated_row[0])
-    # return Redirect("/new_memorization")
 
 
 @app.get("/tables")
