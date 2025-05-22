@@ -3,6 +3,7 @@ from monsterui.all import *
 from utils import *
 import pandas as pd
 from io import BytesIO
+from collections import defaultdict
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -1578,6 +1579,138 @@ async def post(
 
     return Redirect(
         f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
+    )
+
+
+@app.get("/memorization_status/{current_type}")
+def show_page_status(current_type: str):
+
+    def render_row_based_on_type(type_number: str, records: list, current_type):
+        surahs = sorted({r["surah_name"] for r in records})
+        pages = sorted([r["page_number"] for r in records])
+        juzs = sorted({r["juz_number"] for r in records})
+        status = [str(r["status"]).lower() == "memorized" for r in records]
+        if all(status):
+            status_value = "memorized"
+        elif any(status):
+            status_value = "partially_memorized"
+        else:
+            status_value = "not_memorized"
+
+        def render_range(list, _type=""):
+            if _type == "Surah":
+                _type = ""
+
+            if len(list) == 1:
+                return f"{_type} {list[0]}"
+            return f"{_type}{"" if _type == "" else "s"} {list[0]} – {list[-1]}"
+
+        surah_range = render_range(surahs, "Surah")
+        page_range = render_range(pages, "Page")
+        juz_range = render_range(juzs, "Juz")
+
+        if current_type == "juz":
+            details = f"{surah_range} ({page_range})"
+        elif current_type == "surah":
+            details = f"{juz_range} ({page_range})"
+        elif current_type == "page":
+            details = f"{juz_range} | {surah_range}"
+
+        return Tr(
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=id,
+                    cls="status_rows",
+                    checked=status_value == "memorized",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(
+                f"{current_type.capitalize()} {type_number}"
+                if current_type != "surah"
+                else surah_range
+            ),
+            Td(details),
+            Td(status_dropdown(status_value)),
+        )
+
+    def group_by_type(data, current_type):
+        columns_map = {
+            "juz": "juz_number",
+            "surah": "surah_name",
+            "page": "page_number",
+        }
+        grouped = defaultdict(
+            list
+        )  # defaultdict() is creating the key as the each column_map number and value as the list of records
+        for row in data:
+            grouped[row[columns_map[current_type]]].append(row)
+        return grouped
+
+    if not current_type:
+        current_type = "juz"
+
+    def render_navigation_item(_type: str):
+        return Li(
+            A(_type.capitalize(), href=f"/memorization_status/{_type}"),
+            cls=("uk-active" if _type == current_type else None),
+        )
+
+    def status_dropdown(current_type: str = "not_memorized", is_label=False):
+        options = ["Memorized", "Partially Memorized", "Not Memorized"]
+
+        def mk_options(name):
+            option_value = standardize_column(name)
+            is_selected = lambda m: m == current_type
+            return Option(name, value=option_value, selected=is_selected(option_value))
+
+        return LabelSelect(
+            map(mk_options, options),
+            label="Status" if is_label else None,
+            name="status",
+            select_kwargs={"name": "mode_id"},
+        )
+
+    qry = """SELECT items.id, items.surah_name, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          WHERE items.active != 0;"""
+    ct = db.q(qry)
+
+    grouped = group_by_type(ct, current_type)
+    rows = [
+        render_row_based_on_type(type_number, records, current_type)
+        for type_number, records in grouped.items()
+    ]
+    return main_area(
+        Div(
+            TabContainer(
+                *map(render_navigation_item, ["juz", "surah", "page"]),
+            ),
+            # Div(status_dropdown(is_label=True), Button("Apply"), cls=(FlexT.block)),
+            Table(
+                Thead(
+                    Tr(
+                        Th(
+                            CheckboxX(
+                                cls="select_all",
+                                x_model="selectAll",
+                                _at_change="toggleAll()",
+                            )
+                        ),
+                        Th("NAME"),
+                        Th("RANGE / DETAILS"),
+                        Th("STATUS"),
+                    )
+                ),
+                Tbody(*rows),
+            ),
+            x_data=select_all_checkbox_x_data(
+                class_name="status_rows", is_select_all="false"
+            ),
+            cls="space-y-5",
+        ),
     )
 
 
