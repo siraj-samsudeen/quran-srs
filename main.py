@@ -139,8 +139,11 @@ def get_column_headers(table):
     return columns
 
 
-def get_surah_name(page_id):
-    surah_id = items(where=f"page_id = {page_id}")[0].surah_id
+def get_surah_name(page_id=None, item_id=None):
+    if item_id:
+        surah_id = items[item_id].surah_id
+    else:
+        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
     return surah_details.name
 
@@ -225,13 +228,6 @@ def split_page_range(page_range: str):
     return start_id, end_id
 
 
-def render_page(page):
-    return Span(
-        Span(page, cls=TextPresets.bold_sm),
-        f" - {get_surah_name(page)}",
-    )
-
-
 def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
@@ -246,54 +242,120 @@ def datewise_summary_table(show=None, hafiz_id=None):
     date_range = date_range[:show] if show else date_range
 
     def _render_datewise_row(date):
-        rev_query = f"revision_date = '{date}'"
-        revisions_query = revisions(
-            where=(rev_query + f"AND hafiz_id = {hafiz_id}" if hafiz_id else rev_query)
+        # Get the unique modes for that particular date
+        rev_condition = f"WHERE revisions.revision_date = '{date}'" + (
+            f" AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
         )
-        current_date_revisions = [r.__dict__ for r in revisions_query]
-        page_ids = sorted([items[r["item_id"]].page_id for r in current_date_revisions])
+        unique_modes = db.q(f"SELECT DISTINCT mode_id FROM {revisions} {rev_condition}")
+        unique_modes = sorted([m["mode_id"] for m in unique_modes])
 
-        def _render_pages_range(page_range: str):
-            start_page, end_page = split_page_range(page_range)
-            # Get the ids for all the pages for the particular date
-            ids = [
-                str(d["id"])
-                for page in range(start_page, (end_page or start_page) + 1)
-                for d in current_date_revisions
-                if items[d.get("item_id")].page_id == page
-            ]
-            if end_page:
-                ctn = (render_page(start_page), Span(" -> "), render_page(end_page))
-            else:
-                ctn = render_page(start_page)
-            return P(
-                A(
-                    *ctn,
-                    hx_get=f"/revision/bulk_edit?ids={','.join(ids)}",
-                    hx_push_url="true",
-                    hx_target="body",
-                    cls=AT.classic,
-                )
+        mode_with_ids_and_pages = []
+        for mode_id in unique_modes:
+            # Joining the revisions and items table to get these columns
+            # rev_id(Ids are needed for bulk_edit),
+            # items_id(To correctly render the surah name if its starts from part),
+            # page_id(To group pages into range)
+            rev_query = f"SELECT revisions.id, revisions.item_id, items.page_id FROM {revisions} LEFT JOIN {items} ON revisions.item_id = items.id {rev_condition} AND mode_id = {mode_id}"
+            current_date_and_mode_revisions = db.q(rev_query)
+            mode_with_ids_and_pages.append(
+                {
+                    "mode_id": mode_id,
+                    "revision_data": current_date_and_mode_revisions,
+                }
             )
 
-        return Tr(
-            Td(date_to_human_readable(date)),
-            Td(len(page_ids)),
-            Td(
-                *(
-                    map(_render_pages_range, compact_format(page_ids).split(", "))
-                    if page_ids
-                    else "-"
-                ),
+        def _render_pages_range(revisions_data: list):
+            page_ranges = compact_format(sorted([r["page_id"] for r in revisions_data]))
+
+            # get the surah name using the item_id for the corresponding page
+            def _render_page(page):
+                item_id = [
+                    r["item_id"] for r in revisions_data if r["page_id"] == page
+                ][0]
+                return Span(
+                    Span(page, cls=TextPresets.bold_sm),
+                    f" - {get_surah_name(item_id=item_id)}",
+                )
+
+            # This function will return the list of rev_id based on max and min page for bulk_edit url
+            def get_ids_for_page_range(data, min_page, max_page=None):
+                result = []
+                # Filter based on page_id values
+                for item in data:
+                    page_id = item["page_id"]
+                    if max_page is None:
+                        if page_id == min_page:
+                            result.append(item["id"])
+                    else:
+                        if min_page <= page_id <= max_page:
+                            result.append(item["id"])
+                # Sort the result and convert them into str
+                return list(map(str, sorted(result)))
+
+            ctn = []
+            for page_range in page_ranges.split(","):
+                start_page, end_page = split_page_range(page_range)
+                if end_page:
+                    range_desc = (
+                        _render_page(start_page),
+                        Span(" -> "),
+                        _render_page(end_page),
+                    )
+                else:
+                    range_desc = _render_page(start_page)
+
+                ctn.append(
+                    Span(
+                        A(
+                            *range_desc,
+                            hx_get=f"/revision/bulk_edit?ids={','.join(get_ids_for_page_range(revisions_data, start_page, end_page))}",
+                            hx_push_url="true",
+                            hx_target="body",
+                            cls=(AT.classic),
+                        ),
+                        cls="block",
+                    )
+                )
+
+            return P(
+                *ctn,
                 cls="space-y-3",
-            ),
-        )
+            )
+
+        # To handle if the date has no entry
+        if not mode_with_ids_and_pages:
+            return [
+                Tr(
+                    Td(date_to_human_readable(date)),
+                    Td("-"),
+                    Td("-"),
+                    Td("-"),
+                )
+            ]
+
+        rows = [
+            Tr(
+                (
+                    # Only add the date for the first row and use rowspan to expand them for the modes breakdown
+                    Td(
+                        date_to_human_readable(date),
+                        rowspan=f"{len(mode_with_ids_and_pages)}",
+                    )
+                    if mode_with_ids_and_pages[0]["mode_id"] == o["mode_id"]
+                    else None
+                ),
+                Td(modes[o["mode_id"]].name),
+                Td(len(o["revision_data"])),
+                Td(_render_pages_range(o["revision_data"])),
+            )
+            for o in mode_with_ids_and_pages
+        ]
+        return rows
 
     datewise_table = Div(
-        # H1("Datewise summary"),
         Table(
-            Thead(Tr(Th("Date"), Th("Count"), Th("Range"))),
-            Tbody(*map(_render_datewise_row, date_range)),
+            Thead(Tr(Th("Date"), Th("Mode"), Th("Count"), Th("Range"))),
+            Tbody(*flatten_list(map(_render_datewise_row, date_range))),
         ),
         cls="uk-overflow-auto",
     )
@@ -548,7 +610,7 @@ def index(auth):
         )
         # If the plan is completed then we are not showing the gaps (such as showing them in diff rows)
         # instead we'll show the start and end page of the plan
-        if plans[plan_id].completed:
+        if plans[plan_id].completed and pages_list:
             unique_page_ranges.append(
                 {"plan_id": plan_id, "page_range": f"{pages_list[0]}-{pages_list[-1]}"}
             )
@@ -558,6 +620,12 @@ def index(auth):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
+        def render_page(page):
+            return Span(
+                Span(page, cls=TextPresets.bold_sm),
+                f" - {get_surah_name(page_id=page)}",
+            )
+
         plan_id, page_range = o["plan_id"], o["page_range"]
         if not page_range:
             return None
@@ -1281,7 +1349,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(page)} - {pages[page].start_text}",
+            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
             fill_form(
                 create_revision_form("add"),
                 {
@@ -1424,9 +1492,9 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    start_description = get_surah_name(page)
+    start_description = get_surah_name(page_id=page)
     end_description = (
-        f"=> {last_page - 1} - {get_surah_name(last_page - 1)}"
+        f"=> {last_page - 1} - {get_surah_name(page_id=(last_page - 1))}"
         if not is_part
         else f"- {pages[page].start_text}"
     )
