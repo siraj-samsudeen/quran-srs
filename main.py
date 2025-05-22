@@ -1,4 +1,5 @@
 from fasthtml.common import *
+import fasthtml.common as fh
 from monsterui.all import *
 from utils import *
 import pandas as pd
@@ -1657,7 +1658,7 @@ def show_page_status(current_type: str):
             cls=("uk-active" if _type == current_type else None),
         )
 
-    def status_dropdown(current_type: str = "not_memorized", is_label=False):
+    def status_dropdown(current_type: str = "not_memorized", is_label=False, **kwargs):
         options = ["Memorized", "Partially Memorized", "Not Memorized"]
 
         def mk_options(name):
@@ -1665,11 +1666,12 @@ def show_page_status(current_type: str):
             is_selected = lambda m: m == current_type
             return Option(name, value=option_value, selected=is_selected(option_value))
 
-        return LabelSelect(
-            map(mk_options, options),
+        return fh.Select(
+            Option("-- select an option --", disabled=True, selected=True, value=True),
+            *map(mk_options, options),
             label="Status" if is_label else None,
             name="status",
-            select_kwargs={"name": "mode_id"},
+            **kwargs,
         )
 
     qry = """SELECT items.id, items.surah_name, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
@@ -1683,28 +1685,49 @@ def show_page_status(current_type: str):
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
     ]
+    top_action_buttons = Div(
+        Div(
+            Button("Select All", _at_click="selectAll=true; toggleAll()"),
+            Button("Clear All", _at_click="selectAll=false; toggleAll()"),
+            cls=("gap-2", FlexT.block),
+        ),
+        Div(
+            status_dropdown(
+                current_type="",
+                x_model="globalDropdownValue",
+                cls="global_dropdown",
+                _at_change="updateGlobalDropdownValue($event)",
+            ),
+            Button("Apply", _at_click="applyGlobalValue()"),
+            cls=("gap-2", FlexT.block),
+        ),
+        cls=("w-full gap-6", FlexT.block, FlexT.between, FlexT.wrap),
+    )
     return main_area(
         Div(
+            top_action_buttons,
             TabContainer(
                 *map(render_navigation_item, ["juz", "surah", "page"]),
             ),
-            # Div(status_dropdown(is_label=True), Button("Apply"), cls=(FlexT.block)),
-            Table(
-                Thead(
-                    Tr(
-                        Th(
-                            CheckboxX(
-                                cls="select_all",
-                                x_model="selectAll",
-                                _at_change="toggleAll()",
-                            )
-                        ),
-                        Th("NAME"),
-                        Th("RANGE / DETAILS"),
-                        Th("STATUS"),
-                    )
+            Div(
+                Table(
+                    Thead(
+                        Tr(
+                            Th(
+                                CheckboxX(
+                                    cls="select_all",
+                                    x_model="selectAll",
+                                    _at_change="toggleAll()",
+                                )
+                            ),
+                            Th("NAME"),
+                            Th("RANGE / DETAILS"),
+                            Th("STATUS"),
+                        )
+                    ),
+                    Tbody(*rows),
                 ),
-                Tbody(*rows),
+                cls="h-[60vh] overflow-auto uk-overflow-auto",
             ),
             x_data=select_all_checkbox_x_data(
                 class_name="status_rows", is_select_all="false"

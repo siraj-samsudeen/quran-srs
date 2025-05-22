@@ -33,6 +33,7 @@ def select_all_checkbox_x_data(class_name, is_select_all="true"):
     template = """
         { 
         selectAll: SELECT_ALL_PLACEHOLDER,
+        globalDropdownValue: '', // Store the global dropdown selection
         updateSelectAll() {
             const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
           this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
@@ -55,8 +56,36 @@ def select_all_checkbox_x_data(class_name, is_select_all="true"):
                 }
             }
             this.updateSelectAll();
+        },
+        // this function will update the selected checkbox row with the global dropdown value
+       applyGlobalValue() {
+        if (!this.globalDropdownValue) {
+            alert('Please select a value from the global dropdown first.');
+            return;
         }
-      }  
+        
+        // Get all checked checkboxes
+        const checkedCheckboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER:checked')];
+        
+        if (checkedCheckboxes.length === 0) {
+            alert('Please select at least one row to apply the global value.');
+            return;
+        }
+        
+        checkedCheckboxes.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const rowDropdown = row.querySelector('select'); // Adjust selector as needed    
+            if (rowDropdown) {
+                rowDropdown.value = this.globalDropdownValue;
+            }
+        });
+        
+    },
+    // This function will update the globalDropdownValue
+    updateGlobalDropdownValue(e) {
+          this.globalDropdownValue = e.target.value;
+    }
+    }
     """
 
     return template.replace("CLASS_NAME_PLACEHOLDER", class_name).replace(
