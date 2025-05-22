@@ -139,8 +139,11 @@ def get_column_headers(table):
     return columns
 
 
-def get_surah_name(page_id):
-    surah_id = items(where=f"page_id = {page_id}")[0].surah_id
+def get_surah_name(page_id=None, item_id=None):
+    if item_id:
+        surah_id = items[item_id].surah_id
+    else:
+        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
     return surah_details.name
 
@@ -1281,7 +1284,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(page)} - {pages[page].start_text}",
+            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
             fill_form(
                 create_revision_form("add"),
                 {
@@ -1424,9 +1427,9 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    start_description = get_surah_name(page)
+    start_description = get_surah_name(page_id=page)
     end_description = (
-        f"=> {last_page - 1} - {get_surah_name(last_page - 1)}"
+        f"=> {last_page - 1} - {get_surah_name(page_id=(last_page - 1))}"
         if not is_part
         else f"- {pages[page].start_text}"
     )
