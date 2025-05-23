@@ -139,6 +139,15 @@ def get_column_headers(table):
     return columns
 
 
+def get_juz_name(page_id=None, item_id=None):
+    if item_id:
+        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+        juz_number = db.q(qry)[0]["juz_number"]
+    else:
+        juz_number = pages[page_id].juz_number
+    return juz_number
+
+
 def get_surah_name(page_id=None, item_id=None):
     if item_id:
         surah_id = items[item_id].surah_id
