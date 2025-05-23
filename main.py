@@ -1019,7 +1019,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(get_surah_name(page_id=page)),
+            Td(get_surah_name(item_id=item_id)),
             Td(pages[page].juz_number),
             Td(rev.revision_date),
             Td(
