@@ -1587,9 +1587,9 @@ async def post(
 def show_page_status(current_type: str):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        surahs = sorted({r["surah_name"] for r in records})
-        pages = sorted([r["page_number"] for r in records])
-        juzs = sorted({r["juz_number"] for r in records})
+        _surahs = sorted({r["surah_id"] for r in records})
+        _pages = sorted([r["page_number"] for r in records])
+        _juzs = sorted({r["juz_number"] for r in records})
         status = [str(r["status"]).lower() == "memorized" for r in records]
         if all(status):
             status_value = "memorized"
@@ -1599,16 +1599,21 @@ def show_page_status(current_type: str):
             status_value = "not_memorized"
 
         def render_range(list, _type=""):
+            first_description = list[0]
+            last_description = list[-1]
+
             if _type == "Surah":
                 _type = ""
+                first_description = surahs[first_description].name
+                last_description = surahs[last_description].name
 
             if len(list) == 1:
-                return f"{_type} {list[0]}"
-            return f"{_type}{"" if _type == "" else "s"} {list[0]} – {list[-1]}"
+                return f"{_type} {first_description}"
+            return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
 
-        surah_range = render_range(surahs, "Surah")
-        page_range = render_range(pages, "Page")
-        juz_range = render_range(juzs, "Juz")
+        surah_range = render_range(_surahs, "Surah")
+        page_range = render_range(_pages, "Page")
+        juz_range = render_range(_juzs, "Juz")
 
         if current_type == "juz":
             details = f"{surah_range} ({page_range})"
@@ -1639,7 +1644,7 @@ def show_page_status(current_type: str):
     def group_by_type(data, current_type):
         columns_map = {
             "juz": "juz_number",
-            "surah": "surah_name",
+            "surah": "surah_id",
             "page": "page_number",
         }
         grouped = defaultdict(
@@ -1674,7 +1679,7 @@ def show_page_status(current_type: str):
             **kwargs,
         )
 
-    qry = """SELECT items.id, items.surah_name, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+    qry = """SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
                           WHERE items.active != 0;"""
