@@ -96,7 +96,7 @@ app, rt = fast_app(
 )
 
 
-def get_item_id(page_number: int):
+def get_item_id(page_number: int, not_memorized_only: bool = False):
     """
     This function will lookup the page_number in the `hafizs_items` table
     if there is no record for that page and then create new records for that page
@@ -124,8 +124,13 @@ def get_item_id(page_number: int):
                     # active=True,
                 )
             )
-    hafiz_data = hafizs_items(where=qry)
-
+    hafiz_data = (
+        hafizs_items(
+            where=f"{qry} AND status IS NULL"
+        )  # Filter out memorized, as of now status is NULL
+        if not_memorized_only
+        else hafizs_items(where=qry)
+    )
     item_ids = [
         hafiz_item.item_id
         for hafiz_item in hafiz_data
@@ -699,7 +704,7 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
     surahs = sorted({r["surah_name"] for r in records})
     pages = sorted([r["page_id"] for r in records])
     juzs = sorted({r["juz_number"] for r in records})
-    print(surahs)
+
     surah_range = f"{surahs[0]} – {surahs[-1]}" if len(surahs) > 1 else surahs[0]
     page_range = (
         f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
@@ -730,14 +735,14 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
         Td(
             A(
                 "Start Memorize",
-                hx_get="/revision/add",
+                hx_get="/revision/add_new_memorization",
                 hx_include=",".join(f"#page_{pid}" for pid in pages),
                 hx_target="#entry_form",
                 cls=AT.muted,
             )
         ),
         hx_trigger="click",
-        hx_get="/revision/add",
+        hx_get="/revision/add_new_memorization",
         hx_include=",".join(f"#page_{pid}" for pid in pages),
         hx_target="#entry_form",
     )
@@ -754,7 +759,6 @@ def group_by_type(data, current_type):
     )  # defaultdict() is creating the key as the each column_map number and value as the list of records
     for row in data:
         grouped[row[columns_map[current_type]]].append(row)
-    print(grouped)
     return grouped
 
 
@@ -791,7 +795,7 @@ def new_memorization(current_type: str, auth):
             ),
             Tbody(*rows),
         ),
-        cls="h-[30vh] uk-overflow-auto",
+        cls="h-[30vh] uk-overflow-auto mb-5",
     )
 
     return main_area(
@@ -806,6 +810,240 @@ def new_memorization(current_type: str, auth):
         active="New Memorization",
         auth=auth,
     )
+
+
+def create_new_memorization_revision_form():
+    def RadioLabel(o):
+        value, label = o
+        is_checked = True if value == "1" else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id="rating", value=value, checked=is_checked, autofocus=is_checked
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+        )
+
+    return Form(
+        LabelInput(
+            "Revision Date",
+            name="revision_date",
+            type="date",
+            value=current_time("%Y-%m-%d"),
+        ),
+        Input(name="page_no", type="hidden"),
+        Input(name="mode_id", type="hidden"),
+        Div(
+            FormLabel("Rating"),
+            *map(RadioLabel, RATING_MAP.items()),
+            cls="space-y-2 leading-8 sm:leading-6 ",
+        ),
+        Div(
+            Button("Save", cls=ButtonT.primary),
+            A(
+                Button("Cancel", type="button", cls=ButtonT.secondary),
+                href="/new_memorization/juz",
+            ),
+            cls="flex justify-around items-center w-full",
+        ),
+        action=f"/revision/add_new_memorization",
+        method="POST",
+    )
+
+
+@rt("/revision/add_new_memorization")
+def get(auth, page: str, max_page: int = 605, date: str = None):
+    if "." in page:
+        page = page.split(".")[0]
+
+    page = int(page)
+
+    if page >= max_page:
+        return Redirect(new_memorization)
+
+    if len(get_item_id(page_number=page, not_memorized_only=True)) > 1:
+        return RedirectResponse(
+            f"/revision/bulk_add_new_memorization?page={page}&is_part=1"
+        )
+
+    item_id = get_item_id(page_number=page, not_memorized_only=True)[0]
+
+    return Titled(
+        f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+        fill_form(
+            create_new_memorization_revision_form(),
+            {
+                "page_no": page,
+                "mode_id": 2,
+                "plan_id": None,
+                "revision_date": date,
+            },
+        ),
+    )
+
+
+@rt("/revision/add_new_memorization")
+def post(page_no: int, revision_details: Revision, auth):
+    # The id is set to zer in the form, so we need to delete it
+    # before inserting to generate the id automatically
+    del revision_details.id
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+
+    item_id = items(where=f"page_id = {page_no} AND active != 0")[0].id
+    revision_details.item_id = item_id
+    # updating the status of the item to memorized
+    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+    hafizs_items.update(
+        {"status": "newly memorized", "mode_id": revision_details.mode_id},
+        hafizs_items_id,
+    )
+    revisions.insert(revision_details)
+    return Redirect(f"/new_memorization/page")
+
+
+@app.get("/revision/bulk_add_new_memorization")
+def get(
+    auth,
+    page: str,
+    # is_part is to determine whether it came from single entry page or not
+    is_part: bool = False,
+    revision_date: str = None,
+):
+    page = int(page)
+
+    def _render_row(item_id):
+
+        def _render_radio(o):
+            value, label = o
+            is_checked = True if value == "1" else False
+            return FormLabel(
+                Radio(
+                    id=f"rating-{item_id}",
+                    value=value,
+                    checked=is_checked,
+                    cls="toggleable-radio",
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        current_page_details = items[item_id]
+        return Tr(
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=item_id,
+                    cls="revision_ids",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(current_page_details.surah_name),
+            Td(P(current_page_details.page_id)),
+            Td(current_page_details.part),
+            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(
+                Div(
+                    *map(_render_radio, RATING_MAP.items()),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    item_ids = flatten_list([get_item_id(page_number=page, not_memorized_only=True)])
+
+    table = Table(
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
+                    )
+                ),
+                Th("Surah"),
+                Th("Page"),
+                Th("Part"),
+                Th("Start"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*map(_render_row, item_ids)),
+        x_data=select_all_checkbox_x_data(
+            class_name="revision_ids",
+            is_select_all="false" if is_part else "true",
+        ),
+        x_init="toggleAll()",
+    )
+
+    action_buttons = Div(
+        Button(
+            "Save",
+            cls=ButtonT.primary,
+        ),
+        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+    start_description = f"{get_surah_name(item_id=item_ids[0])}"
+    end_description = (
+        f"{get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
+    )
+    return Titled(
+        f"{page} - {start_description} to {end_description}",
+        Form(
+            Hidden(name="mode_id", value=2),
+            Hidden(name="plan_id", value=None),
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=(revision_date or current_time("%Y-%m-%d")),
+            ),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action="/revision/bulk_add_new_memorization",
+            method="POST",
+        ),
+        Script(src="/public/script.js"),
+        active="Revision",
+        auth=auth,
+    )
+
+
+@rt("/revision/bulk_add_new_memorization")
+async def post(
+    revision_date: str,
+    mode_id: int,
+    plan_id: int,
+    auth,
+    req,
+):
+    plan_id = None
+    form_data = await req.form()
+    item_ids = form_data.getlist("ids")
+
+    parsed_data = []
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            item_id = name.split("-")[1]
+            if item_id in item_ids:
+                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+                hafizs_items.update(
+                    {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
+                )
+                parsed_data.append(
+                    Revision(
+                        item_id=int(item_id),
+                        rating=int(value),
+                        hafiz_id=auth,
+                        revision_date=revision_date,
+                        mode_id=mode_id,
+                        plan_id=plan_id,
+                    )
+                )
+
+    revisions.insert_all(parsed_data)
+    return Redirect("/new_memorization/page")
 
 
 @app.get("/tables")
