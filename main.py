@@ -587,7 +587,19 @@ def index(auth):
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
-        last_added_page = items[last_added_item_id].page_id
+        item_details = items[last_added_item_id]
+        last_added_page = item_details.page_id
+
+        if item_details.item_type == "page-part":
+            # fill the page input with parts based on the last added record
+            # to start from the next part
+            if item_details.part == "1.0":
+                last_added_page = last_added_page + 0.2
+            elif (
+                len(hafizs_items(where=f"page_number = {last_added_page}")) > 2
+                and item_details.part == "2.0"
+            ):
+                last_added_page = last_added_page + 0.3
     else:
         last_added_page = None
 
@@ -1336,15 +1348,16 @@ def post(type: str, page: str):
 
 @rt("/revision/add")
 def get(auth, page: str, max_page: int = 605, date: str = None):
-    if "." in page:
-        page = page.split(".")[0]
+    if "-" in page:
+        page = page.split("-")[0]
 
-    page = int(page)
+    page_in_float = float(page)
+    page = int(page_in_float)
 
     if page >= max_page:
         return Redirect(index)
 
-    if len(get_item_id(page_number=page)) > 1:
+    if len(get_item_id(page_number=int(page))) > 1:
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
@@ -1403,25 +1416,66 @@ def get(
     plan_id: int = None,
     revision_date: str = None,
     length: int = 5,
-    max_page: int = 605,
+    max_page: float = 604.4,
     hide_id_fields: bool = False,
 ):
 
-    if "." in page:
-        page, length = map(int, page.split("."))
-    else:
-        page = int(page)
+    # the length only matters if the pages have consecutive surahs
+    if "-" in page:
+        page, length = page.split("-")
 
+    # Handle the max page
+    if float(page) >= max_page:
+        return Redirect(index)
+
+    if "." in page:
+        page, part = page.split(".")
+        part = int(part)
+    else:
+        part = None
+
+    page = int(page)
+    length = int(length)
+
+    # This is to show only one page if it came from single entry
     if is_part:
         length = 1
-
-    if page >= max_page:
-        return Redirect(index)
 
     last_page = page + length
 
     if last_page > max_page:
-        last_page = max_page
+        last_page = math.ceil(max_page)
+
+    item_ids = flatten_list(
+        [get_item_id(page_number=p) for p in range(page, last_page)]
+    )
+
+    # if there is part in the page number,
+    # then we need to slice them to exclude already added part
+    if part:
+        item_ids = item_ids[part - 1 :]
+
+    if not is_part:
+
+        # This will responsible for stopping the length on surah or juz end
+        # TODO: currently we are not showing what is stopped like `juz end` or `surah end`
+        _temp_item_ids = []
+        first_page_surah = get_surah_name(item_id=item_ids[0])
+        first_page_juz = get_juz_name(item_id=item_ids[0])
+
+        for item_id in item_ids:
+            current_surah = get_surah_name(item_id=item_id)
+            current_juz = get_juz_name(item_id=item_id)
+
+            if current_surah != first_page_surah or current_juz != first_page_juz:
+                break
+            else:
+                _temp_item_ids.append(item_id)
+
+        if _temp_item_ids:
+            item_ids = _temp_item_ids
+
+    last_page = items[item_ids[-1]].page_id
 
     def _render_row(item_id):
 
@@ -1460,10 +1514,6 @@ def get(
                 )
             ),
         )
-
-    item_ids = flatten_list(
-        [get_item_id(page_number=p) for p in range(page, last_page)]
-    )
 
     table = Table(
         Thead(
@@ -1506,12 +1556,18 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    start_description = get_surah_name(page_id=page)
-    end_description = (
-        f"=> {last_page - 1} - {get_surah_name(page_id=(last_page - 1))}"
-        if not is_part
-        else f"- {pages[page].start_text}"
-    )
+    start_description = get_surah_name(item_id=item_ids[0])
+
+    # if this page comes from single entry page, and it has parts then we are displaying the second surah
+    # TODO: need to check if the page has 3 parts
+    if is_part and (len(item_ids) > 1):
+        end_description = f", {get_surah_name(item_id=item_ids[-1])}"
+    # if it came from single entry page, or the bulk entry page shows only one record return start_text
+    elif is_part or len(item_ids) == 1:
+        end_description = f"- {pages[page].start_text}"
+    else:
+        end_description = f"=> {last_page} - {get_surah_name(item_id=item_ids[-1])}"
+
     return main_area(
         H1(f"{page} - {start_description} {end_description}"),
         Form(
@@ -1583,9 +1639,22 @@ async def post(
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
         # To show the next page
-        next_page = items[last_item_id].page_id + 1
+        last_page = items[last_item_id].page_id
     else:
         return Redirect(index)
+
+    last_page_item_ids = get_item_id(last_page)
+
+    if not last_page_item_ids:
+        return Redirect(index)  # Handle the case where no items are found
+
+    # if the last added page doesn't have part or it is the last part of that particular page
+    # then add full page
+    if len(last_page_item_ids) == 1 or last_item_id == last_page_item_ids[-1]:
+        next_page = last_page + 1
+    #  or if the page has parts then add decimal such as 604.2, 604.3
+    else:
+        next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
 
     if is_part:
         return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
