@@ -701,10 +701,13 @@ def index(auth):
 
 
 def render_row_based_on_type(type_number: int, records: list, current_type):
+    def safe_id(value: str):
+        # Replace non-alphanumeric characters with underscores
+        return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
+
     surahs = sorted({r["surah_name"] for r in records})
     pages = sorted([r["page_id"] for r in records])
     juzs = sorted({r["juz_number"] for r in records})
-
     surah_range = f"{surahs[0]} – {surahs[-1]}" if len(surahs) > 1 else surahs[0]
     page_range = (
         f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
@@ -724,6 +727,11 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
         for page_id in pages
     ]
 
+    hidden_surah_inputs = [
+        Input(type="hidden", name="surah", value=surah, id=f"surah_{safe_id(surah)}")
+        for surah in surahs
+    ]
+
     return Tr(
         Td(
             f"{current_type.capitalize()} {type_number}"
@@ -731,7 +739,11 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
             else surah_range
         ),
         Td(details),
-        *hidden_inputs,  # Add hidden inputs here for htmx include
+        *hidden_inputs,  # hidden page inputs
+        *hidden_surah_inputs,  # hidden surah inputs
+        Input(
+            type="hidden", name="current_type", value=current_type, id="current_type"
+        ),
         Td(
             A(
                 "Start Memorize",
@@ -742,16 +754,65 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
             )
         ),
         hx_trigger="click",
-        hx_get="/revision/add_new_memorization",
-        hx_include=",".join(f"#page_{pid}" for pid in pages),
+        hx_get=(
+            "/revision/display_filtered_records"
+            if current_type != "page"
+            else "/revision/add_new_memorization"
+        ),
+        hx_include=(
+            (
+                (
+                    (",".join([f"#surah_{safe_id(surah)}" for surah in surahs]))
+                    if current_type != "page"
+                    else ",".join([f"#page_{pid}" for pid in pages])
+                )
+            ),
+        ),
         hx_target="#entry_form",
     )
+
+
+@app.get("/revision/display_filtered_records")
+def display_filtered_records(
+    req, surah: str = None, juz_number: str = None, current_type: str = None
+):
+    print("current_type:", current_type)
+    print("juz:", juz_number)
+    print("Clicked Surah:", surah)
+    surahs = sorted(set(req.query_params.getlist("surah")))
+    not_memorized_tb = """
+        SELECT items.id, items.surah_id, items.surah_name, items.page_id, 
+               hafizs_items.item_id, hafizs_items.status, pages.juz_number 
+        FROM items 
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+        LEFT JOIN pages ON items.page_id = pages.id
+        WHERE hafizs_items.status IS NULL AND items.active != 0;
+    """
+
+    ct = db.q(not_memorized_tb)
+    current_type = "surah"
+
+    # Group all records by surah
+    grouped = group_by_type(ct, current_type)
+    filtered_data = {s: grouped[s] for s in surahs if s in grouped}
+
+    if not filtered_data:
+        return Div(f"No records found for Surahs: {', '.join(surahs)}")
+
+    rows = []
+    for surah, records in filtered_data.items():
+        pages = sorted({r["page_id"] for r in records})
+        for p in pages:
+            rows.append(Tr(Td(f"Page {p}"), Td(surah)))
+
+    table = Table(Thead(Tr(Th("Page"), Th("Surah"))), Tbody(*rows))
+    return Div(H3(f"Filtered Pages for Surahs: {', '.join(surahs)}"), table)
 
 
 def group_by_type(data, current_type):
     columns_map = {
         "juz": "juz_number",
-        "surah": "surah_id",
+        "surah": "surah_name",
         "page": "page_id",
     }
     grouped = defaultdict(
@@ -909,7 +970,12 @@ def get(
     page: str,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
+    mode_id: int = None,
+    plan_id: int = None,
     revision_date: str = None,
+    length: int = 5,
+    max_page: int = 605,
+    hide_id_fields: bool = False,
 ):
     page = int(page)
 
@@ -1019,8 +1085,8 @@ async def post(
     req,
 ):
     plan_id = None
-    form_data = await req.form()
     item_ids = form_data.getlist("ids")
+    form_data = await req.form()
 
     parsed_data = []
     for name, value in form_data.items():
@@ -1741,6 +1807,7 @@ def post(page_no: int, revision_details: Revision):
     return Redirect(f"/revision/add?page={page_no + 1}&date={rev.revision_date}")
 
 
+# Bulk add
 @app.get("/revision/bulk_add")
 def get(
     auth,
