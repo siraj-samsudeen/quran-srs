@@ -803,7 +803,18 @@ def display_filtered_records(
     for surah, records in filtered_data.items():
         pages = sorted({r["page_id"] for r in records})
         for p in pages:
-            rows.append(Tr(Td(f"Page {p}"), Td(surah)))
+            rows.append(
+                Tr(
+                    Td(f"Page {p}"),
+                    Td(surah),
+                    Input(type="hidden", name="page", value=p, id=f"page_{p}"),
+                    hx_get="/revision/add_new_memorization",
+                    hx_include=f"#page_{p}",
+                    hx_target="#entry_form",
+                    hx_trigger="click",
+                    cls=AT.muted,
+                )
+            )
 
     table = Table(Thead(Tr(Th("Page"), Th("Surah"))), Tbody(*rows))
     return Div(H3(f"Filtered Pages for Surahs: {', '.join(surahs)}"), table)
