@@ -42,11 +42,15 @@ test('single_entry', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Revision Date' })).toHaveValue(currentDate); 
   await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('2');
   await expect(page.getByText('Rating ✅ Good 😄 Ok ❌ Bad')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
   await page.getByRole('listitem').filter({ hasText: 'SRS' }).locator('a').click();
   await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Mode Id 1. Full Cycle2. New')).toBeVisible();
+  await expect(page.locator('div').filter({ hasText: 'Plan Id' }).nth(4)).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Show Id fields' })).toBeChecked();
   await expect(page.locator('h1')).toContainText('3 - 2. Baqarah - إِنَّ الَّذِينَ كَفَرُوا');
   await expect(page.getByRole('button', { name: 'SRS' })).toBeVisible();
   await page.locator('body').press('Tab');
@@ -67,11 +71,15 @@ test('bulk_entry', async ({ page }) => {
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
   await expect(page.locator('h1')).toContainText('3 - 2. Baqarah  => 7 - 2. Baqarah');
   await expect(page.getByRole('textbox', { name: 'Revision Date' })).toHaveValue(currentDate); 
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
   await page.locator('a').filter({ hasText: 'New Memorization' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Mode Id 1. Full Cycle2. New')).toBeVisible();
+  await expect(page.locator('div').filter({ hasText: 'Plan ID' }).nth(3)).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Show Id fields' })).toBeChecked();
   await expect(page.getByRole('heading', { name: '8 - 2. Baqarah => 12 - 2' })).toBeVisible();
   await expect(page.locator('uk-select')).toContainText('New Memorization');
   await expect(page.getByRole('button', { name: 'New Memorization' })).toBeVisible();
@@ -91,6 +99,7 @@ test('revision_single_update', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Revision Date' })).toHaveValue(currentDate); //TODO Add current date
   await expect(page.getByRole('spinbutton', { name: 'Page' })).toHaveValue('22');
   await expect(page.getByText('Rating ✅ Good 😄 Ok ❌ Bad')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -118,9 +127,10 @@ test('revision_bulk_update', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('99-2');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).fill('1');
-  await expect(page.locator('h1')).toContainText('99 => 100 - 4. Nisa');
+  await expect(page.locator('h1')).toContainText('99 - 4. Nisa => 100 - 4. Nisa');
   await expect(page.getByRole('textbox', { name: 'Revision Date' })).toHaveValue(currentDate); //TODO Add current date
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
   await page.getByRole('listitem').filter({ hasText: '1. Full Cycle' }).locator('a').click();
@@ -169,6 +179,7 @@ test('bulk_edit_revision_range', async ({ page }) => {
  await page.getByRole('textbox', { name: 'page' }).click();
  await page.getByRole('textbox', { name: 'page' }).fill('33');
  await page.getByRole('button', { name: 'Bulk Entry' }).click();
+await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
  await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
  await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
  await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
@@ -203,6 +214,7 @@ test('continue_with_bulk_add', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('55');
   await page.getByRole('button', { name: 'Single Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
   await page.locator('uk-select[name="mode_id"]  >> a').filter({ hasText: '1. Full Cycle' }).click();
   await page.getByRole('spinbutton', { name: 'Plan Id' }).click();
@@ -232,6 +244,7 @@ test('bulk_delete', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('66');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();
@@ -265,6 +278,7 @@ test('single_delete', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('77');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -284,6 +298,7 @@ test('bulk_add_with_custom_range', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('155-10');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await expect(page.getByRole('heading', { name: '155 - 7. Araf => 161 - 7. Araf' })).toBeVisible();
@@ -302,6 +317,7 @@ test('single_add_with_custom_range', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('255-10');
   await page.getByRole('button', { name: 'Single Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('2');
   await expect(page.getByRole('heading', { name: '255 - 13. Ra\'d' })).toBeVisible();
@@ -321,6 +337,7 @@ test('shift_selection', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).click();
   await page.getByRole('textbox', { name: 'page' }).fill('355');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('2');
   await page.locator('uk-select[name="mode_id"] >> button.uk-input-fake').first().click();

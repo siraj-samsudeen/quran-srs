@@ -118,6 +118,7 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).fill('200');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
   // await expect(page).toHaveURL("http://localhost:5001/hafiz_selection");
+  await page.getByRole('checkbox', { name: 'Show Id fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
