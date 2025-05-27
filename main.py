@@ -856,7 +856,6 @@ def render_filter_record(surah, records, current_type):
         Td(details),
         *hidden_inputs,
         Input(type="hidden", name="render_type", value="surah", id="render_type"),
-        data_uk_toggle="target: #my-modal",
         hx_get=(
             "/revision/display_filtered_records"
             if current_type != "page"
@@ -881,21 +880,6 @@ def group_by_type(data, current_type):
     for row in data:
         grouped[row[columns_map[current_type]]].append(row)
     return grouped
-
-
-def modal():
-    return Div(
-        Button("Open Modal", data_uk_toggle="target: #my-modal"),
-        Modal(
-            ModalTitle("Simple Test Modal"),
-            P(
-                "With some somewhat brief content to show that it works!",
-                cls=TextPresets.muted_sm,
-            ),
-            footer=ModalCloseButton("Close", cls=ButtonT.primary),
-            id="my-modal",
-        ),
-    )
 
 
 @app.get("/new_memorization/{current_type}")
@@ -937,7 +921,6 @@ def new_memorization(current_type: str, auth):
     return main_area(
         H1("New Memorization"),
         Div(
-            modal(),
             TabContainer(
                 *map(render_navigation_item, ["juz", "surah", "page"]),
             ),
