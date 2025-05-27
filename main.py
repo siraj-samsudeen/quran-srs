@@ -139,6 +139,15 @@ def get_column_headers(table):
     return columns
 
 
+def get_juz_name(page_id=None, item_id=None):
+    if item_id:
+        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+        juz_number = db.q(qry)[0]["juz_number"]
+    else:
+        juz_number = pages[page_id].juz_number
+    return juz_number
+
+
 def get_surah_name(page_id=None, item_id=None):
     if item_id:
         surah_id = items[item_id].surah_id
@@ -578,7 +587,19 @@ def index(auth):
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
-        last_added_page = items[last_added_item_id].page_id
+        item_details = items[last_added_item_id]
+        last_added_page = item_details.page_id
+
+        if item_details.item_type == "page-part":
+            # fill the page input with parts based on the last added record
+            # to start from the next part
+            if item_details.part == "1.0":
+                last_added_page = last_added_page + 0.2
+            elif (
+                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
+                and item_details.part == "2.0"
+            ):
+                last_added_page = last_added_page + 0.3
     else:
         last_added_page = None
 
@@ -646,7 +667,7 @@ def index(auth):
         else:
             continue_message = A(
                 render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}&hide_id_fields=true",
+                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
                 cls=AT.classic,
             )
 
@@ -1010,7 +1031,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(rev.mode_id),
             Td(rev.plan_id),
             Td(RATING_MAP.get(str(rev.rating))),
-            Td(get_surah_name(page_id=page)),
+            Td(get_surah_name(item_id=item_id)),
             Td(pages[page].juz_number),
             Td(rev.revision_date),
             Td(
@@ -1075,7 +1096,27 @@ def revision(auth, idx: int | None = 1):
     )
 
 
-def create_revision_form(type):
+# This function is to hide the id fields with toggle button
+def toggle_input_fields(*args, show_id_fields=False):
+    return (
+        Div(
+            LabelSwitch(
+                label="Show Id fields", id="show_id_fields", x_model="isChecked"
+            ),
+            Grid(
+                *args,
+                cls="hidden" if not show_id_fields else None,
+                **{"x-bind:class": "{ 'hidden': !isChecked }"},
+            ),
+            x_data="{ isChecked: IS_HIDE_FIELDS }".replace(
+                "IS_HIDE_FIELDS", "true" if show_id_fields else "false"
+            ),
+            cls="space-y-3",
+        ),
+    )
+
+
+def create_revision_form(type, show_id_fields=False):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1099,15 +1140,18 @@ def create_revision_form(type):
             selected=True if "siraj" in obj.name.lower() else False,
         )
 
+    id_fields = (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+
     return Form(
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
-        Grid(
-            mode_dropdown(),
-            LabelInput("Plan Id", name="plan_id", type="number"),
+        (
+            toggle_input_fields(*id_fields, show_id_fields=show_id_fields)
+            if type == "add"
+            else Grid(*id_fields)
         ),
         LabelInput(
             "Revision Date",
@@ -1326,16 +1370,19 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(auth, page: str, max_page: int = 605, date: str = None):
-    if "." in page:
-        page = page.split(".")[0]
+def get(
+    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+):
+    if "-" in page:
+        page = page.split("-")[0]
 
-    page = int(page)
+    page_in_float = float(page)
+    page = int(page_in_float)
 
     if page >= max_page:
         return Redirect(index)
 
-    if len(get_item_id(page_number=page)) > 1:
+    if len(get_item_id(page_number=int(page))) > 1:
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
@@ -1351,7 +1398,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
         Titled(
             f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
             fill_form(
-                create_revision_form("add"),
+                create_revision_form("add", show_id_fields=show_id_fields),
                 {
                     "page_no": page,
                     "mode_id": defalut_mode_value,
@@ -1366,7 +1413,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
 
 @rt("/revision/add")
-def post(page_no: int, revision_details: Revision):
+def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -1381,7 +1428,9 @@ def post(page_no: int, revision_details: Revision):
 
     rev = revisions.insert(revision_details)
 
-    return Redirect(f"/revision/add?page={page_no + 1}&date={rev.revision_date}")
+    return Redirect(
+        f"/revision/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+    )
 
 
 @app.get("/revision/bulk_add")
@@ -1394,25 +1443,75 @@ def get(
     plan_id: int = None,
     revision_date: str = None,
     length: int = 5,
-    max_page: int = 605,
-    hide_id_fields: bool = False,
+    max_page: float = 604.4,
+    show_id_fields: bool = False,
 ):
 
-    if "." in page:
-        page, length = map(int, page.split("."))
-    else:
-        page = int(page)
+    # the length only matters if the pages have consecutive surahs
+    if "-" in page:
+        page, length = page.split("-")
 
+    # Handle the max page
+    if float(page) >= max_page:
+        return Redirect(index)
+
+    if "." in page:
+        page, part = page.split(".")
+        part = int(part)
+    else:
+        part = None
+
+    page = int(page)
+    length = int(length)
+
+    # This is to show only one page if it came from single entry
     if is_part:
         length = 1
-
-    if page >= max_page:
-        return Redirect(index)
 
     last_page = page + length
 
     if last_page > max_page:
-        last_page = max_page
+        last_page = math.ceil(max_page)
+
+    item_ids = flatten_list(
+        [get_item_id(page_number=p) for p in range(page, last_page)]
+    )
+
+    description = ""
+
+    # if there is part in the page number,
+    # then we need to slice them to exclude already added part
+    if part:
+        item_ids = item_ids[part - 1 :]
+
+    if not is_part:
+
+        # This will responsible for stopping the length on surah or juz end
+        # TODO: currently we are not showing what is stopped like `juz end` or `surah end`
+        _temp_item_ids = []
+        first_page_surah = get_surah_name(item_id=item_ids[0])
+        first_page_juz = get_juz_name(item_id=item_ids[0])
+
+        for item_id in item_ids:
+            current_surah = get_surah_name(item_id=item_id)
+            current_juz = get_juz_name(item_id=item_id)
+
+            if current_surah != first_page_surah and current_juz != first_page_juz:
+                description = "Surah and Juz ends"
+                break
+            elif current_surah != first_page_surah:
+                description = "Surah ends"
+                break
+            elif current_juz != first_page_juz:
+                description = "Juz ends"
+                break
+            else:
+                _temp_item_ids.append(item_id)
+
+        if _temp_item_ids:
+            item_ids = _temp_item_ids
+
+    last_page = items[item_ids[-1]].page_id
 
     def _render_row(item_id):
 
@@ -1440,7 +1539,6 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(current_page_details.surah_name),
             Td(P(current_page_details.page_id)),
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
@@ -1452,10 +1550,6 @@ def get(
             ),
         )
 
-    item_ids = flatten_list(
-        [get_item_id(page_number=p) for p in range(page, last_page)]
-    )
-
     table = Table(
         Thead(
             Tr(
@@ -1464,14 +1558,20 @@ def get(
                         cls="select_all", x_model="selectAll", _at_change="toggleAll()"
                     )
                 ),
-                Th("Surah"),
                 Th("Page"),
                 Th("Part"),
                 Th("Start"),
                 Th("Rating"),
             )
         ),
-        Tbody(*map(_render_row, item_ids)),
+        Tbody(
+            *map(_render_row, item_ids),
+            (
+                Tr(Td(P(description), colspan="5", cls="text-center"))
+                if description
+                else None
+            ),
+        ),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
             is_select_all="false" if is_part else "true",
@@ -1497,19 +1597,26 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    start_description = get_surah_name(page_id=page)
-    end_description = (
-        f"=> {last_page - 1} - {get_surah_name(page_id=(last_page - 1))}"
-        if not is_part
-        else f"- {pages[page].start_text}"
-    )
+    # if this page comes from single entry page, and it has parts then we are displaying the second surah
+    # TODO: need to check if the page has 3 parts
+    if is_part and (len(item_ids) > 1):
+        heading = f"{page} - " + ", ".join(
+            [get_surah_name(item_id=item_id) for item_id in item_ids]
+        )
+    # if it came from single entry page, or the bulk entry page shows only one record return start_text
+    elif is_part or len(item_ids) == 1:
+        heading = (
+            f"{page} - {get_surah_name(item_id=item_ids[0])} - {pages[page].start_text}"
+        )
+    else:
+        heading = f"{page} - {get_surah_name(item_id=item_ids[0])} => {last_page} - {get_surah_name(item_id=item_ids[-1])}"
+
     return main_area(
-        H1(f"{page} - {start_description} {end_description}"),
+        H1(heading),
         Form(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
-            Hidden(name="hide_id_fields", value=str(hide_id_fields)),
-            Grid(
+            toggle_input_fields(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
                     "Plan ID",
@@ -1517,8 +1624,7 @@ def get(
                     type="number",
                     value=(plan_id or defalut_plan_value),
                 ),
-                # To hide the id fields on the when navigating through continue link
-                **({"cls": "hidden"} if hide_id_fields else {}),
+                show_id_fields=show_id_fields,
             ),
             LabelInput(
                 "Revision Date",
@@ -1544,9 +1650,9 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
-    hide_id_fields: bool,
     auth,
     req,
+    show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
@@ -1574,15 +1680,31 @@ async def post(
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
         # To show the next page
-        next_page = items[last_item_id].page_id + 1
+        last_page = items[last_item_id].page_id
     else:
         return Redirect(index)
 
+    last_page_item_ids = get_item_id(last_page)
+
+    if not last_page_item_ids:
+        return Redirect(index)  # Handle the case where no items are found
+
+    # if the last added page doesn't have part or it is the last part of that particular page
+    # then add full page
+    if len(last_page_item_ids) == 1 or last_item_id == last_page_item_ids[-1]:
+        next_page = last_page + 1
+    #  or if the page has parts then add decimal such as 604.2, 604.3
+    else:
+        next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
+        next_page = float(next_page)
+
     if is_part:
-        return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
+        return Redirect(
+            f"/revision/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
+        )
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
     )
 
 
