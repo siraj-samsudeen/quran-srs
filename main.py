@@ -596,7 +596,7 @@ def index(auth):
             if item_details.part == "1.0":
                 last_added_page = last_added_page + 0.2
             elif (
-                len(hafizs_items(where=f"page_number = {last_added_page}")) > 2
+                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
                 and item_details.part == "2.0"
             ):
                 last_added_page = last_added_page + 0.3
