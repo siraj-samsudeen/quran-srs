@@ -735,11 +735,7 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
     include = (
         (",".join([f"#surah_{safe_id(surah)}" for surah in surahs]))
         if current_type == "juz"
-        else (
-            ",".join([f"#page_{pid}" for pid in pages])
-            if current_type == "surah"
-            else ""
-        )
+        else (",".join([f"#page_{pid}" for pid in pages]))
     )
 
     return (
@@ -860,12 +856,12 @@ def render_filter_record(surah, records, current_type):
         Td(details),
         *hidden_inputs,
         Input(type="hidden", name="render_type", value="surah", id="render_type"),
+        data_uk_toggle="target: #my-modal",
         hx_get=(
             "/revision/display_filtered_records"
             if current_type != "page"
             else "/revision/add_new_memorization"
         ),
-        # hx_get="/revision/add_new_memorization",
         hx_include=include + ",#render_type",
         hx_target="#entry_form",
         hx_trigger="click",
