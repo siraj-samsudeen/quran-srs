@@ -1582,7 +1582,7 @@ def get(
             f"{page} - {get_surah_name(item_id=item_ids[0])} - {pages[page].start_text}"
         )
     else:
-        heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])}"
+        heading = f"{page} - {get_surah_name(item_id=item_ids[0])} => {last_page} - {get_surah_name(item_id=item_ids[-1])}"
 
     return main_area(
         H1(heading),
