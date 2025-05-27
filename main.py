@@ -1653,9 +1653,12 @@ async def post(
     #  or if the page has parts then add decimal such as 604.2, 604.3
     else:
         next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
+        next_page = float(next_page)
 
     if is_part:
-        return Redirect(f"/revision/add?page={next_page}&date={revision_date}")
+        return Redirect(
+            f"/revision/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
+        )
 
     return Redirect(
         f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
