@@ -593,11 +593,11 @@ def index(auth):
         if item_details.item_type == "page-part":
             # fill the page input with parts based on the last added record
             # to start from the next part
-            if item_details.part == "1.0":
+            if "1" in item_details.part:
                 last_added_page = last_added_page + 0.2
             elif (
                 len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
-                and item_details.part == "2.0"
+                and "2" in item_details.part
             ):
                 last_added_page = last_added_page + 0.3
     else:
