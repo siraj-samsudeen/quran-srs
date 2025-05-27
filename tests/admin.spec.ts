@@ -56,7 +56,7 @@ test('modes_table', async ({ page }) => {
   await page.getByRole('button', { name: 'Save' }).click();
   // delete mode
   page.on('dialog', dialog => dialog.accept());
-  await page.locator('#row-5').getByRole('link', { name: 'Delete' }).click();
+  await page.locator('#row-6').getByRole('link', { name: 'Delete' }).click();
   await page.getByRole('link').filter({ hasText: /^$/ }).click();
   await expect(page).toHaveURL("http://localhost:5001/tables");
   await expect(page.getByRole('link', { name: 'modes' })).toBeVisible();
