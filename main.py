@@ -700,96 +700,131 @@ def index(auth):
     )
 
 
-def safe_id(value: str):
-    # Replace non-alphanumeric characters with underscores
-    return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
+def extract_ranges(records, render_type=None):
+    def format_range(items, label=None, prefix=""):
+        items = sorted(set(items))
+        if not items:
+            return ""
+        if len(items) == 1:
+            return f"{prefix}{items[0]}"
+        return (
+            f"{prefix}{items[0]} – {items[-1]}"
+            if not label
+            else f"{label} {items[0]} – {items[-1]}"
+        )
+
+    surahs = {r["surah_id"] for r in records}
+    pages = [r["page_id"] for r in records]
+    juzs = {r["juz_number"] for r in records}
+
+    surah_range = format_range(surahs)
+    page_range = format_range(pages, label="Pages", prefix="Page ")
+    juz_range = format_range(juzs, label="Juz", prefix="Juz ")
+    surah_name = format_range({r["surah_name"] for r in records})
+
+    return {
+        "surah_range": surah_range,
+        "page_range": page_range,
+        "juz_range": juz_range,
+        "surahs": sorted(surahs),
+        "pages": sorted(pages),
+        "juzs": sorted(juzs),
+        "surah_name": surah_name,
+    }
+
+
+def hidden_inputs(name, values):
+    return [
+        Hidden(
+            name="type_number" if name != "page" else name,
+            value=val,
+            id=f"{name}_{val}",
+        )
+        for val in values
+    ]
+
+
+def get_include_map(juzs, surahs, pages):
+    return {
+        "juz": [f"#juz_{juz}" for juz in juzs],
+        "surah": [f"#surah_{surah}" for surah in surahs],
+        "page": [f"#page_{pid}" for pid in pages],
+    }
 
 
 def render_row_based_on_type(type_number: int, records: list, current_type):
-    surahs = sorted({r["surah_name"] for r in records})
-    pages = sorted([r["page_id"] for r in records])
-    juzs = sorted({r["juz_number"] for r in records})
-    surah_range = f"{surahs[0]} – {surahs[-1]}" if len(surahs) > 1 else surahs[0]
-    page_range = (
-        f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
-    )
-    juz_range = f"Juz {juzs[0]} – {juzs[-1]}" if len(juzs) > 1 else f"Juz {juzs[0]}"
+    ranges = extract_ranges(
+        records
+    )  # Extract ranges from records for each type to display in the table
+    surah_range = ranges["surah_range"]
+    page_range = ranges["page_range"]
+    juz_range = ranges["juz_range"]
+    surahs = ranges["surahs"]
+    pages = ranges["pages"]
+    juzs = ranges["juzs"]
+    surah_name = ranges["surah_name"]
 
-    if current_type == "juz":
-        details = f"{surah_range} ({page_range})"
-    elif current_type == "surah":
-        details = f"{juz_range} ({page_range})"
-    elif current_type == "page":
-        details = f"{juz_range} | {surah_range}"
+    details_map = {
+        "juz": f"{surah_name} ({page_range})",
+        "surah": f"{juz_range} ({page_range})",
+        "page": f"{juz_range} | {surah_name}",
+    }
+    details = details_map.get(current_type, "")
 
-    # Hidden inputs for all pages in type
-    hidden_inputs = [
-        Input(type="hidden", name="page", value=page_id, id=f"page_{page_id}")
-        for page_id in pages
-    ]
+    hidden_juz_inputs = hidden_inputs("juz", juzs)
+    hidden_surah_inputs = hidden_inputs("surah", surahs)
+    hidden_page_inputs = hidden_inputs("page", pages)
 
-    hidden_surah_inputs = [
-        Input(type="hidden", name="surah", value=surah, id=f"surah_{safe_id(surah)}")
-        for surah in surahs
-    ]
-    include = (
-        (",".join([f"#surah_{safe_id(surah)}" for surah in surahs]))
-        if current_type == "juz"
-        else (",".join([f"#page_{pid}" for pid in pages]))
-    )
+    include_map = get_include_map(
+        juzs, surahs, pages
+    )  # Generate include maps for each type
 
     return (
         Tr(
             Td(
                 f"{current_type.capitalize()} {type_number}"
                 if current_type != "surah"
-                else surah_range
+                else surah_name
             ),
             Td(details),
-            *hidden_inputs,  # hidden page inputs
-            *hidden_surah_inputs,  # hidden surah inputs
-            Input(
-                type="hidden",
-                name="current_type",
-                value=current_type,
-                id="current_type",
-            ),
+            *hidden_juz_inputs,
+            *hidden_surah_inputs,
+            *hidden_page_inputs,
             Td(
                 A(
                     "Start Memorize",
                     hx_get="/revision/add_new_memorization",
-                    hx_include=",".join(f"#page_{pid}" for pid in pages),
+                    hx_include=",".join(include_map.get("page", [])),
                     hx_target="#entry_form",
                     cls=AT.muted,
                 )
             ),
             hx_trigger="click",
             hx_get=(
-                "/revision/display_filtered_records"
+                f"/revision/display_filtered_records?current_type={current_type}"
                 if current_type != "page"
                 else "/revision/add_new_memorization"
             ),
-            hx_include=(include + ",#current_type"),
+            hx_include=",".join(include_map.get(current_type, [])),
             hx_target="#entry_form",
         ),
     )
 
 
 @app.get("/revision/display_filtered_records")
-def display_filtered_records(
-    req, surah: str = None, juz_number: str = None, current_type: str = None
-):
-    if not current_type:
+def display_filtered_records(req, current_type: str = None, type_number: int = None):
+    if current_type is None:
         current_type = "surah"
     print("current_type:", current_type)
-    print("juz:", juz_number)
-    print("Clicked Surah:", surah)
     filtered = sorted(
-        set(req.query_params.getlist("surah" if current_type == "juz" else "page")),
+        set(
+            req.query_params.getlist(
+                f"type_number" if current_type != "page" else current_type
+            )
+        ),
     )
-    print("Filtered:", filtered)
     converted = [int(x) if x.isdigit() else x for x in filtered]
-    print("Converted:", converted)
+
     not_memorized_tb = """
         SELECT items.id, items.surah_id, items.surah_name, items.page_id, 
                hafizs_items.item_id, hafizs_items.status, pages.juz_number 
@@ -800,68 +835,78 @@ def display_filtered_records(
     """
 
     ct = db.q(not_memorized_tb)
-    render_type = "page" if current_type == "surah" else "surah"
-    print("Current Type:", render_type)
+    render_type = (
+        "surah"
+        if current_type == "juz"
+        else ("page" if current_type == "surah" else current_type)
+    )
     # Group all records by surah
-    grouped = group_by_type(ct, render_type)
-    print(grouped)
-    print(converted)
-    filtered_data = {f: grouped[f] for f in converted if f in grouped}
-    # print(filtered_data)
+    grouped = group_by_type(ct, current_type)
+    current_filter = filtered if current_type == "juz" else converted
+    filtered_data = {f: grouped[f] for f in current_filter if f in grouped}
+
     if not filtered_data:
-        return Div(f"No records found for filtered: {', '.join(converted)}")
+        return Div(
+            f"No records found for filtered: {', '.join(str(x) for x in converted)}"
+        )
+    filtered_data = group_by_type(
+        filtered_data[current_filter[0]], "surah" if current_type == "juz" else "page"
+    )
     rows = [
-        render_filter_record(type_number, records, render_type)
+        render_filter_record(
+            type_number, records, "surah" if current_type == "juz" else "page"
+        )
         for type_number, records in filtered_data.items()
     ]
 
     table = Table(Thead(Tr(Th("Name"), Th("Range/Details"))), Tbody(*rows))
-    return Div(H3(f"Filtered Pages : {', '.join(filtered)}"), table)
-
-
-def render_filter_record(surah, records, current_type):
-    print("render", surah, records, current_type)
-    surahs = sorted({r["surah_name"] for r in records})
-    pages = sorted([r["page_id"] for r in records])
-    juzs = sorted({r["juz_number"] for r in records})
-    surah_range = f"{surahs[0]} – {surahs[-1]}" if len(surahs) > 1 else surahs[0]
-    page_range = (
-        f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
+    return Div(
+        H3(f"Filtered Pages for: {current_type.capitalize()} {', '.join(filtered)}"),
+        table,
     )
-    juz_range = f"Juz {juzs[0]} – {juzs[-1]}" if len(juzs) > 1 else f"Juz {juzs[0]}"
+
+
+def render_filter_record(type_number: int, records, current_type, render_type=None):
+    print("render:::", type_number, records, current_type)
+    ranges = extract_ranges(records)
+    surah_range = ranges["surah_range"]
+    page_range = ranges["page_range"]
+    juz_range = ranges["juz_range"]
+    surahs = ranges["surahs"]
+    pages = ranges["pages"]
+    surah_name = ranges["surah_name"]
+    juzs = ranges["juzs"]
+    details_map = {
+        "juz": f"{surah_name} ({page_range})",
+        "surah": f"{juz_range} ({page_range})",
+        "page": f"{juz_range} ({page_range})",
+    }
+    details = details_map.get(current_type, "")
     # current_type = "surah" if current_type == "juz" else "page"
-    hidden_inputs = [
-        Input(type="hidden", name="page", value=page_id, id=f"page_{page_id}")
-        for page_id in pages
-    ]
+    hidden_juz_inputs = hidden_inputs("juz", juzs)
+    hidden_surah_inputs = hidden_inputs("surah", surahs)
+    hidden_page_inputs = hidden_inputs("page", pages)
+
+    include_map = get_include_map(juzs, surahs, pages)
     print(current_type)
-    if current_type == "surah":
-        details = f"{juz_range} ({page_range})"
-    elif current_type == "juz":
-        details = f"{surah_range} ({page_range})"
-    else:
-        details = f"{juz_range} | {surah_range}"
-    print(current_type)
-    include = (
-        ",".join([f"#page_{pid}" for pid in pages])
-        if current_type == "page" or current_type == "surah"
-        else ",".join([f"#surah_{safe_id(surah)}" for surah in surahs])
-    )
+    if not render_type:
+        render_type = current_type
     return Tr(
         Td(
-            f"{current_type.capitalize()} {surah}"
+            f"{render_type.capitalize()} {surah_name}"
             if current_type != "surah"
-            else surah_range
+            else surah_name
         ),
         Td(details),
-        *hidden_inputs,
-        Input(type="hidden", name="render_type", value="surah", id="render_type"),
+        *hidden_juz_inputs,
+        *hidden_surah_inputs,
+        *hidden_page_inputs,
         hx_get=(
             "/revision/display_filtered_records"
             if current_type != "page"
             else "/revision/add_new_memorization"
         ),
-        hx_include=include + ",#render_type",
+        hx_include=include_map.get(current_type, []),
         hx_target="#entry_form",
         hx_trigger="click",
         cls=AT.muted,
@@ -871,7 +916,7 @@ def render_filter_record(surah, records, current_type):
 def group_by_type(data, current_type):
     columns_map = {
         "juz": "juz_number",
-        "surah": "surah_name",
+        "surah": "surah_id",
         "page": "page_id",
     }
     grouped = defaultdict(
@@ -898,8 +943,9 @@ def new_memorization(current_type: str, auth):
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE hafizs_items.status IS NULL AND items.active != 0;"""
     ct = db.q(not_memorized_tb)
-
+    # print(ct)
     grouped = group_by_type(ct, current_type)
+    # print((grouped))
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
