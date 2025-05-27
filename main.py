@@ -1450,6 +1450,8 @@ def get(
         [get_item_id(page_number=p) for p in range(page, last_page)]
     )
 
+    description = ""
+
     # if there is part in the page number,
     # then we need to slice them to exclude already added part
     if part:
@@ -1467,7 +1469,14 @@ def get(
             current_surah = get_surah_name(item_id=item_id)
             current_juz = get_juz_name(item_id=item_id)
 
-            if current_surah != first_page_surah or current_juz != first_page_juz:
+            if current_surah != first_page_surah and current_juz != first_page_juz:
+                description = "Surah and Juz ends"
+                break
+            elif current_surah != first_page_surah:
+                description = "Surah ends"
+                break
+            elif current_juz != first_page_juz:
+                description = "Juz ends"
                 break
             else:
                 _temp_item_ids.append(item_id)
@@ -1528,7 +1537,14 @@ def get(
                 Th("Rating"),
             )
         ),
-        Tbody(*map(_render_row, item_ids)),
+        Tbody(
+            *map(_render_row, item_ids),
+            (
+                Tr(Td(P(description), colspan="5", cls="text-center"))
+                if description
+                else None
+            ),
+        ),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
             is_select_all="false" if is_part else "true",
