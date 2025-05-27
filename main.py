@@ -667,7 +667,7 @@ def index(auth):
         else:
             continue_message = A(
                 render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}&hide_id_fields=true",
+                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
                 cls=AT.classic,
             )
 
@@ -1096,7 +1096,27 @@ def revision(auth, idx: int | None = 1):
     )
 
 
-def create_revision_form(type):
+# This function is to hide the id fields with toggle button
+def toggle_input_fields(*args, show_id_fields=False):
+    return (
+        Div(
+            LabelSwitch(
+                label="Show Id fields", id="show_id_fields", x_model="isChecked"
+            ),
+            Grid(
+                *args,
+                cls="hidden" if not show_id_fields else None,
+                **{"x-bind:class": "{ 'hidden': !isChecked }"},
+            ),
+            x_data="{ isChecked: IS_HIDE_FIELDS }".replace(
+                "IS_HIDE_FIELDS", "true" if show_id_fields else "false"
+            ),
+            cls="space-y-3",
+        ),
+    )
+
+
+def create_revision_form(type, show_id_fields=False):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1120,15 +1140,18 @@ def create_revision_form(type):
             selected=True if "siraj" in obj.name.lower() else False,
         )
 
+    id_fields = (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+
     return Form(
         Hidden(name="id"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
-        Grid(
-            mode_dropdown(),
-            LabelInput("Plan Id", name="plan_id", type="number"),
+        (
+            toggle_input_fields(*id_fields, show_id_fields=show_id_fields)
+            if type == "add"
+            else Grid(*id_fields)
         ),
         LabelInput(
             "Revision Date",
@@ -1347,7 +1370,9 @@ def post(type: str, page: str):
 
 
 @rt("/revision/add")
-def get(auth, page: str, max_page: int = 605, date: str = None):
+def get(
+    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+):
     if "-" in page:
         page = page.split("-")[0]
 
@@ -1373,7 +1398,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
         Titled(
             f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
             fill_form(
-                create_revision_form("add"),
+                create_revision_form("add", show_id_fields=show_id_fields),
                 {
                     "page_no": page,
                     "mode_id": defalut_mode_value,
@@ -1388,7 +1413,7 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
 
 
 @rt("/revision/add")
-def post(page_no: int, revision_details: Revision):
+def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -1403,7 +1428,9 @@ def post(page_no: int, revision_details: Revision):
 
     rev = revisions.insert(revision_details)
 
-    return Redirect(f"/revision/add?page={page_no + 1}&date={rev.revision_date}")
+    return Redirect(
+        f"/revision/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+    )
 
 
 @app.get("/revision/bulk_add")
@@ -1417,7 +1444,7 @@ def get(
     revision_date: str = None,
     length: int = 5,
     max_page: float = 604.4,
-    hide_id_fields: bool = False,
+    show_id_fields: bool = False,
 ):
 
     # the length only matters if the pages have consecutive surahs
@@ -1589,8 +1616,7 @@ def get(
         Form(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
-            Hidden(name="hide_id_fields", value=str(hide_id_fields)),
-            Grid(
+            toggle_input_fields(
                 mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
                 LabelInput(
                     "Plan ID",
@@ -1598,8 +1624,7 @@ def get(
                     type="number",
                     value=(plan_id or defalut_plan_value),
                 ),
-                # To hide the id fields on the when navigating through continue link
-                **({"cls": "hidden"} if hide_id_fields else {}),
+                show_id_fields=show_id_fields,
             ),
             LabelInput(
                 "Revision Date",
@@ -1625,9 +1650,9 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
-    hide_id_fields: bool,
     auth,
     req,
+    show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
@@ -1679,7 +1704,7 @@ async def post(
         )
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&hide_id_fields={hide_id_fields}"
+        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
     )
 
 
