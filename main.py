@@ -1584,7 +1584,7 @@ async def post(
 
 
 @app.get("/memorization_status/{current_type}")
-def show_page_status(current_type: str):
+def show_page_status(current_type: str, auth):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
         _surahs = sorted({r["surah_id"] for r in records})
@@ -1768,6 +1768,7 @@ def show_page_status(current_type: str):
             ),
             cls="space-y-5",
         ),
+        auth=auth,
     )
 
 
