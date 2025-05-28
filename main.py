@@ -1666,7 +1666,7 @@ def show_page_status(current_type: str):
 
     def render_navigation_item(_type: str):
         return Li(
-            A(_type.capitalize(), href=f"/memorization_status/{_type}"),
+            A(f"by {_type}", href=f"/memorization_status/{_type}"),
             cls=("uk-active" if _type == current_type else None),
         )
 
@@ -1743,7 +1743,7 @@ def show_page_status(current_type: str):
                             ),
                             Th("NAME"),
                             Th("RANGE / DETAILS"),
-                            Th("STATUS"),
+                            Th("STATUS", cls="uk-table-shrink"),
                             Th("", cls="uk-table-shrink"),
                         )
                     ),
