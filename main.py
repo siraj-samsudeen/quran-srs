@@ -1833,6 +1833,7 @@ def filtered_table_for_modal(
         x_data=select_all_checkbox_x_data(
             class_name="partial_rows", is_select_all="false"
         ),
+        x_init="updateSelectAll()",
     )
 
     return (
