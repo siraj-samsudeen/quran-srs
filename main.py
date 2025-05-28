@@ -1073,12 +1073,7 @@ def get(
     page: str,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    mode_id: int = None,
-    plan_id: int = None,
     revision_date: str = None,
-    length: int = 5,
-    max_page: int = 605,
-    hide_id_fields: bool = False,
 ):
     page = int(page)
 
