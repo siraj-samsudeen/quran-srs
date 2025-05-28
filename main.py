@@ -1686,6 +1686,8 @@ def show_page_status(current_type: str):
     ct = db.q(qry)
 
     grouped = group_by_type(ct, current_type)
+    memorized_pages = [i for i in ct if i["status"] == "memorized"]
+    length_of_memorized_pages = len(memorized_pages)
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -1710,6 +1712,13 @@ def show_page_status(current_type: str):
     )
     return main_area(
         Div(
+            DivCentered(
+                P(
+                    f"Memorization Progress: {length_of_memorized_pages}/604 Pages ({int(length_of_memorized_pages/604*100)}%)",
+                    cls=TextPresets.bold_lg,
+                ),
+                Progress(value=f"{length_of_memorized_pages}", max="604"),
+            ),
             top_action_buttons,
             TabContainer(
                 *map(render_navigation_item, ["juz", "surah", "page"]),
