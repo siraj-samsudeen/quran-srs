@@ -1622,29 +1622,35 @@ def show_page_status(current_type: str, auth):
         elif current_type == "page":
             details = f"{juz_range} | {surah_range}"
 
+        title = (
+            f"{current_type.capitalize()} {type_number}"
+            if current_type != "surah"
+            else surahs[type_number].name
+        )
         return Tr(
             Td(
                 CheckboxX(
-                    name="ids",
-                    value=id,
-                    cls="status_rows",
+                    cls="status_rows",  # Don't change this class name it is referenced in alpine js
                     checked=status_value == "memorized",
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(
-                f"{current_type.capitalize()} {type_number}"
-                if current_type != "surah"
-                else surah_range
-            ),
+            Td(title),
             Td(details),
             Td(status_dropdown(status_value)),
             Td(
-                # TODO: here add a another route which is responsible for swapping the modal div with the table
-                # and the modal should be rendered in the modal div
-                A("➡️", data_uk_toggle="target: #my-modal")
-                if status_value == "partially_memorized"
-                else None
+                A(
+                    "➡️",
+                    hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
+                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                        "CURRENT_TITLE", title
+                    ).replace(
+                        "CURRENT_DETAILS", details
+                    ),
+                    target_id="my-modal-body",
+                    data_uk_toggle="target: #my-modal",
+                    cls=f"{"hidden" if not status_value == "partially_memorized" else None}",
+                )
             ),
         )
 
@@ -1717,6 +1723,30 @@ def show_page_status(current_type: str, auth):
         ),
         cls=("w-full gap-6", FlexT.block, FlexT.between, FlexT.wrap),
     )
+
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="my-modal-title"),
+                P(cls=TextPresets.muted_sm, id="my-modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            Form(
+                ModalBody(
+                    Div(id="my-modal-body"),
+                    data_uk_overflow_auto=True,
+                ),
+                ModalFooter(
+                    Button("Update", cls="bg-green-600 text-white"), cls="uk-text-right"
+                ),
+                hx_post=f"/partial_memorization_status/{current_type}",
+                hx_target="#my-modal",
+            ),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="my-modal",
+    )
     return main_area(
         Div(
             DivCentered(
@@ -1730,39 +1760,35 @@ def show_page_status(current_type: str, auth):
             TabContainer(
                 *map(render_navigation_item, ["juz", "surah", "page"]),
             ),
-            Div(
-                Table(
-                    Thead(
-                        Tr(
-                            Th(
-                                CheckboxX(
-                                    cls="select_all",
-                                    x_model="selectAll",
-                                    _at_change="toggleAll()",
-                                )
-                            ),
-                            Th("NAME"),
-                            Th("RANGE / DETAILS"),
-                            Th("STATUS", cls="uk-table-shrink"),
-                            Th("", cls="uk-table-shrink"),
-                        )
+            Form(
+                Div(
+                    Table(
+                        Thead(
+                            Tr(
+                                Th(
+                                    CheckboxX(
+                                        cls="select_all",
+                                        x_model="selectAll",
+                                        _at_change="toggleAll()",
+                                    )
+                                ),
+                                Th("NAME"),
+                                Th("RANGE / DETAILS"),
+                                Th("STATUS", cls="uk-table-shrink"),
+                                Th("", cls="uk-table-shrink"),
+                            )
+                        ),
+                        Tbody(*rows),
                     ),
-                    Tbody(*rows),
+                    cls="h-[60vh] overflow-auto uk-overflow-auto",
                 ),
-                cls="h-[60vh] overflow-auto uk-overflow-auto",
+                Div(
+                    Button("Update", cls="bg-green-600 text-white"),
+                    cls=(FlexT.block, "flex-row-reverse"),
+                ),
+                cls="space-y-5",
             ),
-            Div(
-                Modal(
-                    ModalTitle(f"{"Juz 1"} - Select Memorized Pages"),
-                    P(
-                        "1. Fatihah – 2. Baqarah (Pages 1 – 21)",
-                        cls=TextPresets.muted_sm,
-                    ),
-                    footer=ModalCloseButton(),
-                    id="my-modal",
-                    dialog_cls="uk-margin-auto-vertical",
-                )
-            ),
+            Div(modal),
             x_data=select_all_checkbox_x_data(
                 class_name="status_rows", is_select_all="false"
             ),
@@ -1770,6 +1796,107 @@ def show_page_status(current_type: str, auth):
         ),
         auth=auth,
     )
+
+
+# This is responsible for updating the modal
+@app.get("/partial_memorization_status/{current_type}/{type_number}")
+def filtered_table_for_modal(
+    current_type: str, type_number: int, title: str, description: str
+):
+    if current_type == "juz":
+        condition = f"pages.juz_number = {type_number}"
+    elif current_type == "surah":
+        condition = f"items.surah_id = {type_number}"
+    elif current_type == "page":
+        condition = f"pages.page_number = {type_number}"
+    else:
+        return "Invalid current_type"
+
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          WHERE items.active != 0 AND {condition}"""
+    ct = db.q(qry)
+
+    def render_row(record):
+        return Tr(
+            Td(
+                # This hidden input is to send the id to the backend even if it is unchecked
+                Hidden(name=f"id-{record['id']}", value="0"),
+                CheckboxX(
+                    name=f"id-{record['id']}",
+                    value="1",
+                    cls="partial_rows",  # Alpine js reference
+                    checked=record["status"] == "memorized",
+                    _at_click="handleCheckboxClick($event)",
+                ),
+            ),
+            Td(record["page_number"]),
+            Td(
+                f"Juz {record['juz_number']}"
+                if current_type == "surah"
+                else surahs[record["surah_id"]].name
+            ),
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",
+                        _at_change="toggleAll()",
+                    )
+                ),
+                Th("Page"),
+                Th("Juz" if current_type == "surah" else "Surah"),
+            )
+        ),
+        Tbody(*map(render_row, ct)),
+        x_data=select_all_checkbox_x_data(
+            class_name="partial_rows", is_select_all="false"
+        ),
+    )
+
+    return (
+        table,
+        ModalTitle(
+            f"{title} - Select Memorized Pages",
+            id="my-modal-title",
+            hx_swap_oob="true",
+        ),
+        P(
+            description,
+            id="my-modal-description",
+            hx_swap_oob="true",
+            cls=TextPresets.muted_lg,
+        ),
+    )
+
+
+@app.post("/partial_memorization_status/{current_type}")
+async def update_page_status(current_type: str, req: Request):
+    form_data = await req.form()
+
+    for id_str, check in form_data.items():
+        # extract id from the key
+        id = int(id_str.split("-")[1])
+        # based check value update status
+        status = "memorized" if int(check) == 1 else "not_memorized"
+
+        current_hafiz_items = hafizs_items(where=f"item_id = {id}")
+        if current_hafiz_items:
+            current_hafiz_items = current_hafiz_items[0]
+            current_hafiz_items.status = status
+            hafizs_items.update(current_hafiz_items)
+        else:
+            page_number = items[id].page_id
+            hafizs_items.insert(
+                item_id=id, status=status, mode_id=1, page_number=page_number
+            )
+
+    return Redirect(f"/memorization_status/{current_type}")
 
 
 @app.get
