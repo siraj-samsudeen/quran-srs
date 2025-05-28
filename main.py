@@ -753,7 +753,13 @@ def get_include_map(juzs, surahs, pages):
     }
 
 
-def render_row_based_on_type(type_number: int, records: list, current_type):
+def render_row_based_on_type(
+    type_number: int,
+    records: list,
+    current_type,
+    continue_link: bool = False,
+    link: bool = True,
+):
     ranges = extract_ranges(
         records
     )  # Extract ranges from records for each type to display in the table
@@ -778,7 +784,18 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
     include_map = get_include_map(
         juzs, surahs, pages
     )  # Generate include maps for each type
-
+    htmx_attrs = {}
+    if link:
+        htmx_attrs = {
+            "hx_trigger": "click",
+            "hx_get": (
+                f"/revision/display_filtered_records?current_type={current_type}"
+                if current_type != "page"
+                else "/revision/add_new_memorization"
+            ),
+            "hx_include": ",".join(include_map.get(current_type, [])),
+            "hx_target": "#table_modal",
+        }
     return (
         Tr(
             Td(
@@ -790,26 +807,23 @@ def render_row_based_on_type(type_number: int, records: list, current_type):
             *hidden_juz_inputs,
             *hidden_surah_inputs,
             *hidden_page_inputs,
-            hx_trigger="click",
-            hx_get=(
-                f"/revision/display_filtered_records?current_type={current_type}"
-                if current_type != "page"
-                else "/revision/add_new_memorization"
-            ),
-            hx_include=",".join(include_map.get(current_type, [])),
-            hx_target="#table_modal",
+            **htmx_attrs,
         ),
     )
 
 
-def filter_not_memorized_records():
-    not_memorized_tb = """
+def filter_query_records(custom_where=None):
+    default = "hafizs_items.status IS NULL AND items.active != 0"
+    if custom_where:
+        default = f"{custom_where}"
+    not_memorized_tb = f"""
         SELECT items.id, items.surah_id, items.surah_name, items.page_id, 
                hafizs_items.item_id, hafizs_items.status, pages.juz_number 
         FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
         LEFT JOIN pages ON items.page_id = pages.id
-        WHERE hafizs_items.status IS NULL AND items.active != 0;
+        LEFT JOIN revisions ON items.id = revisions.item_id
+        WHERE {default};
     """
     return db.q(not_memorized_tb)
 
@@ -827,7 +841,7 @@ def display_filtered_records(req, current_type: str = None):
     )
     filtered_int = [int(x) if x.isdigit() else x for x in filtered]
 
-    not_memorized_records = filter_not_memorized_records()
+    not_memorized_records = filter_query_records()
     # Group all records by surah
     grouped = group_by_type(not_memorized_records, current_type)
     current_filter = (
@@ -921,6 +935,32 @@ def modal_with_table(table_content):
     )
 
 
+def show_continue_new_memorization():
+    where_query = "revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date DESC"
+    not_memorized = filter_query_records(where_query)
+    grouped = group_by_type(not_memorized, "page")
+    rows = [
+        render_row_based_on_type(
+            type_number, records, "page", link=False, continue_link=True
+        )
+        for type_number, records in list(grouped.items())[::-1]
+    ]
+    table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th("Name"),
+                    Th("Range/Details"),
+                ),
+            ),
+            Tbody(*rows),
+        ),
+        cls="uk-overflow-auto h-[25vh] p-4",
+        # data_uk_toggle="target: #table-modal",
+    )
+    return table
+
+
 @app.get("/new_memorization/{current_type}")
 def new_memorization(current_type: str, auth):
     def render_navigation_item(_type: str):
@@ -936,7 +976,7 @@ def new_memorization(current_type: str, auth):
     if not current_type:
         current_type = "juz"
 
-    not_memorized_records = filter_not_memorized_records()
+    not_memorized_records = filter_query_records()
 
     grouped = group_by_type(not_memorized_records, current_type)
     rows = [
@@ -962,9 +1002,14 @@ def new_memorization(current_type: str, auth):
     modal = modal_with_table(filtered_table)
 
     return main_area(
-        H1("New Memorization"),
+        H1("New Memorization", cls="uk-text-center"),
+        Div(
+            H3("Recent Newly Memorized Pages"),
+            show_continue_new_memorization(),
+        ),
         Div(
             modal,
+            H3("Select a Page to Memorize (Not Yet Memorized)"),
             TabContainer(
                 *map(render_navigation_item, ["juz", "surah", "page"]),
             ),
@@ -1027,7 +1072,8 @@ def get(auth, page: str, max_page: int = 605, date: str = None):
     if page >= max_page:
         return Redirect(new_memorization)
 
-    if len(get_item_id(page_number=page, not_memorized_only=True)) > 1:
+    # if len(get_item_id(page_number=page, not_memorized_only=True)) > 1:
+    if len(get_item_id(page_number=page)) > 1:
         return RedirectResponse(
             f"/revision/bulk_add_new_memorization?page={page}&is_part=1"
         )
@@ -1135,7 +1181,7 @@ def get(
         Tbody(*map(_render_row, item_ids)),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
-            is_select_all="false" if is_part else "true",
+            is_select_all="true" if len(item_ids) == 1 else "false",
         ),
         x_init="toggleAll()",
     )
@@ -1153,10 +1199,11 @@ def get(
     )
     start_description = f"{get_surah_name(item_id=item_ids[0])}"
     end_description = (
-        f"{get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
+        f" to {get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
     )
+    description = f"{page} - {start_description}"
     return Titled(
-        f"{page} - {start_description} to {end_description}",
+        description if len(item_ids) == 1 else description + f"{end_description}",
         Form(
             Hidden(name="mode_id", value=2),
             Hidden(name="plan_id", value=None),
