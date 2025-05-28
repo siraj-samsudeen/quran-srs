@@ -1583,13 +1583,10 @@ async def post(
     )
 
 
-@app.get("/memorization_status/{current_type}")
-def show_page_status(current_type: str, auth):
+@app.get("/memorization_status/{current_type}/{filter}")
+def show_page_status(current_type: str, auth, filter: str = None):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        _surahs = sorted({r["surah_id"] for r in records})
-        _pages = sorted([r["page_number"] for r in records])
-        _juzs = sorted({r["juz_number"] for r in records})
         status = [str(r["status"]).lower() == "memorized" for r in records]
         if all(status):
             status_value = "Memorized"
@@ -1597,6 +1594,13 @@ def show_page_status(current_type: str, auth):
             status_value = "Partially Memorized"
         else:
             status_value = "Not Memorized"
+
+        if filter and filter != standardize_column(status_value):
+            return None
+
+        _surahs = sorted({r["surah_id"] for r in records})
+        _pages = sorted([r["page_number"] for r in records])
+        _juzs = sorted({r["juz_number"] for r in records})
 
         def render_range(list, _type=""):
             first_description = list[0]
@@ -1660,7 +1664,10 @@ def show_page_status(current_type: str, auth):
 
     def render_navigation_item(_type: str):
         return Li(
-            A(f"by {_type}", href=f"/memorization_status/{_type}"),
+            A(
+                f"by {_type}",
+                href=f"/memorization_status/{_type}" + f"/{filter}" if filter else "",
+            ),
             cls=("uk-active" if _type == current_type else None),
         )
 
@@ -1678,6 +1685,35 @@ def show_page_status(current_type: str, auth):
         for type_number, records in grouped.items()
     ]
 
+    def render_filter_btn(text):
+        return Button(
+            text,
+            hx_get=f"/memorization_status/{current_type}/{standardize_column(text)}",
+            hx_target="body",
+            hx_push_url="true",
+            cls=(
+                ButtonT.primary
+                if filter == standardize_column(text)
+                else ButtonT.secondary
+            ),
+        )
+
+    filter_btns = DivLAligned(
+        P("Status Filter:", cls=TextPresets.muted_lg),
+        *map(render_filter_btn, ["Memorized", "Not Memorized", "Partially Memorized"]),
+        (
+            Button(
+                "x",
+                hx_get=f"/memorization_status/{current_type}",
+                hx_target="body",
+                hx_push_url="true",
+                cls=ButtonT.destructive,
+            )
+            if filter
+            else None
+        ),
+    )
+
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1694,7 +1730,7 @@ def show_page_status(current_type: str, auth):
                 ModalFooter(
                     Button("Update", cls="bg-green-600 text-white"), cls="uk-text-right"
                 ),
-                hx_post=f"/partial_memorization_status/{current_type}",
+                hx_post=f"/partial_memorization_status/{current_type}?filter={filter}",
                 hx_target="#my-modal",
             ),
             cls="uk-margin-auto-vertical",
@@ -1710,6 +1746,7 @@ def show_page_status(current_type: str, auth):
                 ),
                 Progress(value=f"{length_of_memorized_pages}", max="604"),
             ),
+            filter_btns,
             Form(
                 TabContainer(
                     *map(render_navigation_item, ["juz", "surah", "page"]),
@@ -1726,7 +1763,7 @@ def show_page_status(current_type: str, auth):
                         ),
                         Tbody(*rows),
                     ),
-                    cls="h-[70vh] overflow-auto uk-overflow-auto",
+                    cls="h-[60vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
@@ -1815,7 +1852,7 @@ def filtered_table_for_modal(
 
 
 @app.post("/partial_memorization_status/{current_type}")
-async def update_page_status(current_type: str, req: Request):
+async def update_page_status(current_type: str, req: Request, filter: str = None):
     form_data = await req.form()
 
     for id_str, check in form_data.items():
@@ -1837,7 +1874,9 @@ async def update_page_status(current_type: str, req: Request):
                 item_id=id, status=status, mode_id=1, page_number=page_number
             )
 
-    return Redirect(f"/memorization_status/{current_type}")
+    return Redirect(
+        f"/memorization_status/{current_type}" + (f"/{filter}" if filter else "")
+    )
 
 
 @app.get
