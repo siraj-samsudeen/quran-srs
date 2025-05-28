@@ -1666,7 +1666,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
         return Li(
             A(
                 f"by {_type}",
-                href=f"/memorization_status/{_type}" + f"/{filter}" if filter else "",
+                href=f"/memorization_status/{_type}" + (f"/{filter}" if filter else ""),
             ),
             cls=("uk-active" if _type == current_type else None),
         )
