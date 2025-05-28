@@ -1592,11 +1592,11 @@ def show_page_status(current_type: str, auth):
         _juzs = sorted({r["juz_number"] for r in records})
         status = [str(r["status"]).lower() == "memorized" for r in records]
         if all(status):
-            status_value = "memorized"
+            status_value = "Memorized"
         elif any(status):
-            status_value = "partially_memorized"
+            status_value = "Partially Memorized"
         else:
-            status_value = "not_memorized"
+            status_value = "Not Memorized"
 
         def render_range(list, _type=""):
             first_description = list[0]
@@ -1628,30 +1628,18 @@ def show_page_status(current_type: str, auth):
             else surahs[type_number].name
         )
         return Tr(
-            Td(
-                CheckboxX(
-                    cls="status_rows",  # Don't change this class name it is referenced in alpine js
-                    checked=status_value == "memorized",
-                    _at_click="handleCheckboxClick($event)",
-                )
-            ),
             Td(title),
             Td(details),
-            Td(status_dropdown(status_value)),
-            Td(
-                A(
-                    "➡️",
-                    hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
-                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                        "CURRENT_TITLE", title
-                    ).replace(
-                        "CURRENT_DETAILS", details
-                    ),
-                    target_id="my-modal-body",
-                    data_uk_toggle="target: #my-modal",
-                    cls=f"{"hidden" if not status_value == "partially_memorized" else None}",
-                )
+            Td(status_value),
+            Td(A("➡️"), cls="text-right"),
+            hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
+            hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                "CURRENT_TITLE", title
+            ).replace(
+                "CURRENT_DETAILS", details
             ),
+            target_id="my-modal-body",
+            data_uk_toggle="target: #my-modal",
         )
 
     def group_by_type(data, current_type):
@@ -1676,22 +1664,6 @@ def show_page_status(current_type: str, auth):
             cls=("uk-active" if _type == current_type else None),
         )
 
-    def status_dropdown(current_type: str = "not_memorized", is_label=False, **kwargs):
-        options = ["Memorized", "Partially Memorized", "Not Memorized"]
-
-        def mk_options(name):
-            option_value = standardize_column(name)
-            is_selected = lambda m: m == current_type
-            return Option(name, value=option_value, selected=is_selected(option_value))
-
-        return fh.Select(
-            Option("-- select an option --", disabled=True, selected=True, value=True),
-            *map(mk_options, options),
-            label="Status" if is_label else None,
-            name="status",
-            **kwargs,
-        )
-
     qry = """SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
@@ -1705,24 +1677,6 @@ def show_page_status(current_type: str, auth):
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
     ]
-    top_action_buttons = Div(
-        Div(
-            Button("Select All", _at_click="selectAll=true; toggleAll()"),
-            Button("Clear All", _at_click="selectAll=false; toggleAll()"),
-            cls=("gap-2", FlexT.block),
-        ),
-        Div(
-            status_dropdown(
-                current_type="",
-                x_model="globalDropdownValue",
-                cls="global_dropdown",
-                _at_change="updateGlobalDropdownValue($event)",
-            ),
-            Button("Apply", _at_click="applyGlobalValue()"),
-            cls=("gap-2", FlexT.block),
-        ),
-        cls=("w-full gap-6", FlexT.block, FlexT.between, FlexT.wrap),
-    )
 
     modal = ModalContainer(
         ModalDialog(
@@ -1756,42 +1710,27 @@ def show_page_status(current_type: str, auth):
                 ),
                 Progress(value=f"{length_of_memorized_pages}", max="604"),
             ),
-            top_action_buttons,
-            TabContainer(
-                *map(render_navigation_item, ["juz", "surah", "page"]),
-            ),
             Form(
+                TabContainer(
+                    *map(render_navigation_item, ["juz", "surah", "page"]),
+                ),
                 Div(
                     Table(
                         Thead(
                             Tr(
-                                Th(
-                                    CheckboxX(
-                                        cls="select_all",
-                                        x_model="selectAll",
-                                        _at_change="toggleAll()",
-                                    )
-                                ),
                                 Th("NAME"),
                                 Th("RANGE / DETAILS"),
-                                Th("STATUS", cls="uk-table-shrink"),
+                                Th("STATUS"),
                                 Th("", cls="uk-table-shrink"),
                             )
                         ),
                         Tbody(*rows),
                     ),
-                    cls="h-[60vh] overflow-auto uk-overflow-auto",
-                ),
-                Div(
-                    Button("Update", cls="bg-green-600 text-white"),
-                    cls=(FlexT.block, "flex-row-reverse"),
+                    cls="h-[70vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
             Div(modal),
-            x_data=select_all_checkbox_x_data(
-                class_name="status_rows", is_select_all="false"
-            ),
             cls="space-y-5",
         ),
         auth=auth,
@@ -1880,6 +1819,8 @@ async def update_page_status(current_type: str, req: Request):
     form_data = await req.form()
 
     for id_str, check in form_data.items():
+        if not id_str.startswith("id-"):
+            break
         # extract id from the key
         id = int(id_str.split("-")[1])
         # based check value update status
