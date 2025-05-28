@@ -1639,6 +1639,13 @@ def show_page_status(current_type: str):
             ),
             Td(details),
             Td(status_dropdown(status_value)),
+            Td(
+                # TODO: here add a another route which is responsible for swapping the modal div with the table
+                # and the modal should be rendered in the modal div
+                A("➡️", data_uk_toggle="target: #my-modal")
+                if status_value == "partially_memorized"
+                else None
+            ),
         )
 
     def group_by_type(data, current_type):
@@ -1737,11 +1744,24 @@ def show_page_status(current_type: str):
                             Th("NAME"),
                             Th("RANGE / DETAILS"),
                             Th("STATUS"),
+                            Th("", cls="uk-table-shrink"),
                         )
                     ),
                     Tbody(*rows),
                 ),
                 cls="h-[60vh] overflow-auto uk-overflow-auto",
+            ),
+            Div(
+                Modal(
+                    ModalTitle(f"{"Juz 1"} - Select Memorized Pages"),
+                    P(
+                        "1. Fatihah – 2. Baqarah (Pages 1 – 21)",
+                        cls=TextPresets.muted_sm,
+                    ),
+                    footer=ModalCloseButton(),
+                    id="my-modal",
+                    dialog_cls="uk-margin-auto-vertical",
+                )
             ),
             x_data=select_all_checkbox_x_data(
                 class_name="status_rows", is_select_all="false"
