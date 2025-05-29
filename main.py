@@ -157,7 +157,7 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
-def mode_dropdown(default_mode=1):
+def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
         is_selected = lambda m: m == default_mode
@@ -168,6 +168,7 @@ def mode_dropdown(default_mode=1):
         label="Mode Id",
         name="mode_id",
         select_kwargs={"name": "mode_id"},
+        **kwargs,
     )
 
 
@@ -1101,11 +1102,12 @@ def toggle_input_fields(*args, show_id_fields=False):
     return (
         Div(
             LabelSwitch(
-                label="Show Id fields", id="show_id_fields", x_model="isChecked"
+                label="Show additional fields", id="show_id_fields", x_model="isChecked"
             ),
             Grid(
                 *args,
-                cls="hidden" if not show_id_fields else None,
+                cols=2,
+                cls=("gap-4", "hidden" if not show_id_fields else None),
                 **{"x-bind:class": "{ 'hidden': !isChecked }"},
             ),
             x_data="{ isChecked: IS_HIDE_FIELDS }".replace(
@@ -1140,7 +1142,17 @@ def create_revision_form(type, show_id_fields=False):
             selected=True if "siraj" in obj.name.lower() else False,
         )
 
-    id_fields = (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+    additional_fields = (
+        mode_dropdown(),
+        LabelInput("Plan Id", name="plan_id", type="number"),
+        LabelInput(
+            "Revision Date",
+            name="revision_date",
+            type="date",
+            value=current_time("%Y-%m-%d"),
+            cls="space-y-2 col-span-2",
+        ),
+    )
 
     return Form(
         Hidden(name="id"),
@@ -1149,15 +1161,9 @@ def create_revision_form(type, show_id_fields=False):
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         (
-            toggle_input_fields(*id_fields, show_id_fields=show_id_fields)
+            toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
             if type == "add"
-            else Grid(*id_fields)
-        ),
-        LabelInput(
-            "Revision Date",
-            name="revision_date",
-            type="date",
-            value=current_time("%Y-%m-%d"),
+            else Grid(*additional_fields)
         ),
         LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
@@ -1624,13 +1630,14 @@ def get(
                     type="number",
                     value=(plan_id or defalut_plan_value),
                 ),
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=(revision_date or current_time("%Y-%m-%d")),
+                    cls="space-y-2 col-span-2",
+                ),
                 show_id_fields=show_id_fields,
-            ),
-            LabelInput(
-                "Revision Date",
-                name="revision_date",
-                type="date",
-                value=(revision_date or current_time("%Y-%m-%d")),
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
