@@ -1603,19 +1603,16 @@ def get(
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
-    # if this page comes from single entry page, and it has parts then we are displaying the second surah
-    # TODO: need to check if the page has 3 parts
-    if is_part and (len(item_ids) > 1):
+    # if this page comes from single entry page, then we are displaying the all the surahs in that page
+    if is_part:
         heading = f"{page} - " + ", ".join(
             [get_surah_name(item_id=item_id) for item_id in item_ids]
         )
-    # if it came from single entry page, or the bulk entry page shows only one record return start_text
-    elif is_part or len(item_ids) == 1:
-        heading = (
-            f"{page} - {get_surah_name(item_id=item_ids[0])} - {pages[page].start_text}"
-        )
+    # if the bulk entry page shows only start page
+    elif len(item_ids) == 1:
+        heading = f"{page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
     else:
-        heading = f"{page} - {get_surah_name(item_id=item_ids[0])} => {last_page} - {get_surah_name(item_id=item_ids[-1])}"
+        heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
 
     return main_area(
         H1(heading),
