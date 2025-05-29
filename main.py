@@ -896,7 +896,7 @@ def new_memorization(current_type: str, auth):
             ),
             Tbody(*rows),
         ),
-        cls="uk-overflow-auto h-[45vh] p-4",
+        cls="uk-overflow-auto h-[40vh] p-4",
     )
     modal = ModalContainer(
         ModalDialog(
@@ -919,18 +919,29 @@ def new_memorization(current_type: str, auth):
     return main_area(
         H1("New Memorization", cls="uk-text-center"),
         Div(
-            H3("Recent Newly Memorized Pages"),
-            show_recent_new_memorization(),
-        ),
-        Div(
-            H3("Select a Page to Memorize (Not Yet Memorized)"),
-            TabContainer(
-                *map(
-                    lambda nav: render_navigation_item(nav, current_type),
-                    ["juz", "surah", "page"],
+            Div(
+                DivFullySpaced(
+                    H4("Recent Newly Memorized Pages"),
+                    A(
+                        "➡️ Continue",
+                        hx_get="/next-unmemorized?page=467",
+                        hx_target="#modal-content",
+                        hx_swap="innerHTML",
+                    ),
                 ),
+                show_recent_new_memorization(),
             ),
-            table,
+            Div(
+                H4("Select a Page to Memorize (Not Yet Memorized)"),
+                TabContainer(
+                    *map(
+                        lambda nav: render_navigation_item(nav, current_type),
+                        ["juz", "surah", "page"],
+                    ),
+                ),
+                table,
+            ),
+            cls="space-y-2",
         ),
         Div(modal),
         active="New Memorization",
@@ -959,27 +970,61 @@ def filtered_table_for_modal(
 
     def render_row(record):
         return Tr(
+            Td(
+                # This hidden input is to send the id to the backend even if it is unchecked
+                CheckboxX(
+                    name=f"item_ids",
+                    value=record["id"],
+                    cls="partial_rows",  # Alpine js reference
+                    _at_click="handleCheckboxClick($event)",
+                ),
+            ),
             Td(record["page_number"]),
             Td(
                 f"Juz {record['juz_number']}"
                 if current_type == "surah"
                 else surahs[record["surah_id"]].name
             ),
-            Hidden(name="item_id", value=record["id"], id=f"item_id_{record['id']}"),
-            Hidden(name="current_type", value=current_type, id="current_type"),
-            hx_get=f"/revision/add_new_memorization",
-            hx_include=f"#item_id_{record['id']}, #current_type",
-            hx_target="#modal-body",
-            hx_trigger="click",
+            Td(
+                A(
+                    f"Start Memorize ➡️",
+                    hx_get=f"/revision/add_new_memorization/{current_type}?item_id={record['id']}",
+                    hx_target="#modal-body",
+                    hx_swap="innerHTML",
+                    cls=AT.classic,
+                )
+            ),
         )
 
     table = Table(
-        Thead(Tr(Th("Page"), Th("Juz" if current_type == "surah" else "Surah"))),
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",
+                        _at_change="toggleAll()",
+                    )
+                ),
+                Th("Page"),
+                Th("Juz" if current_type == "surah" else "Surah"),
+            )
+        ),
         Tbody(*map(render_row, ct)),
+        x_data=select_all_checkbox_x_data(
+            class_name="partial_rows", is_select_all="false"
+        ),
+        x_init="updateSelectAll()",
     )
 
     return (
-        table,
+        Form(
+            table,
+            Button("Bulk Entry"),
+            hx_get=f"/revision/bulk_add_new_memorization/{current_type}",
+            hx_target="#modal-body",
+            cls="space-y-2",
+        ),
         ModalTitle(
             f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
         ),
@@ -1029,12 +1074,12 @@ def create_new_memorization_revision_form(current_type: str):
             ),
             cls="flex justify-around items-center w-full",
         ),
-        action=f"/revision/add_new_memorization",
+        action=f"/revision/add_new_memorization/{current_type}",
         method="POST",
     )
 
 
-@rt("/revision/add_new_memorization")
+@rt("/revision/add_new_memorization/{current_type}")
 def get(current_type: str, item_id: str, max_item_id: int = 836, date: str = None):
     item_id = int(item_id)
     if item_id >= max_item_id:
@@ -1056,8 +1101,8 @@ def get(current_type: str, item_id: str, max_item_id: int = 836, date: str = Non
     )
 
 
-@rt("/revision/add_new_memorization")
-def post(page_no: int, item_id: int, revision_details: Revision):
+@rt("/revision/add_new_memorization/{current_type}")
+def post(current_type: str, page_no: int, item_id: int, revision_details: Revision):
     # The id is set to zer in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -1073,7 +1118,153 @@ def post(page_no: int, item_id: int, revision_details: Revision):
         hafizs_items_id,
     )
     revisions.insert(revision_details)
-    return Redirect(f"/new_memorization/page")
+    return Redirect(f"/new_memorization/{current_type}")
+
+
+@app.get("/revision/bulk_add_new_memorization/{current_type}")
+def get(
+    auth,
+    item_ids: list[int],
+    current_type: str = "juz",
+    # is_part is to determine whether it came from single entry page or not
+    is_part: bool = False,
+    revision_date: str = None,
+):
+
+    def _render_row(item_id):
+
+        def _render_radio(o):
+            value, label = o
+            is_checked = True if value == "1" else False
+            return FormLabel(
+                Radio(
+                    id=f"rating-{item_id}",
+                    value=value,
+                    checked=is_checked,
+                    cls="toggleable-radio",
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        current_page_details = items[item_id]
+        return Tr(
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=item_id,
+                    cls="revision_ids",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(current_page_details.surah_name),
+            Td(P(current_page_details.page_id)),
+            Td(current_page_details.part),
+            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(
+                Div(
+                    *map(_render_radio, RATING_MAP.items()),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
+                    )
+                ),
+                Th("Surah"),
+                Th("Page"),
+                Th("Part"),
+                Th("Start"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*map(_render_row, item_ids)),
+        x_data=select_all_checkbox_x_data(
+            class_name="revision_ids",
+            is_select_all="true" if len(item_ids) != 0 else "false",
+        ),
+        x_init="toggleAll()",
+    )
+
+    action_buttons = Div(
+        Button(
+            "Save",
+            cls=ButtonT.primary,
+        ),
+        A(
+            Button("Cancel", type="button", cls=ButtonT.secondary),
+            href=f"/new_memorization/{current_type}",
+        ),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+    start_description = f"{get_surah_name(item_id=item_ids[0])}"
+    end_description = (
+        f" => {items[item_ids[-1]].page_id} - {get_surah_name(item_id=item_ids[-1])}"
+    )
+    description = f"{items[item_ids[0]].page_id} - {start_description}"
+    print(description if len(item_ids) == 1 else description + f"{end_description}")
+    return Titled(
+        (description if len(item_ids) == 1 else description + f"{end_description}"),
+        Form(
+            Hidden(name="mode_id", value=2),
+            Hidden(name="plan_id", value=None),
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=(revision_date or current_time("%Y-%m-%d")),
+            ),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action=f"/revision/bulk_add_new_memorization/{current_type}",
+            method="POST",
+        ),
+        Script(src="/public/script.js"),
+        active="Revision",
+        auth=auth,
+    )
+
+
+@rt("/revision/bulk_add_new_memorization/{current_type}")
+async def post(
+    revision_date: str,
+    mode_id: int,
+    plan_id: int,
+    current_type: str,
+    auth,
+    req,
+):
+    plan_id = None
+    form_data = await req.form()
+    item_ids = form_data.getlist("ids")
+    parsed_data = []
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            item_id = name.split("-")[1]
+            if item_id in item_ids:
+                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+                hafizs_items.update(
+                    {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
+                )
+                parsed_data.append(
+                    Revision(
+                        item_id=int(item_id),
+                        rating=int(value),
+                        hafiz_id=auth,
+                        revision_date=revision_date,
+                        mode_id=mode_id,
+                        plan_id=plan_id,
+                    )
+                )
+
+    revisions.insert_all(parsed_data)
+    return Redirect(f"/new_memorization/{current_type}")
 
 
 @app.get("/tables")
