@@ -1872,12 +1872,14 @@ async def update_page_status(current_type: str, req: Request, filter: str = None
         # extract id from the key
         id = int(id_str.split("-")[1])
         # based check value update status
-        status = "memorized" if int(check) == 1 else "not_memorized"
-
+        status = "memorized" if int(check) == 1 else None
         current_hafiz_items = hafizs_items(where=f"item_id = {id}")
         if current_hafiz_items:
             current_hafiz_items = current_hafiz_items[0]
-            current_hafiz_items.status = status
+            if not int(check) and current_hafiz_items.status != "memorized":
+                pass
+            else:
+                current_hafiz_items.status = status
             hafizs_items.update(current_hafiz_items)
         else:
             page_number = items[id].page_id
