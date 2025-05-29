@@ -935,15 +935,15 @@ def modal_with_table(table_content):
     )
 
 
-def show_continue_new_memorization():
-    where_query = "revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date DESC"
+def show_recent_new_memorization():
+    where_query = "revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date, revisions.id DESC"
     not_memorized = filter_query_records(where_query)
     grouped = group_by_type(not_memorized, "page")
     rows = [
         render_row_based_on_type(
             type_number, records, "page", link=False, continue_link=True
         )
-        for type_number, records in list(grouped.items())[::-1]
+        for type_number, records in list(grouped.items())
     ]
     table = Div(
         Table(
@@ -1005,7 +1005,7 @@ def new_memorization(current_type: str, auth):
         H1("New Memorization", cls="uk-text-center"),
         Div(
             H3("Recent Newly Memorized Pages"),
-            show_continue_new_memorization(),
+            show_recent_new_memorization(),
         ),
         Div(
             modal,
@@ -1103,7 +1103,11 @@ def post(page_no: int, revision_details: Revision, auth):
 
     item_id = items(where=f"page_id = {page_no} AND active != 0")[0].id
     revision_details.item_id = item_id
-    # updating the status of the item to memorized
+    try:
+        hafizs_items(where=f"item_id = {item_id}")[0]
+    except IndexError:
+        # updating the status of the item to memorized
+        hafizs_items.insert(Hafiz_Items(item_id=item_id, page_number=page_no))
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update(
         {"status": "newly memorized", "mode_id": revision_details.mode_id},
@@ -1199,7 +1203,7 @@ def get(
     )
     start_description = f"{get_surah_name(item_id=item_ids[0])}"
     end_description = (
-        f" to {get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
+        f" => {get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
     )
     description = f"{page} - {start_description}"
     return Titled(
