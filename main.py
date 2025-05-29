@@ -528,6 +528,11 @@ def main_area(*args, active=None, auth=None):
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
+                A(
+                    "Memorization Status",
+                    href="/memorization_status/juz/",
+                    cls=is_active("Memorization Status"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -1725,6 +1730,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
         total_memorized_pages += stats["memorized"] / stats["total"]
 
     # Is to get the total count of the type: ["juz", "surah", "page"]
+    # to show stats below the progress bar
     def total_count(type):
         type_stats = group_by_type(ct, type)
         count = 0
@@ -1806,6 +1812,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
             cls="space-y-5",
         ),
         auth=auth,
+        active="Memorization Status",
     )
 
 
