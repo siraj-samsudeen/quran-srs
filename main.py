@@ -905,7 +905,7 @@ def render_filter_record(type_number: int, records, current_type):
             if current_type != "page"
             else "/revision/add_new_memorization"
         ),
-        hx_include=include_map.get(current_type, []),
+        hx_include=",".join(include_map.get(current_type, [])),
         hx_target="#table_modal",
         hx_trigger="click",
         cls=AT.muted,
