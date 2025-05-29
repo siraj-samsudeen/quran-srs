@@ -753,72 +753,13 @@ def get_include_map(juzs, surahs, pages):
     }
 
 
-def render_row_based_on_type(
-    type_number: int,
-    records: list,
-    current_type,
-    continue_link: bool = False,
-    link: bool = True,
-):
-    ranges = extract_ranges(
-        records
-    )  # Extract ranges from records for each type to display in the table
-    page_range = ranges["page_range"]
-    juz_range = ranges["juz_range"]
-    surahs = ranges["surahs"]
-    pages = ranges["pages"]
-    juzs = ranges["juzs"]
-    surah_name = ranges["surah_name"]
-
-    details_map = {
-        "juz": f"{surah_name} ({page_range})",
-        "surah": f"{juz_range} ({page_range})",
-        "page": f"{juz_range} | {surah_name}",
-    }
-    details = details_map.get(current_type, "")
-
-    hidden_juz_inputs = hidden_inputs("juz", juzs)
-    hidden_surah_inputs = hidden_inputs("surah", surahs)
-    hidden_page_inputs = hidden_inputs("page", pages)
-
-    include_map = get_include_map(
-        juzs, surahs, pages
-    )  # Generate include maps for each type
-    htmx_attrs = {}
-    if link:
-        htmx_attrs = {
-            "hx_trigger": "click",
-            "hx_get": (
-                f"/revision/display_filtered_records?current_type={current_type}"
-                if current_type != "page"
-                else "/revision/add_new_memorization"
-            ),
-            "hx_include": ",".join(include_map.get(current_type, [])),
-            "hx_target": "#table_modal",
-        }
-    return (
-        Tr(
-            Td(
-                f"{current_type.capitalize()} {type_number}"
-                if current_type != "surah"
-                else surah_name
-            ),
-            Td(details),
-            *hidden_juz_inputs,
-            *hidden_surah_inputs,
-            *hidden_page_inputs,
-            **htmx_attrs,
-        ),
-    )
-
-
 def filter_query_records(custom_where=None):
     default = "hafizs_items.status IS NULL AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
     not_memorized_tb = f"""
-        SELECT items.id, items.surah_id, items.surah_name, items.page_id, 
-               hafizs_items.item_id, hafizs_items.status, pages.juz_number 
+        SELECT items.id, items.surah_id, items.surah_name,
+        hafizs_items.item_id, hafizs_items.status, pages.juz_number, pages.page_number 
         FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
         LEFT JOIN pages ON items.page_id = pages.id
@@ -828,95 +769,11 @@ def filter_query_records(custom_where=None):
     return db.q(not_memorized_tb)
 
 
-@app.get("/revision/display_filtered_records")
-def display_filtered_records(req, current_type: str = None):
-    if current_type is None:
-        current_type = "surah"
-    filtered = sorted(
-        set(
-            req.query_params.getlist(
-                f"type_number" if current_type != "page" else current_type
-            )
-        )
-    )
-    filtered_int = [int(x) if x.isdigit() else x for x in filtered]
-
-    not_memorized_records = filter_query_records()
-    # Group all records by surah
-    grouped = group_by_type(not_memorized_records, current_type)
-    current_filter = (
-        filtered if current_type == "juz" else filtered_int
-    )  # Use filtered if current_type is "juz" because juz is a string in db
-    filtered_data = {f: grouped[f] for f in current_filter if f in grouped}
-
-    if not filtered_data:
-        return Div(
-            f"No records found for filtered: {', '.join(str(x) for x in filtered_int)}"
-        )
-    filtered_data = group_by_type(
-        filtered_data[current_filter[0]], "surah" if current_type == "juz" else "page"
-    )
-    rows = [
-        render_filter_record(
-            type_number, records, "surah" if current_type == "juz" else "page"
-        )
-        for type_number, records in filtered_data.items()
-    ]
-
-    table = Table(Thead(Tr(Th("Name"), Th("Range/Details"))), Tbody(*rows))
-    return Div(
-        H3(f"Filtered Pages for: {current_type.capitalize()} {', '.join(filtered)}"),
-        table,
-    )
-
-
-def render_filter_record(type_number: int, records, current_type):
-    ranges = extract_ranges(records)
-    page_range = ranges["page_range"]
-    juz_range = ranges["juz_range"]
-    surahs = ranges["surahs"]
-    pages = ranges["pages"]
-    surah_name = ranges["surah_name"]
-    juzs = ranges["juzs"]
-    details_map = {
-        "juz": f"{surah_name} ({page_range})",
-        "surah": f"{juz_range} ({page_range})",
-        "page": f"{juz_range} | ({surah_name})",
-    }
-    details = details_map.get(current_type, "")
-
-    hidden_juz_inputs = hidden_inputs("juz", juzs)
-    hidden_surah_inputs = hidden_inputs("surah", surahs)
-    hidden_page_inputs = hidden_inputs("page", pages)
-
-    include_map = get_include_map(juzs, surahs, pages)
-    return Tr(
-        Td(
-            f"{current_type.capitalize()} {type_number}"
-            if current_type != "surah"
-            else surah_name
-        ),
-        Td(details),
-        *hidden_juz_inputs,
-        *hidden_surah_inputs,
-        *hidden_page_inputs,
-        hx_get=(
-            f"/revision/display_filtered_records?current_type={current_type}"
-            if current_type != "page"
-            else "/revision/add_new_memorization"
-        ),
-        hx_include=",".join(include_map.get(current_type, [])),
-        hx_target="#table_modal",
-        hx_trigger="click",
-        cls=AT.muted,
-    )
-
-
 def group_by_type(data, current_type):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
-        "page": "page_id",
+        "page": "page_number",
     }
     grouped = defaultdict(
         list
@@ -926,12 +783,73 @@ def group_by_type(data, current_type):
     return grouped
 
 
-def modal_with_table(table_content):
-    return Modal(
-        ModalTitle("Filtered Records"),
-        Div(table_content, cls="uk-overflow-auto h-[50vh] p-4", id="table_modal"),
-        footer=ModalCloseButton("Close", cls=ButtonT.primary),
-        id="table-modal",
+def render_row_based_on_type(
+    type_number: str,
+    records: list,
+    current_type,
+    row_link: bool = True,
+):
+    _surahs = sorted({r["surah_id"] for r in records})
+    _pages = sorted([r["page_number"] for r in records])
+    _juzs = sorted({r["juz_number"] for r in records})
+
+    def render_range(list, _type=""):
+        first_description = list[0]
+        last_description = list[-1]
+
+        if _type == "Surah":
+            _type = ""
+            first_description = surahs[first_description].name
+            last_description = surahs[last_description].name
+
+        if len(list) == 1:
+            return f"{_type} {first_description}"
+        return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
+
+    surah_range = render_range(_surahs, "Surah")
+    page_range = render_range(_pages, "Page")
+    juz_range = render_range(_juzs, "Juz")
+
+    if current_type == "juz":
+        details = f"{surah_range} ({page_range})"
+    elif current_type == "surah":
+        details = f"{juz_range} ({page_range})"
+    elif current_type == "page":
+        details = f"{juz_range} | {surah_range}"
+
+    title = (
+        f"{current_type.capitalize()} {type_number}"
+        if current_type != "surah"
+        else surahs[type_number].name
+    )
+    hx_attrs = {
+        "hx_get": f"/new_memorization_filter/{current_type}/{type_number}",
+        "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+            "CURRENT_TITLE", title
+        ).replace(
+            "CURRENT_DETAILS", details
+        ),
+        "target_id": "modal-body",
+        "data_uk_toggle": "target: #modal",
+    }
+    return Tr(
+        Td(title),
+        Td(details),
+        Td(A("➡️"), cls="text-right") if row_link else None,
+        **hx_attrs if row_link else {},
+    )
+
+
+def render_navigation_item(
+    _type: str,
+    current_type: str,
+):
+    return Li(
+        A(
+            f"by {_type}",
+            href=f"/new_memorization/{_type}",
+        ),
+        cls=("uk-active" if _type == current_type else None),
     )
 
 
@@ -940,9 +858,7 @@ def show_recent_new_memorization():
     not_memorized = filter_query_records(where_query)
     grouped = group_by_type(not_memorized, "page")
     rows = [
-        render_row_based_on_type(
-            type_number, records, "page", link=False, continue_link=True
-        )
+        render_row_based_on_type(type_number, records, "page", row_link=False)
         for type_number, records in list(grouped.items())
     ]
     table = Div(
@@ -956,34 +872,21 @@ def show_recent_new_memorization():
             Tbody(*rows),
         ),
         cls="uk-overflow-auto h-[25vh] p-4",
-        # data_uk_toggle="target: #table-modal",
     )
     return table
 
 
 @app.get("/new_memorization/{current_type}")
 def new_memorization(current_type: str, auth):
-    def render_navigation_item(_type: str):
-        return Li(
-            A(
-                f"By {_type.capitalize()}",
-                href=f"/new_memorization/{_type}",
-                hx_replace_url="true",
-            ),
-            cls=("uk-active" if _type == current_type else None),
-        )
-
     if not current_type:
         current_type = "juz"
-
-    not_memorized_records = filter_query_records()
-
-    grouped = group_by_type(not_memorized_records, current_type)
+    ct = filter_query_records()
+    grouped = group_by_type(ct, current_type)
     rows = [
-        render_row_based_on_type(type_number, records, current_type)
-        for type_number, records in grouped.items()
+        render_row_based_on_type(type_number, records, current_type, row_link=True)
+        for type_number, records in list(grouped.items())
     ]
-    filtered_table = Div(
+    table = Div(
         Table(
             Thead(
                 Tr(
@@ -991,15 +894,27 @@ def new_memorization(current_type: str, auth):
                     Th("Range/Details"),
                 ),
             ),
-            Tbody(
-                *rows,
-                data_uk_toggle="target: #table-modal",  # This will open the modal when a row is clicked
-            ),
+            Tbody(*rows),
         ),
-        cls="h-[30vh] uk-overflow-auto mb-5",
+        cls="uk-overflow-auto h-[45vh] p-4",
     )
-
-    modal = modal_with_table(filtered_table)
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="modal-title"),
+                P(cls=TextPresets.muted_sm, id="modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            ModalBody(
+                Div(id="modal-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="modal",
+    )
 
     return main_area(
         H1("New Memorization", cls="uk-text-center"),
@@ -1008,20 +923,76 @@ def new_memorization(current_type: str, auth):
             show_recent_new_memorization(),
         ),
         Div(
-            modal,
             H3("Select a Page to Memorize (Not Yet Memorized)"),
             TabContainer(
-                *map(render_navigation_item, ["juz", "surah", "page"]),
+                *map(
+                    lambda nav: render_navigation_item(nav, current_type),
+                    ["juz", "surah", "page"],
+                ),
             ),
-            filtered_table,
-            Div(id="entry_form"),
+            table,
         ),
+        Div(modal),
         active="New Memorization",
         auth=auth,
     )
 
 
-def create_new_memorization_revision_form():
+@app.get("/new_memorization_filter/{current_type}/{type_number}")
+def filtered_table_for_modal(
+    current_type: str, type_number: int, title: str, description: str
+):
+    if current_type == "juz":
+        condition = f"pages.juz_number = {type_number}"
+    elif current_type == "surah":
+        condition = f"items.surah_id = {type_number}"
+    elif current_type == "page":
+        condition = f"pages.page_number = {type_number}"
+    else:
+        return "Invalid current_type"
+
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          WHERE items.active != 0 AND hafizs_items.status IS NULL AND {condition}"""
+    ct = db.q(qry)
+
+    def render_row(record):
+        return Tr(
+            Td(record["page_number"]),
+            Td(
+                f"Juz {record['juz_number']}"
+                if current_type == "surah"
+                else surahs[record["surah_id"]].name
+            ),
+            Hidden(name="item_id", value=record["id"], id=f"item_id_{record['id']}"),
+            Hidden(name="current_type", value=current_type, id="current_type"),
+            hx_get=f"/revision/add_new_memorization",
+            hx_include=f"#item_id_{record['id']}, #current_type",
+            hx_target="#modal-body",
+            hx_trigger="click",
+        )
+
+    table = Table(
+        Thead(Tr(Th("Page"), Th("Juz" if current_type == "surah" else "Surah"))),
+        Tbody(*map(render_row, ct)),
+    )
+
+    return (
+        table,
+        ModalTitle(
+            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+        ),
+        P(
+            description,
+            id="modal-description",
+            hx_swap_oob="true",
+            cls=TextPresets.muted_lg,
+        ),
+    )
+
+
+def create_new_memorization_revision_form(current_type: str):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1044,6 +1015,7 @@ def create_new_memorization_revision_form():
         ),
         Input(name="page_no", type="hidden"),
         Input(name="mode_id", type="hidden"),
+        Input(name="item_id", type="hidden"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1053,7 +1025,7 @@ def create_new_memorization_revision_form():
             Button("Save", cls=ButtonT.primary),
             A(
                 Button("Cancel", type="button", cls=ButtonT.secondary),
-                href="/new_memorization/juz",
+                href=f"/new_memorization/{current_type}",
             ),
             cls="flex justify-around items-center w-full",
         ),
@@ -1063,46 +1035,33 @@ def create_new_memorization_revision_form():
 
 
 @rt("/revision/add_new_memorization")
-def get(auth, page: str, max_page: int = 605, date: str = None):
-    if "." in page:
-        page = page.split(".")[0]
-
-    page = int(page)
-
-    if page >= max_page:
+def get(current_type: str, item_id: str, max_item_id: int = 836, date: str = None):
+    item_id = int(item_id)
+    if item_id >= max_item_id:
         return Redirect(new_memorization)
 
-    # if len(get_item_id(page_number=page, not_memorized_only=True)) > 1:
-    if len(get_item_id(page_number=page)) > 1:
-        return RedirectResponse(
-            f"/revision/bulk_add_new_memorization?page={page}&is_part=1"
-        )
-
-    item_id = get_item_id(page_number=page, not_memorized_only=True)[0]
-
+    page = items[item_id].page_id
     return Titled(
         f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
         fill_form(
-            create_new_memorization_revision_form(),
+            create_new_memorization_revision_form(current_type),
             {
                 "page_no": page,
                 "mode_id": 2,
                 "plan_id": None,
                 "revision_date": date,
+                "item_id": item_id,
             },
         ),
     )
 
 
 @rt("/revision/add_new_memorization")
-def post(page_no: int, revision_details: Revision, auth):
+def post(page_no: int, item_id: int, revision_details: Revision):
     # The id is set to zer in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-
-    item_id = items(where=f"page_id = {page_no} AND active != 0")[0].id
-    revision_details.item_id = item_id
     try:
         hafizs_items(where=f"item_id = {item_id}")[0]
     except IndexError:
@@ -1115,152 +1074,6 @@ def post(page_no: int, revision_details: Revision, auth):
     )
     revisions.insert(revision_details)
     return Redirect(f"/new_memorization/page")
-
-
-@app.get("/revision/bulk_add_new_memorization")
-def get(
-    auth,
-    page: str,
-    # is_part is to determine whether it came from single entry page or not
-    is_part: bool = False,
-    revision_date: str = None,
-):
-    page = int(page)
-
-    def _render_row(item_id):
-
-        def _render_radio(o):
-            value, label = o
-            is_checked = True if value == "1" else False
-            return FormLabel(
-                Radio(
-                    id=f"rating-{item_id}",
-                    value=value,
-                    checked=is_checked,
-                    cls="toggleable-radio",
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-
-        current_page_details = items[item_id]
-        return Tr(
-            Td(
-                CheckboxX(
-                    name="ids",
-                    value=item_id,
-                    cls="revision_ids",
-                    _at_click="handleCheckboxClick($event)",
-                )
-            ),
-            Td(current_page_details.surah_name),
-            Td(P(current_page_details.page_id)),
-            Td(current_page_details.part),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
-            Td(
-                Div(
-                    *map(_render_radio, RATING_MAP.items()),
-                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
-                )
-            ),
-        )
-
-    item_ids = flatten_list([get_item_id(page_number=page, not_memorized_only=True)])
-
-    table = Table(
-        Thead(
-            Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
-                    )
-                ),
-                Th("Surah"),
-                Th("Page"),
-                Th("Part"),
-                Th("Start"),
-                Th("Rating"),
-            )
-        ),
-        Tbody(*map(_render_row, item_ids)),
-        x_data=select_all_checkbox_x_data(
-            class_name="revision_ids",
-            is_select_all="true" if len(item_ids) == 1 else "false",
-        ),
-        x_init="toggleAll()",
-    )
-
-    action_buttons = Div(
-        Button(
-            "Save",
-            cls=ButtonT.primary,
-        ),
-        A(
-            Button("Cancel", type="button", cls=ButtonT.secondary),
-            href="/new_memorization/juz",
-        ),
-        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
-    )
-    start_description = f"{get_surah_name(item_id=item_ids[0])}"
-    end_description = (
-        f" => {get_surah_name(item_id=item_ids[-1])} - {items[item_ids[-1]].start_text}"
-    )
-    description = f"{page} - {start_description}"
-    return Titled(
-        description if len(item_ids) == 1 else description + f"{end_description}",
-        Form(
-            Hidden(name="mode_id", value=2),
-            Hidden(name="plan_id", value=None),
-            LabelInput(
-                "Revision Date",
-                name="revision_date",
-                type="date",
-                value=(revision_date or current_time("%Y-%m-%d")),
-            ),
-            Div(table, cls="uk-overflow-auto"),
-            action_buttons,
-            action="/revision/bulk_add_new_memorization",
-            method="POST",
-        ),
-        Script(src="/public/script.js"),
-        active="Revision",
-        auth=auth,
-    )
-
-
-@rt("/revision/bulk_add_new_memorization")
-async def post(
-    revision_date: str,
-    mode_id: int,
-    plan_id: int,
-    auth,
-    req,
-):
-    plan_id = None
-    form_data = await req.form()
-    item_ids = form_data.getlist("ids")
-    parsed_data = []
-    for name, value in form_data.items():
-        if name.startswith("rating-"):
-            item_id = name.split("-")[1]
-            if item_id in item_ids:
-                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update(
-                    {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
-                )
-                parsed_data.append(
-                    Revision(
-                        item_id=int(item_id),
-                        rating=int(value),
-                        hafiz_id=auth,
-                        revision_date=revision_date,
-                        mode_id=mode_id,
-                        plan_id=plan_id,
-                    )
-                )
-
-    revisions.insert_all(parsed_data)
-    return Redirect("/new_memorization/page")
 
 
 @app.get("/tables")
