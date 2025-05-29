@@ -100,6 +100,13 @@ def standardize_column(column_name):
     return re.sub(r"\s+", "_", cleaned_column)
 
 
+def destandardize_text(text):
+    # Replace underscores with spaces
+    text = text.replace("_", " ")
+    # Capitalize the first letter of each word
+    return text.title()
+
+
 def current_time(f="%Y-%m-%d %I:%M %p"):
     return datetime.now().strftime(f)
 
