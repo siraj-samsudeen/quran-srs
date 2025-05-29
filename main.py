@@ -1678,8 +1678,18 @@ def show_page_status(current_type: str, auth, filter: str = None):
     ct = db.q(qry)
 
     grouped = group_by_type(ct, current_type)
-    memorized_pages = [i for i in ct if i["status"] == "memorized"]
-    length_of_memorized_pages = len(memorized_pages)
+
+    page_stats = defaultdict(lambda: {"memorized": 0, "total": 0})
+    for item in ct:
+        page = item["page_number"]
+        page_stats[page]["total"] += 1
+        if item["status"] == "memorized":
+            page_stats[page]["memorized"] += 1
+
+    total_memorized = 0
+    for page, stats in page_stats.items():
+        total_memorized += stats["memorized"] / stats["total"]
+
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -1741,10 +1751,10 @@ def show_page_status(current_type: str, auth, filter: str = None):
         Div(
             DivCentered(
                 P(
-                    f"Memorization Progress: {length_of_memorized_pages}/604 Pages ({int(length_of_memorized_pages/604*100)}%)",
+                    f"Memorization Progress: {format_number(total_memorized)}/604 Pages ({int(total_memorized/604*100)}%)",
                     cls=TextPresets.bold_lg,
                 ),
-                Progress(value=f"{length_of_memorized_pages}", max="604"),
+                Progress(value=f"{total_memorized}", max="604"),
             ),
             filter_btns,
             Form(

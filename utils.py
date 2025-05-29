@@ -176,3 +176,13 @@ def set_zero_to_none(data):
     if data == 0:
         return None
     return data
+
+
+def format_number(num):
+    # Check if the number is effectively an integer (no meaningful decimal part)
+    if num % 1 == 0:
+        return int(num)
+
+    # Round to 1 decimal place
+    rounded = round(num, 1)
+    return rounded
