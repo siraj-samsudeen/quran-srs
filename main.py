@@ -1676,9 +1676,9 @@ def show_page_status(current_type: str, auth, filter: str = None):
             cls=("uk-active" if _type == current_type else None),
         )
 
-    qry = """SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
-                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
     ct = db.q(qry)
 
@@ -1819,7 +1819,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
 # This is responsible for updating the modal
 @app.get("/partial_memorization_status/{current_type}/{type_number}")
 def filtered_table_for_modal(
-    current_type: str, type_number: int, title: str, description: str
+    current_type: str, type_number: int, title: str, description: str, auth
 ):
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -1832,7 +1832,7 @@ def filtered_table_for_modal(
 
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
-                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0 AND {condition}"""
     ct = db.q(qry)
 
