@@ -1689,28 +1689,35 @@ def show_page_status(current_type: str, auth, filter: str = None):
     ]
 
     def render_filter_btn(text):
-        return Button(
+        return Label(
             text,
             hx_get=f"/memorization_status/{current_type}/{standardize_column(text)}",
             hx_target="body",
             hx_push_url="true",
             cls=(
-                ButtonT.primary
-                if filter == standardize_column(text)
-                else ButtonT.secondary
+                "cursor-pointer",
+                (
+                    LabelT.primary
+                    if filter == standardize_column(text)
+                    else LabelT.secondary
+                ),
             ),
         )
 
     filter_btns = DivLAligned(
-        P("Status Filter:", cls=TextPresets.muted_lg),
+        P("Status Filter:", cls=TextPresets.muted_sm),
         *map(render_filter_btn, ["Memorized", "Not Memorized", "Partially Memorized"]),
         (
-            Button(
-                "x",
+            Label(
+                "X",
                 hx_get=f"/memorization_status/{current_type}",
                 hx_target="body",
                 hx_push_url="true",
-                cls=ButtonT.destructive,
+                cls=(
+                    "cursor-pointer",
+                    TextT.xs,
+                    LabelT.destructive,
+                ),
             )
             if filter
             else None
