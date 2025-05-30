@@ -1640,7 +1640,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
             Td(title),
             Td(details),
             Td(status_value),
-            Td(A("➡️"), cls="text-right"),
+            Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
             hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
@@ -1799,7 +1799,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
                                 Th("Name"),
                                 Th("Range / Details"),
                                 Th("Status"),
-                                Th("", cls="uk-table-shrink"),
+                                Th(""),
                             )
                         ),
                         Tbody(*rows),
@@ -1849,9 +1849,9 @@ def filtered_table_for_modal(
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
-            Td(f"Juz {record['juz_number']}"),
-            Td(surahs[record["surah_id"]].name),
             Td(record["page_number"]),
+            Td(surahs[record["surah_id"]].name),
+            Td(f"Juz {record['juz_number']}"),
             Td(
                 destandardize_text(
                     record["status"] if record["status"] else "not_memorized"
@@ -1869,9 +1869,9 @@ def filtered_table_for_modal(
                         _at_change="toggleAll()",
                     )
                 ),
-                Th("Juz"),
-                Th("Surah"),
                 Th("Page"),
+                Th("Surah"),
+                Th("Juz"),
                 Th("Status"),
             )
         ),
