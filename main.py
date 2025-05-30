@@ -530,7 +530,7 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A(
                     "Memorization Status",
-                    href="/memorization_status/juz/",
+                    href="/memorization_status/juz",
                     cls=is_active("Memorization Status"),
                 ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
@@ -1588,19 +1588,19 @@ async def post(
     )
 
 
-@app.get("/memorization_status/{current_type}/{filter}")
-def show_page_status(current_type: str, auth, filter: str = None):
+@app.get("/memorization_status/{current_type}")
+def show_page_status(current_type: str, auth, status: str = None):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        status = [str(r["status"]).lower() == "memorized" for r in records]
-        if all(status):
+        memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
+        if all(memorized_status):
             status_value = "Memorized"
-        elif any(status):
+        elif any(memorized_status):
             status_value = "Partially Memorized"
         else:
             status_value = "Not Memorized"
 
-        if filter and filter != standardize_column(status_value):
+        if status and status != standardize_column(status_value):
             return None
 
         _surahs = sorted({r["surah_id"] for r in records})
@@ -1671,7 +1671,8 @@ def show_page_status(current_type: str, auth, filter: str = None):
         return Li(
             A(
                 f"by {_type}",
-                href=f"/memorization_status/{_type}" + (f"/{filter}" if filter else ""),
+                href=f"/memorization_status/{_type}"
+                + (f"?status={status}" if status else ""),
             ),
             cls=("uk-active" if _type == current_type else None),
         )
@@ -1691,14 +1692,14 @@ def show_page_status(current_type: str, auth, filter: str = None):
     def render_filter_btn(text):
         return Label(
             text,
-            hx_get=f"/memorization_status/{current_type}/{standardize_column(text)}",
+            hx_get=f"/memorization_status/{current_type}?status={standardize_column(text)}",
             hx_target="body",
             hx_push_url="true",
             cls=(
                 "cursor-pointer",
                 (
                     LabelT.primary
-                    if filter == standardize_column(text)
+                    if status == standardize_column(text)
                     else LabelT.secondary
                 ),
             ),
@@ -1719,7 +1720,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
                     LabelT.destructive,
                 ),
             )
-            if filter
+            if status
             else None
         ),
     )
@@ -1744,12 +1745,12 @@ def show_page_status(current_type: str, auth, filter: str = None):
         for type_number, stats in type_stats.items():
 
             status_list = [item["status"] == "memorized" for item in stats]
-            if filter == "memorized" and all(status_list):
+            if status == "memorized" and all(status_list):
                 count += 1
-            elif filter == "not_memorized" and not any(status_list):
+            elif status == "not_memorized" and not any(status_list):
                 count += 1
             elif (
-                filter == "partially_memorized"
+                status == "partially_memorized"
                 and any(status_list)
                 and not all(status_list)
             ):
@@ -1764,8 +1765,8 @@ def show_page_status(current_type: str, auth, filter: str = None):
             ),
             Progress(value=f"{total_memorized_pages}", max="604"),
             P(
-                f"{destandardize_text(filter)} -> Juz: {total_count("juz")}/30 | Surah: {total_count("surah")}/114 | Pages: {total_count("page")}/604 ",
-                cls=(TextPresets.muted_sm, (None if filter else "invisible")),
+                f"{destandardize_text(status) if status else "All"} -> Juz: {total_count("juz")}/30 | Surah: {total_count("surah")}/114 | Pages: {total_count("page")}/604 ",
+                cls=(TextPresets.muted_sm, (None if status else "invisible")),
             ),
             cls="space-y-2",
         ),
@@ -1784,7 +1785,8 @@ def show_page_status(current_type: str, auth, filter: str = None):
                     data_uk_overflow_auto=True,
                 ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
-                hx_post=f"/partial_memorization_status/{current_type}?filter={filter}",
+                hx_post=f"/partial_memorization_status/{current_type}"
+                + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
             ),
             cls="uk-margin-auto-vertical",
@@ -1906,7 +1908,7 @@ def filtered_table_for_modal(
 
 
 @app.post("/partial_memorization_status/{current_type}")
-async def update_page_status(current_type: str, req: Request, filter: str = None):
+async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
 
     for id_str, check in form_data.items():
@@ -1915,23 +1917,23 @@ async def update_page_status(current_type: str, req: Request, filter: str = None
         # extract id from the key
         id = int(id_str.split("-")[1])
         # based check value update status
-        status = "memorized" if int(check) == 1 else None
+        updated_status = "memorized" if int(check) == 1 else None
         current_hafiz_items = hafizs_items(where=f"item_id = {id}")
         if current_hafiz_items:
             current_hafiz_items = current_hafiz_items[0]
             if not int(check) and current_hafiz_items.status != "memorized":
                 pass
             else:
-                current_hafiz_items.status = status
+                current_hafiz_items.status = updated_status
             hafizs_items.update(current_hafiz_items)
         else:
             page_number = items[id].page_id
             hafizs_items.insert(
-                item_id=id, status=status, mode_id=1, page_number=page_number
+                item_id=id, status=updated_status, mode_id=1, page_number=page_number
             )
 
     return Redirect(
-        f"/memorization_status/{current_type}" + (f"/{filter}" if filter else "")
+        f"/memorization_status/{current_type}" + (f"?status={status}" if status else "")
     )
 
 
