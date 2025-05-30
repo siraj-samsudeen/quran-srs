@@ -1776,7 +1776,7 @@ def show_page_status(current_type: str, auth, filter: str = None):
                     Div(id="my-modal-body"),
                     data_uk_overflow_auto=True,
                 ),
-                ModalFooter(Button("Update", cls="bg-green-600 text-white")),
+                ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
                 hx_post=f"/partial_memorization_status/{current_type}?filter={filter}",
                 hx_target="#my-modal",
             ),
