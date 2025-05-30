@@ -1849,11 +1849,13 @@ def filtered_table_for_modal(
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
+            Td(f"Juz {record['juz_number']}"),
+            Td(surahs[record["surah_id"]].name),
             Td(record["page_number"]),
             Td(
-                f"Juz {record['juz_number']}"
-                if current_type == "surah"
-                else surahs[record["surah_id"]].name
+                destandardize_text(
+                    record["status"] if record["status"] else "not_memorized"
+                )
             ),
         )
 
@@ -1867,8 +1869,10 @@ def filtered_table_for_modal(
                         _at_change="toggleAll()",
                     )
                 ),
+                Th("Juz"),
+                Th("Surah"),
                 Th("Page"),
-                Th("Juz" if current_type == "surah" else "Surah"),
+                Th("Status"),
             )
         ),
         Tbody(*map(render_row, ct)),
