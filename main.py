@@ -753,7 +753,7 @@ def get_include_map(juzs, surahs, pages):
     }
 
 
-def filter_query_records(custom_where=None):
+def filter_query_records(auth, custom_where=None):
     default = "hafizs_items.status IS NULL AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
@@ -761,7 +761,7 @@ def filter_query_records(custom_where=None):
         SELECT items.id, items.surah_id, items.surah_name,
         hafizs_items.item_id, hafizs_items.status, pages.juz_number, pages.page_number 
         FROM items 
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         LEFT JOIN pages ON items.page_id = pages.id
         LEFT JOIN revisions ON items.id = revisions.item_id
         WHERE {default};
@@ -774,6 +774,7 @@ def group_by_type(data, current_type):
         "juz": "juz_number",
         "surah": "surah_id",
         "page": "page_number",
+        "item_id": "item_id",
     }
     grouped = defaultdict(
         list
@@ -816,14 +817,26 @@ def render_row_based_on_type(
         details = f"{juz_range} ({page_range})"
     elif current_type == "page":
         details = f"{juz_range} | {surah_range}"
-
     title = (
         f"{current_type.capitalize()} {type_number}"
         if current_type != "surah"
         else surahs[type_number].name
     )
+
+    filter_url = f"/new_memorization_filter/{current_type}/{type_number}"
+    if current_type == "page":
+        item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
+        print(item_ids)
+        get_page = (
+            f"/revision/add_new_memorization/{current_type}?item_id={item_ids[0]}"
+            if len(item_ids) == 1
+            else filter_url
+        )
+    else:
+        get_page = filter_url
+
     hx_attrs = {
-        "hx_get": f"/new_memorization_filter/{current_type}/{type_number}",
+        "hx_get": get_page,
         "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
             "CURRENT_TITLE", title
         ).replace(
@@ -835,7 +848,21 @@ def render_row_based_on_type(
     return Tr(
         Td(title),
         Td(details),
-        Td(A("➡️"), cls="text-right") if row_link else None,
+        (
+            Td(
+                A(
+                    (
+                        f"Show Pages ➡️"
+                        if current_type != "page"
+                        else "Start Memorization ➡️"
+                    ),
+                    cls=AT.classic,
+                ),
+                cls="text-right",
+            )
+            if row_link
+            else None
+        ),
         **hx_attrs if row_link else {},
     )
 
@@ -853,40 +880,17 @@ def render_navigation_item(
     )
 
 
-def show_recent_new_memorization():
-    where_query = "revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date, revisions.id DESC"
-    not_memorized = filter_query_records(where_query)
-    grouped = group_by_type(not_memorized, "page")
-    rows = [
-        render_row_based_on_type(type_number, records, "page", row_link=False)
-        for type_number, records in list(grouped.items())
-    ]
-    table = Div(
-        Table(
-            Thead(
-                Tr(
-                    Th("Name"),
-                    Th("Range/Details"),
-                ),
-            ),
-            Tbody(*rows),
-        ),
-        cls="uk-overflow-auto h-[25vh] p-4",
-    )
-    return table
-
-
 @app.get("/new_memorization/{current_type}")
-def new_memorization(current_type: str, auth):
+def new_memorization(auth, current_type: str):
     if not current_type:
         current_type = "juz"
-    ct = filter_query_records()
+    ct = filter_query_records(auth)
     grouped = group_by_type(ct, current_type)
-    rows = [
+    not_memorized_rows = [
         render_row_based_on_type(type_number, records, current_type, row_link=True)
         for type_number, records in list(grouped.items())
     ]
-    table = Div(
+    not_memorized_table = Div(
         Table(
             Thead(
                 Tr(
@@ -894,7 +898,7 @@ def new_memorization(current_type: str, auth):
                     Th("Range/Details"),
                 ),
             ),
-            Tbody(*rows),
+            Tbody(*not_memorized_rows),
         ),
         cls="uk-overflow-auto h-[40vh] p-4",
     )
@@ -916,30 +920,51 @@ def new_memorization(current_type: str, auth):
         id="modal",
     )
 
+    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date, revisions.id DESC"""
+    newly_memorized = filter_query_records(auth, where_query)
+    # last_newly_memorized = newly_memorized[0]["item_id"]
+    grouped = group_by_type(newly_memorized, "page")
+    newly_memorized_rows = [
+        render_row_based_on_type(type_number, records, "page", row_link=False)
+        for type_number, records in list(grouped.items())
+    ]
+    recent_newly_memorized_table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th("Name"),
+                    Th("Range/Details"),
+                ),
+            ),
+            Tbody(*newly_memorized_rows),
+        ),
+        cls="uk-overflow-auto h-[25vh] p-4",
+    )
+
     return main_area(
         H1("New Memorization", cls="uk-text-center"),
         Div(
             Div(
                 DivFullySpaced(
-                    H4("Recent Newly Memorized Pages"),
+                    H4("Recently Memorized Pages"),
                     A(
-                        "➡️ Continue",
-                        hx_get="/next-unmemorized?page=467",
-                        hx_target="#modal-content",
-                        hx_swap="innerHTML",
+                        "➡️ Continue New Memorization",
+                        # hx_get=f"/new_memorization/continue/{last_newly_memorized}",
+                        hx_target="#modal-body",
+                        data_uk_toggle="target: #modal",
                     ),
                 ),
-                show_recent_new_memorization(),
+                recent_newly_memorized_table,
             ),
             Div(
-                H4("Select a Page to Memorize (Not Yet Memorized)"),
+                H4("Select Page Not Yet Memorized"),
                 TabContainer(
                     *map(
                         lambda nav: render_navigation_item(nav, current_type),
                         ["juz", "surah", "page"],
                     ),
                 ),
-                table,
+                not_memorized_table,
             ),
             cls="space-y-2",
         ),
@@ -949,9 +974,31 @@ def new_memorization(current_type: str, auth):
     )
 
 
+@app.get("/new_memorization/continue/{last_newly_memorized}")
+def closest_unmemorized_page(auth, last_newly_memorized: int):
+    not_memorized = filter_query_records(auth)
+    not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
+
+    def get_continue_page(not_memorized_item_ids, last_memorized):
+        # print(not_memorized_item_ids)
+        sorted_pages = sorted(not_memorized_item_ids)
+        # Go to the next unmemorized page after last memorized
+        for page in sorted_pages:
+            if page > last_memorized:
+                return page
+        # If not found, go back to the smallest unmemorized page
+        if sorted_pages:
+            return sorted_pages[0]
+        return None
+
+    next_page = get_continue_page(not_memorized_item_ids, last_newly_memorized)
+    # print(next_page)
+    return Redirect(f"/revision/add_new_memorization/{next_page}")
+
+
 @app.get("/new_memorization_filter/{current_type}/{type_number}")
 def filtered_table_for_modal(
-    current_type: str, type_number: int, title: str, description: str
+    auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -964,7 +1011,7 @@ def filtered_table_for_modal(
 
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items
                           LEFT JOIN pages ON items.page_id = pages.id
-                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0 AND hafizs_items.status IS NULL AND {condition}"""
     ct = db.q(qry)
 
@@ -987,12 +1034,18 @@ def filtered_table_for_modal(
             ),
             Td(
                 A(
-                    f"Start Memorize ➡️",
+                    f"Start Memorization ➡️",
                     hx_get=f"/revision/add_new_memorization/{current_type}?item_id={record['id']}",
+                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                        "CURRENT_TITLE", title
+                    ).replace(
+                        "CURRENT_DETAILS", description
+                    ),
                     hx_target="#modal-body",
-                    hx_swap="innerHTML",
-                    cls=AT.classic,
-                )
+                    # hx_swap="innerHTML",
+                    cls=(AT.classic),
+                ),
+                cls="text-right",
             ),
         )
 
@@ -1037,7 +1090,9 @@ def filtered_table_for_modal(
     )
 
 
-def create_new_memorization_revision_form(current_type: str):
+def create_new_memorization_revision_form(
+    current_type: str, title: str, description: str
+):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1051,36 +1106,54 @@ def create_new_memorization_revision_form(current_type: str):
             )
         )
 
-    return Form(
-        LabelInput(
-            "Revision Date",
-            name="revision_date",
-            type="date",
-            value=current_time("%Y-%m-%d"),
-        ),
-        Input(name="page_no", type="hidden"),
-        Input(name="mode_id", type="hidden"),
-        Input(name="item_id", type="hidden"),
-        Div(
-            FormLabel("Rating"),
-            *map(RadioLabel, RATING_MAP.items()),
-            cls="space-y-2 leading-8 sm:leading-6 ",
-        ),
-        Div(
-            Button("Save", cls=ButtonT.primary),
-            A(
-                Button("Cancel", type="button", cls=ButtonT.secondary),
-                href=f"/new_memorization/{current_type}",
+    return Div(
+        Form(
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=current_time("%Y-%m-%d"),
             ),
-            cls="flex justify-around items-center w-full",
+            Input(name="page_no", type="hidden"),
+            Input(name="mode_id", type="hidden"),
+            Input(name="item_id", type="hidden"),
+            Div(
+                FormLabel("Rating"),
+                *map(RadioLabel, RATING_MAP.items()),
+                cls="space-y-2 leading-8 sm:leading-6 ",
+            ),
+            Div(
+                Button("Save", cls=ButtonT.primary),
+                A(
+                    Button("Cancel", type="button", cls=ButtonT.secondary),
+                    href=f"/new_memorization/{current_type}",
+                ),
+                cls="flex justify-around items-center w-full",
+            ),
+            action=f"/revision/add_new_memorization/{current_type}",
+            method="POST",
         ),
-        action=f"/revision/add_new_memorization/{current_type}",
-        method="POST",
+        ModalTitle(
+            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+        ),
+        P(
+            description,
+            id="modal-description",
+            hx_swap_oob="true",
+            cls=TextPresets.muted_lg,
+        ),
     )
 
 
 @rt("/revision/add_new_memorization/{current_type}")
-def get(current_type: str, item_id: str, max_item_id: int = 836, date: str = None):
+def get(
+    current_type: str,
+    title: str,
+    description: str,
+    item_id: str,
+    max_item_id: int = 836,
+    date: str = None,
+):
     item_id = int(item_id)
     if item_id >= max_item_id:
         return Redirect(new_memorization)
@@ -1089,7 +1162,7 @@ def get(current_type: str, item_id: str, max_item_id: int = 836, date: str = Non
     return Titled(
         f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
         fill_form(
-            create_new_memorization_revision_form(current_type),
+            create_new_memorization_revision_form(current_type, title, description),
             {
                 "page_no": page,
                 "mode_id": 2,
@@ -1208,7 +1281,6 @@ def get(
         f" => {items[item_ids[-1]].page_id} - {get_surah_name(item_id=item_ids[-1])}"
     )
     description = f"{items[item_ids[0]].page_id} - {start_description}"
-    print(description if len(item_ids) == 1 else description + f"{end_description}")
     return Titled(
         (description if len(item_ids) == 1 else description + f"{end_description}"),
         Form(
@@ -1248,6 +1320,12 @@ async def post(
         if name.startswith("rating-"):
             item_id = name.split("-")[1]
             if item_id in item_ids:
+                try:
+                    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+                except IndexError:
+                    hafizs_items.insert(
+                        Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+                    )
                 hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
                 hafizs_items.update(
                     {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
