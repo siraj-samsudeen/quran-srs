@@ -1761,4 +1761,9 @@ async def import_db(file: UploadFile):
     return RedirectResponse(index)
 
 
+@app.get
+def theme():
+    return ThemePicker()
+
+
 serve()
