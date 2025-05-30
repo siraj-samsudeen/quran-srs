@@ -1718,10 +1718,9 @@ def show_page_status(current_type: str, auth, status: str = None):
                     "cursor-pointer",
                     TextT.xs,
                     LabelT.destructive,
+                    (None if status else "invisible"),
                 ),
             )
-            if status
-            else None
         ),
     )
 
@@ -1761,12 +1760,15 @@ def show_page_status(current_type: str, auth, status: str = None):
         DivCentered(
             P(
                 f"Memorization Progress: {format_number(total_memorized_pages)}/604 Pages ({int(total_memorized_pages/604*100)}%)",
-                cls=TextPresets.bold_lg,
+                cls="font-bold text-sm sm:text-lg ",
             ),
             Progress(value=f"{total_memorized_pages}", max="604"),
             P(
                 f"{destandardize_text(status) if status else "All"} -> Juz: {total_count("juz")}/30 | Surah: {total_count("surah")}/114 | Pages: {total_count("page")}/604 ",
-                cls=(TextPresets.muted_sm, (None if status else "invisible")),
+                cls=(
+                    "text-gray-500 dark:text-gray-200 text-xs sm:text-sm",
+                    (None if status else "invisible"),
+                ),
             ),
             cls="space-y-2",
         ),
@@ -1813,7 +1815,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                         ),
                         Tbody(*rows),
                     ),
-                    cls="h-[60vh] overflow-auto uk-overflow-auto",
+                    cls="h-[65vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
