@@ -1796,9 +1796,9 @@ def show_page_status(current_type: str, auth, filter: str = None):
                     Table(
                         Thead(
                             Tr(
-                                Th("NAME"),
-                                Th("RANGE / DETAILS"),
-                                Th("STATUS"),
+                                Th("Name"),
+                                Th("Range / Details"),
+                                Th("Status"),
                                 Th("", cls="uk-table-shrink"),
                             )
                         ),
