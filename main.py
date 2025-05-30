@@ -1738,23 +1738,65 @@ def show_page_status(current_type: str, auth, status: str = None):
 
     # Is to get the total count of the type: ["juz", "surah", "page"]
     # to show stats below the progress bar
-    def total_count(type):
-        type_stats = group_by_type(ct, type)
+    def total_count(_type, _status):
+        type_stats = group_by_type(ct, _type)
         count = 0
         for type_number, stats in type_stats.items():
 
             status_list = [item["status"] == "memorized" for item in stats]
-            if status == "memorized" and all(status_list):
+            if _status == "memorized" and all(status_list):
                 count += 1
-            elif status == "not_memorized" and not any(status_list):
+            elif _status == "not_memorized" and not any(status_list):
                 count += 1
             elif (
-                status == "partially_memorized"
+                _status == "partially_memorized"
                 and any(status_list)
                 and not all(status_list)
             ):
                 count += 1
         return count
+
+    type_with_total = {
+        "juz": 30,
+        "surah": 114,
+        "page": 604,
+    }
+
+    def render_stat_row(_type):
+        memorized_count = total_count(_type, "memorized")
+        not_memorized_count = total_count(_type, "not_memorized")
+        partially_memorized_count = total_count(_type, "partially_memorized")
+
+        current_type_total = type_with_total[_type]
+        count_percentage = lambda x: format_number(x / current_type_total * 100)
+
+        def render_td(count):
+            return Td(
+                f"{count} ({count_percentage(count)}%)",
+                cls="text-center",
+            )
+
+        return Tr(
+            Th(destandardize_text(_type)),
+            *map(
+                render_td,
+                [memorized_count, not_memorized_count, partially_memorized_count],
+            ),
+        )
+
+    status_stats_table = (
+        Table(
+            Thead(
+                Tr(
+                    Th("", cls="uk-table-shrink"),
+                    Th("Memorized", cls="min-w-28"),
+                    Th("Not Memorized", cls="min-w-28"),
+                    Th("Partially Memorized", cls="min-w-28"),
+                )
+            ),
+            Tbody(*map(render_stat_row, ["juz", "surah", "page"])),
+        ),
+    )
 
     progress_bar_with_stats = (
         DivCentered(
@@ -1763,13 +1805,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                 cls="font-bold text-sm sm:text-lg ",
             ),
             Progress(value=f"{total_memorized_pages}", max="604"),
-            P(
-                f"{destandardize_text(status) if status else "All"} -> Juz: {total_count("juz")}/30 | Surah: {total_count("surah")}/114 | Pages: {total_count("page")}/604 ",
-                cls=(
-                    "text-gray-500 dark:text-gray-200 text-xs sm:text-sm",
-                    (None if status else "invisible"),
-                ),
-            ),
+            Div(status_stats_table, cls=FlexT.block),
             cls="space-y-2",
         ),
     )
@@ -1798,6 +1834,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     return main_area(
         Div(
             progress_bar_with_stats,
+            DividerLine(),
             filter_btns,
             Form(
                 TabContainer(
@@ -1815,7 +1852,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                         ),
                         Tbody(*rows),
                     ),
-                    cls="h-[65vh] overflow-auto uk-overflow-auto",
+                    cls="h-[45vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
