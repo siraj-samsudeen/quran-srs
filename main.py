@@ -921,39 +921,62 @@ def render_navigation_item(
 def flatten_input(data):
     if not data:
         return []
-    seen = set()
-    flat = []
+    seen = set()  # use a set to filtered out duplicate entries
+    flat = []  # use a list to get order
     for page, records in data:
         for entry in records:
             key = entry["page_number"]
             if key not in seen:
                 flat.append(entry)
                 seen.add(key)
-    return sorted(flat, key=lambda x: x["page_number"])
+    return flat
+    # return sorted(flat, key=lambda x: x["page_number"])
 
 
-def group_consecutive(records):
+def group_consecutive_by_date(records):
+    if not records:
+        return []
+
+    # Sort by page_number ASC so we can group sequence pages
+    # print(records)
+    records = sorted(records, key=lambda x: x["page_number"])
+    # print(records)
     groups = []
-    current = [records[0] if records else None]
+    current_group = [records[0]]
+
     for prev, curr in zip(records, records[1:]):
-        if curr["page_number"] == prev["page_number"] + 1:
-            current.append(curr)
+        # Consecutive pages and same date
+        is_consecutive = curr["page_number"] == prev["page_number"] + 1
+        same_date = curr["revision_date"] == prev["revision_date"]
+
+        if is_consecutive and same_date:
+            current_group.append(curr)
         else:
-            groups.append(current)
-            current = [curr]
-    groups.append(current)
-    return groups
+            groups.append(current_group)
+            current_group = [curr]
+
+    groups.append(current_group)
+
+    # Sort final groups by latest revision_id in descending order
+    def latest_revision(group):
+        return max(item["revision_date"] for item in group)
+        # return max(item["revision_id"] for item in group)
+
+    sorted_groups = sorted(groups, key=latest_revision, reverse=True)
+    return sorted_groups
 
 
-def format_output(groups):
+def format_output(groups: list):
     formatted = {}
+    print(groups)
     for group in groups:
         pages = [item["page_number"] for item in group]
         juz = group[0]["juz_number"]
-        surahs = list(dict.fromkeys(item["surah_name"] for item in group))
-
+        surahs = list(
+            dict.fromkeys(item["surah_name"] for item in group)
+        )  # get list of unique surahs
         page_str = (
-            f"Page {pages[0]}" if len(pages) == 1 else f"Page {pages[0]} - {pages[-1]}"
+            f"Page {pages[0]}" if len(pages) == 1 else f"Pages {pages[0]} - {pages[-1]}"
         )
         surah_str = " - ".join(surahs)
         title = page_str
@@ -1009,19 +1032,19 @@ def new_memorization(auth, current_type: str):
     grouped = group_by_type(newly_memorized, "page")
     grouped_list = list(grouped.items())
 
-    consecutive_groups = []
     if grouped_list:
         flat = flatten_input(grouped_list)
-        flat_sorted_by_date = sorted(
-            flat, key=lambda x: (x["revision_date"], x["revision_id"]), reverse=True
-        )
-        latest_entries = flat_sorted_by_date  # [:10]
+        consecutive_groups = group_consecutive_by_date(flat)
 
-        latest_entries_sorted_by_page = sorted(
-            latest_entries, key=lambda x: x["page_number"]
+        def group_latest_sort_key(group):
+            latest = max(group, key=lambda x: (x["revision_date"], x["revision_id"]))
+            return (latest["revision_date"], latest["revision_id"])
+
+        consecutive_groups_sorted = sorted(
+            consecutive_groups, key=group_latest_sort_key, reverse=True
         )
-        consecutive_groups = group_consecutive(latest_entries_sorted_by_page)
-        # consecutive_groups = group_consecutive(latest_entries)
+    else:
+        consecutive_groups_sorted = []
 
     def render_memorized_row(group, auth):
         if not group:
@@ -1042,7 +1065,8 @@ def new_memorization(auth, current_type: str):
 
     newly_memorized_rows = list(
         filter(
-            None, [render_memorized_row(group, auth) for group in consecutive_groups]
+            None,
+            [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
         )
     )
 
