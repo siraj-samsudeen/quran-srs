@@ -118,11 +118,12 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.getByRole('textbox', { name: 'page' }).fill('200');
   await page.getByRole('button', { name: 'Bulk Entry' }).click();
   // await expect(page).toHaveURL("http://localhost:5001/hafiz_selection");
+  await page.getByRole('checkbox', { name: 'Show additional fields' }).check();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).click();
   await page.getByRole('spinbutton', { name: 'Plan ID' }).fill('1');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('205');
+  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('202');
   await page.getByRole('link', { name: 'logout' }).click();
   // login as Firoza
   await page.getByRole('textbox', { name: 'Email' }).click();
@@ -133,18 +134,15 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.locator('#btn-Zaseem').first().click();
   await expect(page.getByRole('link', { name: 'Zaseem' })).toBeVisible();
    await expect(page).toHaveURL("http://localhost:5001/");
-  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('205');
-  await page.getByRole('link', { name: '200 - 9. Tawbah -> 204 - 9. Tawbah' }).click();
+  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('202');
+  await page.getByRole('link', { name: '200 - 9. Tawbah -> 201 - 9. Tawbah' }).click();
   // modify data as Zaseem from the user Firoza
 
   await page.getByRole('row', { name: '9. Tawbah 200' }).first().getByLabel('❌ Bad').check();
   await page.getByRole('row', { name: '9. Tawbah 201' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '9. Tawbah 202' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '9. Tawbah 203' }).first().getByLabel('❌ Bad').check();
-  await page.getByRole('row', { name: '9. Tawbah 204' }).first().getByLabel('❌ Bad').check();
   await page.getByRole('button', { name: 'Save' }).click();
   page.on('dialog', dialog => dialog.accept());
-  await page.locator('tr', { hasText: '204' }).first().getByRole('link', { name: 'Delete' }).click();
+  await page.locator('tr', { hasText: '201' }).first().getByRole('link', { name: 'Delete' }).click();
   await page.getByRole('link', { name: 'logout' }).click();
   // login as Siraj and ensure that the data is updated
   await page.getByRole('textbox', { name: 'Email' }).click();
@@ -152,11 +150,9 @@ test('multiple_users_can_access_same_hafiz', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Password' }).fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
   await page.locator('#btn-Zaseem').first().click();
-  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('204');
+  await expect(page.getByRole('textbox', { name: 'page' })).toHaveValue('201');
   await page.getByRole('link', { name: 'Revision' }).click();
   await expect(page.locator('tr', { hasText: '200'}).first()).toContainText('❌ Bad');
-  await expect(page.locator('tr', { hasText: '201' }).first()).toContainText('❌ Bad');
-  await expect(page.locator('tr', { hasText: '203' }).first()).toContainText('❌ Bad');
   await page.getByRole('link', { name: 'Zaseem' }).click();
   await page.getByRole('button', { name: 'Switch hafiz' }).first().click();
   await page.getByRole('link', { name: 'Tables' }).click();
