@@ -874,11 +874,9 @@ def flatten_input(data):
 def group_consecutive_by_date(records):
     if not records:
         return []
-
-    # print(records)
     # Sort by page_number ASC so we can group sequence pages
     records = sorted(records, key=lambda x: x["page_number"])
-    # print(records)
+
     groups = []
     current_group = [records[0]]
 
@@ -898,7 +896,6 @@ def group_consecutive_by_date(records):
     # Sort final groups by latest revision_id in descending order
     def latest_revision(group):
         return max(item["revision_date"] for item in group)
-        # return max(item["revision_id"] for item in group)
 
     sorted_groups = sorted(groups, key=latest_revision, reverse=True)
     return sorted_groups
@@ -906,7 +903,6 @@ def group_consecutive_by_date(records):
 
 def format_output(groups: list):
     formatted = {}
-    print(groups)
     for group in groups:
         pages = [item["page_number"] for item in group]
         juz = group[0]["juz_number"]
@@ -1046,7 +1042,7 @@ def new_memorization(auth, current_type: str):
 
 
 @app.get("/new_memorization_filter/{current_type}/{type_number}")
-def filtered_table_for_new_modal(
+def filtered_table_for_new_memorization_modal(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
@@ -1088,7 +1084,6 @@ def filtered_table_for_new_modal(
                         "CURRENT_DETAILS", description
                     ),
                     hx_target="#modal-body",
-                    # hx_swap="innerHTML",
                     cls=(AT.classic),
                 ),
                 cls="text-right",
