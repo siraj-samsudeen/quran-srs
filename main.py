@@ -1738,17 +1738,19 @@ def render_row_based_on_type(
         else surahs[type_number].name
     )
 
-    filter_url = f"/new_memorization_filter/{current_type}/{type_number}"
+    filter_url = f"/new_memorization/filter/{current_type}/{type_number}"
     if current_type == "page":
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
         get_page = (
-            f"/revision/add_new_memorization/{current_type}?item_id={item_ids[0]}"
+            f"/new_memorization/add/{current_type}?item_id={item_ids[0]}"
             if len(item_ids) == 1
             else filter_url
         )
         if continue_new_memorization:
             next_page_item_id = get_closest_unmemorized_item_id(auth, item_ids[0])
-            get_page = f"/revision/add_new_memorization/{current_type}?item_id={next_page_item_id}"
+            get_page = (
+                f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
+            )
             title = title_range
             details = details_range
     else:
@@ -1987,7 +1989,7 @@ def new_memorization(auth, current_type: str):
     )
 
 
-@app.get("/new_memorization_filter/{current_type}/{type_number}")
+@app.get("/new_memorization/filter/{current_type}/{type_number}")
 def filtered_table_for_new_memorization_modal(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
@@ -2023,7 +2025,7 @@ def filtered_table_for_new_memorization_modal(
             Td(
                 A(
                     f"Start Memorization ➡️",
-                    hx_get=f"/revision/add_new_memorization/{current_type}?item_id={record['id']}",
+                    hx_get=f"/new_memorization/add/{current_type}?item_id={record['id']}",
                     hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                         "CURRENT_TITLE", title
                     ).replace(
@@ -2065,7 +2067,7 @@ def filtered_table_for_new_memorization_modal(
         Form(
             table,
             Button("Bulk Entry", cls="bg-green-600 text-white"),
-            hx_get=f"/revision/bulk_add_new_memorization/{current_type}",
+            hx_get=f"/new_memorization/bulk_add/{current_type}",
             hx_target="#modal-body",
             cls="space-y-2",
         ),
@@ -2121,7 +2123,7 @@ def create_new_memorization_revision_form(
                 ),
                 cls="flex justify-around items-center w-full",
             ),
-            action=f"/revision/add_new_memorization/{current_type}",
+            action=f"/new_memorization/add/{current_type}",
             method="POST",
         ),
         ModalTitle(
@@ -2136,7 +2138,7 @@ def create_new_memorization_revision_form(
     )
 
 
-@rt("/revision/add_new_memorization/{current_type}")
+@rt("/new_memorization/add/{current_type}")
 def get(
     current_type: str,
     item_id: str,
@@ -2165,7 +2167,7 @@ def get(
     )
 
 
-@rt("/revision/add_new_memorization/{current_type}")
+@rt("/new_memorization/add/{current_type}")
 def post(current_type: str, page_no: int, item_id: int, revision_details: Revision):
     # The id is set to zer in the form, so we need to delete it
     # before inserting to generate the id automatically
@@ -2185,7 +2187,7 @@ def post(current_type: str, page_no: int, item_id: int, revision_details: Revisi
     return Redirect(f"/new_memorization/{current_type}")
 
 
-@app.get("/revision/bulk_add_new_memorization/{current_type}")
+@app.get("/new_memorization/bulk_add/{current_type}")
 def get(
     auth,
     item_ids: list[int],
@@ -2285,7 +2287,7 @@ def get(
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
-            action=f"/revision/bulk_add_new_memorization/{current_type}",
+            action=f"/new_memorization/bulk_add/{current_type}",
             method="POST",
         ),
         Script(src="/public/script.js"),
@@ -2294,7 +2296,7 @@ def get(
     )
 
 
-@rt("/revision/bulk_add_new_memorization/{current_type}")
+@rt("/new_memorization/bulk_add/{current_type}")
 async def post(
     revision_date: str,
     mode_id: int,
