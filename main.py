@@ -700,59 +700,6 @@ def index(auth):
     )
 
 
-def extract_ranges(records):
-    # Function to format the ranges to display in the table details.
-    def format_range(items, label=None, prefix=""):
-        items = sorted(set(items))
-        if not items:
-            return ""
-        if len(items) == 1:
-            return f"{prefix}{items[0]}"
-        return (
-            f"{prefix}{items[0]} – {items[-1]}"
-            if not label
-            else f"{label} {items[0]} – {items[-1]}"
-        )
-
-    surahs = {r["surah_id"] for r in records}
-    pages = [r["page_id"] for r in records]
-    juzs = {r["juz_number"] for r in records}
-
-    surah_range = format_range(surahs)
-    page_range = format_range(pages, label="Pages", prefix="Page ")
-    juz_range = format_range(juzs, label="Juz", prefix="Juz ")
-    surah_name = format_range({r["surah_name"] for r in records})
-
-    return {
-        "surah_range": surah_range,
-        "page_range": page_range,
-        "juz_range": juz_range,
-        "surahs": sorted(surahs),
-        "pages": sorted(pages),
-        "juzs": sorted(juzs),
-        "surah_name": surah_name,
-    }
-
-
-def hidden_inputs(name, values):
-    return [
-        Hidden(
-            name="type_number" if name != "page" else name,
-            value=val,
-            id=f"{name}_{val}",
-        )
-        for val in values
-    ]
-
-
-def get_include_map(juzs, surahs, pages):
-    return {
-        "juz": [f"#juz_{juz}" for juz in juzs],
-        "surah": [f"#surah_{surah}" for surah in surahs],
-        "page": [f"#page_{pid}" for pid in pages],
-    }
-
-
 def filter_query_records(auth, custom_where=None):
     default = "hafizs_items.status IS NULL AND items.active != 0"
     if custom_where:
@@ -793,7 +740,6 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
         sorted_item_ids = sorted(not_memorized_item_ids)
         for item_id in sorted_item_ids:
             if item_id > last_newly_memorized_item_id:
-                # item_ids = [item.id for item in items(where=f"page_id = {page}")]
                 return item_id
         return None
 
@@ -1100,7 +1046,7 @@ def new_memorization(auth, current_type: str):
 
 
 @app.get("/new_memorization_filter/{current_type}/{type_number}")
-def filtered_table_for_modal(
+def filtered_table_for_new_modal(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
