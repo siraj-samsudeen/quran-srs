@@ -759,7 +759,7 @@ def filter_query_records(auth, custom_where=None):
         default = f"{custom_where}"
     not_memorized_tb = f"""
         SELECT items.id, items.surah_id, items.surah_name,
-        hafizs_items.item_id, hafizs_items.status, pages.juz_number, pages.page_number 
+        hafizs_items.item_id, hafizs_items.status, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
         FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         LEFT JOIN pages ON items.page_id = pages.id
@@ -775,6 +775,7 @@ def group_by_type(data, current_type):
         "surah": "surah_id",
         "page": "page_number",
         "item_id": "item_id",
+        "id": "id",
     }
     grouped = defaultdict(
         list
@@ -784,11 +785,33 @@ def group_by_type(data, current_type):
     return grouped
 
 
+def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
+    not_memorized = filter_query_records(auth)
+    not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
+
+    def get_continue_page(not_memorized_item_ids, last_newly_memorized_item_id):
+        sorted_item_ids = sorted(not_memorized_item_ids)
+        for item_id in sorted_item_ids:
+            if item_id > last_newly_memorized_item_id:
+                # item_ids = [item.id for item in items(where=f"page_id = {page}")]
+                return item_id
+        return None
+
+    continue_page = get_continue_page(
+        not_memorized_item_ids, last_newly_memorized_item_id
+    )
+    return continue_page
+
+
 def render_row_based_on_type(
     type_number: str,
     records: list,
     current_type,
     row_link: bool = True,
+    continue_new_memorization=False,
+    auth=None,
+    title_range=None,
+    details_range=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -826,12 +849,16 @@ def render_row_based_on_type(
     filter_url = f"/new_memorization_filter/{current_type}/{type_number}"
     if current_type == "page":
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
-        print(item_ids)
         get_page = (
             f"/revision/add_new_memorization/{current_type}?item_id={item_ids[0]}"
             if len(item_ids) == 1
             else filter_url
         )
+        if continue_new_memorization:
+            next_page_item_id = get_closest_unmemorized_item_id(auth, item_ids[0])
+            get_page = f"/revision/add_new_memorization/{current_type}?item_id={next_page_item_id}"
+            title = title_range
+            details = details_range
     else:
         get_page = filter_url
 
@@ -845,6 +872,7 @@ def render_row_based_on_type(
         "target_id": "modal-body",
         "data_uk_toggle": "target: #modal",
     }
+
     return Tr(
         Td(title),
         Td(details),
@@ -854,14 +882,24 @@ def render_row_based_on_type(
                     (
                         f"Show Pages ➡️"
                         if current_type != "page"
-                        else "Start Memorization ➡️"
+                        else (
+                            "Continue ➡️"
+                            if continue_new_memorization
+                            else "Start Memorization ➡️"
+                        )
                     ),
+                    hx_get=get_page,
+                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                        "CURRENT_TITLE", title
+                    ).replace(
+                        "CURRENT_DETAILS", details
+                    ),
+                    hx_target="#modal-body",
+                    data_uk_toggle="target: #modal",
                     cls=AT.classic,
                 ),
                 cls="text-right",
             )
-            if row_link
-            else None
         ),
         **hx_attrs if row_link else {},
     )
@@ -880,6 +918,52 @@ def render_navigation_item(
     )
 
 
+def flatten_input(data):
+    if not data:
+        return []
+    seen = set()
+    flat = []
+    for page, records in data:
+        for entry in records:
+            key = entry["page_number"]
+            if key not in seen:
+                flat.append(entry)
+                seen.add(key)
+    return sorted(flat, key=lambda x: x["page_number"])
+
+
+def group_consecutive(records):
+    groups = []
+    current = [records[0] if records else None]
+    for prev, curr in zip(records, records[1:]):
+        if curr["page_number"] == prev["page_number"] + 1:
+            current.append(curr)
+        else:
+            groups.append(current)
+            current = [curr]
+    groups.append(current)
+    return groups
+
+
+def format_output(groups):
+    formatted = {}
+    for group in groups:
+        pages = [item["page_number"] for item in group]
+        juz = group[0]["juz_number"]
+        surahs = list(dict.fromkeys(item["surah_name"] for item in group))
+
+        page_str = (
+            f"Page {pages[0]}" if len(pages) == 1 else f"Page {pages[0]} - {pages[-1]}"
+        )
+        surah_str = " - ".join(surahs)
+        title = page_str
+        details = f"Juz {juz} | {surah_str}"
+
+        for page in pages:
+            formatted[page] = (title, details)
+    return formatted
+
+
 @app.get("/new_memorization/{current_type}")
 def new_memorization(auth, current_type: str):
     if not current_type:
@@ -887,15 +971,15 @@ def new_memorization(auth, current_type: str):
     ct = filter_query_records(auth)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
-        render_row_based_on_type(type_number, records, current_type, row_link=True)
+        render_row_based_on_type(type_number, records, current_type)
         for type_number, records in list(grouped.items())
     ]
     not_memorized_table = Div(
         Table(
             Thead(
                 Tr(
-                    Th("Name"),
-                    Th("Range/Details"),
+                    Th("NAME"),
+                    Th("RANGE/DETAILS"),
                 ),
             ),
             Tbody(*not_memorized_rows),
@@ -920,20 +1004,54 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revision_date, revisions.id DESC"""
+    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
     newly_memorized = filter_query_records(auth, where_query)
-    # last_newly_memorized = newly_memorized[0]["item_id"]
     grouped = group_by_type(newly_memorized, "page")
-    newly_memorized_rows = [
-        render_row_based_on_type(type_number, records, "page", row_link=False)
-        for type_number, records in list(grouped.items())
-    ]
+    grouped_list = list(grouped.items())
+
+    consecutive_groups = []
+    if grouped_list:
+        flat = flatten_input(grouped_list)
+        flat_sorted_by_date = sorted(
+            flat, key=lambda x: (x["revision_date"], x["revision_id"]), reverse=True
+        )
+        latest_entries = flat_sorted_by_date  # [:10]
+
+        latest_entries_sorted_by_page = sorted(
+            latest_entries, key=lambda x: x["page_number"]
+        )
+        consecutive_groups = group_consecutive(latest_entries_sorted_by_page)
+        # consecutive_groups = group_consecutive(latest_entries)
+
+    def render_memorized_row(group, auth):
+        if not group:
+            return None
+        formatted = format_output([group])
+        first_page = group[0]["page_number"]
+        title_range, details_range = formatted[first_page]
+        return render_row_based_on_type(
+            first_page,
+            group,
+            "page",
+            row_link=False,
+            continue_new_memorization=True,
+            auth=auth,
+            title_range=title_range,
+            details_range=details_range,
+        )
+
+    newly_memorized_rows = list(
+        filter(
+            None, [render_memorized_row(group, auth) for group in consecutive_groups]
+        )
+    )
+
     recent_newly_memorized_table = Div(
         Table(
             Thead(
                 Tr(
-                    Th("Name"),
-                    Th("Range/Details"),
+                    Th("NAME"),
+                    Th("RANGE/DETAILS"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
@@ -945,15 +1063,7 @@ def new_memorization(auth, current_type: str):
         H1("New Memorization", cls="uk-text-center"),
         Div(
             Div(
-                DivFullySpaced(
-                    H4("Recently Memorized Pages"),
-                    A(
-                        "➡️ Continue New Memorization",
-                        # hx_get=f"/new_memorization/continue/{last_newly_memorized}",
-                        hx_target="#modal-body",
-                        data_uk_toggle="target: #modal",
-                    ),
-                ),
+                H4("Recently Memorized Pages"),
                 recent_newly_memorized_table,
             ),
             Div(
@@ -972,28 +1082,6 @@ def new_memorization(auth, current_type: str):
         active="New Memorization",
         auth=auth,
     )
-
-
-@app.get("/new_memorization/continue/{last_newly_memorized}")
-def closest_unmemorized_page(auth, last_newly_memorized: int):
-    not_memorized = filter_query_records(auth)
-    not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
-
-    def get_continue_page(not_memorized_item_ids, last_memorized):
-        # print(not_memorized_item_ids)
-        sorted_pages = sorted(not_memorized_item_ids)
-        # Go to the next unmemorized page after last memorized
-        for page in sorted_pages:
-            if page > last_memorized:
-                return page
-        # If not found, go back to the smallest unmemorized page
-        if sorted_pages:
-            return sorted_pages[0]
-        return None
-
-    next_page = get_continue_page(not_memorized_item_ids, last_newly_memorized)
-    # print(next_page)
-    return Redirect(f"/revision/add_new_memorization/{next_page}")
 
 
 @app.get("/new_memorization_filter/{current_type}/{type_number}")
@@ -1049,25 +1137,28 @@ def filtered_table_for_modal(
             ),
         )
 
-    table = Table(
-        Thead(
-            Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all",
-                        x_model="selectAll",
-                        _at_change="toggleAll()",
-                    )
-                ),
-                Th("Page"),
-                Th("Juz" if current_type == "surah" else "Surah"),
-            )
+    table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th(
+                        CheckboxX(
+                            cls="select_all",
+                            x_model="selectAll",
+                            _at_change="toggleAll()",
+                        )
+                    ),
+                    Th("Page"),
+                    Th("Juz" if current_type == "surah" else "Surah"),
+                )
+            ),
+            Tbody(*map(render_row, ct)),
+            x_data=select_all_checkbox_x_data(
+                class_name="partial_rows", is_select_all="false"
+            ),
+            x_init="updateSelectAll()",
         ),
-        Tbody(*map(render_row, ct)),
-        x_data=select_all_checkbox_x_data(
-            class_name="partial_rows", is_select_all="false"
-        ),
-        x_init="updateSelectAll()",
+        cls="uk-overflow-auto max-h-[75vh] p-4",
     )
 
     return (
@@ -1148,9 +1239,9 @@ def create_new_memorization_revision_form(
 @rt("/revision/add_new_memorization/{current_type}")
 def get(
     current_type: str,
-    title: str,
-    description: str,
     item_id: str,
+    title: str = None,
+    description: str = None,
     max_item_id: int = 836,
     date: str = None,
 ):
@@ -1550,7 +1641,7 @@ def export_specific_table(table: str):
 
 
 @app.get("/tables/{table}/import")
-def import_specific_table_view(table: str, auth):
+def import_specific_table_view(table: str):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -1587,7 +1678,6 @@ def import_specific_table_view(table: str, auth):
             cls="space-y-4",
         ),
         active_table=table,
-        auth=auth,
     )
 
 
