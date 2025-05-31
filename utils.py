@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import sqlite3
 import os
@@ -73,6 +73,12 @@ def standardize_column(column_name):
 
 def current_time(f="%Y-%m-%d %I:%M %p"):
     return datetime.now().strftime(f)
+
+
+def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
+    current_date = datetime.now()
+    target_date = current_date - timedelta(days=days)
+    return target_date.strftime(date_format)
 
 
 def compact_format(numbers):

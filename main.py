@@ -1722,6 +1722,65 @@ def backup():
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
+@app.get("/recent_reviews")
+def recent_review_view(auth):
+    newly_memorized = hafizs_items(where="mode_id IN (2,3)", order_by="item_id ASC")
+    item_ids = [hafiz_item.item_id for hafiz_item in newly_memorized]
+
+    # generate last ten days for column header
+    earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
+    current_date = current_time("%Y-%m-%d")
+    date_range = pd.date_range(
+        start=(earliest_date or current_date), end=current_date, freq="D"
+    )
+    date_range = [date.strftime("%b %d %a") for date in date_range]
+
+    def get_item_details(item_id):
+        qry = f"""SELECT pages.page_number, items.surah_name, pages.juz_number FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.id = {item_id};"""
+        item_details = db.q(qry)
+        if item_details:
+            item_details = item_details[0]
+        else:
+            item_details = None
+        return f"{item_details["page_number"]} - {item_details["surah_name"]} - Juz {item_details["juz_number"]}"
+
+    def render_row(item_id):
+        def render_checkbox(date):
+            return Td(
+                CheckboxX(
+                    name="item_ids",
+                    value=item_id,
+                    _at_change="!showAll && updateVisibility($event.target)",
+                ),
+                Span("-", cls="hidden"),
+                cls="text-center",
+            )
+
+        return Tr(Td(get_item_details(item_id)), *map(render_checkbox, date_range))
+
+    table = Table(
+        Thead(Tr(Th("Pages"), *[Th(date, cls="!text-center") for date in date_range])),
+        Tbody(*map(render_row, item_ids)),
+    )
+    content_body = Div(
+        H2("Recent Review"),
+        LabelSwitch(
+            label="Show All Dates",
+            id="showAll",
+            x_model="showAll",
+            _at_change="toggleShowAll($event.target)",
+        ),
+        table,
+        x_data="{ showAll: false }",
+    )
+
+    return main_area(
+        content_body, Script(src="/public/hiding_checkbox_logic.js"), auth=auth
+    )
+
+
 @app.get
 def import_db(auth):
     current_dbs = [
