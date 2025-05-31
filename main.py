@@ -888,14 +888,7 @@ def render_row_based_on_type(
                             else "Start Memorization ➡️"
                         )
                     ),
-                    hx_get=get_page,
-                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                        "CURRENT_TITLE", title
-                    ).replace(
-                        "CURRENT_DETAILS", details
-                    ),
-                    hx_target="#modal-body",
-                    data_uk_toggle="target: #modal",
+                    **hx_attrs if continue_new_memorization else {},
                     cls=AT.classic,
                 ),
                 cls="text-right",
@@ -930,15 +923,14 @@ def flatten_input(data):
                 flat.append(entry)
                 seen.add(key)
     return flat
-    # return sorted(flat, key=lambda x: x["page_number"])
 
 
 def group_consecutive_by_date(records):
     if not records:
         return []
 
-    # Sort by page_number ASC so we can group sequence pages
     # print(records)
+    # Sort by page_number ASC so we can group sequence pages
     records = sorted(records, key=lambda x: x["page_number"])
     # print(records)
     groups = []
@@ -1007,7 +999,7 @@ def new_memorization(auth, current_type: str):
             ),
             Tbody(*not_memorized_rows),
         ),
-        cls="uk-overflow-auto h-[40vh] p-4",
+        cls="uk-overflow-auto h-[45vh] p-4",
     )
     modal = ModalContainer(
         ModalDialog(
@@ -1087,11 +1079,10 @@ def new_memorization(auth, current_type: str):
         H1("New Memorization", cls="uk-text-center"),
         Div(
             Div(
-                H4("Recently Memorized Pages"),
-                recent_newly_memorized_table,
+                H4("Recently Memorized Pages"), recent_newly_memorized_table, cls="mt-4"
             ),
             Div(
-                H4("Select Page Not Yet Memorized"),
+                H4("Select a Page Not Yet Memorized"),
                 TabContainer(
                     *map(
                         lambda nav: render_navigation_item(nav, current_type),
@@ -1100,7 +1091,7 @@ def new_memorization(auth, current_type: str):
                 ),
                 not_memorized_table,
             ),
-            cls="space-y-2",
+            cls="space-y-4",
         ),
         Div(modal),
         active="New Memorization",
@@ -1139,11 +1130,8 @@ def filtered_table_for_modal(
                 ),
             ),
             Td(record["page_number"]),
-            Td(
-                f"Juz {record['juz_number']}"
-                if current_type == "surah"
-                else surahs[record["surah_id"]].name
-            ),
+            Td(surahs[record["surah_id"]].name),
+            Td(f"Juz {record['juz_number']}"),
             Td(
                 A(
                     f"Start Memorization ➡️",
@@ -1173,7 +1161,8 @@ def filtered_table_for_modal(
                         )
                     ),
                     Th("Page"),
-                    Th("Juz" if current_type == "surah" else "Surah"),
+                    Th("Surah"),
+                    Th("Juz"),
                 )
             ),
             Tbody(*map(render_row, ct)),
@@ -1188,7 +1177,7 @@ def filtered_table_for_modal(
     return (
         Form(
             table,
-            Button("Bulk Entry"),
+            Button("Bulk Entry", cls="bg-green-600 text-white"),
             hx_get=f"/revision/bulk_add_new_memorization/{current_type}",
             hx_target="#modal-body",
             cls="space-y-2",
