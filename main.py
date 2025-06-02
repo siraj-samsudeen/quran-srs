@@ -2229,6 +2229,7 @@ def render_row_based_on_type(
     auth=None,
     title_range=None,
     details_range=None,
+    rev_date=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -2277,7 +2278,7 @@ def render_row_based_on_type(
                 f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
             )
             title = title_range
-            details = details_range
+            # details = details_range
     else:
         get_page = filter_url
 
@@ -2295,6 +2296,7 @@ def render_row_based_on_type(
     return Tr(
         Td(title),
         Td(details),
+        Td(rev_date) if rev_date is not None else None,
         (
             Td(
                 A(
@@ -2388,9 +2390,9 @@ def format_output(groups: list):
         surah_str = " - ".join(surahs)
         title = page_str
         details = f"Juz {juz} | {surah_str}"
-
+        rev_date = group[0]["revision_date"]
         for page in pages:
-            formatted[page] = (title, details)
+            formatted[page] = (title, details, rev_date)
     return formatted
 
 
@@ -2434,7 +2436,7 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
+    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly_memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
     newly_memorized = filter_query_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "page")
     grouped_list = list(grouped.items())
@@ -2458,7 +2460,7 @@ def new_memorization(auth, current_type: str):
             return None
         formatted = format_output([group])
         first_page = group[0]["page_number"]
-        title_range, details_range = formatted[first_page]
+        title_range, details_range, revision_date = formatted[first_page]
         return render_row_based_on_type(
             first_page,
             group,
@@ -2468,6 +2470,7 @@ def new_memorization(auth, current_type: str):
             auth=auth,
             title_range=title_range,
             details_range=details_range,
+            rev_date=revision_date,
         )
 
     newly_memorized_rows = list(
@@ -2483,6 +2486,7 @@ def new_memorization(auth, current_type: str):
                 Tr(
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
+                    Th("REVISION DATE"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
@@ -2705,7 +2709,7 @@ def post(current_type: str, page_no: int, item_id: int, revision_details: Revisi
         hafizs_items.insert(Hafiz_Items(item_id=item_id, page_number=page_no))
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update(
-        {"status": "newly memorized", "mode_id": revision_details.mode_id},
+        {"status": "newly_memorized", "mode_id": revision_details.mode_id},
         hafizs_items_id,
     )
     revisions.insert(revision_details)
@@ -2846,7 +2850,7 @@ async def post(
                     )
                 hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
                 hafizs_items.update(
-                    {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
+                    {"status": "newly_memorized", "mode_id": mode_id}, hafizs_items_id
                 )
                 parsed_data.append(
                     Revision(
