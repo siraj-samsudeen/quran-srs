@@ -569,7 +569,7 @@ def main_area(*args, active=None, auth=None):
                 brand=H3(title, Span(" - "), hafiz_name),
             ),
             DividerLine(y_space=0),
-            cls="bg-white sticky top-0 z-10",
+            cls="bg-white sticky top-0 z-50",
             hx_boost="false",
         ),
         Main(*args, cls="p-4", id="main") if args else None,
@@ -2150,6 +2150,7 @@ def graduate_btn_recent_review(
         hx_swap="none",
         cls=(
             ("bg-green-600 text-white" if is_graduated else ButtonT.default),
+            ButtonT.xs,
             "p-1 h-auto rounded-sm",
         ),
         disabled=(is_disabled or is_graduated),
@@ -2216,10 +2217,10 @@ def recent_review_view(auth):
         revision_count = get_recent_review_count(item_id)
 
         return Tr(
-            Td(get_item_details(item_id)),
+            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
-                cls="text-center",
+                cls="sticky left-16 z-10 bg-white text-center",
                 id=f"count-{item_id}",
             ),
             *map(render_checkbox, date_range),
@@ -2236,8 +2237,8 @@ def recent_review_view(auth):
     table = Table(
         Thead(
             Tr(
-                Th("Pages"),
-                Th("Count"),
+                Th("Pages", cls="sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-16 z-10 bg-white"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center")
                     for date in date_range
@@ -2254,8 +2255,12 @@ def recent_review_view(auth):
             x_model="showAll",
             _at_change="toggleShowAll($event.target)",
         ),
-        table,
+        Div(
+            table,
+            cls="uk-overflow-auto",
+        ),
         x_data="{ showAll: false }",
+        # cls="max-w-full",
     )
 
     return main_area(

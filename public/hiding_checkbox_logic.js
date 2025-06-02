@@ -14,6 +14,18 @@ function handleEvents(event) {
 document.addEventListener('htmx:load', handleEvents);
 document.addEventListener('DOMContentLoaded', handleEvents);
 
+function scrollToLastColumn() {
+    const tableContainer = document.querySelector('.uk-overflow-auto');
+    const table = tableContainer.querySelector('table');
+
+    // Always scroll to last column on page load
+    tableContainer.scrollLeft = table.scrollWidth - tableContainer.clientWidth;
+}
+
+// Only on page load, not on resize (so users can scroll back if they want)
+document.addEventListener('htmx:load', scrollToLastColumn);
+window.addEventListener('load', scrollToLastColumn);
+
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
     const cells = Array.from(row.querySelectorAll('td')).slice(2, -1); // Skip first two cell (page and count)
