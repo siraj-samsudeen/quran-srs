@@ -2436,7 +2436,7 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
+    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly_memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
     newly_memorized = filter_query_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "page")
     grouped_list = list(grouped.items())
@@ -2709,7 +2709,7 @@ def post(current_type: str, page_no: int, item_id: int, revision_details: Revisi
         hafizs_items.insert(Hafiz_Items(item_id=item_id, page_number=page_no))
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update(
-        {"status": "newly memorized", "mode_id": revision_details.mode_id},
+        {"status": "newly_memorized", "mode_id": revision_details.mode_id},
         hafizs_items_id,
     )
     revisions.insert(revision_details)
@@ -2850,7 +2850,7 @@ async def post(
                     )
                 hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
                 hafizs_items.update(
-                    {"status": "newly memorized", "mode_id": mode_id}, hafizs_items_id
+                    {"status": "newly_memorized", "mode_id": mode_id}, hafizs_items_id
                 )
                 parsed_data.append(
                     Revision(
