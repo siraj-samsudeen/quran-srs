@@ -536,6 +536,11 @@ def main_area(*args, active=None, auth=None):
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
+                A(
+                    "Recent Review",
+                    href="/recent_review",
+                    cls=is_active("Recent Review"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -1722,7 +1727,7 @@ def backup():
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
-@app.get("/recent_reviews")
+@app.get("/recent_review")
 def recent_review_view(auth):
     newly_memorized = hafizs_items(where="mode_id IN (2,3)", order_by="item_id ASC")
     item_ids = [hafiz_item.item_id for hafiz_item in newly_memorized]
@@ -1777,7 +1782,10 @@ def recent_review_view(auth):
     )
 
     return main_area(
-        content_body, Script(src="/public/hiding_checkbox_logic.js"), auth=auth
+        content_body,
+        Script(src="/public/hiding_checkbox_logic.js"),
+        active="Recent Review",
+        auth=auth,
     )
 
 
