@@ -2224,10 +2224,24 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
             Revision(revision_date=date, item_id=item_id, mode_id=3, rating=1)
         )
     elif revisions_data and not is_checked:
-        if len(revisions_data) > 1:
-            revisions.delete_where(qry)
-        else:
-            revisions.delete(revisions_data[0].id)
+        revisions.delete(revisions_data[0].id)
+
+    # this is to update the status of hafizs_items table
+    hafiz_items_current_mode = db.q(
+        f""" 
+        SELECT hafizs_items.id, hafizs_items.mode_id, hafizs_items.status from revisions
+        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id
+        WHERE revisions.item_id = {item_id} AND revisions.mode_id = 3 
+        LIMIT 1;
+        """
+    )
+    if hafiz_items_current_mode:
+        hafiz_items_current_mode = hafiz_items_current_mode[0]
+        if hafiz_items_current_mode["mode_id"] == 2:
+            hafizs_items.update(
+                {"status": "recently_reviewed", "mode_id": 3},
+                hafiz_items_current_mode["id"],
+            )
 
 
 @app.get
