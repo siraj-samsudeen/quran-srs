@@ -2143,7 +2143,6 @@ def recent_review_view(auth):
     date_range = pd.date_range(
         start=(earliest_date or current_date), end=current_date, freq="D"
     )
-    date_range = [date.strftime("%b %d %a") for date in date_range]
 
     def get_item_details(item_id):
         qry = f"""SELECT pages.page_number, items.surah_name, pages.juz_number FROM items 
@@ -2158,11 +2157,24 @@ def recent_review_view(auth):
 
     def render_row(item_id):
         def render_checkbox(date):
+            formatted_date = date.strftime("%Y-%m-%d")
+            current_revision_data = revisions(
+                where=f"revision_date = '{formatted_date}' AND item_id = {item_id} AND mode_id = 3;"
+            )
+
             return Td(
-                CheckboxX(
-                    name="item_ids",
-                    value=item_id,
-                    _at_change="!showAll && updateVisibility($event.target)",
+                Form(
+                    Hidden(name="date", value=formatted_date),
+                    CheckboxX(
+                        name=f"is_checked",
+                        value="1",
+                        hx_post=f"/recent_review/update_status/{item_id}",
+                        hx_swap="none",
+                        hx_include="closest form",
+                        checked=True if current_revision_data else False,
+                        _at_change="!showAll && updateVisibility($event.target)",
+                    ),
+                    cls="",
                 ),
                 Span("-", cls="hidden"),
                 cls="text-center",
@@ -2171,7 +2183,15 @@ def recent_review_view(auth):
         return Tr(Td(get_item_details(item_id)), *map(render_checkbox, date_range))
 
     table = Table(
-        Thead(Tr(Th("Pages"), *[Th(date, cls="!text-center") for date in date_range])),
+        Thead(
+            Tr(
+                Th("Pages"),
+                *[
+                    Th(date.strftime("%b %d %a"), cls="!text-center")
+                    for date in date_range
+                ],
+            )
+        ),
         Tbody(*map(render_row, item_ids)),
     )
     content_body = Div(
@@ -2192,6 +2212,22 @@ def recent_review_view(auth):
         active="Recent Review",
         auth=auth,
     )
+
+
+@app.post("/recent_review/update_status/{item_id}")
+def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
+    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = 3;"
+    revisions_data = revisions(where=qry)
+
+    if not revisions_data and is_checked:
+        revisions.insert(
+            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=1)
+        )
+    elif revisions_data and not is_checked:
+        if len(revisions_data) > 1:
+            revisions.delete_where(qry)
+        else:
+            revisions.delete(revisions_data[0].id)
 
 
 @app.get
