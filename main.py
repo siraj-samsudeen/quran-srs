@@ -2278,7 +2278,7 @@ def render_row_based_on_type(
                 f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
             )
             title = title_range
-            details = details_range
+            # details = details_range
     else:
         get_page = filter_url
 
