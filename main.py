@@ -1732,6 +1732,21 @@ def backup():
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
+def graduate_btn_recent_review(item_id, is_disabled=False, **kwargs):
+    return Button(
+        "Graduate",
+        hx_vals={"item_id": item_id},
+        hx_post=f"/recent_review/graduate",
+        target_id=f"row-{item_id}",
+        # hx_swap="none",
+        cls=(ButtonT.default, "p-1 h-auto rounded-sm"),
+        disabled=is_disabled,
+        id=f"graduate-btn-{item_id}",
+        hx_confirm="Are you sure you want to graduate this page?",
+        **kwargs,
+    )
+
+
 @app.get("/recent_review")
 def recent_review_view(auth):
     newly_memorized = hafizs_items(where="mode_id IN (2,3)", order_by="item_id ASC")
@@ -1780,14 +1795,22 @@ def recent_review_view(auth):
                 cls="text-center",
             )
 
+        revision_count = get_recent_review_count(item_id)
         return Tr(
             Td(get_item_details(item_id)),
             Td(
-                get_recent_review_count(item_id),
+                revision_count,
                 cls="text-center",
                 id=f"count-{item_id}",
             ),
             *map(render_checkbox, date_range),
+            Td(
+                graduate_btn_recent_review(
+                    item_id,
+                    is_disabled=(revision_count == 0),
+                )
+            ),
+            id=f"row-{item_id}",
         )
 
     table = Table(
@@ -1851,7 +1874,19 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
                 {"status": "recently_reviewed", "mode_id": 3},
                 hafiz_items_current_mode["id"],
             )
-    return get_recent_review_count(item_id)
+    revision_count = get_recent_review_count(item_id)
+    return revision_count, graduate_btn_recent_review(
+        item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
+    )
+
+
+@app.post("/recent_review/graduate")
+def graduate_recent_review(item_id: int):
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        hafizs_items.update(
+            {"status": "watch_list", "mode_id": 4}, current_hafiz_items[0].id
+        )
 
 
 @app.get

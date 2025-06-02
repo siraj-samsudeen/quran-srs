@@ -1,15 +1,22 @@
-document.addEventListener('DOMContentLoaded', function () {
+function handleEvents(event) {
     // Apply logic to each row that has any checked checkboxes
-    document.querySelectorAll('tbody tr').forEach(row => {
-        const hasChecked = row.querySelector('input[type="checkbox"]:checked');
-        if (hasChecked) {
-            updateVisibility(hasChecked);
-        }
-    });
-});
+    isGlobalChecked = document.getElementById("showAll").checked
+    if (!isGlobalChecked) {
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const hasChecked = row.querySelector('input[type="checkbox"]:checked');
+            if (hasChecked) {
+                updateVisibility(hasChecked);
+            }
+        });
+    };
+};
+
+document.addEventListener('htmx:load', handleEvents);
+document.addEventListener('DOMContentLoaded', handleEvents);
+
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
-    const cells = Array.from(row.querySelectorAll('td')).slice(2); // Skip first two cell (page and count)
+    const cells = Array.from(row.querySelectorAll('td')).slice(2, -1); // Skip first two cell (page and count)
 
     // Get all checked checkboxes in this row
     const checkedCells = cells.filter(cell => cell.querySelector('input[type="checkbox"]').checked);
