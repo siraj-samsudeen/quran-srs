@@ -2187,7 +2187,7 @@ def recent_review_view(auth):
     )
 
     def get_item_details(item_id):
-        qry = f"""SELECT pages.page_number, items.surah_name, pages.juz_number FROM items 
+        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.id = {item_id};"""
         item_details = db.q(qry)
@@ -2195,7 +2195,7 @@ def recent_review_view(auth):
             item_details = item_details[0]
         else:
             item_details = None
-        return f"{item_details["page_number"]} - {item_details["surah_name"]} - Juz {item_details["juz_number"]}"
+        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
 
     def render_row(o):
         item_id, mode_id = o["item_id"], o["mode_id"]
@@ -2231,7 +2231,7 @@ def recent_review_view(auth):
             Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
-                cls="sticky left-16 z-10 bg-white text-center",
+                cls="sticky left-36 z-10 bg-white text-center",
                 id=f"count-{item_id}",
             ),
             *map(render_checkbox, date_range),
@@ -2248,8 +2248,8 @@ def recent_review_view(auth):
     table = Table(
         Thead(
             Tr(
-                Th("Pages", cls="w-52 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-16 z-10 bg-white"),
+                Th("Pages", cls="min-w-36 sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-36 z-10 bg-white"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center")
                     for date in date_range
