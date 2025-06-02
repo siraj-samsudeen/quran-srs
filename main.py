@@ -2229,6 +2229,7 @@ def render_row_based_on_type(
     auth=None,
     title_range=None,
     details_range=None,
+    rev_date=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -2295,6 +2296,7 @@ def render_row_based_on_type(
     return Tr(
         Td(title),
         Td(details),
+        Td(rev_date) if rev_date is not None else None,
         (
             Td(
                 A(
@@ -2388,9 +2390,9 @@ def format_output(groups: list):
         surah_str = " - ".join(surahs)
         title = page_str
         details = f"Juz {juz} | {surah_str}"
-
+        rev_date = group[0]["revision_date"]
         for page in pages:
-            formatted[page] = (title, details)
+            formatted[page] = (title, details, rev_date)
     return formatted
 
 
@@ -2458,7 +2460,7 @@ def new_memorization(auth, current_type: str):
             return None
         formatted = format_output([group])
         first_page = group[0]["page_number"]
-        title_range, details_range = formatted[first_page]
+        title_range, details_range, revision_date = formatted[first_page]
         return render_row_based_on_type(
             first_page,
             group,
@@ -2468,6 +2470,7 @@ def new_memorization(auth, current_type: str):
             auth=auth,
             title_range=title_range,
             details_range=details_range,
+            rev_date=revision_date,
         )
 
     newly_memorized_rows = list(
@@ -2483,6 +2486,7 @@ def new_memorization(auth, current_type: str):
                 Tr(
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
+                    Th("REVISION DATE"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
