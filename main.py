@@ -164,6 +164,11 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
+def get_recent_review_count(item_id):
+    recent_review_count = revisions(where=f"item_id = {item_id} AND mode_id = 3")
+    return len(recent_review_count)
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -2169,7 +2174,7 @@ def recent_review_view(auth):
                         name=f"is_checked",
                         value="1",
                         hx_post=f"/recent_review/update_status/{item_id}",
-                        hx_swap="none",
+                        target_id=f"count-{item_id}",
                         hx_include="closest form",
                         checked=True if current_revision_data else False,
                         _at_change="!showAll && updateVisibility($event.target)",
@@ -2180,12 +2185,21 @@ def recent_review_view(auth):
                 cls="text-center",
             )
 
-        return Tr(Td(get_item_details(item_id)), *map(render_checkbox, date_range))
+        return Tr(
+            Td(get_item_details(item_id)),
+            Td(
+                get_recent_review_count(item_id),
+                cls="text-center",
+                id=f"count-{item_id}",
+            ),
+            *map(render_checkbox, date_range),
+        )
 
     table = Table(
         Thead(
             Tr(
                 Th("Pages"),
+                Th("Count"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center")
                     for date in date_range
@@ -2242,6 +2256,7 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
                 {"status": "recently_reviewed", "mode_id": 3},
                 hafiz_items_current_mode["id"],
             )
+    return get_recent_review_count(item_id)
 
 
 @app.get
