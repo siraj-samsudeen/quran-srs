@@ -2217,7 +2217,12 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     continue_page = get_continue_page(
         not_memorized_item_ids, last_newly_memorized_item_id
     )
-    return continue_page
+    next = group_by_type(not_memorized, "id")[continue_page]
+    next_pg = next[0]["page_number"]
+    next_surah = next[0]["surah_name"]
+    display_next = (Span(Strong(next_pg)), " - ", next_surah)
+
+    return continue_page, display_next
 
 
 def render_row_based_on_type(
@@ -2273,7 +2278,9 @@ def render_row_based_on_type(
             else filter_url
         )
         if continue_new_memorization:
-            next_page_item_id = get_closest_unmemorized_item_id(auth, item_ids[0])
+            next_page_item_id, display_next = get_closest_unmemorized_item_id(
+                auth, item_ids[0]
+            )
             get_page = (
                 f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
             )
@@ -2304,12 +2311,12 @@ def render_row_based_on_type(
                         f"Show Pages ➡️"
                         if current_type != "page"
                         else (
-                            "Continue ➡️"
+                            display_next
                             if continue_new_memorization
                             else "Start Memorization ➡️"
                         )
                     ),
-                    **hx_attrs if continue_new_memorization else {},
+                    # **hx_attrs if continue_new_memorization else {},
                     cls=AT.classic,
                 ),
                 cls="text-right",
@@ -2465,7 +2472,7 @@ def new_memorization(auth, current_type: str):
             first_page,
             group,
             "page",
-            row_link=False,
+            # row_link=False,
             continue_new_memorization=True,
             auth=auth,
             title_range=title_range,
