@@ -553,6 +553,7 @@ def main_area(*args, active=None, auth=None):
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-10",
+            hx_boost="false",
         ),
         Main(*args, cls="p-4", id="main") if args else None,
         cls=ContainerT.xl,
@@ -1796,6 +1797,11 @@ def recent_review_view(auth):
             )
 
         revision_count = get_recent_review_count(item_id)
+
+        if revision_count > 6:
+            graduate_recent_review(item_id)
+            return None
+
         return Tr(
             Td(get_item_details(item_id)),
             Td(
@@ -1875,6 +1881,11 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
                 hafiz_items_current_mode["id"],
             )
     revision_count = get_recent_review_count(item_id)
+
+    if revision_count > 6:
+        graduate_recent_review(item_id),
+        return HtmxResponseHeaders(retarget=f"#row-{item_id}")
+
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
     )
