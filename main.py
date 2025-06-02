@@ -2168,8 +2168,19 @@ def recent_review_view(auth):
         for hafiz_item in hafiz_items_data
     ]
 
+    # To get the earliest date from revisions based on the item_id
+    item_ids = [item["item_id"] for item in items_id_with_mode]
+    qry = f"""
+    SELECT MIN(revision_date) as earliest_date
+    FROM revisions
+    WHERE item_id IN ({", ".join(map(str, item_ids))})
+    """
+    ct = db.q(qry)
+    earliest_date = ct[0]["earliest_date"]
+
     # generate last ten days for column header
-    earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
+    # earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
+
     current_date = current_time("%Y-%m-%d")
     date_range = pd.date_range(
         start=(earliest_date or current_date), end=current_date, freq="D"
@@ -2237,7 +2248,7 @@ def recent_review_view(auth):
     table = Table(
         Thead(
             Tr(
-                Th("Pages", cls="sticky left-0 z-20 bg-white"),
+                Th("Pages", cls="w-52 sticky left-0 z-20 bg-white"),
                 Th("Count", cls="sticky left-16 z-10 bg-white"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center")
