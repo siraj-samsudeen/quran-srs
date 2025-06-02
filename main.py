@@ -2138,15 +2138,21 @@ def backup():
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
-def graduate_btn_recent_review(item_id, is_disabled=False, **kwargs):
+def graduate_btn_recent_review(
+    item_id, is_graduated=False, is_disabled=False, **kwargs
+):
+    button_name = "Graduated" if is_graduated else "Graduate"
     return Button(
-        "Graduate",
+        button_name,
         hx_vals={"item_id": item_id},
         hx_post=f"/recent_review/graduate",
         target_id=f"row-{item_id}",
-        # hx_swap="none",
-        cls=(ButtonT.default, "p-1 h-auto rounded-sm"),
-        disabled=is_disabled,
+        hx_swap="none",
+        cls=(
+            ("bg-green-600 text-white" if is_graduated else ButtonT.default),
+            "p-1 h-auto rounded-sm",
+        ),
+        disabled=(is_disabled or is_graduated),
         id=f"graduate-btn-{item_id}",
         hx_confirm="Are you sure you want to graduate this page?",
         **kwargs,
@@ -2155,8 +2161,11 @@ def graduate_btn_recent_review(item_id, is_disabled=False, **kwargs):
 
 @app.get("/recent_review")
 def recent_review_view(auth):
-    newly_memorized = hafizs_items(where="mode_id IN (2,3)", order_by="item_id ASC")
-    item_ids = [hafiz_item.item_id for hafiz_item in newly_memorized]
+    hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
+    items_id_with_mode = [
+        {"item_id": hafiz_item.item_id, "mode_id": hafiz_item.mode_id}
+        for hafiz_item in hafiz_items_data
+    ]
 
     # generate last ten days for column header
     earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
@@ -2176,7 +2185,9 @@ def recent_review_view(auth):
             item_details = None
         return f"{item_details["page_number"]} - {item_details["surah_name"]} - Juz {item_details["juz_number"]}"
 
-    def render_row(item_id):
+    def render_row(o):
+        item_id, mode_id = o["item_id"], o["mode_id"]
+
         def render_checkbox(date):
             formatted_date = date.strftime("%Y-%m-%d")
             current_revision_data = revisions(
@@ -2191,9 +2202,10 @@ def recent_review_view(auth):
                         value="1",
                         hx_post=f"/recent_review/update_status/{item_id}",
                         target_id=f"count-{item_id}",
-                        hx_include="closest form",
                         checked=True if current_revision_data else False,
                         _at_change="!showAll && updateVisibility($event.target)",
+                        disabled=(mode_id == 4),
+                        cls="disabled:opacity-75",
                     ),
                     cls="",
                 ),
@@ -2202,10 +2214,6 @@ def recent_review_view(auth):
             )
 
         revision_count = get_recent_review_count(item_id)
-
-        if revision_count > 6:
-            graduate_recent_review(item_id)
-            return None
 
         return Tr(
             Td(get_item_details(item_id)),
@@ -2218,6 +2226,7 @@ def recent_review_view(auth):
             Td(
                 graduate_btn_recent_review(
                     item_id,
+                    is_graduated=(mode_id == 4),
                     is_disabled=(revision_count == 0),
                 )
             ),
@@ -2235,7 +2244,7 @@ def recent_review_view(auth):
                 ],
             )
         ),
-        Tbody(*map(render_row, item_ids)),
+        Tbody(*map(render_row, items_id_with_mode)),
     )
     content_body = Div(
         H2("Recent Review"),
@@ -2288,8 +2297,9 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
     revision_count = get_recent_review_count(item_id)
 
     if revision_count > 6:
-        graduate_recent_review(item_id),
-        return HtmxResponseHeaders(retarget=f"#row-{item_id}")
+        # We are redirecting to swap the entire row
+        # as we want to render the disabled checkbox with graduated button
+        return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
 
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
@@ -2297,12 +2307,19 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 
 @app.post("/recent_review/graduate")
-def graduate_recent_review(item_id: int):
+def graduate_recent_review(item_id: int, auth):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         hafizs_items.update(
             {"status": "watch_list", "mode_id": 4}, current_hafiz_items[0].id
         )
+    # We can also use the route funtion to return the entire page as output
+    # And the HTMX headers are used to change the (re)target,(re)select only the current row
+    return recent_review_view(auth), HtmxResponseHeaders(
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
+        reswap="outerHTML",
+    )
 
 
 @app.get
