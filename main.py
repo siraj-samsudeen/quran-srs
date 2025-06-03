@@ -725,6 +725,66 @@ def index(auth):
         ),
         cls="uk-overflow-auto",
     )
+    ################### Recent Review Summary ###################
+    qry = f"""
+        SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
+        LEFT JOIN Items on hafizs_items.item_id = items.id 
+        WHERE hafizs_items.mode_id IN (2,3) AND hafizs_items.hafiz_id = {auth}
+        ORDER BY hafizs_items.item_id ASC
+    """
+    ct = db.q(qry)
+
+    recent_pages = [i["page_number"] for i in ct]
+    recent_page_range = compact_format(recent_pages).split(", ")
+
+    def render_recent_review_row(page_range: str):
+        print(page_range)
+        first_page, last_page = split_page_range(page_range)
+        first_page_surah_name = [
+            i["surah_name"] for i in ct if i["page_number"] == first_page
+        ][0]
+
+        if last_page:
+            last_page_surah_name = [
+                i["surah_name"] for i in ct if i["page_number"] == last_page
+            ][-1]
+
+            if first_page_surah_name == last_page_surah_name:
+                last_page_surah_name = None
+        else:
+            last_page_surah_name = None
+
+        return Tr(
+            Td(page_range),
+            Td(
+                first_page_surah_name,
+                (f" - {last_page_surah_name}" if last_page_surah_name else ""),
+            ),
+        )
+
+    recent_review_table = Div(
+        DivFullySpaced(
+            H4("Recent Review"),
+            A(
+                "Record",
+                href="/recent_review",
+                hx_boost="false",
+                cls=(AT.classic, TextPresets.bold_sm),
+            ),
+        ),
+        Table(
+            Thead(
+                Tr(Th("Page Range"), Th("Surah")),
+                Tbody(
+                    *(
+                        map(render_recent_review_row, recent_page_range)
+                        if recent_pages
+                        else ""
+                    )
+                ),
+            )
+        ),
+    )
 
     return main_area(
         action_buttons(
@@ -734,7 +794,13 @@ def index(auth):
                 else {}
             )
         ),
-        Div(overall_table, Divider(), datewise_summary_table(hafiz_id=auth)),
+        Div(
+            recent_review_table,
+            Divider(),
+            overall_table,
+            Divider(),
+            datewise_summary_table(hafiz_id=auth),
+        ),
         active="Home",
         auth=auth,
     )
