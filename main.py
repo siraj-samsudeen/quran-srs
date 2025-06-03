@@ -2217,8 +2217,7 @@ def recent_review_view(auth):
                         hx_post=f"/recent_review/update_status/{item_id}",
                         target_id=f"count-{item_id}",
                         checked=True if current_revision_data else False,
-                        # This it to hide and show based on the global toggle.
-                        _at_change="!showAll && updateVisibility($event.target)",
+                        _at_change="updateVisibility($event.target)",
                         # This @click is to handle the shift+click.
                         _at_click=f"handleCheckboxClick($event, 'date-{formatted_date}')",
                         disabled=(mode_id == 4) or is_newly_memorized,
@@ -2278,17 +2277,10 @@ def recent_review_view(auth):
     )
     content_body = Div(
         H2("Recent Review"),
-        LabelSwitch(
-            label="Show All Dates",
-            id="showAll",
-            x_model="showAll",
-            _at_change="toggleShowAll($event.target)",
-        ),
         Div(
             table,
             cls="uk-overflow-auto",
         ),
-        x_data="{ showAll: false }",
         cls="text-xs sm:text-sm",
     )
 

@@ -1,14 +1,11 @@
 function handleEvents(event) {
     // Apply logic to each row that has any checked checkboxes
-    isGlobalChecked = document.getElementById("showAll").checked
-    if (!isGlobalChecked) {
-        document.querySelectorAll('tbody tr').forEach(row => {
-            const hasChecked = row.querySelector('input[type="checkbox"]:checked');
-            if (hasChecked) {
-                updateVisibility(hasChecked);
-            }
-        });
-    };
+    document.querySelectorAll('tbody tr').forEach(row => {
+        const hasChecked = row.querySelector('input[type="checkbox"]:checked');
+        if (hasChecked) {
+            updateVisibility(hasChecked);
+        }
+    });
 };
 
 document.addEventListener('htmx:load', handleEvents);
@@ -18,7 +15,7 @@ document.addEventListener('DOMContentLoaded', handleEvents);
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
     const cells = Array.from(row.querySelectorAll('td')).slice(3); // Skip first three cell (page, count and button)
-    const is_graduated = row.querySelector('input[name="is_checked"]').checked
+    const isGraduated = row.querySelector('input[name="is_checked"]').checked
     // Get all checked checkboxes in this row
     const checkedCells = cells.filter(cell => cell.querySelector('input[type="checkbox"]').checked);
 
@@ -44,7 +41,7 @@ function updateVisibility(checkbox) {
             // Always show checked checkboxes
             checkbox.classList.remove('hidden');
             span.classList.add('hidden');
-        } else if (is_graduated) {
+        } else if (isGraduated) {
             // If the row is graduated, show all unchecked checkboxes
             checkbox.classList.add('hidden');
             span.classList.remove('hidden');
@@ -62,25 +59,7 @@ function updateVisibility(checkbox) {
     });
 }
 
-function toggleShowAll(globalCheckbox) {
-    const showAll = globalCheckbox.checked;
-    const allCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
-    const allSpans = document.querySelectorAll('tbody span');
 
-    if (showAll) {
-        // Show all checkboxes, hide all spans
-        allCheckboxes.forEach(checkbox => checkbox.classList.remove('hidden'));
-        allSpans.forEach(span => span.classList.add('hidden'));
-    } else {
-        // Reapply visibility rules for each row
-        document.querySelectorAll('tbody tr').forEach(row => {
-            const firstCheckbox = row.querySelector('input[type="checkbox"]');
-            if (firstCheckbox) {
-                updateVisibility(firstCheckbox);
-            }
-        });
-    }
-}
 
 // This function is to handle the shift + click selection of checkboxes
 // So that the user can select multiple checkboxes in a row
