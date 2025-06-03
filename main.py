@@ -2293,7 +2293,7 @@ def recent_review_view(auth):
 
     return main_area(
         content_body,
-        Script(src="/public/hiding_checkbox_logic.js"),
+        Script(src="/public/recent_review_logic.js"),
         active="Recent Review",
         auth=auth,
     )
