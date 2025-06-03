@@ -738,7 +738,6 @@ def index(auth):
     recent_page_range = compact_format(recent_pages).split(", ")
 
     def render_recent_review_row(page_range: str):
-        print(page_range)
         first_page, last_page = split_page_range(page_range)
         first_page_surah_name = [
             i["surah_name"] for i in ct if i["page_number"] == first_page
