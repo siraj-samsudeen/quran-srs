@@ -2142,22 +2142,15 @@ def backup():
 def graduate_btn_recent_review(
     item_id, is_graduated=False, is_disabled=False, **kwargs
 ):
-    button_name = "Graduated" if is_graduated else "Graduate"
-    return Button(
-        button_name,
+    return Switch(
         hx_vals={"item_id": item_id},
         hx_post=f"/recent_review/graduate",
         target_id=f"row-{item_id}",
         hx_swap="none",
-        cls=(
-            ("bg-green-600 text-white" if is_graduated else ButtonT.default),
-            ("" if is_disabled else ButtonT.primary),
-            ButtonT.xs,
-            "p-1 h-auto rounded-sm",
-        ),
-        disabled=(is_disabled or is_graduated),
+        checked=is_graduated,
+        disabled=is_disabled,
+        name=f"is_checked",
         id=f"graduate-btn-{item_id}",
-        hx_confirm="Are you sure you want to graduate this page?",
         **kwargs,
     )
 
@@ -2260,7 +2253,7 @@ def recent_review_view(auth):
                 graduate_btn_recent_review(
                     item_id,
                     is_graduated=(mode_id == 4),
-                    is_disabled=(mode_id == 4) or (revision_count == 0),
+                    is_disabled=(revision_count == 0),
                 )
             ),
             *map(render_checkbox, date_range),
@@ -2272,7 +2265,7 @@ def recent_review_view(auth):
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
                 Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
-                Th(""),
+                Th("Graduate"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center sm:min-w-28")
                     for date in date_range
@@ -2347,7 +2340,13 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 
 @app.post("/recent_review/graduate")
-def graduate_recent_review(item_id: int, auth):
+def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
+    if is_checked:
+        data_to_update = {"status": "watch_list", "mode_id": 4}
+    else:
+
+        data_to_update = {"status": "recent_review", "mode_id": 3}
+
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         # Retry logic with 3 attempts and 50ms delay
@@ -2355,9 +2354,7 @@ def graduate_recent_review(item_id: int, auth):
         # typically when shift-clicking the checkbox where it will trigger multiple requests
         for attempt in range(3):
             try:
-                hafizs_items.update(
-                    {"status": "watch_list", "mode_id": 4}, current_hafiz_items[0].id
-                )
+                hafizs_items.update(data_to_update, current_hafiz_items[0].id)
                 break  # Success, exit the loop
             except Exception as e:
                 if attempt < 2:  # Only delay if not the last attempt
