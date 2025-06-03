@@ -64,7 +64,7 @@ function updateVisibility(checkbox) {
 // This function is to handle the shift + click selection of checkboxes
 // So that the user can select multiple checkboxes in a row
 // Where they want to select the related pages at once 
-function handleCheckboxClick(e, clsName) {
+function handleShiftClick(e, clsName) {
     // Custom event which will add data in the backend for the checkboxes
     const event = new Event('change', {
         bubbles: true,

@@ -2219,7 +2219,7 @@ def recent_review_view(auth):
                         checked=True if current_revision_data else False,
                         _at_change="updateVisibility($event.target)",
                         # This @click is to handle the shift+click.
-                        _at_click=f"handleCheckboxClick($event, 'date-{formatted_date}')",
+                        _at_click=f"handleShiftClick($event, 'date-{formatted_date}')",
                         disabled=(mode_id == 4) or is_newly_memorized,
                         cls=(
                             "disabled:opacity-50",
@@ -2282,6 +2282,8 @@ def recent_review_view(auth):
             cls="uk-overflow-auto",
         ),
         cls="text-xs sm:text-sm",
+        # Currently this variable is not being used but it is needed for alpine js attributes
+        x_data="{ showAll: false }",
     )
 
     return main_area(
