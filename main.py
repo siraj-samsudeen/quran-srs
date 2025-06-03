@@ -2206,8 +2206,14 @@ def recent_review_view(auth):
         def render_checkbox(date):
             formatted_date = date.strftime("%Y-%m-%d")
             current_revision_data = revisions(
-                where=f"revision_date = '{formatted_date}' AND item_id = {item_id} AND mode_id = 3;"
+                where=f"revision_date = '{formatted_date}' AND item_id = {item_id} AND mode_id IN (2,3);"
             )
+
+            # To render the checkbox as intermidiate image
+            if current_revision_data:
+                is_newly_memorized = current_revision_data[0].mode_id == 2
+            else:
+                is_newly_memorized = False
 
             return Td(
                 Form(
@@ -2222,9 +2228,18 @@ def recent_review_view(auth):
                         _at_change="!showAll && updateVisibility($event.target)",
                         # This @click is to handle the shift+click.
                         _at_click=f"handleCheckboxClick($event, 'date-{formatted_date}')",
-                        disabled=(mode_id == 4),
-                        # date-<class> is to identify the row for shift+click
-                        cls=("disabled:opacity-50", f"date-{formatted_date}"),
+                        disabled=(mode_id == 4) or is_newly_memorized,
+                        cls=(
+                            "disabled:opacity-50",
+                            # date-<class> is to identify the row for shift+click
+                            f"date-{formatted_date}",
+                            (
+                                # If it is newly memorized then render the intermidiate checkbox icon
+                                "checked:bg-[image:var(--uk-form-checkbox-image-indeterminate)]"
+                                if is_newly_memorized
+                                else ""
+                            ),
+                        ),
                     ),
                     cls="",
                 ),
