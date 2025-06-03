@@ -14,21 +14,10 @@ function handleEvents(event) {
 document.addEventListener('htmx:load', handleEvents);
 document.addEventListener('DOMContentLoaded', handleEvents);
 
-function scrollToLastColumn() {
-    const tableContainer = document.querySelector('.uk-overflow-auto');
-    const table = tableContainer.querySelector('table');
-
-    // Always scroll to last column on page load
-    tableContainer.scrollLeft = table.scrollWidth - tableContainer.clientWidth;
-}
-
-// Only on page load, not on resize (so users can scroll back if they want)
-document.addEventListener('htmx:load', scrollToLastColumn);
-window.addEventListener('load', scrollToLastColumn);
 
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
-    const cells = Array.from(row.querySelectorAll('td')).slice(2, -1); // Skip first two cell (page and count)
+    const cells = Array.from(row.querySelectorAll('td')).slice(3); // Skip first three cell (page, count and button)
 
     // Get all checked checkboxes in this row
     const checkedCells = cells.filter(cell => cell.querySelector('input[type="checkbox"]').checked);
@@ -44,8 +33,8 @@ function updateVisibility(checkbox) {
 
     // Find earliest and latest checked positions
     const checkedPositions = checkedCells.map(cell => cells.indexOf(cell));
-    const earliestChecked = Math.min(...checkedPositions);
-    const latestChecked = Math.max(...checkedPositions);
+    const earliestChecked = Math.max(...checkedPositions);
+    const latestChecked = Math.min(...checkedPositions);
 
     cells.forEach((cell, index) => {
         const checkbox = cell.querySelector('input[type="checkbox"]');
@@ -57,7 +46,7 @@ function updateVisibility(checkbox) {
             span.classList.add('hidden');
         } else {
             // Hide unchecked checkboxes that are before earliest or between earliest and latest
-            if (index < earliestChecked || (index > earliestChecked && index < latestChecked)) {
+            if (index > earliestChecked || (index < earliestChecked && index > latestChecked)) {
                 checkbox.classList.add('hidden');
                 span.classList.remove('hidden');
             } else {

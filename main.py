@@ -2150,6 +2150,7 @@ def graduate_btn_recent_review(
         hx_swap="none",
         cls=(
             ("bg-green-600 text-white" if is_graduated else ButtonT.default),
+            ("" if is_disabled else ButtonT.primary),
             ButtonT.xs,
             "p-1 h-auto rounded-sm",
         ),
@@ -2182,9 +2183,10 @@ def recent_review_view(auth):
     # earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
 
     current_date = current_time("%Y-%m-%d")
+    # Change the date range to start from the earliest date
     date_range = pd.date_range(
         start=(earliest_date or current_date), end=current_date, freq="D"
-    )
+    )[::-1]
 
     def get_item_details(item_id):
         qry = f"""SELECT pages.page_number, items.surah_name FROM items 
@@ -2217,7 +2219,7 @@ def recent_review_view(auth):
                         checked=True if current_revision_data else False,
                         _at_change="!showAll && updateVisibility($event.target)",
                         disabled=(mode_id == 4),
-                        cls="disabled:opacity-75",
+                        cls="disabled:opacity-50",
                     ),
                     cls="",
                 ),
@@ -2231,32 +2233,34 @@ def recent_review_view(auth):
             Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
-                cls="sticky left-36 z-10 bg-white text-center",
+                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
                 id=f"count-{item_id}",
             ),
-            *map(render_checkbox, date_range),
             Td(
                 graduate_btn_recent_review(
                     item_id,
                     is_graduated=(mode_id == 4),
-                    is_disabled=(revision_count == 0),
+                    is_disabled=(mode_id == 4) or (revision_count == 0),
                 )
             ),
+            *map(render_checkbox, date_range),
             id=f"row-{item_id}",
         )
 
     table = Table(
         Thead(
             Tr(
-                Th("Pages", cls="min-w-36 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-36 z-10 bg-white"),
+                Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th(""),
                 *[
-                    Th(date.strftime("%b %d %a"), cls="!text-center")
+                    Th(date.strftime("%b %d %a"), cls="!text-center sm:min-w-28")
                     for date in date_range
                 ],
             )
         ),
         Tbody(*map(render_row, items_id_with_mode)),
+        cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
     )
     content_body = Div(
         H2("Recent Review"),
@@ -2271,7 +2275,7 @@ def recent_review_view(auth):
             cls="uk-overflow-auto",
         ),
         x_data="{ showAll: false }",
-        # cls="max-w-full",
+        cls="text-xs sm:text-sm",
     )
 
     return main_area(
