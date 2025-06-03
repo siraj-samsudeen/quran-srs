@@ -2148,9 +2148,9 @@ def graduate_btn_recent_review(
         target_id=f"row-{item_id}",
         hx_swap="none",
         checked=is_graduated,
-        disabled=is_disabled,
         name=f"is_checked",
         id=f"graduate-btn-{item_id}",
+        cls=("hidden" if is_disabled else ""),
         **kwargs,
     )
 
@@ -2254,7 +2254,8 @@ def recent_review_view(auth):
                     item_id,
                     is_graduated=(mode_id == 4),
                     is_disabled=(revision_count == 0),
-                )
+                ),
+                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
             ),
             *map(render_checkbox, date_range),
             id=f"row-{item_id}",

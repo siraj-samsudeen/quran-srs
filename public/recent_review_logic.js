@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', handleEvents);
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
     const cells = Array.from(row.querySelectorAll('td')).slice(3); // Skip first three cell (page, count and button)
-
+    const is_graduated = row.querySelector('input[name="is_checked"]').checked
     // Get all checked checkboxes in this row
     const checkedCells = cells.filter(cell => cell.querySelector('input[type="checkbox"]').checked);
 
@@ -44,6 +44,11 @@ function updateVisibility(checkbox) {
             // Always show checked checkboxes
             checkbox.classList.remove('hidden');
             span.classList.add('hidden');
+        } else if (is_graduated) {
+            // If the row is graduated, show all unchecked checkboxes
+            checkbox.classList.add('hidden');
+            span.classList.remove('hidden');
+
         } else {
             // Hide unchecked checkboxes that are before earliest or between earliest and latest
             if (index > earliestChecked || (index < earliestChecked && index > latestChecked)) {
