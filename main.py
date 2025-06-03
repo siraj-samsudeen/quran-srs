@@ -5,6 +5,7 @@ from utils import *
 import pandas as pd
 from io import BytesIO
 from collections import defaultdict
+import time
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -162,6 +163,11 @@ def get_surah_name(page_id=None, item_id=None):
         surah_id = items(where=f"page_id = {page_id}")[0].surah_id
     surah_details = surahs[surah_id]
     return surah_details.name
+
+
+def get_recent_review_count(item_id):
+    recent_review_count = revisions(where=f"item_id = {item_id} AND mode_id = 3")
+    return len(recent_review_count)
 
 
 def mode_dropdown(default_mode=1, **kwargs):
@@ -553,13 +559,19 @@ def main_area(*args, active=None, auth=None):
                     href="/new_memorization/juz",
                     cls=is_active("New Memorization"),
                 ),
+                A(
+                    "Recent Review",
+                    href="/recent_review",
+                    cls=is_active("Recent Review"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
             ),
             DividerLine(y_space=0),
-            cls="bg-white sticky top-0 z-10",
+            cls="bg-white sticky top-0 z-50",
+            hx_boost="false",
         ),
         Main(*args, cls="p-4", id="main") if args else None,
         cls=ContainerT.xl,
@@ -2125,6 +2137,231 @@ def backup():
     backup_path = backup_sqlite_db(DB_PATH, "data/backup")
 
     return FileResponse(backup_path, filename="quran_backup.db")
+
+
+def graduate_btn_recent_review(
+    item_id, is_graduated=False, is_disabled=False, **kwargs
+):
+    return Switch(
+        hx_vals={"item_id": item_id},
+        hx_post=f"/recent_review/graduate",
+        target_id=f"row-{item_id}",
+        hx_swap="none",
+        checked=is_graduated,
+        name=f"is_checked",
+        id=f"graduate-btn-{item_id}",
+        cls=("hidden" if is_disabled else ""),
+        **kwargs,
+    )
+
+
+@app.get("/recent_review")
+def recent_review_view(auth):
+    hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
+    items_id_with_mode = [
+        {"item_id": hafiz_item.item_id, "mode_id": hafiz_item.mode_id}
+        for hafiz_item in hafiz_items_data
+    ]
+
+    # To get the earliest date from revisions based on the item_id
+    item_ids = [item["item_id"] for item in items_id_with_mode]
+    qry = f"""
+    SELECT MIN(revision_date) as earliest_date
+    FROM revisions
+    WHERE item_id IN ({", ".join(map(str, item_ids))})
+    """
+    ct = db.q(qry)
+    earliest_date = ct[0]["earliest_date"]
+
+    # generate last ten days for column header
+    # earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
+
+    current_date = current_time("%Y-%m-%d")
+    # Change the date range to start from the earliest date
+    date_range = pd.date_range(
+        start=(earliest_date or current_date), end=current_date, freq="D"
+    )[::-1]
+
+    def get_item_details(item_id):
+        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.id = {item_id};"""
+        item_details = db.q(qry)
+        if item_details:
+            item_details = item_details[0]
+        else:
+            item_details = None
+        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
+
+    def render_row(o):
+        item_id, mode_id = o["item_id"], o["mode_id"]
+
+        def render_checkbox(date):
+            formatted_date = date.strftime("%Y-%m-%d")
+            current_revision_data = revisions(
+                where=f"revision_date = '{formatted_date}' AND item_id = {item_id} AND mode_id IN (2,3);"
+            )
+
+            # To render the checkbox as intermidiate image
+            if current_revision_data:
+                is_newly_memorized = current_revision_data[0].mode_id == 2
+            else:
+                is_newly_memorized = False
+
+            return Td(
+                Form(
+                    Hidden(name="date", value=formatted_date),
+                    CheckboxX(
+                        name=f"is_checked",
+                        value="1",
+                        hx_post=f"/recent_review/update_status/{item_id}",
+                        target_id=f"count-{item_id}",
+                        checked=True if current_revision_data else False,
+                        _at_change="updateVisibility($event.target)",
+                        # This @click is to handle the shift+click.
+                        _at_click=f"handleShiftClick($event, 'date-{formatted_date}')",
+                        disabled=(mode_id == 4) or is_newly_memorized,
+                        cls=(
+                            "disabled:opacity-50",
+                            # date-<class> is to identify the row for shift+click
+                            f"date-{formatted_date}",
+                            (
+                                # If it is newly memorized then render the intermidiate checkbox icon
+                                "checked:bg-[image:var(--uk-form-checkbox-image-indeterminate)]"
+                                if is_newly_memorized
+                                else ""
+                            ),
+                        ),
+                    ),
+                    cls="",
+                ),
+                Span("-", cls="hidden"),
+                cls="text-center",
+            )
+
+        revision_count = get_recent_review_count(item_id)
+
+        return Tr(
+            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(
+                revision_count,
+                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
+                id=f"count-{item_id}",
+            ),
+            Td(
+                graduate_btn_recent_review(
+                    item_id,
+                    is_graduated=(mode_id == 4),
+                    is_disabled=(revision_count == 0),
+                ),
+                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+            ),
+            *map(render_checkbox, date_range),
+            id=f"row-{item_id}",
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Graduate"),
+                *[
+                    Th(date.strftime("%b %d %a"), cls="!text-center sm:min-w-28")
+                    for date in date_range
+                ],
+            )
+        ),
+        Tbody(*map(render_row, items_id_with_mode)),
+        cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
+    )
+    content_body = Div(
+        H2("Recent Review"),
+        Div(
+            table,
+            cls="uk-overflow-auto",
+        ),
+        cls="text-xs sm:text-sm",
+        # Currently this variable is not being used but it is needed for alpine js attributes
+        x_data="{ showAll: false }",
+    )
+
+    return main_area(
+        content_body,
+        Script(src="/public/recent_review_logic.js"),
+        active="Recent Review",
+        auth=auth,
+    )
+
+
+@app.post("/recent_review/update_status/{item_id}")
+def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
+    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = 3;"
+    revisions_data = revisions(where=qry)
+
+    if not revisions_data and is_checked:
+        revisions.insert(
+            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=0)
+        )
+    elif revisions_data and not is_checked:
+        revisions.delete(revisions_data[0].id)
+
+    # this is to update the status of hafizs_items table
+    hafiz_items_current_mode = db.q(
+        f""" 
+        SELECT hafizs_items.id, hafizs_items.mode_id, hafizs_items.status from revisions
+        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id
+        WHERE revisions.item_id = {item_id} AND revisions.mode_id = 3 
+        LIMIT 1;
+        """
+    )
+    if hafiz_items_current_mode:
+        hafiz_items_current_mode = hafiz_items_current_mode[0]
+        if hafiz_items_current_mode["mode_id"] == 2:
+            hafizs_items.update(
+                {"status": "recently_reviewed", "mode_id": 3},
+                hafiz_items_current_mode["id"],
+            )
+    revision_count = get_recent_review_count(item_id)
+
+    if revision_count > 6:
+        # We are redirecting to swap the entire row
+        # as we want to render the disabled checkbox with graduated button
+        return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
+
+    return revision_count, graduate_btn_recent_review(
+        item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
+    )
+
+
+@app.post("/recent_review/graduate")
+def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
+    if is_checked:
+        data_to_update = {"status": "watch_list", "mode_id": 4}
+    else:
+
+        data_to_update = {"status": "recent_review", "mode_id": 3}
+
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        # Retry logic with 3 attempts and 50ms delay
+        # To handle multiple simultaneous req from the user
+        # typically when shift-clicking the checkbox where it will trigger multiple requests
+        for attempt in range(3):
+            try:
+                hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+                break  # Success, exit the loop
+            except Exception as e:
+                if attempt < 2:  # Only delay if not the last attempt
+                    time.sleep(0.05)
+
+    # We can also use the route funtion to return the entire page as output
+    # And the HTMX headers are used to change the (re)target,(re)select only the current row
+    return recent_review_view(auth), HtmxResponseHeaders(
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
+        reswap="outerHTML",
+    )
 
 
 @app.get
