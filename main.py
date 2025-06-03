@@ -2298,7 +2298,7 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
     if not revisions_data and is_checked:
         revisions.insert(
-            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=1)
+            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=0)
         )
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
