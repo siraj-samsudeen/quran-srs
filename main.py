@@ -2159,9 +2159,14 @@ def graduate_btn_recent_review(
 def recent_review_view(auth):
     hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
     items_id_with_mode = [
-        {"item_id": hafiz_item.item_id, "mode_id": hafiz_item.mode_id}
+        {
+            "item_id": hafiz_item.item_id,
+            "mode_id": 3 if (hafiz_item.mode_id == 2) else hafiz_item.mode_id,
+        }
         for hafiz_item in hafiz_items_data
     ]
+    # custom sort order to group the graduated and ungraduated
+    items_id_with_mode.sort(key=lambda x: (x["mode_id"], x["item_id"]))
 
     # To get the earliest date from revisions based on the item_id
     item_ids = [item["item_id"] for item in items_id_with_mode]
@@ -2222,6 +2227,7 @@ def recent_review_view(auth):
                         _at_click=f"handleShiftClick($event, 'date-{formatted_date}')",
                         disabled=(mode_id == 4) or is_newly_memorized,
                         cls=(
+                            "hidden",
                             "disabled:opacity-50",
                             # date-<class> is to identify the row for shift+click
                             f"date-{formatted_date}",
@@ -2280,6 +2286,7 @@ def recent_review_view(auth):
         Div(
             table,
             cls="uk-overflow-auto",
+            id="recent_review_table_area",
         ),
         cls="text-xs sm:text-sm",
         # Currently this variable is not being used but it is needed for alpine js attributes
@@ -2358,8 +2365,8 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     # We can also use the route funtion to return the entire page as output
     # And the HTMX headers are used to change the (re)target,(re)select only the current row
     return recent_review_view(auth), HtmxResponseHeaders(
-        retarget=f"#row-{item_id}",
-        reselect=f"#row-{item_id}",
+        retarget=f"#recent_review_table_area",
+        reselect=f"#recent_review_table_area",
         reswap="outerHTML",
     )
 
