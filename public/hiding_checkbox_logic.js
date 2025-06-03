@@ -76,3 +76,31 @@ function toggleShowAll(globalCheckbox) {
         });
     }
 }
+
+// This function is to handle the shift + click selection of checkboxes
+// So that the user can select multiple checkboxes in a row
+// Where they want to select the related pages at once 
+function handleCheckboxClick(e, clsName) {
+    // Custom event which will add data in the backend for the checkboxes
+    const event = new Event('change', {
+        bubbles: true,
+        cancelable: true
+    });
+    // Handle shift+click selection
+    if (e.shiftKey) {
+        const checkboxes = [...document.querySelectorAll('.' + clsName)];
+        const currentCheckboxIndex = checkboxes.indexOf(e.target);
+
+        // loop through the checkboxes backwards untll we find one that is checked
+        for (let i = currentCheckboxIndex; i >= 0; i--) {
+
+            if (i != currentCheckboxIndex && checkboxes[i].checked) { break; }
+            if (!checkboxes[i].disabled) {
+                // If the checkbox is not disabled, check it and dispatch the event
+                checkboxes[i].checked = true;
+                checkboxes[i].dispatchEvent(event);
+            }
+        }
+    }
+
+}

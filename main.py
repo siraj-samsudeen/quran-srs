@@ -5,6 +5,7 @@ from utils import *
 import pandas as pd
 from io import BytesIO
 from collections import defaultdict
+import time
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -2217,9 +2218,13 @@ def recent_review_view(auth):
                         hx_post=f"/recent_review/update_status/{item_id}",
                         target_id=f"count-{item_id}",
                         checked=True if current_revision_data else False,
+                        # This it to hide and show based on the global toggle.
                         _at_change="!showAll && updateVisibility($event.target)",
+                        # This @click is to handle the shift+click.
+                        _at_click=f"handleCheckboxClick($event, 'date-{formatted_date}')",
                         disabled=(mode_id == 4),
-                        cls="disabled:opacity-50",
+                        # date-<class> is to identify the row for shift+click
+                        cls=("disabled:opacity-50", f"date-{formatted_date}"),
                     ),
                     cls="",
                 ),
@@ -2330,9 +2335,19 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 def graduate_recent_review(item_id: int, auth):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
-        hafizs_items.update(
-            {"status": "watch_list", "mode_id": 4}, current_hafiz_items[0].id
-        )
+        # Retry logic with 3 attempts and 50ms delay
+        # To handle multiple simultaneous req from the user
+        # typically when shift-clicking the checkbox where it will trigger multiple requests
+        for attempt in range(3):
+            try:
+                hafizs_items.update(
+                    {"status": "watch_list", "mode_id": 4}, current_hafiz_items[0].id
+                )
+                break  # Success, exit the loop
+            except Exception as e:
+                if attempt < 2:  # Only delay if not the last attempt
+                    time.sleep(0.05)
+
     # We can also use the route funtion to return the entire page as output
     # And the HTMX headers are used to change the (re)target,(re)select only the current row
     return recent_review_view(auth), HtmxResponseHeaders(
