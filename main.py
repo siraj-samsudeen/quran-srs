@@ -3328,20 +3328,22 @@ def display_page_level_details(auth, item_id: int):
     def get_prev_next_item_ids(current_item_id):
         prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
         next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
-        prev_id = db.q(prev_query)[0]["id"]
-        next_id = db.q(next_query)[0]["id"]
+        prev_result = db.q(prev_query)
+        next_result = db.q(next_query)
+        prev_id = prev_result[0]["id"] if prev_result else None
+        next_id = next_result[0]["id"] if next_result else None
         return prev_id, next_id
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
     # print(prev_id, next_id)
     prev_pg = A(
         "<<",
-        href=f"/page_details/{prev_id}",
+        href=f"/page_details/{prev_id}" if prev_id is not None else "#",
         cls="uk-button uk-button-default",
     )
     next_pg = A(
         ">>",
-        href=f"/page_details/{next_id}",
+        href=f"/page_details/{next_id}" if next_id is not None else "#",
         cls="uk-button uk-button-default",
     )
 
