@@ -3140,7 +3140,7 @@ def page_details_view(auth):
     hafiz_items_with_details = db.q(display_pages_query)
     # print(hafiz_items_with_details)
     grouped = group_by_type(hafiz_items_with_details, "id")
-    print(grouped)
+    # print(grouped)
     rows = [
         render_row_based_on_type(type_number, records, "page", data_for="page_details")
         for type_number, records in list(grouped.items())
@@ -3165,6 +3165,51 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
+    def _render_row(data, columns):
+        tds = []
+        for col in columns:
+            value = data.get(col, "")
+            if col == "rating":
+                value = RATING_MAP.get(str(value), value)
+            tds.append(Td(value))
+        return Tr(*tds)
+
+    def build_revision_query(item_id, auth, mode_id, row_alias):
+        return f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
+                revision_date,
+                rating
+            FROM revisions
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
+            ORDER BY revision_date ASC;
+        """
+
+    def build_revision_summary_query(item_id, auth, mode_id, row_alias):
+        return f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
+                revision_date,
+                rating,
+                modes.name AS mode_name
+            FROM revisions
+            JOIN modes ON revisions.mode_id = modes.id
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_id}
+            ORDER BY revision_date ASC;
+        """
+
+    def get_prev_next_item_ids(current_item_id):
+        prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
+        next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
+        prev_id = db.q(prev_query)[0]["id"]
+        next_id = db.q(next_query)[0]["id"]
+        return prev_id, next_id
+
+    def make_mode_title_for_table(mode_id):
+        mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
+        mode_name, mode_description = mode_details["name"], mode_details["description"]
+        return H2(mode_name, Subtitle(mode_description))
+
     ###### Title and Juz
     meta_query = f"""SELECT 
     items.id AS item_id,
@@ -3183,7 +3228,7 @@ def display_page_level_details(auth, item_id: int):
     juz = f"Juz {meta[0]['juz_number']}"
     #######
     first_revision_query = f""" SELECT 
-    revision_date
+    revision_date, mode_id
     FROM revisions
     WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN(1,2,3,4)
     ORDER BY revision_date ASC
@@ -3191,13 +3236,11 @@ def display_page_level_details(auth, item_id: int):
     """
     first_revision = db.q(first_revision_query)
     first_memorized_date = first_revision[0]["revision_date"]
-    #######
-    daily_review_count_query = f"""
-    SELECT DISTINCT DATE(revision_date)
-    FROM revisions
-    WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = 3"""
-    daily_review_count = db.q(daily_review_count_query)
-    review_count = len(daily_review_count)
+    first_memorized_mode_id = first_revision[0]["mode_id"]
+    first_memorized_mode_name, description = make_mode_title_for_table(
+        first_memorized_mode_id
+    )
+    print(first_memorized_mode_name)
     #######
     last_revision_query = f"""SELECT rating, revision_date
     FROM revisions
@@ -3219,64 +3262,33 @@ def display_page_level_details(auth, item_id: int):
         P(
             "This page was first memorized and added to the system on: ",
             Span(Strong(first_memorized_date)),
+            " under the mode ",
+            Span(Strong(first_memorized_mode_name)),
         ),
         P(
-            f"Daily Review Status:",
-            Span(Strong(f"{review_count}/7")),
-            f" days completed. Last recorded rating: ",
+            f"Last recorded rating was ",
             Span(Strong(last_rating)),
-            " on ",
+            ", on ",
             Span(Strong(f"{last_revision_date}.")),
         ),
     )
 
-    ###########################
-    def _render_row(data, columns):
-        tds = []
-        for col in columns:
-            value = data.get(col, "")
-            if col == "rating":
-                value = RATING_MAP.get(str(value), value)
-            tds.append(Td(value))
-        return Tr(*tds)
-
-    def build_revision_query(item_id, auth, mode_id, row_alias):
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating
-            FROM revisions
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
-            ORDER BY revision_date ASC;
-        """
-
-    ######################
-    recent_review_query = build_revision_query(item_id, auth, 3, "day")
-    recent_review = db.q(recent_review_query)
-    recent_review_cols = ["day", "revision_date", "rating", "interval"]
-    recent_review_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
-            Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
+    ########################
+    summary_table_query = build_revision_summary_query(
+        item_id, auth, (1, 2, 3, 4), "sno"
     )
-    ######################
-    watch_list_query = build_revision_query(item_id, auth, 4, "week")
-    watch_list_data = db.q(watch_list_query)
-    watch_list_cols = ["week", "revision_date", "rating", "interval"]
-    watch_list_table = Div(
+    summary_data = db.q(summary_table_query)
+    summary_cols = ["sno", "revision_date", "rating", "mode_name", "interval"]
+    summary_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
-            Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
+            Thead(*(Th(col.replace("_", " ").upper()) for col in summary_cols)),
+            Tbody(*[_render_row(row, summary_cols) for row in summary_data]),
         ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
+        # cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########################
     sequence_query = build_revision_query(item_id, auth, 1, "sno")
     sequence_data = db.q(sequence_query)
-    print(sequence_data)
     sequence_cols = ["sno", "revision_date", "rating", "interval"]
     sequence_table = Div(
         Table(
@@ -3285,44 +3297,76 @@ def display_page_level_details(auth, item_id: int):
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
+    ######################
+    new_memorization_query = build_revision_query(item_id, auth, 2, "sno")
+    new_memorization = db.q(new_memorization_query)
+    new_memorization_cols = ["sno", "revision_date", "rating", "interval"]
+    new_memorization_table = Div(
+        Table(
+            Thead(
+                *(Th(col.replace("_", " ").upper()) for col in new_memorization_cols)
+            ),
+            Tbody(
+                *[_render_row(row, new_memorization_cols) for row in new_memorization]
+            ),
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
+    )
+    ######################
+    recent_review_query = build_revision_query(item_id, auth, 3, "sno")
+    recent_review = db.q(recent_review_query)
+    recent_review_cols = ["sno", "revision_date", "rating", "interval"]
+    recent_review_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
+            Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
+    )
+    ######################
+    watch_list_query = build_revision_query(item_id, auth, 4, "sno")
+    watch_list_data = db.q(watch_list_query)
+    watch_list_cols = ["sno", "revision_date", "rating", "interval"]
+    watch_list_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
+            Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
+    )
+    ########################
+
+    prev_id, next_id = get_prev_next_item_ids(item_id)
+    # print(prev_id, next_id)
     prev_pg = A(
         "<<",
-        href=f"/page_details/{item_id - 1}",
+        href=f"/page_details/{prev_id}",
         cls="uk-button uk-button-default",
     )
     next_pg = A(
         ">>",
-        href=f"/page_details/{item_id + 1}",
+        href=f"/page_details/{next_id}",
         cls="uk-button uk-button-default",
     )
-
-    def make_mode_title_for_table(mode_id):
-        mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
-        mode_name, mode_description = mode_details["name"], mode_details["description"]
-        return H2(mode_name, Subtitle(mode_description))
 
     return main_area(
         Div(
             Div(
                 DivFullySpaced(
-                    prev_pg if item_id > 1 else "",
+                    prev_pg if prev_id else "",
                     H1(title, cls="uk-text-center"),
-                    next_pg if item_id < 604 else "",
+                    next_pg if next_id else "",
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
                 cls="space-y-8",
             ),
             Div(
                 memorization_summary,
-                Div(
-                    make_mode_title_for_table(3),
-                    recent_review_table,
-                ),
-                Div(
-                    make_mode_title_for_table(4),
-                    watch_list_table,
-                ),
+                Div(H1("Summary Table"), summary_table),
                 Div(make_mode_title_for_table(1), sequence_table),
+                Div(make_mode_title_for_table(2), new_memorization_table),
+                Div(make_mode_title_for_table(3), recent_review_table),
+                Div(make_mode_title_for_table(4), watch_list_table),
                 cls="space-y-6",
             ),
         ),
