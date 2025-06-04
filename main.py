@@ -3209,35 +3209,13 @@ def display_page_level_details(auth, item_id: int):
     first_memorized_mode_name, description = make_mode_title_for_table(
         first_memorized_mode_id
     )
-    ####### last revision details for summary
-    last_revision_query = f"""SELECT rating, revision_date
-    FROM revisions
-    WHERE item_id = {item_id} AND hafiz_id = {auth}
-    ORDER BY revision_date DESC
-    LIMIT 1;"""
-    last_revision = db.q(last_revision_query)
-    last_revision_rating_id = last_revision[0]["rating"]
-    if last_revision_rating_id == 1:
-        last_rating = "GOOD"
-    elif last_revision_rating_id == 0:
-        last_rating = "OK"
-    elif last_revision_rating_id == -1:
-        last_rating = "BAD"
-
-    last_revision_date = last_revision[0]["revision_date"]
     memorization_summary = Div(
         H2("Summary"),
         P(
-            "This page was added to the system on: ",
+            "This page was added on: ",
             Span(Strong(first_memorized_date)),
             " under ",
             Span(Strong(first_memorized_mode_name)),
-        ),
-        P(
-            f"Last recorded rating was ",
-            Span(Strong(last_rating)),
-            ", on ",
-            Span(Strong(f"{last_revision_date}.")),
         ),
     )
 
@@ -3248,7 +3226,14 @@ def display_page_level_details(auth, item_id: int):
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
                 revision_date,
                 rating,
-                modes.name AS mode_name
+                modes.name AS mode_name,
+            CASE
+                WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
+                ELSE CAST(
+                    JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
+                    AS INTEGER
+                )
+            END AS interval
             FROM revisions
             JOIN modes ON revisions.mode_id = modes.id
             WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_id}
@@ -3274,7 +3259,14 @@ def display_page_level_details(auth, item_id: int):
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
                 revision_date,
-                rating
+                rating,
+            CASE
+                WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
+                ELSE CAST(
+                    JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
+                    AS INTEGER
+                )
+            END AS interval
             FROM revisions
             WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
             ORDER BY revision_date ASC;
@@ -3394,6 +3386,10 @@ def display_page_level_details(auth, item_id: int):
         active="Page Details",
         auth=auth,
     )
+
+
+# q = "SELECT DATEDIFF('2017/08/25', '2011/08/25') AS DateDiff;"
+# print(db.q(q))
 
 
 serve()
