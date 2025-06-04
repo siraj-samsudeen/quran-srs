@@ -170,6 +170,11 @@ def get_recent_review_count(item_id):
     return len(recent_review_count)
 
 
+def get_watch_list_count(item_id):
+    watch_list_count = revisions(where=f"item_id = {item_id} AND mode_id = 4")
+    return len(watch_list_count)
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -2433,6 +2438,101 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
         retarget=f"#recent_review_table_area",
         reselect=f"#recent_review_table_area",
         reswap="outerHTML",
+    )
+
+
+@app.get("/watch_list")
+def recent_review_view(auth):
+    week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
+    hafiz_items_data = hafizs_items(where="mode_id = 4", order_by="item_id ASC")
+
+    item_ids = [hafiz_item.item_id for hafiz_item in hafiz_items_data]
+
+    def get_item_details(item_id):
+        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.id = {item_id};"""
+        item_details = db.q(qry)
+        if item_details:
+            item_details = item_details[0]
+        else:
+            item_details = None
+        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
+
+    def render_row(item_id):
+
+        def render_checkbox(week):
+            current_revision_data = revisions(
+                where=f"item_id = {item_id} AND mode_id = 4;"
+            )
+
+            return Td(
+                Form(
+                    CheckboxX(
+                        name=f"is_checked",
+                        value="1",
+                        # hx_post=f"/recent_review/update_status/{item_id}",
+                        target_id=f"count-{item_id}",
+                        checked=True if current_revision_data else False,
+                        # This @click is to handle the shift+click.
+                        cls=("disabled:opacity-50"),
+                    ),
+                    cls="",
+                ),
+                Span("-", cls=""),
+                cls="text-center",
+            )
+
+        revision_count = get_watch_list_count(item_id)
+
+        return Tr(
+            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(
+                revision_count,
+                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
+                id=f"count-{item_id}",
+            ),
+            Td(
+                graduate_btn_recent_review(
+                    item_id,
+                    # is_graduated=(mode_id == 1),
+                    is_disabled=(revision_count == 0),
+                ),
+                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+            ),
+            *map(render_checkbox, week_column),
+            id=f"row-{item_id}",
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Graduate"),
+                *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
+            )
+        ),
+        Tbody(*map(render_row, item_ids)),
+        cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
+    )
+    content_body = Div(
+        H2("Watch List"),
+        Div(
+            table,
+            cls="uk-overflow-auto",
+            id="recent_review_table_area",
+        ),
+        cls="text-xs sm:text-sm",
+        # Currently this variable is not being used but it is needed for alpine js attributes
+        x_data="{ showAll: false }",
+    )
+
+    return main_area(
+        content_body,
+        Script(src="/public/recent_review_logic.js"),
+        active="Recent Review",
+        auth=auth,
     )
 
 
