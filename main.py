@@ -2502,10 +2502,6 @@ def watch_list_view(auth):
         where="mode_id = 4 OR watch_list_graduation_date IS NOT NULL",
         order_by="mode_id DESC, item_id ASC",
     )
-    item_ids_with_status = [
-        {"item_id": hafiz_item.item_id, "mode_id": hafiz_item.mode_id}
-        for hafiz_item in hafiz_items_data
-    ]
 
     def get_item_details(item_id):
         qry = f"""SELECT pages.page_number, items.surah_name FROM items 
@@ -2533,53 +2529,45 @@ def watch_list_view(auth):
             **kwargs,
         )
 
-    def render_row(o):
-        item_id, mode_id = o["item_id"], o["mode_id"]
-
-        is_graduated = mode_id == 1
+    def render_row(hafiz_item):
+        item_id = hafiz_item.item_id
+        is_graduated = hafiz_item.mode_id == 1
+        last_review = hafiz_item.last_review
 
         watch_list_revisions = revisions(
             where=f"item_id = {item_id} AND mode_id = 4", order_by="revision_date ASC"
         )
-        sliced_week = week_column[len(watch_list_revisions) :]
+        weeks_revision_excluded = week_column[len(watch_list_revisions) :]
 
         revision_count = len(watch_list_revisions)
 
-        recent_review_latest_date_qry = f"""
-            SELECT revision_date as earlist_date FROM revisions
-            WHERE item_id = {item_id} AND mode_id = 3 AND hafiz_id = {auth}
-            ORDER BY revision_date DESC LIMIT 1; 
-            """
+        if not is_graduated:
+            due_day = day_diff(last_review, current_time("%Y-%m-%d"))
+        else:
+            due_day = 0
 
-        ct = db.q(recent_review_latest_date_qry)
-
-        intial_date = ct[0]["earlist_date"]
-        week_diff = calculate_week_number(intial_date, current_time("%Y-%m-%d"))
-
-        def render_checkbox(week):
-            current_week_number = int(week.split(" ")[1])
-            is_current_week_higher = (revision_count < current_week_number) and (
-                week_diff < current_week_number
-            )
-
+        def render_checkbox(_):
             return Td(
                 # used span instead of checkbox so that I can trigger without checking the checkbox
                 Span(
                     hx_get=f"/watch_list/add/{item_id}",
-                    hx_vals={"min_date": intial_date},
+                    hx_vals={"min_date": last_review},
                     hx_trigger="click",
                     target_id="my-modal-body",
                     data_uk_toggle="target: #my-modal",
                     cls=(
                         "uk-checkbox",
-                        ("hidden" if is_current_week_higher or is_graduated else ""),
+                        # ("hidden" if is_graduated else ""),
                     ),
                 ),
+                cls="text-center",
+            )
+
+        def render_hyphen(_):
+            return Td(
                 Span(
                     "-",
-                    cls=(
-                        "hidden" if not (is_current_week_higher or is_graduated) else ""
-                    ),
+                    # cls=("hidden" if is_graduated else ""),
                 ),
                 cls="text-center",
             )
@@ -2596,6 +2584,8 @@ def watch_list_view(auth):
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
+            Td(hafiz_item.next_review),
+            Td(due_day - 7 if due_day > 7 else ""),
             Td(
                 graduate_btn_watch_list(
                     item_id,
@@ -2605,7 +2595,15 @@ def watch_list_view(auth):
                 cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
             ),
             *map(render_date, watch_list_revisions),
-            *map(render_checkbox, sliced_week),
+            *map(render_checkbox, (weeks_revision_excluded[:1] if due_day > 7 else [])),
+            *map(
+                render_hyphen,
+                (
+                    weeks_revision_excluded[1:]
+                    if due_day > 7
+                    else weeks_revision_excluded
+                ),
+            ),
             id=f"row-{item_id}",
         )
 
@@ -2614,11 +2612,13 @@ def watch_list_view(auth):
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
                 Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Next Review"),
+                Th("Due day"),
                 Th("Graduate"),
                 *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
             )
         ),
-        Tbody(*map(render_row, item_ids_with_status)),
+        Tbody(*map(render_row, hafiz_items_data)),
         cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
     )
     modal = ModalContainer(

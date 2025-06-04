@@ -123,6 +123,16 @@ def add_days_to_date(date_str, days):
     return new_date.strftime("%Y-%m-%d")
 
 
+def day_diff(date1, date2):
+    """
+    Returns the difference in days between two dates (YYYY-MM-DD).
+    The result is always non-negative (absolute value).
+    """
+    date1 = datetime.strptime(date1, "%Y-%m-%d")
+    date2 = datetime.strptime(date2, "%Y-%m-%d")
+    return abs((date2 - date1).days)
+
+
 def calculate_week_number(initial_date, input_date):
     """
     Calculate which week the input_date belongs to based on the initial_date.
