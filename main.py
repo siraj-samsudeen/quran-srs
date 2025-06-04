@@ -2480,35 +2480,32 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     )
 
 
+def get_last_watch_list_date(item_id):
+    last_reviewed = revisions(
+        where=f"item_id = {item_id} AND mode_id = 4",
+        order_by="revision_date DESC",
+        limit=1,
+    )
+
+    if last_reviewed:
+        return last_reviewed[0].revision_date
+    return None
+
+
 # TODO: need to test for new user:
 @app.get("/watch_list")
 def watch_list_view(auth):
     week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
 
     # This is to only get the watch_list item_id (which are not graduated yet)
-    hafiz_items_data = hafizs_items(where="mode_id = 4", order_by="item_id ASC")
-    hafiz_item_ids = [
-        {"item_id": hafiz_item.item_id, "is_graduated": False}
+    hafiz_items_data = hafizs_items(
+        where="mode_id = 4 OR watch_list_graduation_date IS NOT NULL",
+        order_by="mode_id DESC, item_id ASC",
+    )
+    item_ids_with_status = [
+        {"item_id": hafiz_item.item_id, "mode_id": hafiz_item.mode_id}
         for hafiz_item in hafiz_items_data
     ]
-
-    # This is to get the unique item_id which are graduated from the recent review and watch_list
-    unique_item_id_qry = """
-        SELECT DISTINCT item_id 
-        FROM (
-            SELECT item_id 
-            FROM revisions 
-            WHERE mode_id IN (3, 4, 1) AND hafiz_id = 1
-            GROUP BY item_id 
-            HAVING COUNT(DISTINCT mode_id) = 3
-        ) AS combined_results;
-    """
-    ct = db.q(unique_item_id_qry)
-    graduated_item_ids = [{"item_id": i["item_id"], "is_graduated": True} for i in ct]
-
-    # Merging both as same as the recent review page
-    # which contains non graduated on top and graduated on bottom
-    item_ids_with_status = hafiz_item_ids + graduated_item_ids
 
     def get_item_details(item_id):
         qry = f"""SELECT pages.page_number, items.surah_name FROM items 
@@ -2537,7 +2534,10 @@ def watch_list_view(auth):
         )
 
     def render_row(o):
-        item_id, is_graduated = o["item_id"], o["is_graduated"]
+        item_id, mode_id = o["item_id"], o["mode_id"]
+
+        is_graduated = mode_id == 1
+
         watch_list_revisions = revisions(
             where=f"item_id = {item_id} AND mode_id = 4", order_by="revision_date ASC"
         )
@@ -2712,11 +2712,23 @@ def watch_list_add_data(revision_details: Revision):
 
 @app.post("/watch_list/graduate")
 def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
+    last_review = get_last_watch_list_date(item_id)
     if is_checked:
-        data_to_update = {"status": "memorized", "mode_id": 1}
+        data_to_update = {
+            "status": "memorized",
+            "mode_id": 1,
+            "last_review": "",
+            "next_review": "",
+            "watch_list_graduation_date": last_review,
+        }
     else:
-
-        data_to_update = {"status": "watch_list", "mode_id": 4}
+        data_to_update = {
+            "status": "watch_list",
+            "mode_id": 4,
+            "last_review": last_review,
+            "next_review": add_days_to_date(last_review, 7),
+            "watch_list_graduation_date": "",
+        }
 
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
 
