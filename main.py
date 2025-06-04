@@ -2511,6 +2511,8 @@ def render_row_based_on_type(
         if current_type != "surah"
         else surahs[type_number].name
     )
+    if data_for == "page_details":
+        title = f"{current_type.capitalize()} {records[0]["page_number"]}"
 
     filter_url = f"/new_memorization/filter/{current_type}/{type_number}"
     if current_type == "page":
@@ -3137,8 +3139,8 @@ def page_details_view(auth):
 
     hafiz_items_with_details = db.q(display_pages_query)
     # print(hafiz_items_with_details)
-    grouped = group_by_type(hafiz_items_with_details, "page")
-    print(len(grouped))
+    grouped = group_by_type(hafiz_items_with_details, "id")
+    print(grouped)
     rows = [
         render_row_based_on_type(type_number, records, "page", data_for="page_details")
         for type_number, records in list(grouped.items())
