@@ -2225,6 +2225,18 @@ def graduate_btn_recent_review(
     )
 
 
+def get_last_recent_review_date(item_id):
+    last_reviewed = revisions(
+        where=f"item_id = {item_id} AND mode_id IN (2,3)",
+        order_by="revision_date DESC",
+        limit=1,
+    )
+
+    if last_reviewed:
+        return last_reviewed[0].revision_date
+    return None
+
+
 @app.get("/recent_review")
 def recent_review_view(auth):
     hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
@@ -2406,6 +2418,20 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
         # as we want to render the disabled checkbox with graduated button
         return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
 
+    if is_checked:
+        last_revision_date = date
+    else:
+        last_revision_date = get_last_recent_review_date(item_id)
+
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+
+        # update the last and next review on the hafizs_items
+        current_hafiz_item.last_review = last_revision_date
+        current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
+        hafizs_items.update(current_hafiz_item)
+
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
     )
@@ -2413,11 +2439,16 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 @app.post("/recent_review/graduate")
 def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
-    if is_checked:
-        data_to_update = {"status": "watch_list", "mode_id": 4}
-    else:
+    last_review = get_last_recent_review_date(item_id)
 
-        data_to_update = {"status": "recent_review", "mode_id": 3}
+    if is_checked:
+        status = "watch_list"
+        mode_id = 4
+        next_review_day = 7
+    else:
+        status = "recent_review"
+        mode_id = 3
+        next_review_day = 1
 
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
@@ -2426,7 +2457,15 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
         # typically when shift-clicking the checkbox where it will trigger multiple requests
         for attempt in range(3):
             try:
-                hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+                hafizs_items.update(
+                    {
+                        "status": status,
+                        "mode_id": mode_id,
+                        "last_review": last_review,
+                        "next_review": add_days_to_date(last_review, next_review_day),
+                    },
+                    current_hafiz_items[0].id,
+                )
                 break  # Success, exit the loop
             except Exception as e:
                 if attempt < 2:  # Only delay if not the last attempt
@@ -2672,7 +2711,7 @@ def watch_list_add_data(revision_details: Revision):
 
 
 @app.post("/watch_list/graduate")
-def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
+def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
     if is_checked:
         data_to_update = {"status": "memorized", "mode_id": 1}
     else:
