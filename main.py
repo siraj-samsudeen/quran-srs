@@ -3129,24 +3129,12 @@ async def post(
 
 @app.get("/page_details")
 def page_details_view(auth):
-    display_pages_query = f"""SELECT DISTINCT
-                        items.id AS item_id,
-                        items.surah_name,
-                        items.surah_id AS surah_id,
-                        pages.page_number,
-                        pages.juz_number
-                        FROM revisions
+    display_pages_query = f"""SELECT DISTINCT items.id, items.surah_id, pages.page_number, pages.juz_number FROM revisions
                         JOIN items ON revisions.item_id = items.id
                         JOIN pages ON items.page_id = pages.id
                         WHERE revisions.hafiz_id = {auth} AND items.active != 0
                         ORDER BY pages.page_number;"""
-    # qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items
-    #                       LEFT JOIN pages ON items.page_id = pages.id
-    #                       LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-    #                       WHERE items.active != 0
-    #                       ORDER BY pages.page_number;"""
-    # q = db.q(qry)
-    # print(q)
+
     hafiz_items_with_details = db.q(display_pages_query)
     # print(hafiz_items_with_details)
     grouped = group_by_type(hafiz_items_with_details, "page")
@@ -3269,7 +3257,8 @@ def display_page_level_details(auth, item_id: int):
         Table(
             Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
             Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
-        )
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ######################
     watch_list_query = build_revision_query(item_id, auth, 4, "week")
@@ -3279,7 +3268,8 @@ def display_page_level_details(auth, item_id: int):
         Table(
             Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
             Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
-        )
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########################
     sequence_query = build_revision_query(item_id, auth, 1, "sno")
@@ -3290,7 +3280,8 @@ def display_page_level_details(auth, item_id: int):
         Table(
             Thead(*(Th(col.replace("_", " ").upper()) for col in sequence_cols)),
             Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
-        )
+        ),
+        cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     prev_pg = A(
         "<<",
@@ -3316,15 +3307,15 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 memorization_summary,
                 Div(
-                    H2("Recent Reviews (Daily Revision for 7 days)"),
+                    H2("Recent Review (Daily Revision for 7 days)"),
                     recent_review_table,
                 ),
                 Div(
-                    H2("Watch List (Weekely Review Cycle for 7 weeks)"),
+                    H2("Watch List (Weekely Review for 7 weeks)"),
                     watch_list_table,
                 ),
                 Div(H2("Sequencial Revision"), sequence_table),
-                cls="space-y-8",
+                cls="space-y-6",
             ),
             active="Page Details",
             auth=auth,
