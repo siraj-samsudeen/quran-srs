@@ -2542,10 +2542,7 @@ def watch_list_view(auth):
                     hx_trigger="click",
                     target_id="my-modal-body",
                     data_uk_toggle="target: #my-modal",
-                    cls=(
-                        "uk-checkbox",
-                        # ("hidden" if is_graduated else ""),
-                    ),
+                    cls=("uk-checkbox"),
                 ),
                 cls="text-center",
             )
@@ -2554,14 +2551,13 @@ def watch_list_view(auth):
             return Td(
                 Span(
                     "-",
-                    # cls=("hidden" if is_graduated else ""),
                 ),
                 cls="text-center",
             )
 
-        def render_date(rev: Revision):
+        def render_rev(rev: Revision):
             return Td(
-                Span(rev.revision_date),
+                Span(RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date),
                 cls="text-center",
             )
 
@@ -2581,7 +2577,7 @@ def watch_list_view(auth):
                 ),
                 cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
             ),
-            *map(render_date, watch_list_revisions),
+            *map(render_rev, watch_list_revisions),
             *map(render_checkbox, (weeks_revision_excluded[:1] if due_day > 7 else [])),
             *map(
                 render_hyphen,
