@@ -2538,7 +2538,7 @@ def watch_list_view(auth):
                 # used span instead of checkbox so that I can trigger without checking the checkbox
                 Span(
                     hx_get=f"/watch_list/add/{item_id}",
-                    hx_vals={"min_date": last_review},
+                    hx_vals={"min_date": hafiz_item.next_review},
                     hx_trigger="click",
                     target_id="my-modal-body",
                     data_uk_toggle="target: #my-modal",
@@ -2571,8 +2571,8 @@ def watch_list_view(auth):
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
-            Td(hafiz_item.next_review),
-            Td(due_day - 7 if due_day > 7 else ""),
+            Td(hafiz_item.next_review if revision_count < 7 else ""),
+            Td(due_day - 7 if (due_day > 7) and (revision_count < 7) else ""),
             Td(
                 graduate_btn_watch_list(
                     item_id,
@@ -2599,7 +2599,7 @@ def watch_list_view(auth):
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
                 Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
-                Th("Next Review"),
+                Th("Next Review", cls="min-w-28 "),
                 Th("Due day"),
                 Th("Graduate"),
                 *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
@@ -2664,7 +2664,7 @@ def watch_list_single_entry_form(item_id: int, min_date: str):
             LabelInput(
                 "Revision Date",
                 name="revision_date",
-                min=add_days_to_date(min_date, 1),
+                min=min_date,
                 type="date",
                 value=current_time("%Y-%m-%d"),
             ),
@@ -2692,8 +2692,26 @@ def watch_list_single_entry_form(item_id: int, min_date: str):
 
 
 @app.post("/watch_list/add")
-def watch_list_add_data(revision_details: Revision):
+def watch_list_add_data(revision_details: Revision, auth):
+
     revisions.insert(revision_details)
+    item_id = revision_details.item_id
+
+    recent_review_count = len(revisions(where=f"item_id = {item_id} AND mode_id = 4"))
+
+    if recent_review_count >= 7:
+        graduate_watch_list(item_id, auth, True)
+        return RedirectResponse(f"/watch_list", status_code=303)
+
+    last_review_date = revision_details.revision_date
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        current_hafiz_item.last_review = last_review_date
+        current_hafiz_item.next_review = add_days_to_date(last_review_date, 7)
+        hafizs_items.update(current_hafiz_item)
+
     return RedirectResponse("/watch_list", status_code=303)
 
 
