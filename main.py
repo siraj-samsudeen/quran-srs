@@ -2486,7 +2486,7 @@ def watch_list_view(auth):
 
     # This is to only get the watch_list item_id (which are not graduated yet)
     hafiz_items_data = hafizs_items(
-        where="mode_id = 4 OR watch_list_graduation_date IS NOT NULL",
+        where=f"(mode_id = 4 OR watch_list_graduation_date IS NOT NULL) AND hafiz_id = {auth}",
         order_by="mode_id DESC, item_id ASC",
     )
 
@@ -2561,14 +2561,25 @@ def watch_list_view(auth):
                 cls="text-center",
             )
 
+        if is_graduated or revision_count >= 7:
+            due_day_message = ""
+        elif due_day > 7:
+            due_day_message = due_day - 7
+        else:
+            due_day_message = "-"
+
         return Tr(
             Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
-            Td(hafiz_item.next_review if revision_count < 7 else ""),
-            Td(due_day - 7 if (due_day > 7) and (revision_count < 7) else ""),
+            Td(
+                hafiz_item.next_review
+                if (not is_graduated) and revision_count < 7
+                else ""
+            ),
+            Td(due_day_message),
             Td(
                 graduate_btn_watch_list(
                     item_id,
