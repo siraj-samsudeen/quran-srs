@@ -569,6 +569,11 @@ def main_area(*args, active=None, auth=None):
                     href="/recent_review",
                     cls=is_active("Recent Review"),
                 ),
+                A(
+                    "Watch List",
+                    href="/watch_list",
+                    cls=is_active("Watch List"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -2530,8 +2535,7 @@ def recent_review_view(auth):
 
     return main_area(
         content_body,
-        Script(src="/public/recent_review_logic.js"),
-        active="Recent Review",
+        active="Watch List",
         auth=auth,
     )
 
