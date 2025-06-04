@@ -2537,7 +2537,7 @@ def render_row_based_on_type(
     if data_for == "page_details" and current_type == "page":
         get_page = f"/page_details/{type_number}"  # pass item_id instead of the page
     hx_attrs = (
-        {"href": get_page}
+        {"hx_get": get_page, "hx_target": "body", "hx_replace_url": "true"}
         if data_for == "page_details"
         else {
             "hx_get": get_page,
@@ -2571,7 +2571,7 @@ def render_row_based_on_type(
                             )
                         )
                     ),
-                    **hx_attrs if data_for == "page_details" else {},
+                    href=f"{get_page}" if data_for == "page_details" else {},
                     cls=AT.classic,
                 ),
                 cls="text-right",
