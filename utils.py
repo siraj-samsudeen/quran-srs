@@ -117,6 +117,43 @@ def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
     return target_date.strftime(date_format)
 
 
+def calculate_week_number(initial_date, input_date):
+    """
+    Calculate which week the input_date belongs to based on the initial_date.
+    The initial_date is excluded - counting starts from the next day.
+
+    Args:
+        initial_date (str): Starting date in DD-MM-YYYY format (excluded from counting)
+        input_date (str): Date to check in DD-MM-YYYY format
+
+    Returns:
+        int: Week number (1-based)
+
+    Logic:
+        - initial_date is excluded from counting
+        - Days 1-7 after initial_date = Week 1
+        - Days 8-14 after initial_date = Week 2
+        - And so on...
+    """
+
+    # Parse the date strings
+    initial = datetime.strptime(initial_date, "%Y-%m-%d")
+    input_dt = datetime.strptime(input_date, "%Y-%m-%d")
+
+    # Calculate the difference in days
+    days_diff = (input_dt - initial).days
+
+    # If input_date is same as or before initial_date, return 0
+    if days_diff <= 0:
+        return 0  # initial_date and earlier dates are not part of any week
+
+    # Calculate week number (1-based)
+    # Since we exclude initial_date, day 1 after initial_date starts week 1
+    week_number = ((days_diff - 1) // 7) + 1
+
+    return week_number
+
+
 def compact_format(numbers):
     if not numbers:
         return ""

@@ -2446,6 +2446,7 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     )
 
 
+# TODO: need to test for new user:
 @app.get("/watch_list")
 def recent_review_view(auth):
     week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
@@ -2465,26 +2466,37 @@ def recent_review_view(auth):
         return f"{item_details["page_number"]} - {item_details["surah_name"]}"
 
     def render_row(item_id):
+        recent_review_latest_date_qry = f"""
+            SELECT revision_date as earlist_date FROM revisions
+            WHERE item_id = {item_id} AND mode_id = 3 AND hafiz_id = {auth}
+            ORDER BY revision_date DESC LIMIT 1; 
+            """
+
+        ct = db.q(recent_review_latest_date_qry)
+
+        intial_date = ct[0]["earlist_date"]
+        recent_week_diff = calculate_week_number(intial_date, current_time("%Y-%m-%d"))
 
         def render_checkbox(week):
-            current_revision_data = revisions(
-                where=f"item_id = {item_id} AND mode_id = 4;"
-            )
-
+            current_week_number = int(week.split(" ")[1])
+            is_current_week_higher = recent_week_diff < current_week_number
             return Td(
                 Form(
-                    CheckboxX(
-                        name=f"is_checked",
-                        value="1",
-                        # hx_post=f"/recent_review/update_status/{item_id}",
+                    # used span instead of checkbox so that I can trigger without checking the checkbox
+                    Span(
+                        hx_post=f"/recent_review/update_status/{item_id}",
+                        hx_trigger="click",
                         target_id=f"count-{item_id}",
-                        checked=True if current_revision_data else False,
-                        # This @click is to handle the shift+click.
-                        cls=("disabled:opacity-50"),
+                        cls=(
+                            "uk-checkbox",
+                            ("hidden" if is_current_week_higher else ""),
+                        ),
                     ),
-                    cls="",
                 ),
-                Span("-", cls=""),
+                Span(
+                    "-",
+                    cls=("hidden" if not is_current_week_higher else ""),
+                ),
                 cls="text-center",
             )
 
