@@ -2443,11 +2443,33 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
 
 # TODO: need to test for new user:
 @app.get("/watch_list")
-def recent_review_view(auth):
+def watch_list_view(auth):
     week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
-    hafiz_items_data = hafizs_items(where="mode_id = 4", order_by="item_id ASC")
 
-    item_ids = [hafiz_item.item_id for hafiz_item in hafiz_items_data]
+    # This is to only get the watch_list item_id (which are not graduated yet)
+    hafiz_items_data = hafizs_items(where="mode_id = 4", order_by="item_id ASC")
+    hafiz_item_ids = [
+        {"item_id": hafiz_item.item_id, "is_graduated": False}
+        for hafiz_item in hafiz_items_data
+    ]
+
+    # This is to get the unique item_id which are graduated from the recent review and watch_list
+    unique_item_id_qry = """
+        SELECT DISTINCT item_id 
+        FROM (
+            SELECT item_id 
+            FROM revisions 
+            WHERE mode_id IN (3, 4, 1) AND hafiz_id = 1
+            GROUP BY item_id 
+            HAVING COUNT(DISTINCT mode_id) = 3
+        ) AS combined_results;
+    """
+    ct = db.q(unique_item_id_qry)
+    graduated_item_ids = [{"item_id": i["item_id"], "is_graduated": True} for i in ct]
+
+    # Merging both as same as the recent review page
+    # which contains non graduated on top and graduated on bottom
+    item_ids_with_status = hafiz_item_ids + graduated_item_ids
 
     def get_item_details(item_id):
         qry = f"""SELECT pages.page_number, items.surah_name FROM items 
@@ -2475,7 +2497,8 @@ def recent_review_view(auth):
             **kwargs,
         )
 
-    def render_row(item_id):
+    def render_row(o):
+        item_id, is_graduated = o["item_id"], o["is_graduated"]
         watch_list_revisions = revisions(
             where=f"item_id = {item_id} AND mode_id = 4", order_by="revision_date ASC"
         )
@@ -2510,12 +2533,14 @@ def recent_review_view(auth):
                     data_uk_toggle="target: #my-modal",
                     cls=(
                         "uk-checkbox",
-                        ("hidden" if is_current_week_higher else ""),
+                        ("hidden" if is_current_week_higher or is_graduated else ""),
                     ),
                 ),
                 Span(
                     "-",
-                    cls=("hidden" if not is_current_week_higher else ""),
+                    cls=(
+                        "hidden" if not (is_current_week_higher or is_graduated) else ""
+                    ),
                 ),
                 cls="text-center",
             )
@@ -2535,7 +2560,7 @@ def recent_review_view(auth):
             Td(
                 graduate_btn_watch_list(
                     item_id,
-                    # is_graduated=(mode_id == 1),
+                    is_graduated=is_graduated,
                     is_disabled=(revision_count == 0),
                 ),
                 cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
@@ -2554,7 +2579,7 @@ def recent_review_view(auth):
                 *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
             )
         ),
-        Tbody(*map(render_row, item_ids)),
+        Tbody(*map(render_row, item_ids_with_status)),
         cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
     )
     modal = ModalContainer(
@@ -2575,7 +2600,7 @@ def recent_review_view(auth):
             table,
             modal,
             cls="uk-overflow-auto",
-            id="recent_review_table_area",
+            id="watch_list_table_area",
         ),
         cls="text-xs sm:text-sm",
         # Currently this variable is not being used but it is needed for alpine js attributes
@@ -2644,6 +2669,26 @@ def watch_list_single_entry_form(item_id: int, min_date: str):
 def watch_list_add_data(revision_details: Revision):
     revisions.insert(revision_details)
     return RedirectResponse("/watch_list", status_code=303)
+
+
+@app.post("/watch_list/graduate")
+def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
+    if is_checked:
+        data_to_update = {"status": "memorized", "mode_id": 1}
+    else:
+
+        data_to_update = {"status": "watch_list", "mode_id": 4}
+
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+
+    if current_hafiz_items:
+        hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+
+    return watch_list_view(auth), HtmxResponseHeaders(
+        retarget=f"#watch_list_table_area",
+        reselect=f"#watch_list_table_area",
+        reswap="outerHTML",
+    )
 
 
 @app.get
