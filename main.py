@@ -3131,12 +3131,6 @@ async def post(
 
 @app.get("/page_details")
 def page_details_view(auth):
-    # display_pages_query = f"""SELECT DISTINCT items.id, items.surah_id, pages.page_number, pages.juz_number FROM revisions
-    #                     JOIN items ON revisions.item_id = items.id
-    #                     JOIN pages ON items.page_id = pages.id
-    #                     WHERE revisions.hafiz_id = {auth} AND items.active != 0
-    #                     ORDER BY pages.page_number;"""
-
     display_pages_query = f"""SELECT 
                             items.id,
                             items.surah_id,
@@ -3148,14 +3142,14 @@ def page_details_view(auth):
                             COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END),0), '-')AS watch_list,
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
-                        JOIN items ON revisions.item_id = items.id
-                        JOIN pages ON items.page_id = pages.id
+                        LEFT JOIN items ON revisions.item_id = items.id
+                        LEFT JOIN pages ON items.page_id = pages.id
                         WHERE revisions.hafiz_id = {auth} AND items.active != 0
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
 
     hafiz_items_with_details = db.q(display_pages_query)
-    print(hafiz_items_with_details)
+    # print(len(hafiz_items_with_details))
     grouped = group_by_type(hafiz_items_with_details, "id")
 
     # print(grouped)
@@ -3235,6 +3229,11 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
+    rev_data = revisions(where=f"item_id = {item_id}")
+    if not rev_data:
+        print("No revisions found for item_id:", item_id)
+        return Redirect("/page_details")
+
     def _render_row(data, columns):
         tds = []
         for col in columns:
@@ -3261,10 +3260,13 @@ def display_page_level_details(auth, item_id: int):
     LEFT JOIN hafizs_items ON hafizs_items.item_id = items.id AND hafizs_items.hafiz_id = {auth}
     WHERE items.id = {item_id};"""
     meta = db.q(meta_query)
-    surah_name = meta[0]["surah_name"]
-    page_number = meta[0]["page_number"]
-    title = f"Surah {surah_name}, Page {page_number}"
-    juz = f"Juz {meta[0]['juz_number']}"
+    if len(meta) != 0:
+        surah_name = meta[0]["surah_name"]
+        page_number = meta[0]["page_number"]
+        title = f"Surah {surah_name}, Page {page_number}"
+        juz = f"Juz {meta[0]['juz_number']}"
+    else:
+        Redirect("/page_details")
     ####### Summary of first memorization
     first_revision_query = f""" SELECT 
     revision_date, mode_id
@@ -3274,8 +3276,14 @@ def display_page_level_details(auth, item_id: int):
     LIMIT 1;
     """
     first_revision = db.q(first_revision_query)
-    first_memorized_date = first_revision[0]["revision_date"]
-    first_memorized_mode_id = first_revision[0]["mode_id"]
+    first_memorized_date = (
+        first_revision[0]["revision_date"]
+        if first_revision
+        else Redirect("/page_details")
+    )
+    first_memorized_mode_id = (
+        first_revision[0]["mode_id"] if first_revision else Redirect("/page_details")
+    )
     first_memorized_mode_name, description = make_mode_title_for_table(
         first_memorized_mode_id
     )
@@ -3398,18 +3406,16 @@ def display_page_level_details(auth, item_id: int):
     ########### Previous and Next Page Navigation
     def get_prev_next_item_ids(current_item_id):
         prev_query = f"""SELECT items.id, pages.page_number FROM revisions
-                          JOIN items ON revisions.item_id = items.id
-                          JOIN pages ON items.page_id = pages.id
+                          LEFT JOIN items ON revisions.item_id = items.id
+                          LEFT JOIN pages ON items.page_id = pages.id
                           WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id < {current_item_id}
                           ORDER BY items.id DESC LIMIT 1;"""
 
         next_query = f"""SELECT items.id, pages.page_number FROM revisions
-                          JOIN items ON revisions.item_id = items.id
-                          JOIN pages ON items.page_id = pages.id
+                          LEFT JOIN items ON revisions.item_id = items.id
+                          LEFT JOIN pages ON items.page_id = pages.id
                           WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id > {current_item_id}
                           ORDER BY items.id ASC LIMIT 1;"""
-        # prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
-        # next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
         prev_result = db.q(prev_query)
         next_result = db.q(next_query)
         prev_id = prev_result[0]["id"] if prev_result else None
