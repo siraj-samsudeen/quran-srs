@@ -3138,7 +3138,6 @@ def page_details_view(auth):
                         ORDER BY pages.page_number;"""
 
     hafiz_items_with_details = db.q(display_pages_query)
-    # print(hafiz_items_with_details)
     grouped = group_by_type(hafiz_items_with_details, "id")
     # print(grouped)
     rows = [
@@ -3386,10 +3385,6 @@ def display_page_level_details(auth, item_id: int):
         active="Page Details",
         auth=auth,
     )
-
-
-# q = "SELECT DATEDIFF('2017/08/25', '2011/08/25') AS DateDiff;"
-# print(db.q(q))
 
 
 serve()
