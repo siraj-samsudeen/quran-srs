@@ -3131,24 +3131,90 @@ async def post(
 
 @app.get("/page_details")
 def page_details_view(auth):
-    display_pages_query = f"""SELECT DISTINCT items.id, items.surah_id, pages.page_number, pages.juz_number FROM revisions
+    # display_pages_query = f"""SELECT DISTINCT items.id, items.surah_id, pages.page_number, pages.juz_number FROM revisions
+    #                     JOIN items ON revisions.item_id = items.id
+    #                     JOIN pages ON items.page_id = pages.id
+    #                     WHERE revisions.hafiz_id = {auth} AND items.active != 0
+    #                     ORDER BY pages.page_number;"""
+
+    display_pages_query = f"""SELECT 
+                            items.id,
+                            items.surah_id,
+                            pages.page_number,
+                            pages.juz_number,
+                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END),0), '-') AS full_cycle,
+                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END),0), '-') AS new_memorization,
+                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 ELSE 0 END), 0), '-') AS recent_review,
+                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END),0), '-')AS watch_list,
+                            SUM(revisions.rating) AS rating_summary
+                        FROM revisions
                         JOIN items ON revisions.item_id = items.id
                         JOIN pages ON items.page_id = pages.id
                         WHERE revisions.hafiz_id = {auth} AND items.active != 0
+                        GROUP BY items.id
                         ORDER BY pages.page_number;"""
 
     hafiz_items_with_details = db.q(display_pages_query)
+    print(hafiz_items_with_details)
     grouped = group_by_type(hafiz_items_with_details, "id")
+
     # print(grouped)
+    def render_row_based_on_type(
+        records: list,
+        row_link: bool = True,
+        data_for=None,
+    ):
+        r = records[0]
+
+        title = f"Page {r['page_number']}"
+        details = f"Juz {r['juz_number']} | {surahs[r['surah_id']].name}"
+
+        get_page = f"/page_details/{r['id']}"  # item_id
+
+        hx_attrs = (
+            {"hx_get": get_page, "hx_target": "body", "hx_replace_url": "true"}
+            if data_for == "page_details"
+            else {}
+        )
+        new_memorization = r["new_memorization"]
+        recent_review = r["recent_review"]
+        watch_list = r["watch_list"]
+        full_cycle = r["full_cycle"]
+        rating_summary = r["rating_summary"]
+
+        return Tr(
+            Td(title),
+            Td(details),
+            Td(new_memorization),
+            Td(recent_review),
+            Td(watch_list),
+            Td(full_cycle),
+            Td(rating_summary),
+            Td(
+                A(
+                    "See Details",
+                    href=get_page,
+                    cls=AT.classic,
+                ),
+                cls="text-right",
+            ),
+            **hx_attrs if row_link else {},
+        )
+
     rows = [
-        render_row_based_on_type(type_number, records, "page", data_for="page_details")
+        render_row_based_on_type(records, data_for="page_details")
         for type_number, records in list(grouped.items())
     ]
     table = Table(
         Thead(
             Tr(
                 Th("Page"),
-                Th("Surah"),
+                Th("Details"),
+                Th("New Memorization"),
+                Th("Recent Review"),
+                Th("Watch List"),
+                Th("Full Cycle"),
+                Th("Rating Summary"),
             )
         ),
         Tbody(*rows),
@@ -3326,8 +3392,19 @@ def display_page_level_details(auth, item_id: int):
 
     ########### Previous and Next Page Navigation
     def get_prev_next_item_ids(current_item_id):
-        prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
-        next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
+        prev_query = f"""SELECT items.id, pages.page_number FROM revisions
+                          JOIN items ON revisions.item_id = items.id
+                          JOIN pages ON items.page_id = pages.id
+                          WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id < {current_item_id}
+                          ORDER BY items.id DESC LIMIT 1;"""
+
+        next_query = f"""SELECT items.id, pages.page_number FROM revisions
+                          JOIN items ON revisions.item_id = items.id
+                          JOIN pages ON items.page_id = pages.id
+                          WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id > {current_item_id}
+                          ORDER BY items.id DESC LIMIT 1;"""
+        # prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
+        # next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
         prev_result = db.q(prev_query)
         next_result = db.q(next_query)
         prev_id = prev_result[0]["id"] if prev_result else None
@@ -3360,7 +3437,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H1("Summary Table"), summary_table),
+                Div(H2("Summary Table"), summary_table),
                 (
                     Div(make_mode_title_for_table(1), sequence_table)
                     if sequence_data_display
