@@ -13,7 +13,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
-DB_PATH = "data/quran_v8.db"
+DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
 create_and_migrate_db(DB_PATH)
