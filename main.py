@@ -564,6 +564,11 @@ def main_area(*args, active=None, auth=None):
                     href="/recent_review",
                     cls=is_active("Recent Review"),
                 ),
+                A(
+                    "Page Details",
+                    href="/page_details",
+                    cls=is_active("Page Details"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -2472,6 +2477,7 @@ def render_row_based_on_type(
     title_range=None,
     details_range=None,
     rev_date=None,
+    data_for=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -2526,16 +2532,22 @@ def render_row_based_on_type(
     else:
         get_page = filter_url
 
-    hx_attrs = {
-        "hx_get": get_page,
-        "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-            "CURRENT_TITLE", title
-        ).replace(
-            "CURRENT_DETAILS", details
-        ),
-        "target_id": "modal-body",
-        "data_uk_toggle": "target: #modal",
-    }
+    if data_for == "page_details" and current_type == "page":
+        get_page = f"/page_details/{type_number}"  # pass item_id instead of the page
+    hx_attrs = (
+        {"href": get_page}
+        if data_for == "page_details"
+        else {
+            "hx_get": get_page,
+            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                "CURRENT_TITLE", title
+            ).replace(
+                "CURRENT_DETAILS", details
+            ),
+            "target_id": "modal-body",
+            "data_uk_toggle": "target: #modal",
+        }
+    )
 
     return Tr(
         Td(title),
@@ -2550,10 +2562,14 @@ def render_row_based_on_type(
                         else (
                             display_next
                             if continue_new_memorization
-                            else "Start Memorization ➡️"
+                            else (
+                                "see details"
+                                if data_for == "page_details"
+                                else "Start Memorization ➡️"
+                            )
                         )
                     ),
-                    # **hx_attrs if continue_new_memorization else {},
+                    **hx_attrs if data_for == "page_details" else {},
                     cls=AT.classic,
                 ),
                 cls="text-right",
@@ -3109,6 +3125,215 @@ async def post(
 
     revisions.insert_all(parsed_data)
     return Redirect(f"/new_memorization/{current_type}")
+
+
+@app.get("/page_details")
+def page_details_view(auth):
+    display_pages_query = f"""SELECT DISTINCT
+                        items.id AS item_id,
+                        items.surah_name,
+                        items.surah_id AS surah_id,
+                        pages.page_number,
+                        pages.juz_number
+                        FROM revisions
+                        JOIN items ON revisions.item_id = items.id
+                        JOIN pages ON items.page_id = pages.id
+                        WHERE revisions.hafiz_id = {auth} AND items.active != 0
+                        ORDER BY pages.page_number;"""
+    # qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items
+    #                       LEFT JOIN pages ON items.page_id = pages.id
+    #                       LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+    #                       WHERE items.active != 0
+    #                       ORDER BY pages.page_number;"""
+    # q = db.q(qry)
+    # print(q)
+    hafiz_items_with_details = db.q(display_pages_query)
+    # print(hafiz_items_with_details)
+    grouped = group_by_type(hafiz_items_with_details, "page")
+    print(grouped)
+    rows = [
+        render_row_based_on_type(type_number, records, "page", data_for="page_details")
+        for type_number, records in list(grouped.items())
+    ]
+    table = Table(
+        Thead(
+            Tr(
+                Th("Page"),
+                Th("Surah"),
+            )
+        ),
+        Tbody(*rows),
+    )
+
+    return main_area(
+        Title("Page Details"),
+        table,
+        active="Page Details",
+        auth=auth,
+    )
+
+
+@app.get("/page_details/{item_id}")
+def display_page_level_details(auth, item_id: int):
+    ###### Title and Juz
+    meta_query = f"""SELECT 
+    items.id AS item_id,
+    items.surah_name,
+    pages.page_number,
+    pages.juz_number,
+    hafizs_items.mode_id
+    FROM items
+    JOIN pages ON items.page_id = pages.id
+    JOIN hafizs_items ON hafizs_items.item_id = items.id
+    WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id = {item_id};"""
+    meta = db.q(meta_query)
+    surah_name = meta[0]["surah_name"]
+    page_number = meta[0]["page_number"]
+    title = f"Surah {surah_name}, Page {page_number}"
+    juz = f"Juz {meta[0]['juz_number']}"
+    #######
+    first_revision_query = f""" SELECT 
+    revision_date
+    FROM revisions
+    WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN(1,2,3,4)
+    ORDER BY revision_date ASC
+    LIMIT 1;
+    """
+    first_revision = db.q(first_revision_query)
+    first_memorized_date = first_revision[0]["revision_date"]
+    #######
+    daily_review_count_query = f"""
+    SELECT DISTINCT DATE(revision_date)
+    FROM revisions
+    WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = 3"""
+    daily_review_count = db.q(daily_review_count_query)
+    review_count = len(daily_review_count)
+    #######
+    last_revision_query = f"""SELECT rating, revision_date
+    FROM revisions
+    WHERE item_id = {item_id} AND hafiz_id = {auth}
+    ORDER BY revision_date DESC
+    LIMIT 1;"""
+    last_revision = db.q(last_revision_query)
+    last_revision_rating_id = last_revision[0]["rating"]
+    if last_revision_rating_id == 1:
+        last_rating = "GOOD"
+    elif last_revision_rating_id == 0:
+        last_rating = "OK"
+    elif last_revision_rating_id == -1:
+        last_rating = "BAD"
+
+    last_revision_date = last_revision[0]["revision_date"]
+    memorization_summary = Div(
+        H2("Memorization Summary"),
+        P(
+            "This page was first memorized and added to the system on: ",
+            Span(Strong(first_memorized_date)),
+        ),
+        P(
+            f"Daily Review Status:",
+            Span(Strong(f"{review_count}/7")),
+            f" days completed. Last recorded rating: ",
+            Span(Strong(last_rating)),
+            " on ",
+            Span(Strong(f"{last_revision_date}.")),
+        ),
+    )
+
+    ###########################
+    def _render_row(data, columns):
+        tds = []
+        for col in columns:
+            value = data.get(col, "")
+            if col == "rating":
+                value = RATING_MAP.get(str(value), value)
+            tds.append(Td(value))
+        return Tr(*tds)
+
+    def build_revision_query(item_id, auth, mode_id, row_alias):
+        return f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
+                revision_date,
+                rating,
+                COALESCE(
+                    revision_date - LAG(revision_date) OVER (ORDER BY revision_date),
+                    0
+                ) AS interval_days
+            FROM revisions
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
+            ORDER BY revision_date ASC;
+        """
+
+    ######################
+    recent_review_query = build_revision_query(item_id, auth, 3, "day")
+    recent_review = db.q(recent_review_query)
+    recent_review_cols = ["day", "revision_date", "rating", "interval"]
+    recent_review_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
+            Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
+        )
+    )
+    ######################
+    watch_list_query = build_revision_query(item_id, auth, 4, "week")
+    watch_list_data = db.q(watch_list_query)
+    watch_list_cols = ["week", "revision_date", "rating", "interval"]
+    watch_list_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
+            Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
+        )
+    )
+    ########################
+    sequence_query = build_revision_query(item_id, auth, 1, "sno")
+    sequence_data = db.q(sequence_query)
+    print(sequence_data)
+    sequence_cols = ["sno", "revision_date", "rating", "interval"]
+    sequence_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").upper()) for col in sequence_cols)),
+            Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
+        )
+    )
+    prev_pg = A(
+        "<<",
+        href=f"/page_details/{item_id - 1}",
+        cls="uk-button uk-button-default",
+    )
+    next_pg = A(
+        ">>",
+        href=f"/page_details/{item_id + 1}",
+        cls="uk-button uk-button-default",
+    )
+    return main_area(
+        Div(
+            Div(
+                DivFullySpaced(
+                    prev_pg if item_id > 1 else "",
+                    H1(title, cls="uk-text-center"),
+                    next_pg if item_id < 604 else "",
+                ),
+                Subtitle(Strong(juz), cls="uk-text-center"),
+                cls="space-y-8",
+            ),
+            Div(
+                memorization_summary,
+                Div(
+                    H2("Recent Reviews (Daily Revision for 7 days)"),
+                    recent_review_table,
+                ),
+                Div(
+                    H2("Watch List (Weekely Review Cycle for 7 weeks)"),
+                    watch_list_table,
+                ),
+                Div(H2("Sequencial Revision"), sequence_table),
+                cls="space-y-8",
+            ),
+            active="Page Details",
+            auth=auth,
+        )
+    )
 
 
 serve()
