@@ -170,11 +170,6 @@ def get_recent_review_count(item_id):
     return len(recent_review_count)
 
 
-def get_watch_list_count(item_id):
-    watch_list_count = revisions(where=f"item_id = {item_id} AND mode_id = 4")
-    return len(watch_list_count)
-
-
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -2481,7 +2476,12 @@ def recent_review_view(auth):
         )
 
     def render_row(item_id):
-        revision_count = get_watch_list_count(item_id)
+        watch_list_revisions = revisions(
+            where=f"item_id = {item_id} AND mode_id = 4", order_by="revision_date ASC"
+        )
+        sliced_week = week_column[len(watch_list_revisions) :]
+
+        revision_count = len(watch_list_revisions)
 
         recent_review_latest_date_qry = f"""
             SELECT revision_date as earlist_date FROM revisions
@@ -2492,30 +2492,37 @@ def recent_review_view(auth):
         ct = db.q(recent_review_latest_date_qry)
 
         intial_date = ct[0]["earlist_date"]
+        week_diff = calculate_week_number(intial_date, current_time("%Y-%m-%d"))
 
         def render_checkbox(week):
             current_week_number = int(week.split(" ")[1])
-            is_current_week_higher = revision_count + 1 < current_week_number
+            is_current_week_higher = (revision_count < current_week_number) and (
+                week_diff < current_week_number
+            )
 
             return Td(
-                Form(
-                    # used span instead of checkbox so that I can trigger without checking the checkbox
-                    Span(
-                        hx_get=f"/watch_list/add/{item_id}",
-                        hx_vals={"min_date": intial_date},
-                        hx_trigger="click",
-                        target_id="my-modal-body",
-                        data_uk_toggle="target: #my-modal",
-                        cls=(
-                            "uk-checkbox",
-                            ("hidden" if is_current_week_higher else ""),
-                        ),
+                # used span instead of checkbox so that I can trigger without checking the checkbox
+                Span(
+                    hx_get=f"/watch_list/add/{item_id}",
+                    hx_vals={"min_date": intial_date},
+                    hx_trigger="click",
+                    target_id="my-modal-body",
+                    data_uk_toggle="target: #my-modal",
+                    cls=(
+                        "uk-checkbox",
+                        ("hidden" if is_current_week_higher else ""),
                     ),
                 ),
                 Span(
                     "-",
                     cls=("hidden" if not is_current_week_higher else ""),
                 ),
+                cls="text-center",
+            )
+
+        def render_date(rev: Revision):
+            return Td(
+                Span(rev.revision_date),
                 cls="text-center",
             )
 
@@ -2533,7 +2540,8 @@ def recent_review_view(auth):
                 ),
                 cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
             ),
-            *map(render_checkbox, week_column),
+            *map(render_date, watch_list_revisions),
+            *map(render_checkbox, sliced_week),
             id=f"row-{item_id}",
         )
 
