@@ -2565,7 +2565,7 @@ def render_row_based_on_type(
                             display_next
                             if continue_new_memorization
                             else (
-                                "see details"
+                                "See Details ➡️"
                                 if data_for == "page_details"
                                 else "Start Memorization ➡️"
                             )
@@ -3149,10 +3149,8 @@ def page_details_view(auth):
                         ORDER BY pages.page_number;"""
 
     hafiz_items_with_details = db.q(display_pages_query)
-    # print(len(hafiz_items_with_details))
     grouped = group_by_type(hafiz_items_with_details, "id")
 
-    # print(grouped)
     def render_row_based_on_type(
         records: list,
         row_link: bool = True,
@@ -3191,7 +3189,7 @@ def page_details_view(auth):
             Td(rating_summary),
             Td(
                 A(
-                    "See Details",
+                    "See Details ➡️",
                     href=get_page,
                     cls=AT.classic,
                 ),
@@ -3229,9 +3227,9 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
-    rev_data = revisions(where=f"item_id = {item_id}")
+    rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
     if not rev_data:
-        print("No revisions found for item_id:", item_id)
+        # print("No revisions found for item_id:", item_id)
         return Redirect("/page_details")
 
     def _render_row(data, columns):
@@ -3423,7 +3421,6 @@ def display_page_level_details(auth, item_id: int):
         return prev_id, next_id
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
-    # print(prev_id, next_id)
     prev_pg = A(
         "<<" if prev_id else "",
         href=f"/page_details/{prev_id}" if prev_id is not None else "#",
