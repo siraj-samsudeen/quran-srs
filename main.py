@@ -3240,7 +3240,6 @@ def display_page_level_details(auth, item_id: int):
     first_memorized_mode_name, description = make_mode_title_for_table(
         first_memorized_mode_id
     )
-    print(first_memorized_mode_name)
     #######
     last_revision_query = f"""SELECT rating, revision_date
     FROM revisions
@@ -3258,11 +3257,11 @@ def display_page_level_details(auth, item_id: int):
 
     last_revision_date = last_revision[0]["revision_date"]
     memorization_summary = Div(
-        H2("Memorization Summary"),
+        H2("Summary"),
         P(
-            "This page was first memorized and added to the system on: ",
+            "This page was added to the system on: ",
             Span(Strong(first_memorized_date)),
-            " under the mode ",
+            " under ",
             Span(Strong(first_memorized_mode_name)),
         ),
         P(
@@ -3289,6 +3288,7 @@ def display_page_level_details(auth, item_id: int):
     ########################
     sequence_query = build_revision_query(item_id, auth, 1, "sno")
     sequence_data = db.q(sequence_query)
+    sequence_data_display = True if len(sequence_data) != 0 else False
     sequence_cols = ["sno", "revision_date", "rating", "interval"]
     sequence_table = Div(
         Table(
@@ -3300,6 +3300,7 @@ def display_page_level_details(auth, item_id: int):
     ######################
     new_memorization_query = build_revision_query(item_id, auth, 2, "sno")
     new_memorization = db.q(new_memorization_query)
+    new_memorization_display = True if len(new_memorization) != 0 else False
     new_memorization_cols = ["sno", "revision_date", "rating", "interval"]
     new_memorization_table = Div(
         Table(
@@ -3315,6 +3316,7 @@ def display_page_level_details(auth, item_id: int):
     ######################
     recent_review_query = build_revision_query(item_id, auth, 3, "sno")
     recent_review = db.q(recent_review_query)
+    recent_review_display = True if len(recent_review) != 0 else False
     recent_review_cols = ["sno", "revision_date", "rating", "interval"]
     recent_review_table = Div(
         Table(
@@ -3326,6 +3328,7 @@ def display_page_level_details(auth, item_id: int):
     ######################
     watch_list_query = build_revision_query(item_id, auth, 4, "sno")
     watch_list_data = db.q(watch_list_query)
+    watch_list_display = True if len(watch_list_data) != 0 else False
     watch_list_cols = ["sno", "revision_date", "rating", "interval"]
     watch_list_table = Div(
         Table(
@@ -3363,10 +3366,26 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 memorization_summary,
                 Div(H1("Summary Table"), summary_table),
-                Div(make_mode_title_for_table(1), sequence_table),
-                Div(make_mode_title_for_table(2), new_memorization_table),
-                Div(make_mode_title_for_table(3), recent_review_table),
-                Div(make_mode_title_for_table(4), watch_list_table),
+                (
+                    Div(make_mode_title_for_table(1), sequence_table)
+                    if sequence_data_display
+                    else None
+                ),
+                (
+                    Div(make_mode_title_for_table(2), new_memorization_table)
+                    if new_memorization_display
+                    else None
+                ),
+                (
+                    Div(make_mode_title_for_table(3), recent_review_table)
+                    if recent_review_display
+                    else None
+                ),
+                (
+                    Div(make_mode_title_for_table(4), watch_list_table)
+                    if watch_list_display
+                    else None
+                ),
                 cls="space-y-6",
             ),
         ),
