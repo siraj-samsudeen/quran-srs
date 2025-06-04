@@ -3138,7 +3138,7 @@ def page_details_view(auth):
     hafiz_items_with_details = db.q(display_pages_query)
     # print(hafiz_items_with_details)
     grouped = group_by_type(hafiz_items_with_details, "page")
-    print(grouped)
+    print(len(grouped))
     rows = [
         render_row_based_on_type(type_number, records, "page", data_for="page_details")
         for type_number, records in list(grouped.items())
@@ -3293,6 +3293,12 @@ def display_page_level_details(auth, item_id: int):
         href=f"/page_details/{item_id + 1}",
         cls="uk-button uk-button-default",
     )
+
+    def make_mode_title_for_table(mode_id):
+        mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
+        mode_name, mode_description = mode_details["name"], mode_details["description"]
+        return H2(mode_name, Subtitle(mode_description))
+
     return main_area(
         Div(
             Div(
@@ -3307,19 +3313,19 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 memorization_summary,
                 Div(
-                    H2("Recent Review (Daily Revision for 7 days)"),
+                    make_mode_title_for_table(3),
                     recent_review_table,
                 ),
                 Div(
-                    H2("Watch List (Weekely Review for 7 weeks)"),
+                    make_mode_title_for_table(4),
                     watch_list_table,
                 ),
-                Div(H2("Sequencial Revision"), sequence_table),
+                Div(make_mode_title_for_table(1), sequence_table),
                 cls="space-y-6",
             ),
-            active="Page Details",
-            auth=auth,
-        )
+        ),
+        active="Page Details",
+        auth=auth,
     )
 
 
