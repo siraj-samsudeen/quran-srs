@@ -2395,22 +2395,6 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
 
-    # this is to update the status of hafizs_items table
-    hafiz_items_current_mode = db.q(
-        f""" 
-        SELECT hafizs_items.id, hafizs_items.mode_id, hafizs_items.status from revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id
-        WHERE revisions.item_id = {item_id} AND revisions.mode_id = 3 
-        LIMIT 1;
-        """
-    )
-    if hafiz_items_current_mode:
-        hafiz_items_current_mode = hafiz_items_current_mode[0]
-        if hafiz_items_current_mode["mode_id"] == 2:
-            hafizs_items.update(
-                {"status": "recently_reviewed", "mode_id": 3},
-                hafiz_items_current_mode["id"],
-            )
     revision_count = get_recent_review_count(item_id)
 
     if revision_count > 6:
@@ -2426,7 +2410,10 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
     current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_item:
         current_hafiz_item = current_hafiz_item[0]
-
+        # To update the status of hafizs_items table if it is newly memorized
+        if current_hafiz_item.mode_id == 2:
+            current_hafiz_item.status = "recently_reviewed"
+            current_hafiz_item.mode_id = 3
         # update the last and next review on the hafizs_items
         current_hafiz_item.last_review = last_revision_date
         current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
