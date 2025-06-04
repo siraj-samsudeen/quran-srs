@@ -3255,11 +3255,7 @@ def display_page_level_details(auth, item_id: int):
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
                 revision_date,
-                rating,
-                COALESCE(
-                    revision_date - LAG(revision_date) OVER (ORDER BY revision_date),
-                    0
-                ) AS interval_days
+                rating
             FROM revisions
             WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
             ORDER BY revision_date ASC;
