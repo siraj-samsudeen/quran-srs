@@ -3172,7 +3172,12 @@ def page_details_view(auth):
         get_page = f"/page_details/{r['id']}"  # item_id
 
         hx_attrs = (
-            {"hx_get": get_page, "hx_target": "body", "hx_replace_url": "true"}
+            {
+                "hx_get": get_page,
+                "hx_target": "body",
+                "hx_replace_url": "true",
+                "hx_push_url": "true",
+            }
             if data_for == "page_details"
             else {}
         )
@@ -3252,9 +3257,9 @@ def display_page_level_details(auth, item_id: int):
     pages.juz_number,
     hafizs_items.mode_id
     FROM items
-    JOIN pages ON items.page_id = pages.id
-    JOIN hafizs_items ON hafizs_items.item_id = items.id
-    WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id = {item_id};"""
+    LEFT JOIN pages ON items.page_id = pages.id
+    LEFT JOIN hafizs_items ON hafizs_items.item_id = items.id AND hafizs_items.hafiz_id = {auth}
+    WHERE items.id = {item_id};"""
     meta = db.q(meta_query)
     surah_name = meta[0]["surah_name"]
     page_number = meta[0]["page_number"]
@@ -3402,7 +3407,7 @@ def display_page_level_details(auth, item_id: int):
                           JOIN items ON revisions.item_id = items.id
                           JOIN pages ON items.page_id = pages.id
                           WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id > {current_item_id}
-                          ORDER BY items.id DESC LIMIT 1;"""
+                          ORDER BY items.id ASC LIMIT 1;"""
         # prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
         # next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
         prev_result = db.q(prev_query)
@@ -3414,12 +3419,12 @@ def display_page_level_details(auth, item_id: int):
     prev_id, next_id = get_prev_next_item_ids(item_id)
     # print(prev_id, next_id)
     prev_pg = A(
-        "<<",
+        "<<" if prev_id else "",
         href=f"/page_details/{prev_id}" if prev_id is not None else "#",
         cls="uk-button uk-button-default",
     )
     next_pg = A(
-        ">>",
+        ">>" if next_id else "",
         href=f"/page_details/{next_id}" if next_id is not None else "#",
         cls="uk-button uk-button-default",
     )
@@ -3428,9 +3433,9 @@ def display_page_level_details(auth, item_id: int):
         Div(
             Div(
                 DivFullySpaced(
-                    prev_pg if prev_id else "",
+                    prev_pg,
                     H1(title, cls="uk-text-center"),
-                    next_pg if next_id else "",
+                    next_pg,
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
                 cls="space-y-8",
