@@ -2466,6 +2466,8 @@ def recent_review_view(auth):
         return f"{item_details["page_number"]} - {item_details["surah_name"]}"
 
     def render_row(item_id):
+        revision_count = get_watch_list_count(item_id)
+
         recent_review_latest_date_qry = f"""
             SELECT revision_date as earlist_date FROM revisions
             WHERE item_id = {item_id} AND mode_id = 3 AND hafiz_id = {auth}
@@ -2475,11 +2477,11 @@ def recent_review_view(auth):
         ct = db.q(recent_review_latest_date_qry)
 
         intial_date = ct[0]["earlist_date"]
-        recent_week_diff = calculate_week_number(intial_date, current_time("%Y-%m-%d"))
 
         def render_checkbox(week):
             current_week_number = int(week.split(" ")[1])
-            is_current_week_higher = recent_week_diff < current_week_number
+            is_current_week_higher = revision_count + 1 < current_week_number
+
             return Td(
                 Form(
                     # used span instead of checkbox so that I can trigger without checking the checkbox
@@ -2501,8 +2503,6 @@ def recent_review_view(auth):
                 ),
                 cls="text-center",
             )
-
-        revision_count = get_watch_list_count(item_id)
 
         return Tr(
             Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
