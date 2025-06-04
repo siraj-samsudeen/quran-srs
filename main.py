@@ -2484,9 +2484,10 @@ def recent_review_view(auth):
                 Form(
                     # used span instead of checkbox so that I can trigger without checking the checkbox
                     Span(
-                        hx_post=f"/recent_review/update_status/{item_id}",
+                        hx_get=f"/watch_list/add/{item_id}",
                         hx_trigger="click",
-                        target_id=f"count-{item_id}",
+                        target_id="my-modal-body",
+                        data_uk_toggle="target: #my-modal",
                         cls=(
                             "uk-checkbox",
                             ("hidden" if is_current_week_higher else ""),
@@ -2507,7 +2508,6 @@ def recent_review_view(auth):
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
-                id=f"count-{item_id}",
             ),
             Td(
                 graduate_btn_recent_review(
@@ -2533,10 +2533,23 @@ def recent_review_view(auth):
         Tbody(*map(render_row, item_ids)),
         cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
     )
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(ModalCloseButton()),
+            ModalBody(
+                Div(id="my-modal-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="my-modal",
+    )
     content_body = Div(
         H2("Watch List"),
         Div(
             table,
+            modal,
             cls="uk-overflow-auto",
             id="recent_review_table_area",
         ),
@@ -2550,6 +2563,63 @@ def recent_review_view(auth):
         active="Watch List",
         auth=auth,
     )
+
+
+@app.get("/watch_list/add/{item_id}")
+def watch_list_single_entry_form(item_id: int):
+
+    page = items[item_id].page_id
+
+    def RadioLabel(o):
+        value, label = o
+        is_checked = True if value == "1" else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id="rating", value=value, checked=is_checked, autofocus=is_checked
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+        )
+
+    return Titled(
+        f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+        Div(
+            Form(
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=current_time("%Y-%m-%d"),
+                ),
+                Hidden(name="page_no", value=page),
+                Hidden(name="mode_id", value=4),
+                Hidden(name="item_id", value=item_id),
+                Div(
+                    FormLabel("Rating"),
+                    *map(RadioLabel, RATING_MAP.items()),
+                    cls="space-y-2 leading-8 sm:leading-6 ",
+                ),
+                Div(
+                    Button("Save", cls=ButtonT.primary),
+                    A(
+                        Button("Cancel", type="button", cls=ButtonT.secondary),
+                        href=f"/watch_list",
+                    ),
+                    cls="flex justify-around items-center w-full",
+                ),
+                action=f"/watch_list/add",
+                method="POST",
+            ),
+        ),
+    )
+
+
+@app.post("/watch_list/add")
+def watch_list_add_data(revision_details: Revision):
+    revisions.insert(revision_details)
+    return RedirectResponse("/watch_list", status_code=303)
 
 
 @app.get
