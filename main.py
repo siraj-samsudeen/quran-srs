@@ -2485,6 +2485,7 @@ def recent_review_view(auth):
                     # used span instead of checkbox so that I can trigger without checking the checkbox
                     Span(
                         hx_get=f"/watch_list/add/{item_id}",
+                        hx_vals={"min_date": intial_date},
                         hx_trigger="click",
                         target_id="my-modal-body",
                         data_uk_toggle="target: #my-modal",
@@ -2566,7 +2567,7 @@ def recent_review_view(auth):
 
 
 @app.get("/watch_list/add/{item_id}")
-def watch_list_single_entry_form(item_id: int):
+def watch_list_single_entry_form(item_id: int, min_date: str):
 
     page = items[item_id].page_id
 
@@ -2583,36 +2584,36 @@ def watch_list_single_entry_form(item_id: int):
             )
         )
 
-    return Titled(
-        f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
-        Div(
-            Form(
-                LabelInput(
-                    "Revision Date",
-                    name="revision_date",
-                    type="date",
-                    value=current_time("%Y-%m-%d"),
-                ),
-                Hidden(name="page_no", value=page),
-                Hidden(name="mode_id", value=4),
-                Hidden(name="item_id", value=item_id),
-                Div(
-                    FormLabel("Rating"),
-                    *map(RadioLabel, RATING_MAP.items()),
-                    cls="space-y-2 leading-8 sm:leading-6 ",
-                ),
-                Div(
-                    Button("Save", cls=ButtonT.primary),
-                    A(
-                        Button("Cancel", type="button", cls=ButtonT.secondary),
-                        href=f"/watch_list",
-                    ),
-                    cls="flex justify-around items-center w-full",
-                ),
-                action=f"/watch_list/add",
-                method="POST",
+    return Container(
+        H1(f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}"),
+        Form(
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                min=add_days_to_date(min_date, 1),
+                type="date",
+                value=current_time("%Y-%m-%d"),
             ),
+            Hidden(name="page_no", value=page),
+            Hidden(name="mode_id", value=4),
+            Hidden(name="item_id", value=item_id),
+            Div(
+                FormLabel("Rating"),
+                *map(RadioLabel, RATING_MAP.items()),
+                cls="space-y-2 leading-8 sm:leading-6 ",
+            ),
+            Div(
+                Button("Save", cls=ButtonT.primary),
+                A(
+                    Button("Cancel", type="button", cls=ButtonT.secondary),
+                    href=f"/watch_list",
+                ),
+                cls="flex justify-around items-center w-full",
+            ),
+            action=f"/watch_list/add",
+            method="POST",
         ),
+        cls=("mt-5", ContainerT.xl, "space-y-3"),
     )
 
 

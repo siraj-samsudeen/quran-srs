@@ -117,6 +117,12 @@ def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
     return target_date.strftime(date_format)
 
 
+def add_days_to_date(date_str, days):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    new_date = date_obj + timedelta(days=days)
+    return new_date.strftime("%Y-%m-%d")
+
+
 def calculate_week_number(initial_date, input_date):
     """
     Calculate which week the input_date belongs to based on the initial_date.
