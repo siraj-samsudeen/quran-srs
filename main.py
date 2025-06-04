@@ -2465,6 +2465,21 @@ def recent_review_view(auth):
             item_details = None
         return f"{item_details["page_number"]} - {item_details["surah_name"]}"
 
+    def graduate_btn_watch_list(
+        item_id, is_graduated=False, is_disabled=False, **kwargs
+    ):
+        return Switch(
+            hx_vals={"item_id": item_id},
+            hx_post=f"/watch_list/graduate",
+            target_id=f"row-{item_id}",
+            hx_swap="none",
+            checked=is_graduated,
+            name=f"is_checked",
+            id=f"graduate-btn-{item_id}",
+            cls=("hidden" if is_disabled else ""),
+            **kwargs,
+        )
+
     def render_row(item_id):
         revision_count = get_watch_list_count(item_id)
 
@@ -2511,7 +2526,7 @@ def recent_review_view(auth):
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
             Td(
-                graduate_btn_recent_review(
+                graduate_btn_watch_list(
                     item_id,
                     # is_graduated=(mode_id == 1),
                     is_disabled=(revision_count == 0),
