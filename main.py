@@ -3174,37 +3174,6 @@ def display_page_level_details(auth, item_id: int):
             tds.append(Td(value))
         return Tr(*tds)
 
-    def build_revision_query(item_id, auth, mode_id, row_alias):
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating
-            FROM revisions
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
-            ORDER BY revision_date ASC;
-        """
-
-    def build_revision_summary_query(item_id, auth, mode_id, row_alias):
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating,
-                modes.name AS mode_name
-            FROM revisions
-            JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_id}
-            ORDER BY revision_date ASC;
-        """
-
-    def get_prev_next_item_ids(current_item_id):
-        prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
-        next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
-        prev_id = db.q(prev_query)[0]["id"]
-        next_id = db.q(next_query)[0]["id"]
-        return prev_id, next_id
-
     def make_mode_title_for_table(mode_id):
         mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
         mode_name, mode_description = mode_details["name"], mode_details["description"]
@@ -3226,7 +3195,7 @@ def display_page_level_details(auth, item_id: int):
     page_number = meta[0]["page_number"]
     title = f"Surah {surah_name}, Page {page_number}"
     juz = f"Juz {meta[0]['juz_number']}"
-    #######
+    ####### Summary of first memorization
     first_revision_query = f""" SELECT 
     revision_date, mode_id
     FROM revisions
@@ -3240,7 +3209,7 @@ def display_page_level_details(auth, item_id: int):
     first_memorized_mode_name, description = make_mode_title_for_table(
         first_memorized_mode_id
     )
-    #######
+    ####### last revision details for summary
     last_revision_query = f"""SELECT rating, revision_date
     FROM revisions
     WHERE item_id = {item_id} AND hafiz_id = {auth}
@@ -3272,7 +3241,20 @@ def display_page_level_details(auth, item_id: int):
         ),
     )
 
-    ########################
+    ########### Summary Table
+    def build_revision_summary_query(item_id, auth, mode_id, row_alias):
+        return f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
+                revision_date,
+                rating,
+                modes.name AS mode_name
+            FROM revisions
+            JOIN modes ON revisions.mode_id = modes.id
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_id}
+            ORDER BY revision_date ASC;
+        """
+
     summary_table_query = build_revision_summary_query(
         item_id, auth, (1, 2, 3, 4), "sno"
     )
@@ -3285,7 +3267,20 @@ def display_page_level_details(auth, item_id: int):
         ),
         # cls="uk-overflow-auto max-h-[30vh] p-4",
     )
-    ########################
+
+    ########### Revision Tables
+    def build_revision_query(item_id, auth, mode_id, row_alias):
+        return f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
+                revision_date,
+                rating
+            FROM revisions
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
+            ORDER BY revision_date ASC;
+        """
+
+    ########### Sequence Table
     sequence_query = build_revision_query(item_id, auth, 1, "sno")
     sequence_data = db.q(sequence_query)
     sequence_data_display = True if len(sequence_data) != 0 else False
@@ -3297,7 +3292,7 @@ def display_page_level_details(auth, item_id: int):
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
-    ######################
+    ########### New Memorization Table
     new_memorization_query = build_revision_query(item_id, auth, 2, "sno")
     new_memorization = db.q(new_memorization_query)
     new_memorization_display = True if len(new_memorization) != 0 else False
@@ -3313,7 +3308,7 @@ def display_page_level_details(auth, item_id: int):
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
-    ######################
+    ########### Recent Review Table
     recent_review_query = build_revision_query(item_id, auth, 3, "sno")
     recent_review = db.q(recent_review_query)
     recent_review_display = True if len(recent_review) != 0 else False
@@ -3325,7 +3320,7 @@ def display_page_level_details(auth, item_id: int):
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
-    ######################
+    ########### Watch List Table
     watch_list_query = build_revision_query(item_id, auth, 4, "sno")
     watch_list_data = db.q(watch_list_query)
     watch_list_display = True if len(watch_list_data) != 0 else False
@@ -3337,7 +3332,14 @@ def display_page_level_details(auth, item_id: int):
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
-    ########################
+
+    ########### Previous and Next Page Navigation
+    def get_prev_next_item_ids(current_item_id):
+        prev_query = f"SELECT id FROM items WHERE items.active != 0 AND id < {current_item_id} ORDER BY id DESC LIMIT 1"
+        next_query = f"SELECT id FROM items WHERE items.active != 0 AND id > {current_item_id} ORDER BY id ASC LIMIT 1"
+        prev_id = db.q(prev_query)[0]["id"]
+        next_id = db.q(next_query)[0]["id"]
+        return prev_id, next_id
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
     # print(prev_id, next_id)
