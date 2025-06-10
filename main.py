@@ -2554,13 +2554,18 @@ def watch_list_view(auth):
             )
 
         def render_rev(rev: Revision):
+            ctn = (RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date)
             return Td(
-                A(
-                    Span(RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date),
-                    hx_get=f"/watch_list/edit/{rev.id}",
-                    target_id="my-modal-body",
-                    data_uk_toggle="target: #my-modal",
-                    cls=AT.classic,
+                (
+                    A(
+                        *ctn,
+                        hx_get=f"/watch_list/edit/{rev.id}",
+                        target_id="my-modal-body",
+                        data_uk_toggle="target: #my-modal",
+                        cls=AT.classic,
+                    )
+                    if not is_graduated
+                    else Span(*ctn)
                 ),
                 cls="text-center",
             )
