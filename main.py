@@ -2549,15 +2549,19 @@ def watch_list_view(auth):
 
         def render_hyphen(_):
             return Td(
-                Span(
-                    "-",
-                ),
+                Span("-"),
                 cls="text-center",
             )
 
         def render_rev(rev: Revision):
             return Td(
-                Span(RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date),
+                A(
+                    Span(RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date),
+                    hx_get=f"/watch_list/edit/{rev.id}",
+                    target_id="my-modal-body",
+                    data_uk_toggle="target: #my-modal",
+                    cls=AT.classic,
+                ),
                 cls="text-center",
             )
 
@@ -2647,9 +2651,7 @@ def watch_list_view(auth):
     )
 
 
-@app.get("/watch_list/add/{item_id}")
-def watch_list_single_entry_form(item_id: int, min_date: str):
-
+def watch_list_form(item_id: int, min_date: str, _type: str):
     page = items[item_id].page_id
 
     def RadioLabel(o):
@@ -2675,6 +2677,7 @@ def watch_list_single_entry_form(item_id: int, min_date: str):
                 type="date",
                 value=current_time("%Y-%m-%d"),
             ),
+            Hidden(name="id"),
             Hidden(name="page_no", value=page),
             Hidden(name="mode_id", value=4),
             Hidden(name="item_id", value=item_id),
@@ -2691,16 +2694,52 @@ def watch_list_single_entry_form(item_id: int, min_date: str):
                 ),
                 cls="flex justify-around items-center w-full",
             ),
-            action=f"/watch_list/add",
+            action=f"/watch_list/{_type}",
             method="POST",
         ),
         cls=("mt-5", ContainerT.xl, "space-y-3"),
     )
 
 
+@app.get("/watch_list/add/{item_id}")
+def watch_list_single_entry_form(item_id: int, min_date: str):
+    return watch_list_form(item_id, min_date, "add")
+
+
+@app.get("/watch_list/edit/{rev_id}")
+def watch_list_edit_form(rev_id: int):
+    current_revision = revisions[rev_id].__dict__
+    current_revision["rating"] = str(current_revision["rating"])
+    return fill_form(
+        watch_list_form(current_revision["item_id"], "", "edit"), current_revision
+    )
+
+
+@app.post("/watch_list/edit")
+def watch_list_edit_data(revision_details: Revision):
+    revisions.update(revision_details)
+
+    item_id = revision_details.item_id
+    current_revision_date = revision_details.revision_date
+
+    qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id = 4 ORDER BY revision_date ASC"
+    ct = db.q(qry)
+    latest_revision_date = [i["revision_date"] for i in ct][-1]
+
+    if is_first_date_greater(current_revision_date, latest_revision_date):
+        current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+        if current_hafiz_item:
+            current_hafiz_item = current_hafiz_item[0]
+            current_hafiz_item.last_review = current_revision_date
+            current_hafiz_item.next_review = add_days_to_date(current_revision_date, 7)
+            hafizs_items.update(current_hafiz_item)
+
+    return RedirectResponse(f"/watch_list", status_code=303)
+
+
 @app.post("/watch_list/add")
 def watch_list_add_data(revision_details: Revision, auth):
-
+    del revision_details.id
     revisions.insert(revision_details)
     item_id = revision_details.item_id
 

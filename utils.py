@@ -123,6 +123,17 @@ def add_days_to_date(date_str, days):
     return new_date.strftime("%Y-%m-%d")
 
 
+def is_first_date_greater(
+    date1: str, date2: str, date_format: str = "%Y-%m-%d"
+) -> bool:
+    try:
+        d1 = datetime.strptime(date1, date_format)
+        d2 = datetime.strptime(date2, date_format)
+        return d1 > d2
+    except ValueError as e:
+        raise ValueError(f"Invalid date format. Error: {str(e)}")
+
+
 def day_diff(date1, date2):
     """
     Returns the difference in days between two dates (YYYY-MM-DD).
