@@ -129,7 +129,7 @@ def is_first_date_greater(
     try:
         d1 = datetime.strptime(date1, date_format)
         d2 = datetime.strptime(date2, date_format)
-        return d1 > d2
+        return d1 >= d2
     except ValueError as e:
         raise ValueError(f"Invalid date format. Error: {str(e)}")
 
