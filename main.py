@@ -2693,6 +2693,16 @@ def watch_list_form(item_id: int, min_date: str, _type: str):
             ),
             Div(
                 Button("Save", cls=ButtonT.primary),
+                (
+                    Button(
+                        "Delete",
+                        cls=ButtonT.destructive,
+                        hx_delete=f"/watch_list",
+                        hx_swap="none",
+                    )
+                    if _type == "edit"
+                    else None
+                ),
                 A(
                     Button("Cancel", type="button", cls=ButtonT.secondary),
                     href=f"/watch_list",
@@ -2740,6 +2750,12 @@ def watch_list_edit_data(revision_details: Revision):
             hafizs_items.update(current_hafiz_item)
 
     return RedirectResponse(f"/watch_list", status_code=303)
+
+
+@app.delete("/watch_list")
+def watch_list_delete_data(id: int):
+    revisions.delete(id)
+    return Redirect("/watch_list")
 
 
 @app.post("/watch_list/add")
