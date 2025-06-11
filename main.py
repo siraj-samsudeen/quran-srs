@@ -2598,7 +2598,9 @@ def watch_list_view(auth):
                 cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
             ),
             *map(render_rev, watch_list_revisions),
-            *map(render_checkbox, (weeks_revision_excluded[:1] if due_day > 7 else [])),
+            *map(
+                render_checkbox, (weeks_revision_excluded[:1] if due_day >= 7 else [])
+            ),
             *map(
                 render_hyphen,
                 (
