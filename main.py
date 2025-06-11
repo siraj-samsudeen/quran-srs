@@ -2487,7 +2487,7 @@ def watch_list_view(auth):
     # This is to only get the watch_list item_id (which are not graduated yet)
     hafiz_items_data = hafizs_items(
         where=f"(mode_id = 4 OR watch_list_graduation_date IS NOT NULL) AND hafiz_id = {auth}",
-        order_by="mode_id DESC, item_id ASC",
+        order_by="mode_id DESC, next_review ASC, item_id ASC",
     )
 
     def get_item_details(item_id):
