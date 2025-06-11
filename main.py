@@ -2730,31 +2730,31 @@ def watch_list_edit_form(rev_id: int):
     )
 
 
-@app.post("/watch_list/edit")
-def watch_list_edit_data(revision_details: Revision):
-    revisions.update(revision_details)
-
-    item_id = revision_details.item_id
-    current_revision_date = revision_details.revision_date
-
+def update_review_date_watch_list(item_id: int):
     qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id = 4 ORDER BY revision_date ASC"
     ct = db.q(qry)
     latest_revision_date = [i["revision_date"] for i in ct][-1]
 
-    if is_first_date_greater(current_revision_date, latest_revision_date):
-        current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-        if current_hafiz_item:
-            current_hafiz_item = current_hafiz_item[0]
-            current_hafiz_item.last_review = current_revision_date
-            current_hafiz_item.next_review = add_days_to_date(current_revision_date, 7)
-            hafizs_items.update(current_hafiz_item)
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        current_hafiz_item.last_review = latest_revision_date
+        current_hafiz_item.next_review = add_days_to_date(latest_revision_date, 7)
+        hafizs_items.update(current_hafiz_item)
 
+
+@app.post("/watch_list/edit")
+def watch_list_edit_data(revision_details: Revision):
+    revisions.update(revision_details)
+    item_id = revision_details.item_id
+    update_review_date_watch_list(item_id)
     return RedirectResponse(f"/watch_list", status_code=303)
 
 
 @app.delete("/watch_list")
-def watch_list_delete_data(id: int):
+def watch_list_delete_data(id: int, item_id: int):
     revisions.delete(id)
+    update_review_date_watch_list(item_id)
     return Redirect("/watch_list")
 
 
