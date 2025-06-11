@@ -3136,10 +3136,10 @@ def page_details_view(auth):
                             items.surah_id,
                             pages.page_number,
                             pages.juz_number,
-                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END),0), '-') AS full_cycle,
-                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END),0), '-') AS new_memorization,
-                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 ELSE 0 END), 0), '-') AS recent_review,
-                            COALESCE(NULLIF(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END),0), '-')AS watch_list,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS full_cycle,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS new_memorization,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS recent_review,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS watch_list,
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
