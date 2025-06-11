@@ -2572,7 +2572,7 @@ def watch_list_view(auth):
 
         if is_graduated or revision_count >= 7:
             due_day_message = ""
-        elif due_day > 7:
+        elif due_day >= 7:
             due_day_message = due_day - 7
         else:
             due_day_message = "-"
@@ -2735,7 +2735,7 @@ def watch_list_edit_form(rev_id: int):
 
 
 def update_review_date_watch_list(item_id: int):
-    qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id = 4 ORDER BY revision_date ASC"
+    qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id IN (3, 4) ORDER BY revision_date ASC"
     ct = db.q(qry)
     latest_revision_date = [i["revision_date"] for i in ct][-1]
 
