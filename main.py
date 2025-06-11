@@ -2658,6 +2658,7 @@ def watch_list_view(auth):
 
 def watch_list_form(item_id: int, min_date: str, _type: str):
     page = items[item_id].page_id
+    current_date = current_time("%Y-%m-%d")
 
     def RadioLabel(o):
         value, label = o
@@ -2679,8 +2680,9 @@ def watch_list_form(item_id: int, min_date: str, _type: str):
                 "Revision Date",
                 name="revision_date",
                 min=min_date,
+                max=current_date,
                 type="date",
-                value=current_time("%Y-%m-%d"),
+                value=current_date,
             ),
             Hidden(name="id"),
             Hidden(name="page_no", value=page),
