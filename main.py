@@ -2914,9 +2914,13 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
         not_memorized_item_ids, last_newly_memorized_item_id
     )
     next = group_by_type(not_memorized, "id")[continue_page]
-    next_pg = next[0]["page_number"]
-    next_surah = next[0]["surah_name"]
-    display_next = (Span(Strong(next_pg)), " - ", next_surah)
+    if len(next) == 0:
+        display_next = "No more pages"
+        continue_page = 0
+    else:
+        next_pg = next[0]["page_number"]
+        next_surah = next[0]["surah_name"]
+        display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
     return continue_page, display_next
 
@@ -2978,12 +2982,15 @@ def render_row_based_on_type(
                 auth, item_ids[0]
             )
             get_page = (
-                f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
+                ""
+                if next_page_item_id == 0
+                else f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
             )
             title = title_range
             # details = details_range
     else:
         get_page = filter_url
+
     hx_attrs = {
         "hx_get": get_page,
         "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
@@ -2995,29 +3002,34 @@ def render_row_based_on_type(
         "data_uk_toggle": "target: #modal",
     }
 
+    if continue_new_memorization and next_page_item_id == 0:
+        link_content = display_next
+    else:
+        if current_type != "page":
+            link_text = "Show Pages ➡️"
+        elif continue_new_memorization:
+            link_text = display_next
+        else:
+            link_text = "Start Memorization ➡️"
+
+        link_content = A(
+            link_text,
+            href={},
+            cls=AT.classic,
+        )
+
+    hx_attributes = (
+        {}
+        if continue_new_memorization and next_page_item_id == 0
+        else hx_attrs if row_link else {}
+    )
+
     return Tr(
         Td(title),
         Td(details),
         Td(rev_date) if rev_date is not None else None,
-        (
-            Td(
-                A(
-                    (
-                        f"Show Pages ➡️"
-                        if current_type != "page"
-                        else (
-                            display_next
-                            if continue_new_memorization
-                            else ("Start Memorization ➡️")
-                        )
-                    ),
-                    href={},
-                    cls=AT.classic,
-                ),
-                cls="text-right",
-            )
-        ),
-        **hx_attrs if row_link else {},
+        Td(link_content, cls="text-right"),
+        **hx_attributes,
     )
 
 
