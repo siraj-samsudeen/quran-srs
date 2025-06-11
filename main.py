@@ -3422,12 +3422,12 @@ def display_page_level_details(auth, item_id: int):
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
     prev_pg = A(
-        "<<" if prev_id else "",
+        "⬅️" if prev_id else "",
         href=f"/page_details/{prev_id}" if prev_id is not None else "#",
         cls="uk-button uk-button-default",
     )
     next_pg = A(
-        ">>" if next_id else "",
+        "➡️" if next_id else "",
         href=f"/page_details/{next_id}" if next_id is not None else "#",
         cls="uk-button uk-button-default",
     )
