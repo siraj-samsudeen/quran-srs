@@ -13,7 +13,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
-DB_PATH = "data/quran_v8.db"
+DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
 create_and_migrate_db(DB_PATH)
@@ -564,6 +564,11 @@ def main_area(*args, active=None, auth=None):
                     href="/recent_review",
                     cls=is_active("Recent Review"),
                 ),
+                A(
+                    "Watch List",
+                    href="/watch_list",
+                    cls=is_active("Watch List"),
+                ),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
@@ -738,7 +743,6 @@ def index(auth):
     recent_page_range = compact_format(recent_pages).split(", ")
 
     def render_recent_review_row(page_range: str):
-        print(page_range)
         first_page, last_page = split_page_range(page_range)
         first_page_surah_name = [
             i["surah_name"] for i in ct if i["page_number"] == first_page
@@ -2221,6 +2225,18 @@ def graduate_btn_recent_review(
     )
 
 
+def get_last_recent_review_date(item_id):
+    last_reviewed = revisions(
+        where=f"item_id = {item_id} AND mode_id IN (2,3)",
+        order_by="revision_date DESC",
+        limit=1,
+    )
+
+    if last_reviewed:
+        return last_reviewed[0].revision_date
+    return None
+
+
 @app.get("/recent_review")
 def recent_review_view(auth):
     hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
@@ -2379,28 +2395,29 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
 
-    # this is to update the status of hafizs_items table
-    hafiz_items_current_mode = db.q(
-        f""" 
-        SELECT hafizs_items.id, hafizs_items.mode_id, hafizs_items.status from revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id
-        WHERE revisions.item_id = {item_id} AND revisions.mode_id = 3 
-        LIMIT 1;
-        """
-    )
-    if hafiz_items_current_mode:
-        hafiz_items_current_mode = hafiz_items_current_mode[0]
-        if hafiz_items_current_mode["mode_id"] == 2:
-            hafizs_items.update(
-                {"status": "recently_reviewed", "mode_id": 3},
-                hafiz_items_current_mode["id"],
-            )
     revision_count = get_recent_review_count(item_id)
 
     if revision_count > 6:
         # We are redirecting to swap the entire row
         # as we want to render the disabled checkbox with graduated button
         return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
+
+    if is_checked:
+        last_revision_date = date
+    else:
+        last_revision_date = get_last_recent_review_date(item_id)
+
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        # To update the status of hafizs_items table if it is newly memorized
+        if current_hafiz_item.mode_id == 2:
+            current_hafiz_item.status = "recently_reviewed"
+            current_hafiz_item.mode_id = 3
+        # update the last and next review on the hafizs_items
+        current_hafiz_item.last_review = last_revision_date
+        current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
+        hafizs_items.update(current_hafiz_item)
 
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
@@ -2409,11 +2426,16 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 @app.post("/recent_review/graduate")
 def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
-    if is_checked:
-        data_to_update = {"status": "watch_list", "mode_id": 4}
-    else:
+    last_review = get_last_recent_review_date(item_id)
 
-        data_to_update = {"status": "recent_review", "mode_id": 3}
+    if is_checked:
+        status = "watch_list"
+        mode_id = 4
+        next_review_day = 7
+    else:
+        status = "recent_review"
+        mode_id = 3
+        next_review_day = 1
 
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
@@ -2422,7 +2444,15 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
         # typically when shift-clicking the checkbox where it will trigger multiple requests
         for attempt in range(3):
             try:
-                hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+                hafizs_items.update(
+                    {
+                        "status": status,
+                        "mode_id": mode_id,
+                        "last_review": last_review,
+                        "next_review": add_days_to_date(last_review, next_review_day),
+                    },
+                    current_hafiz_items[0].id,
+                )
                 break  # Success, exit the loop
             except Exception as e:
                 if attempt < 2:  # Only delay if not the last attempt
@@ -2433,6 +2463,357 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     return recent_review_view(auth), HtmxResponseHeaders(
         retarget=f"#recent_review_table_area",
         reselect=f"#recent_review_table_area",
+        reswap="outerHTML",
+    )
+
+
+def get_last_watch_list_date(item_id):
+    last_reviewed = revisions(
+        where=f"item_id = {item_id} AND mode_id = 4",
+        order_by="revision_date DESC",
+        limit=1,
+    )
+
+    if last_reviewed:
+        return last_reviewed[0].revision_date
+    return None
+
+
+# TODO: need to test for new user:
+@app.get("/watch_list")
+def watch_list_view(auth):
+    week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
+
+    # This is to only get the watch_list item_id (which are not graduated yet)
+    hafiz_items_data = hafizs_items(
+        where=f"(mode_id = 4 OR watch_list_graduation_date IS NOT NULL) AND hafiz_id = {auth}",
+        order_by="mode_id DESC, next_review ASC, item_id ASC",
+    )
+
+    def get_item_details(item_id):
+        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.id = {item_id};"""
+        item_details = db.q(qry)
+        if item_details:
+            item_details = item_details[0]
+        else:
+            item_details = None
+        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
+
+    def graduate_btn_watch_list(
+        item_id, is_graduated=False, is_disabled=False, **kwargs
+    ):
+        return Switch(
+            hx_vals={"item_id": item_id},
+            hx_post=f"/watch_list/graduate",
+            target_id=f"row-{item_id}",
+            hx_swap="none",
+            checked=is_graduated,
+            name=f"is_checked",
+            id=f"graduate-btn-{item_id}",
+            cls=("hidden" if is_disabled else ""),
+            **kwargs,
+        )
+
+    def render_row(hafiz_item):
+        item_id = hafiz_item.item_id
+        is_graduated = hafiz_item.mode_id == 1
+        last_review = hafiz_item.last_review
+
+        watch_list_revisions = revisions(
+            where=f"item_id = {item_id} AND mode_id = 4", order_by="revision_date ASC"
+        )
+        weeks_revision_excluded = week_column[len(watch_list_revisions) :]
+
+        revision_count = len(watch_list_revisions)
+
+        if not is_graduated:
+            due_day = day_diff(last_review, current_time("%Y-%m-%d"))
+        else:
+            due_day = 0
+
+        def render_checkbox(_):
+            return Td(
+                # used span instead of checkbox so that I can trigger without checking the checkbox
+                Span(
+                    hx_get=f"/watch_list/add/{item_id}",
+                    hx_vals={"min_date": hafiz_item.next_review},
+                    hx_trigger="click",
+                    target_id="my-modal-body",
+                    data_uk_toggle="target: #my-modal",
+                    cls=("uk-checkbox"),
+                ),
+                cls="text-center",
+            )
+
+        def render_hyphen(_):
+            return Td(
+                Span("-"),
+                cls="text-center",
+            )
+
+        def render_rev(rev: Revision):
+            ctn = (RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date)
+            return Td(
+                (
+                    A(
+                        *ctn,
+                        hx_get=f"/watch_list/edit/{rev.id}",
+                        target_id="my-modal-body",
+                        data_uk_toggle="target: #my-modal",
+                        cls=AT.classic,
+                    )
+                    if not is_graduated
+                    else Span(*ctn)
+                ),
+                cls="text-center",
+            )
+
+        if is_graduated or revision_count >= 7:
+            due_day_message = ""
+        elif due_day >= 7:
+            due_day_message = due_day - 7
+        else:
+            due_day_message = "-"
+
+        return Tr(
+            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(
+                revision_count,
+                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
+            ),
+            Td(
+                hafiz_item.next_review
+                if (not is_graduated) and revision_count < 7
+                else ""
+            ),
+            Td(due_day_message),
+            Td(
+                graduate_btn_watch_list(
+                    item_id,
+                    is_graduated=is_graduated,
+                    is_disabled=(revision_count == 0),
+                ),
+                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+            ),
+            *map(render_rev, watch_list_revisions),
+            *map(
+                render_checkbox, (weeks_revision_excluded[:1] if due_day >= 7 else [])
+            ),
+            *map(
+                render_hyphen,
+                (
+                    weeks_revision_excluded[1:]
+                    if due_day > 7
+                    else weeks_revision_excluded
+                ),
+            ),
+            id=f"row-{item_id}",
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
+                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Next Review", cls="min-w-28 "),
+                Th("Due day"),
+                Th("Graduate"),
+                *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
+            )
+        ),
+        Tbody(*map(render_row, hafiz_items_data)),
+        cls=(TableT.middle, TableT.divider, TableT.hover, TableT.sm, TableT.justify),
+    )
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(ModalCloseButton()),
+            ModalBody(
+                Div(id="my-modal-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="my-modal",
+    )
+    content_body = Div(
+        H2("Watch List"),
+        Div(
+            table,
+            modal,
+            cls="uk-overflow-auto",
+            id="watch_list_table_area",
+        ),
+        cls="text-xs sm:text-sm",
+        # Currently this variable is not being used but it is needed for alpine js attributes
+        x_data="{ showAll: false }",
+    )
+
+    return main_area(
+        content_body,
+        active="Watch List",
+        auth=auth,
+    )
+
+
+def watch_list_form(item_id: int, min_date: str, _type: str):
+    page = items[item_id].page_id
+    current_date = current_time("%Y-%m-%d")
+
+    def RadioLabel(o):
+        value, label = o
+        is_checked = True if value == "1" else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id="rating", value=value, checked=is_checked, autofocus=is_checked
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+        )
+
+    return Container(
+        H1(f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}"),
+        Form(
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                min=min_date,
+                max=current_date,
+                type="date",
+                value=current_date,
+            ),
+            Hidden(name="id"),
+            Hidden(name="page_no", value=page),
+            Hidden(name="mode_id", value=4),
+            Hidden(name="item_id", value=item_id),
+            Div(
+                FormLabel("Rating"),
+                *map(RadioLabel, RATING_MAP.items()),
+                cls="space-y-2 leading-8 sm:leading-6 ",
+            ),
+            Div(
+                Button("Save", cls=ButtonT.primary),
+                (
+                    Button(
+                        "Delete",
+                        cls=ButtonT.destructive,
+                        hx_delete=f"/watch_list",
+                        hx_swap="none",
+                    )
+                    if _type == "edit"
+                    else None
+                ),
+                A(
+                    Button("Cancel", type="button", cls=ButtonT.secondary),
+                    href=f"/watch_list",
+                ),
+                cls="flex justify-around items-center w-full",
+            ),
+            action=f"/watch_list/{_type}",
+            method="POST",
+        ),
+        cls=("mt-5", ContainerT.xl, "space-y-3"),
+    )
+
+
+@app.get("/watch_list/add/{item_id}")
+def watch_list_single_entry_form(item_id: int, min_date: str):
+    return watch_list_form(item_id, min_date, "add")
+
+
+@app.get("/watch_list/edit/{rev_id}")
+def watch_list_edit_form(rev_id: int):
+    current_revision = revisions[rev_id].__dict__
+    current_revision["rating"] = str(current_revision["rating"])
+    return fill_form(
+        watch_list_form(current_revision["item_id"], "", "edit"), current_revision
+    )
+
+
+def update_review_date_watch_list(item_id: int):
+    qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id IN (3, 4) ORDER BY revision_date ASC"
+    ct = db.q(qry)
+    latest_revision_date = [i["revision_date"] for i in ct][-1]
+
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        current_hafiz_item.last_review = latest_revision_date
+        current_hafiz_item.next_review = add_days_to_date(latest_revision_date, 7)
+        hafizs_items.update(current_hafiz_item)
+
+
+@app.post("/watch_list/edit")
+def watch_list_edit_data(revision_details: Revision):
+    revisions.update(revision_details)
+    item_id = revision_details.item_id
+    update_review_date_watch_list(item_id)
+    return RedirectResponse(f"/watch_list", status_code=303)
+
+
+@app.delete("/watch_list")
+def watch_list_delete_data(id: int, item_id: int):
+    revisions.delete(id)
+    update_review_date_watch_list(item_id)
+    return Redirect("/watch_list")
+
+
+@app.post("/watch_list/add")
+def watch_list_add_data(revision_details: Revision, auth):
+    del revision_details.id
+    revisions.insert(revision_details)
+    item_id = revision_details.item_id
+
+    recent_review_count = len(revisions(where=f"item_id = {item_id} AND mode_id = 4"))
+
+    if recent_review_count >= 7:
+        graduate_watch_list(item_id, auth, True)
+        return RedirectResponse(f"/watch_list", status_code=303)
+
+    last_review_date = revision_details.revision_date
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        current_hafiz_item.last_review = last_review_date
+        current_hafiz_item.next_review = add_days_to_date(last_review_date, 7)
+        hafizs_items.update(current_hafiz_item)
+
+    return RedirectResponse("/watch_list", status_code=303)
+
+
+@app.post("/watch_list/graduate")
+def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
+    last_review = get_last_watch_list_date(item_id)
+    if is_checked:
+        data_to_update = {
+            "status": "memorized",
+            "mode_id": 1,
+            "last_review": "",
+            "next_review": "",
+            "watch_list_graduation_date": last_review,
+        }
+    else:
+        data_to_update = {
+            "status": "watch_list",
+            "mode_id": 4,
+            "last_review": last_review,
+            "next_review": add_days_to_date(last_review, 7),
+            "watch_list_graduation_date": "",
+        }
+
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+
+    if current_hafiz_items:
+        hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+
+    return watch_list_view(auth), HtmxResponseHeaders(
+        retarget=f"#watch_list_table_area",
+        reselect=f"#watch_list_table_area",
         reswap="outerHTML",
     )
 

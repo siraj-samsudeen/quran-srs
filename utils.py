@@ -117,6 +117,70 @@ def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
     return target_date.strftime(date_format)
 
 
+def add_days_to_date(date_str, days):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    new_date = date_obj + timedelta(days=days)
+    return new_date.strftime("%Y-%m-%d")
+
+
+def is_first_date_greater(
+    date1: str, date2: str, date_format: str = "%Y-%m-%d"
+) -> bool:
+    try:
+        d1 = datetime.strptime(date1, date_format)
+        d2 = datetime.strptime(date2, date_format)
+        return d1 >= d2
+    except ValueError as e:
+        raise ValueError(f"Invalid date format. Error: {str(e)}")
+
+
+def day_diff(date1, date2):
+    """
+    Returns the difference in days between two dates (YYYY-MM-DD).
+    The result is always non-negative (absolute value).
+    """
+    date1 = datetime.strptime(date1, "%Y-%m-%d")
+    date2 = datetime.strptime(date2, "%Y-%m-%d")
+    return abs((date2 - date1).days)
+
+
+def calculate_week_number(initial_date, input_date):
+    """
+    Calculate which week the input_date belongs to based on the initial_date.
+    The initial_date is excluded - counting starts from the next day.
+
+    Args:
+        initial_date (str): Starting date in DD-MM-YYYY format (excluded from counting)
+        input_date (str): Date to check in DD-MM-YYYY format
+
+    Returns:
+        int: Week number (1-based)
+
+    Logic:
+        - initial_date is excluded from counting
+        - Days 1-7 after initial_date = Week 1
+        - Days 8-14 after initial_date = Week 2
+        - And so on...
+    """
+
+    # Parse the date strings
+    initial = datetime.strptime(initial_date, "%Y-%m-%d")
+    input_dt = datetime.strptime(input_date, "%Y-%m-%d")
+
+    # Calculate the difference in days
+    days_diff = (input_dt - initial).days
+
+    # If input_date is same as or before initial_date, return 0
+    if days_diff <= 0:
+        return 0  # initial_date and earlier dates are not part of any week
+
+    # Calculate week number (1-based)
+    # Since we exclude initial_date, day 1 after initial_date starts week 1
+    week_number = ((days_diff - 1) // 7) + 1
+
+    return week_number
+
+
 def compact_format(numbers):
     if not numbers:
         return ""
