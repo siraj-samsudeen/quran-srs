@@ -735,11 +735,40 @@ def index(auth):
         ),
         cls="uk-overflow-auto",
     )
-    ################### Recent Review Summary ###################
+
+    recent_review_table = make_summary_table(
+        mode_ids=["2", "3"], route="recent_review", auth=auth
+    )
+
+    watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
+
+    return main_area(
+        action_buttons(
+            **(
+                {"last_added_page": last_added_page}
+                if last_added_page is not None
+                else {}
+            )
+        ),
+        Div(
+            recent_review_table,
+            Divider(),
+            watch_list_table,
+            Divider(),
+            overall_table,
+            Divider(),
+            datewise_summary_table(hafiz_id=auth),
+        ),
+        active="Home",
+        auth=auth,
+    )
+
+
+def make_summary_table(mode_ids: list[str], route: str, auth: str):
     qry = f"""
         SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
         LEFT JOIN Items on hafizs_items.item_id = items.id 
-        WHERE hafizs_items.mode_id IN (2,3) AND hafizs_items.hafiz_id = {auth}
+        WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
     """
     ct = db.q(qry)
@@ -771,12 +800,12 @@ def index(auth):
             ),
         )
 
-    recent_review_table = Div(
+    return Div(
         DivFullySpaced(
-            H4("Recent Review"),
+            H4(destandardize_text(route)),
             A(
                 "Record",
-                href="/recent_review",
+                href=f"/{route}",
                 hx_boost="false",
                 cls=(AT.classic, TextPresets.bold_sm),
             ),
@@ -793,25 +822,6 @@ def index(auth):
                 ),
             )
         ),
-    )
-
-    return main_area(
-        action_buttons(
-            **(
-                {"last_added_page": last_added_page}
-                if last_added_page is not None
-                else {}
-            )
-        ),
-        Div(
-            recent_review_table,
-            Divider(),
-            overall_table,
-            Divider(),
-            datewise_summary_table(hafiz_id=auth),
-        ),
-        active="Home",
-        auth=auth,
     )
 
 
