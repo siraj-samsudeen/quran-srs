@@ -2477,7 +2477,6 @@ def render_row_based_on_type(
     title_range=None,
     details_range=None,
     rev_date=None,
-    data_for=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -2511,8 +2510,6 @@ def render_row_based_on_type(
         if current_type != "surah"
         else surahs[type_number].name
     )
-    if data_for == "page_details":
-        title = f"{current_type.capitalize()} {records[0]["page_number"]}"
 
     filter_url = f"/new_memorization/filter/{current_type}/{type_number}"
     if current_type == "page":
@@ -2533,23 +2530,16 @@ def render_row_based_on_type(
             # details = details_range
     else:
         get_page = filter_url
-
-    if data_for == "page_details" and current_type == "page":
-        get_page = f"/page_details/{type_number}"  # pass item_id instead of the page
-    hx_attrs = (
-        {"hx_get": get_page, "hx_target": "body", "hx_replace_url": "true"}
-        if data_for == "page_details"
-        else {
-            "hx_get": get_page,
-            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", title
-            ).replace(
-                "CURRENT_DETAILS", details
-            ),
-            "target_id": "modal-body",
-            "data_uk_toggle": "target: #modal",
-        }
-    )
+    hx_attrs = {
+        "hx_get": get_page,
+        "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+            "CURRENT_TITLE", title
+        ).replace(
+            "CURRENT_DETAILS", details
+        ),
+        "target_id": "modal-body",
+        "data_uk_toggle": "target: #modal",
+    }
 
     return Tr(
         Td(title),
@@ -2564,14 +2554,10 @@ def render_row_based_on_type(
                         else (
                             display_next
                             if continue_new_memorization
-                            else (
-                                "See Details ➡️"
-                                if data_for == "page_details"
-                                else "Start Memorization ➡️"
-                            )
+                            else ("Start Memorization ➡️")
                         )
                     ),
-                    href=f"{get_page}" if data_for == "page_details" else {},
+                    href={},
                     cls=AT.classic,
                 ),
                 cls="text-right",
