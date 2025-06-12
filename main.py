@@ -790,12 +790,45 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="modal-index-title"),
+                P(cls=TextPresets.muted_sm, id="modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            ModalBody(
+                Div(id="modal-index-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="modal-index",
+    )
 
     def render_page_row(page_number: int):
         surah_name = next(
             i["surah_name"] for i in ct if i["page_number"] == page_number
         )
-        return Tr(Td(page_number), Td(surah_name))
+        item_ids = [item.id for item in items(where=f"page_id = {page_number}")]
+        get_page = (
+            f"/new_memorization/add/page?item_id={item_ids[0]}"
+            if len(item_ids) == 1
+            else f"/new_memorization/filter/page/{page_number}"
+        )
+        hx_attrs = {
+            "hx_get": get_page,
+            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                "CURRENT_TITLE", ""
+            ).replace(
+                "CURRENT_DETAILS", "New Memorization"
+            ),
+            "target_id": "modal-index-body",
+            "data_uk_toggle": "target: #modal-index",
+        }
+        return Tr(Td(page_number), Td(surah_name), **hx_attrs)
 
     def render_range_row(page_range: str):
         first_page, last_page = split_page_range(page_range)
@@ -845,6 +878,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ),
             Tbody(*body_rows),
         ),
+        Div(modal),
     )
 
 
@@ -3392,9 +3426,12 @@ def create_new_memorization_revision_form(
             ),
             Div(
                 Button("Save", cls=ButtonT.primary),
-                A(
-                    Button("Cancel", type="button", cls=ButtonT.secondary),
-                    href=f"/new_memorization/{current_type}",
+                # A(
+                #     Button("Cancel", type="button", cls=ButtonT.secondary),
+                #     href=f"/new_memorization/{current_type}",
+                # ),
+                Button(
+                    "Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"
                 ),
                 cls="flex justify-around items-center w-full",
             ),
@@ -3538,10 +3575,11 @@ def get(
             "Save",
             cls=ButtonT.primary,
         ),
-        A(
-            Button("Cancel", type="button", cls=ButtonT.secondary),
-            href=f"/new_memorization/{current_type}",
-        ),
+        # A(
+        #     Button("Cancel", type="button", cls=ButtonT.secondary),
+        #     href=f"/new_memorization/{current_type}",
+        # ),
+        Button("Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
     start_description = f"{get_surah_name(item_id=item_ids[0])}"
