@@ -772,7 +772,11 @@ def index(auth):
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
-        ct = filter_query_records(auth)
+        qry = f"""
+        SELECT items.surah_name, items.page_id page_number FROM items 
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+        WHERE hafizs_items.status IS NULL AND items.active != 0;
+        """
     else:
         qry = f"""
             SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
@@ -780,10 +784,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
             ORDER BY hafizs_items.item_id ASC
         """
-        ct = db.q(qry)
-
+    ct = db.q(qry)
     recent_pages = [i["page_number"] for i in ct]
-    page_ranges = compact_format(recent_pages).split(", ")
+    if not recent_pages:
+        page_ranges = []
+    else:
+        page_ranges = compact_format(recent_pages).split(", ")
 
     def render_page_row(page_number: int):
         surah_name = next(
