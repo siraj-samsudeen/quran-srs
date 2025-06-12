@@ -742,6 +742,10 @@ def index(auth):
 
     watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
 
+    new_memorization_table = make_summary_table(
+        mode_ids=["unmemorized"], route="new_memorization", auth=auth
+    )
+
     return main_area(
         action_buttons(
             **(
@@ -752,6 +756,8 @@ def index(auth):
         ),
         Div(
             overall_table,
+            Divider(),
+            new_memorization_table,
             Divider(),
             recent_review_table,
             Divider(),
@@ -765,13 +771,16 @@ def index(auth):
 
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
-    qry = f"""
-        SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
-        LEFT JOIN Items on hafizs_items.item_id = items.id 
-        WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
-        ORDER BY hafizs_items.item_id ASC
-    """
-    ct = db.q(qry)
+    if mode_ids == ["unmemorized"]:
+        ct = filter_query_records(auth)
+    else:
+        qry = f"""
+            SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
+            LEFT JOIN Items on hafizs_items.item_id = items.id 
+            WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
+            ORDER BY hafizs_items.item_id ASC
+        """
+        ct = db.q(qry)
 
     recent_pages = [i["page_number"] for i in ct]
     recent_page_range = compact_format(recent_pages).split(", ")
@@ -815,7 +824,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(Th("Page Range"), Th("Surah")),
                 Tbody(
                     *(
-                        map(render_recent_review_row, recent_page_range)
+                        map(render_recent_review_row, recent_page_range[:1])
                         if recent_pages
                         else ""
                     )
