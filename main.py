@@ -751,11 +751,11 @@ def index(auth):
             )
         ),
         Div(
+            overall_table,
+            Divider(),
             recent_review_table,
             Divider(),
             watch_list_table,
-            Divider(),
-            overall_table,
             Divider(),
             datewise_summary_table(hafiz_id=auth),
         ),
@@ -2494,7 +2494,6 @@ def get_last_watch_list_date(item_id):
     return None
 
 
-# TODO: need to test for new user:
 @app.get("/watch_list")
 def watch_list_view(auth):
     week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
