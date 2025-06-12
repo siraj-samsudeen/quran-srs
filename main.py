@@ -783,9 +783,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         ct = db.q(qry)
 
     recent_pages = [i["page_number"] for i in ct]
-    recent_page_range = compact_format(recent_pages).split(", ")
+    page_ranges = compact_format(recent_pages).split(", ")
 
-    def render_recent_review_row(page_range: str):
+    def render_page_row(page_number: int):
+        surah_name = next(
+            i["surah_name"] for i in ct if i["page_number"] == page_number
+        )
+        return Tr(Td(page_number), Td(surah_name))
+
+    def render_range_row(page_range: str):
         first_page, last_page = split_page_range(page_range)
         first_page_surah_name = [
             i["surah_name"] for i in ct if i["page_number"] == first_page
@@ -809,6 +815,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ),
         )
 
+    if mode_ids == ["unmemorized"]:
+        body_rows = list(map(render_page_row, recent_pages[:3]))
+    else:
+        body_rows = list(map(render_range_row, page_ranges))
+
     return Div(
         DivFullySpaced(
             H4(destandardize_text(route)),
@@ -821,15 +832,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         ),
         Table(
             Thead(
-                Tr(Th("Page Range"), Th("Surah")),
-                Tbody(
-                    *(
-                        map(render_recent_review_row, recent_page_range[:1])
-                        if recent_pages
-                        else ""
-                    )
-                ),
-            )
+                Tr(
+                    Th("Page" if mode_ids == ["unmemorized"] else "Page Range"),
+                    Th("Surah"),
+                )
+            ),
+            Tbody(*body_rows),
         ),
     )
 
