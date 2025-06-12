@@ -775,7 +775,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         qry = f"""
         SELECT items.surah_name, items.page_id page_number FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.status IS NULL AND items.active != 0;
+        WHERE hafizs_items.status IS NULL AND items.active != 0
+        GROUP BY items.page_id;
         """
     else:
         qry = f"""
