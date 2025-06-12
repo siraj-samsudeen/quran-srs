@@ -3480,7 +3480,9 @@ def get(
 
 
 @rt("/new_memorization/add/{current_type}")
-def post(current_type: str, page_no: int, item_id: int, revision_details: Revision):
+def post(
+    request, current_type: str, page_no: int, item_id: int, revision_details: Revision
+):
     # The id is set to zer in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -3496,7 +3498,9 @@ def post(current_type: str, page_no: int, item_id: int, revision_details: Revisi
         hafizs_items_id,
     )
     revisions.insert(revision_details)
-    return Redirect(f"/new_memorization/{current_type}")
+    referer = request.headers.get("referer")
+    # return Redirect(f"/new_memorization/{current_type}")
+    return Redirect(referer or f"/new_memorization/{current_type}")
 
 
 @app.get("/new_memorization/bulk_add/{current_type}")
@@ -3611,6 +3615,7 @@ def get(
 
 @rt("/new_memorization/bulk_add/{current_type}")
 async def post(
+    request,
     revision_date: str,
     mode_id: int,
     plan_id: int,
@@ -3648,7 +3653,10 @@ async def post(
                 )
 
     revisions.insert_all(parsed_data)
-    return Redirect(f"/new_memorization/{current_type}")
+    referer = request.headers.get("referer")
+    print(referer)
+    # return Redirect(f"/new_memorization/{current_type}")
+    return Redirect(referer or f"/new_memorization/{current_type}")
 
 
 @app.get("/page_details")
