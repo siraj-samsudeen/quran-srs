@@ -2650,7 +2650,7 @@ def watch_list_view(auth):
                 Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
                 Th("Next Review", cls="min-w-28 "),
                 Th("Due day"),
-                Th("Graduate"),
+                Th("Graduate", cls="column_to_scroll"),
                 *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
             )
         ),
@@ -2684,6 +2684,7 @@ def watch_list_view(auth):
 
     return main_area(
         content_body,
+        Script(src="/public/watch_list_logic.js"),
         active="Watch List",
         auth=auth,
     )
