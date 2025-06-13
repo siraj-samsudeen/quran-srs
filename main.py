@@ -791,13 +791,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
         last_mem_id = get_last_memorized_item_id(auth)
         qry = f"""
-            SELECT items.id AS item_id, items.page_id AS page_number, items.surah_name FROM items
+            SELECT items.id AS item_id, items.surah_id, items.page_id AS page_number, items.surah_name FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
             WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
             ORDER BY items.id ASC;
         """
         ct = db.q(qry)
         recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
+        recent_pages = [i["page_number"] for i in ct]
     else:
         qry = f"""
             SELECT hafizs_items.page_number, items.surah_name, hafizs_items.next_review FROM hafizs_items
@@ -814,45 +815,23 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         )
 
-    # recent_pages = [i["page_number"] for i in ct]
     if not recent_pages:
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
 
-    def render_page_row(page_number: int):
-        surah_names = sorted(
-            {i["surah_name"] for i in ct if i["page_number"] == page_number}
-        )
-        surah_display = " - ".join(surah_names)
-        item_ids = [item.id for item in items(where=f"page_id = {page_number}")]
-        get_page = (
-            f"/new_memorization/add/page?item_id={item_ids[0]}"
-            if len(item_ids) == 1
-            else f"/new_memorization/filter/page/{page_number}"
-        )
-        hx_attrs = {
-            "hx_get": get_page,
-            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", ""
-            ).replace(
-                "CURRENT_DETAILS", "New Memorization"
-            ),
-            "target_id": "modal-body",
-            "data_uk_toggle": "target: #modal",
-        }
+    def render_page_row(record):
         return Tr(
-            Td(page_number),
-            Td(surah_display),
+            Td(record["page_number"]),
+            Td(surahs[record["surah_id"]].name),
             Td(
                 A(
-                    "Start Memorization ➡️",
-                    href={},
+                    "Set as newly memorized",
+                    hx_post=f"/markas/new_memorization/{record['item_id']}",
                     cls=AT.classic,
                 ),
                 cls="text-right",
             ),
-            **hx_attrs,
         )
 
     def render_range_row(page_range: str):
@@ -880,7 +859,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     if mode_ids == ["unmemorized"]:
-        body_rows = list(map(render_page_row, recent_pages[:3]))
+        body_rows = list(map(render_page_row, ct[:3]))
     else:
         body_rows = list(map(render_range_row, page_ranges))
 
@@ -904,6 +883,27 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Tbody(*body_rows),
         ),
     )
+
+
+@app.post("/markas/new_memorization/{item_id}")
+def mark_as_new_memorized(item_id: str, auth):
+    revisions.insert(
+        hafiz_id=auth,
+        item_id=item_id,
+        revision_date=current_time("%Y-%m-%d"),
+        rating=0,
+        mode_id=2,
+    )
+    # updating the status of the item to memorized
+    try:
+        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+    except IndexError:
+        hafizs_items.insert(
+            Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+        )
+    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+    hafizs_items.update({"status": "newly_memorized", "mode_id": 2}, hafizs_items_id)
+    return Redirect("/")
 
 
 @app.get("/tables")
