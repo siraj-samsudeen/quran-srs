@@ -792,8 +792,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         qry = f"""
         SELECT items.surah_name, items.page_id page_number FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.status IS NULL AND items.active != 0
-        GROUP BY items.page_id;
+        WHERE hafizs_items.status IS NULL AND items.active != 0;
         """
     else:
         qry = f"""
@@ -803,16 +802,18 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ORDER BY hafizs_items.item_id ASC
         """
     ct = db.q(qry)
-    recent_pages = [i["page_number"] for i in ct]
+    # recent_pages = [i["page_number"] for i in ct]
+    recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
     if not recent_pages:
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
 
     def render_page_row(page_number: int):
-        surah_name = next(
-            i["surah_name"] for i in ct if i["page_number"] == page_number
+        surah_names = sorted(
+            {i["surah_name"] for i in ct if i["page_number"] == page_number}
         )
+        surah_display = " - ".join(surah_names)
         item_ids = [item.id for item in items(where=f"page_id = {page_number}")]
         get_page = (
             f"/new_memorization/add/page?item_id={item_ids[0]}"
@@ -831,7 +832,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         }
         return Tr(
             Td(page_number),
-            Td(surah_name),
+            Td(surah_display),
             Td(
                 A(
                     "Start Memorization ➡️",
@@ -2240,7 +2241,7 @@ def filtered_table_for_modal(
     return (
         table,
         ModalTitle(
-            f"{title} - Select Memorized Pages",
+            "" if title == "" else f"{title} - Select Memorized Page",
             id="my-modal-title",
             hx_swap_oob="true",
         ),
@@ -3393,7 +3394,9 @@ def filtered_table_for_new_memorization_modal(
             cls="space-y-2",
         ),
         ModalTitle(
-            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+            "" if title == "" else f"{title} - Select Memorized Page",
+            id="modal-title",
+            hx_swap_oob="true",
         ),
         P(
             description,
@@ -3451,7 +3454,9 @@ def create_new_memorization_revision_form(
             method="POST",
         ),
         ModalTitle(
-            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+            "" if title == "" else f"{title} - Select Memorized Page",
+            id="modal-title",
+            hx_swap_oob="true",
         ),
         P(
             description,
