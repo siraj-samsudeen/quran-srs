@@ -2577,10 +2577,14 @@ def watch_list_view(auth):
             )
 
         def render_rev(rev: Revision):
+            rev_date = rev.revision_date
             ctn = (
                 RATING_MAP[f"{rev.rating}"].split()[0],
-                " ",
-                date_to_human_readable(rev.revision_date),
+                (
+                    f" {date_to_human_readable(rev_date)}"
+                    if not (rev_date == current_time("%Y-%m-%d"))
+                    else None
+                ),
             )
             return Td(
                 (
