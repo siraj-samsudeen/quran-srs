@@ -745,7 +745,23 @@ def index(auth):
     new_memorization_table = make_summary_table(
         mode_ids=["unmemorized"], route="new_memorization", auth=auth
     )
-
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="modal-title"),
+                P(cls=TextPresets.muted_sm, id="modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            ModalBody(
+                Div(id="modal-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="modal",
+    )
     return main_area(
         action_buttons(
             **(
@@ -765,6 +781,7 @@ def index(auth):
             Divider(),
             datewise_summary_table(hafiz_id=auth),
         ),
+        Div(modal),
         active="Home",
         auth=auth,
     )
@@ -791,23 +808,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
-    modal = ModalContainer(
-        ModalDialog(
-            ModalHeader(
-                ModalTitle(id="modal-title"),
-                P(cls=TextPresets.muted_sm, id="modal-description"),
-                ModalCloseButton(),
-                cls="space-y-3",
-            ),
-            ModalBody(
-                Div(id="modal-body"),
-                data_uk_overflow_auto=True,
-            ),
-            ModalFooter(),
-            cls="uk-margin-auto-vertical",
-        ),
-        id="modal",
-    )
 
     def render_page_row(page_number: int):
         surah_name = next(
@@ -879,7 +879,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ),
             Tbody(*body_rows),
         ),
-        Div(modal),
     )
 
 
