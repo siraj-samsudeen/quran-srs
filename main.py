@@ -745,7 +745,23 @@ def index(auth):
     new_memorization_table = make_summary_table(
         mode_ids=["unmemorized"], route="new_memorization", auth=auth
     )
-
+    modal = ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="modal-title"),
+                P(cls=TextPresets.muted_sm, id="modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            ModalBody(
+                Div(id="modal-body"),
+                data_uk_overflow_auto=True,
+            ),
+            ModalFooter(),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="modal",
+    )
     return main_area(
         action_buttons(
             **(
@@ -765,6 +781,7 @@ def index(auth):
             Divider(),
             datewise_summary_table(hafiz_id=auth),
         ),
+        Div(modal),
         active="Home",
         auth=auth,
     )
@@ -772,7 +789,13 @@ def index(auth):
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
-        ct = filter_query_records(auth)
+        last_mem_id = get_last_memorized_item_id(auth)
+        qry = f"""
+            SELECT items.id AS item_id, items.page_id AS page_number, items.surah_name FROM items
+            LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
+            ORDER BY items.id ASC;
+        """
     else:
         qry = f"""
             SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
@@ -780,12 +803,50 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
             ORDER BY hafizs_items.item_id ASC
         """
-        ct = db.q(qry)
+    ct = db.q(qry)
+    # recent_pages = [i["page_number"] for i in ct]
+    recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
+    if not recent_pages:
+        page_ranges = []
+    else:
+        page_ranges = compact_format(recent_pages).split(", ")
 
-    recent_pages = [i["page_number"] for i in ct]
-    recent_page_range = compact_format(recent_pages).split(", ")
+    def render_page_row(page_number: int):
+        surah_names = sorted(
+            {i["surah_name"] for i in ct if i["page_number"] == page_number}
+        )
+        surah_display = " - ".join(surah_names)
+        item_ids = [item.id for item in items(where=f"page_id = {page_number}")]
+        get_page = (
+            f"/new_memorization/add/page?item_id={item_ids[0]}"
+            if len(item_ids) == 1
+            else f"/new_memorization/filter/page/{page_number}"
+        )
+        hx_attrs = {
+            "hx_get": get_page,
+            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                "CURRENT_TITLE", ""
+            ).replace(
+                "CURRENT_DETAILS", "New Memorization"
+            ),
+            "target_id": "modal-body",
+            "data_uk_toggle": "target: #modal",
+        }
+        return Tr(
+            Td(page_number),
+            Td(surah_display),
+            Td(
+                A(
+                    "Start Memorization ➡️",
+                    href={},
+                    cls=AT.classic,
+                ),
+                cls="text-right",
+            ),
+            **hx_attrs,
+        )
 
-    def render_recent_review_row(page_range: str):
+    def render_range_row(page_range: str):
         first_page, last_page = split_page_range(page_range)
         first_page_surah_name = [
             i["surah_name"] for i in ct if i["page_number"] == first_page
@@ -809,6 +870,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ),
         )
 
+    if mode_ids == ["unmemorized"]:
+        body_rows = list(map(render_page_row, recent_pages[:3]))
+    else:
+        body_rows = list(map(render_range_row, page_ranges))
+
     return Div(
         DivFullySpaced(
             H4(destandardize_text(route)),
@@ -821,15 +887,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         ),
         Table(
             Thead(
-                Tr(Th("Page Range"), Th("Surah")),
-                Tbody(
-                    *(
-                        map(render_recent_review_row, recent_page_range[:1])
-                        if recent_pages
-                        else ""
-                    )
-                ),
-            )
+                Tr(
+                    Th("Page" if mode_ids == ["unmemorized"] else "Page Range"),
+                    Th("Surah"),
+                )
+            ),
+            Tbody(*body_rows),
         ),
     )
 
@@ -2180,7 +2243,7 @@ def filtered_table_for_modal(
     return (
         table,
         ModalTitle(
-            f"{title} - Select Memorized Pages",
+            "" if title == "" else f"{title} - Select Memorized Page",
             id="my-modal-title",
             hx_swap_oob="true",
         ),
@@ -2917,6 +2980,18 @@ def group_by_type(data, current_type):
     return grouped
 
 
+def get_last_memorized_item_id(auth):
+    qry = f"""
+        SELECT item_id
+        FROM revisions
+        WHERE hafiz_id = {auth} AND mode_id = 2
+        ORDER BY revision_date DESC, id DESC
+        LIMIT 1
+    """
+    result = db.q(qry)
+    return result[0]["item_id"] if result else 0
+
+
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     not_memorized = filter_query_records(auth)
     not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
@@ -3333,7 +3408,9 @@ def filtered_table_for_new_memorization_modal(
             cls="space-y-2",
         ),
         ModalTitle(
-            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+            "" if title == "" else f"{title} - Select Memorized Page",
+            id="modal-title",
+            hx_swap_oob="true",
         ),
         P(
             description,
@@ -3378,9 +3455,12 @@ def create_new_memorization_revision_form(
             ),
             Div(
                 Button("Save", cls=ButtonT.primary),
-                A(
-                    Button("Cancel", type="button", cls=ButtonT.secondary),
-                    href=f"/new_memorization/{current_type}",
+                # A(
+                #     Button("Cancel", type="button", cls=ButtonT.secondary),
+                #     href=f"/new_memorization/{current_type}",
+                # ),
+                Button(
+                    "Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"
                 ),
                 cls="flex justify-around items-center w-full",
             ),
@@ -3388,7 +3468,9 @@ def create_new_memorization_revision_form(
             method="POST",
         ),
         ModalTitle(
-            f"{title} - Select Memorized Page", id="modal-title", hx_swap_oob="true"
+            "" if title == "" else f"{title} - Select Memorized Page",
+            id="modal-title",
+            hx_swap_oob="true",
         ),
         P(
             description,
@@ -3429,7 +3511,9 @@ def get(
 
 
 @rt("/new_memorization/add/{current_type}")
-def post(current_type: str, page_no: int, item_id: int, revision_details: Revision):
+def post(
+    request, current_type: str, page_no: int, item_id: int, revision_details: Revision
+):
     # The id is set to zer in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -3445,7 +3529,9 @@ def post(current_type: str, page_no: int, item_id: int, revision_details: Revisi
         hafizs_items_id,
     )
     revisions.insert(revision_details)
-    return Redirect(f"/new_memorization/{current_type}")
+    referer = request.headers.get("referer")
+    # return Redirect(f"/new_memorization/{current_type}")
+    return Redirect(referer or f"/new_memorization/{current_type}")
 
 
 @app.get("/new_memorization/bulk_add/{current_type}")
@@ -3524,10 +3610,11 @@ def get(
             "Save",
             cls=ButtonT.primary,
         ),
-        A(
-            Button("Cancel", type="button", cls=ButtonT.secondary),
-            href=f"/new_memorization/{current_type}",
-        ),
+        # A(
+        #     Button("Cancel", type="button", cls=ButtonT.secondary),
+        #     href=f"/new_memorization/{current_type}",
+        # ),
+        Button("Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
     start_description = f"{get_surah_name(item_id=item_ids[0])}"
@@ -3559,6 +3646,7 @@ def get(
 
 @rt("/new_memorization/bulk_add/{current_type}")
 async def post(
+    request,
     revision_date: str,
     mode_id: int,
     plan_id: int,
@@ -3596,7 +3684,10 @@ async def post(
                 )
 
     revisions.insert_all(parsed_data)
-    return Redirect(f"/new_memorization/{current_type}")
+    referer = request.headers.get("referer")
+    print(referer)
+    # return Redirect(f"/new_memorization/{current_type}")
+    return Redirect(referer or f"/new_memorization/{current_type}")
 
 
 @app.get("/page_details")
