@@ -2239,8 +2239,8 @@ def graduate_btn_recent_review(
     return Switch(
         hx_vals={"item_id": item_id},
         hx_post=f"/recent_review/graduate",
-        target_id=f"row-{item_id}",
-        hx_swap="none",
+        # target_id=f"row-{item_id}",
+        # hx_swap="none",
         checked=is_graduated,
         name=f"is_checked",
         id=f"graduate-btn-{item_id}",
@@ -2485,8 +2485,8 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     # We can also use the route funtion to return the entire page as output
     # And the HTMX headers are used to change the (re)target,(re)select only the current row
     return recent_review_view(auth), HtmxResponseHeaders(
-        retarget=f"#recent_review_table_area",
-        reselect=f"#recent_review_table_area",
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
         reswap="outerHTML",
     )
 
@@ -2530,8 +2530,8 @@ def watch_list_view(auth):
         return Switch(
             hx_vals={"item_id": item_id},
             hx_post=f"/watch_list/graduate",
-            target_id=f"row-{item_id}",
-            hx_swap="none",
+            # target_id=f"row-{item_id}",
+            # hx_swap="none",
             checked=is_graduated,
             name=f"is_checked",
             id=f"graduate-btn-{item_id}",
@@ -2843,8 +2843,8 @@ def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
         hafizs_items.update(data_to_update, current_hafiz_items[0].id)
 
     return watch_list_view(auth), HtmxResponseHeaders(
-        retarget=f"#watch_list_table_area",
-        reselect=f"#watch_list_table_area",
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
         reswap="outerHTML",
     )
 
