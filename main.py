@@ -826,7 +826,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Td(surahs[record["surah_id"]].name),
             Td(
                 A(
-                    "Set as newly memorized",
+                    "Set as Newly Memorized",
                     hx_post=f"/markas/new_memorization/{record['item_id']}",
                     cls=AT.classic,
                 ),
@@ -886,7 +886,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
 
 @app.post("/markas/new_memorization/{item_id}")
-def mark_as_new_memorized(item_id: str, auth):
+def mark_as_new_memorized(request, item_id: str, auth):
     revisions.insert(
         hafiz_id=auth,
         item_id=item_id,
@@ -903,7 +903,36 @@ def mark_as_new_memorized(item_id: str, auth):
         )
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update({"status": "newly_memorized", "mode_id": 2}, hafizs_items_id)
-    return Redirect("/")
+    referer = request.headers.get("Referer")
+    return Redirect(referer)
+
+
+@app.post("/markas/new_memorization_bulk")
+def bulk_mark_as_new_memorized(
+    request, item_ids: list[int], auth
+):  # for query string format
+
+    for item_id in item_ids:
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id,
+            revision_date=current_time("%Y-%m-%d"),
+            rating=0,
+            mode_id=2,
+        )
+
+        try:
+            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+        except IndexError:
+            hafizs_items.insert(
+                Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+            )
+        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+        )
+    referer = request.headers.get("Referer")
+    return Redirect(referer)
 
 
 @app.get("/tables")
@@ -3116,13 +3145,23 @@ def render_row_based_on_type(
         elif continue_new_memorization:
             link_text = display_next
         else:
-            link_text = "Start Memorization ➡️"
-
-        link_content = A(
-            link_text,
-            href={},
-            cls=AT.classic,
-        )
+            link_text = "Set as Newly Memorized"
+        item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
+        if len(item_ids) == 1 and not row_link and current_type == "page":
+            link_content = A(
+                link_text,
+                cls=AT.classic,
+                **{"hx-post": f"/markas/new_memorization/{item_ids[0]}"},
+            )
+        elif row_link:
+            link_content = A(
+                link_text,
+                href=get_page,
+                cls=AT.classic,
+                hx_attrs={},
+            )
+        else:
+            link_content = A(link_text, cls=AT.classic, **hx_attrs)
 
     hx_attributes = (
         {}
@@ -3223,7 +3262,7 @@ def new_memorization(auth, current_type: str):
     ct = filter_query_records(auth)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
-        render_row_based_on_type(type_number, records, current_type)
+        render_row_based_on_type(type_number, records, current_type, row_link=False)
         for type_number, records in list(grouped.items())
     ]
     not_memorized_table = Div(
@@ -3373,14 +3412,8 @@ def filtered_table_for_new_memorization_modal(
             Td(f"Juz {record['juz_number']}"),
             Td(
                 A(
-                    f"Start Memorization ➡️",
-                    hx_get=f"/new_memorization/add/{current_type}?item_id={record['id']}",
-                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                        "CURRENT_TITLE", title
-                    ).replace(
-                        "CURRENT_DETAILS", description
-                    ),
-                    hx_target="#modal-body",
+                    f"Set as Newly Memorized",
+                    hx_post=f"/markas/new_memorization/{record['id']}",
                     cls=(AT.classic),
                 ),
                 cls="text-right",
@@ -3415,9 +3448,8 @@ def filtered_table_for_new_memorization_modal(
     return (
         Form(
             table,
-            Button("Bulk Entry", cls="bg-green-600 text-white"),
-            hx_get=f"/new_memorization/bulk_add/{current_type}",
-            hx_target="#modal-body",
+            Button("Set as Newly Memorized", cls="bg-green-600 text-white"),
+            hx_post=f"/markas/new_memorization_bulk",
             cls="space-y-2",
         ),
         ModalTitle(
