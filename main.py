@@ -829,7 +829,19 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             "target_id": "modal-body",
             "data_uk_toggle": "target: #modal",
         }
-        return Tr(Td(page_number), Td(surah_name), **hx_attrs)
+        return Tr(
+            Td(page_number),
+            Td(surah_name),
+            Td(
+                A(
+                    "Start Memorization ➡️",
+                    href={},
+                    cls=AT.classic,
+                ),
+                cls="text-right",
+            ),
+            **hx_attrs,
+        )
 
     def render_range_row(page_range: str):
         first_page, last_page = split_page_range(page_range)
