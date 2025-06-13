@@ -789,10 +789,12 @@ def index(auth):
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
+        last_mem_id = get_last_memorized_item_id(auth)
         qry = f"""
-        SELECT items.surah_name, items.page_id page_number FROM items 
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.status IS NULL AND items.active != 0;
+            SELECT items.id AS item_id, items.page_id AS page_number, items.surah_name FROM items
+            LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
+            ORDER BY items.id ASC;
         """
     else:
         qry = f"""
@@ -2976,6 +2978,18 @@ def group_by_type(data, current_type):
     for row in data:
         grouped[row[columns_map[current_type]]].append(row)
     return grouped
+
+
+def get_last_memorized_item_id(auth):
+    qry = f"""
+        SELECT item_id
+        FROM revisions
+        WHERE hafiz_id = {auth} AND mode_id = 2
+        ORDER BY revision_date DESC, id DESC
+        LIMIT 1
+    """
+    result = db.q(qry)
+    return result[0]["item_id"] if result else 0
 
 
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
