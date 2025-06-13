@@ -139,9 +139,12 @@ def day_diff(date1, date2):
     Returns the difference in days between two dates (YYYY-MM-DD).
     The result is always non-negative (absolute value).
     """
+    if date1 in ["", None] or date2 in ["", None]:
+        return 0
+
     date1 = datetime.strptime(date1, "%Y-%m-%d")
     date2 = datetime.strptime(date2, "%Y-%m-%d")
-    return abs((date2 - date1).days)
+    return (date2 - date1).days
 
 
 def calculate_week_number(initial_date, input_date):
