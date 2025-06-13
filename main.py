@@ -2302,8 +2302,8 @@ def graduate_btn_recent_review(
     return Switch(
         hx_vals={"item_id": item_id},
         hx_post=f"/recent_review/graduate",
-        target_id=f"row-{item_id}",
-        hx_swap="none",
+        # target_id=f"row-{item_id}",
+        # hx_swap="none",
         checked=is_graduated,
         name=f"is_checked",
         id=f"graduate-btn-{item_id}",
@@ -2548,8 +2548,8 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     # We can also use the route funtion to return the entire page as output
     # And the HTMX headers are used to change the (re)target,(re)select only the current row
     return recent_review_view(auth), HtmxResponseHeaders(
-        retarget=f"#recent_review_table_area",
-        reselect=f"#recent_review_table_area",
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
         reswap="outerHTML",
     )
 
@@ -2593,8 +2593,8 @@ def watch_list_view(auth):
         return Switch(
             hx_vals={"item_id": item_id},
             hx_post=f"/watch_list/graduate",
-            target_id=f"row-{item_id}",
-            hx_swap="none",
+            # target_id=f"row-{item_id}",
+            # hx_swap="none",
             checked=is_graduated,
             name=f"is_checked",
             id=f"graduate-btn-{item_id}",
@@ -2620,6 +2620,7 @@ def watch_list_view(auth):
             due_day = 0
 
         def render_checkbox(_):
+            print(_)
             return Td(
                 # used span instead of checkbox so that I can trigger without checking the checkbox
                 Span(
@@ -2640,7 +2641,15 @@ def watch_list_view(auth):
             )
 
         def render_rev(rev: Revision):
-            ctn = (RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date)
+            rev_date = rev.revision_date
+            ctn = (
+                RATING_MAP[f"{rev.rating}"].split()[0],
+                (
+                    f" {date_to_human_readable(rev_date)}"
+                    if not (rev_date == current_time("%Y-%m-%d"))
+                    else None
+                ),
+            )
             return Td(
                 (
                     A(
@@ -2670,7 +2679,7 @@ def watch_list_view(auth):
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
             Td(
-                hafiz_item.next_review
+                date_to_human_readable(hafiz_item.next_review)
                 if (not is_graduated) and revision_count < 7
                 else ""
             ),
@@ -2685,16 +2694,10 @@ def watch_list_view(auth):
             ),
             *map(render_rev, watch_list_revisions),
             *map(
-                render_checkbox, (weeks_revision_excluded[:1] if due_day >= 7 else [])
+                render_checkbox,
+                ([weeks_revision_excluded.pop(0)] if due_day >= 7 else []),
             ),
-            *map(
-                render_hyphen,
-                (
-                    weeks_revision_excluded[1:]
-                    if due_day > 7
-                    else weeks_revision_excluded
-                ),
-            ),
+            *map(render_hyphen, weeks_revision_excluded),
             id=f"row-{item_id}",
         )
 
@@ -2705,7 +2708,7 @@ def watch_list_view(auth):
                 Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
                 Th("Next Review", cls="min-w-28 "),
                 Th("Due day"),
-                Th("Graduate"),
+                Th("Graduate", cls="column_to_scroll"),
                 *[Th(week, cls="!text-center sm:min-w-28") for week in week_column],
             )
         ),
@@ -2739,6 +2742,7 @@ def watch_list_view(auth):
 
     return main_area(
         content_body,
+        Script(src="/public/watch_list_logic.js"),
         active="Watch List",
         auth=auth,
     )
@@ -2898,8 +2902,8 @@ def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
         hafizs_items.update(data_to_update, current_hafiz_items[0].id)
 
     return watch_list_view(auth), HtmxResponseHeaders(
-        retarget=f"#watch_list_table_area",
-        reselect=f"#watch_list_table_area",
+        retarget=f"#row-{item_id}",
+        reselect=f"#row-{item_id}",
         reswap="outerHTML",
     )
 
