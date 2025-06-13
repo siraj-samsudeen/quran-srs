@@ -2577,7 +2577,11 @@ def watch_list_view(auth):
             )
 
         def render_rev(rev: Revision):
-            ctn = (RATING_MAP[f"{rev.rating}"].split()[0], rev.revision_date)
+            ctn = (
+                RATING_MAP[f"{rev.rating}"].split()[0],
+                " ",
+                date_to_human_readable(rev.revision_date),
+            )
             return Td(
                 (
                     A(
@@ -2607,7 +2611,7 @@ def watch_list_view(auth):
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
             ),
             Td(
-                hafiz_item.next_review
+                date_to_human_readable(hafiz_item.next_review)
                 if (not is_graduated) and revision_count < 7
                 else ""
             ),
