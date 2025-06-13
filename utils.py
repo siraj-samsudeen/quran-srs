@@ -141,7 +141,7 @@ def day_diff(date1, date2):
     """
     date1 = datetime.strptime(date1, "%Y-%m-%d")
     date2 = datetime.strptime(date2, "%Y-%m-%d")
-    return abs((date2 - date1).days)
+    return (date2 - date1).days
 
 
 def calculate_week_number(initial_date, input_date):

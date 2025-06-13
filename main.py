@@ -796,16 +796,25 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
             ORDER BY items.id ASC;
         """
+        ct = db.q(qry)
+        recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
     else:
         qry = f"""
-            SELECT hafizs_items.page_number, items.surah_name FROM hafizs_items
-            LEFT JOIN Items on hafizs_items.item_id = items.id 
+            SELECT hafizs_items.page_number, items.surah_name, hafizs_items.next_review FROM hafizs_items
+            LEFT JOIN items on hafizs_items.item_id = items.id 
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
             ORDER BY hafizs_items.item_id ASC
         """
-    ct = db.q(qry)
+        ct = db.q(qry)
+        recent_pages = list(
+            dict.fromkeys(
+                i["page_number"]
+                for i in ct
+                if day_diff(i["next_review"], current_time("%Y-%m-%d")) >= 0
+            )
+        )
+
     # recent_pages = [i["page_number"] for i in ct]
-    recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
     if not recent_pages:
         page_ranges = []
     else:
