@@ -2557,6 +2557,7 @@ def watch_list_view(auth):
             due_day = 0
 
         def render_checkbox(_):
+            print(_)
             return Td(
                 # used span instead of checkbox so that I can trigger without checking the checkbox
                 Span(
@@ -2630,16 +2631,10 @@ def watch_list_view(auth):
             ),
             *map(render_rev, watch_list_revisions),
             *map(
-                render_checkbox, (weeks_revision_excluded[:1] if due_day >= 7 else [])
+                render_checkbox,
+                ([weeks_revision_excluded.pop(0)] if due_day >= 7 else []),
             ),
-            *map(
-                render_hyphen,
-                (
-                    weeks_revision_excluded[1:]
-                    if due_day > 7
-                    else weeks_revision_excluded
-                ),
-            ),
+            *map(render_hyphen, weeks_revision_excluded),
             id=f"row-{item_id}",
         )
 
