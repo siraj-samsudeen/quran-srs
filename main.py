@@ -794,19 +794,19 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
-                ModalTitle(id="modal-index-title"),
+                ModalTitle(id="modal-title"),
                 P(cls=TextPresets.muted_sm, id="modal-description"),
                 ModalCloseButton(),
                 cls="space-y-3",
             ),
             ModalBody(
-                Div(id="modal-index-body"),
+                Div(id="modal-body"),
                 data_uk_overflow_auto=True,
             ),
             ModalFooter(),
             cls="uk-margin-auto-vertical",
         ),
-        id="modal-index",
+        id="modal",
     )
 
     def render_page_row(page_number: int):
@@ -826,8 +826,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ).replace(
                 "CURRENT_DETAILS", "New Memorization"
             ),
-            "target_id": "modal-index-body",
-            "data_uk_toggle": "target: #modal-index",
+            "target_id": "modal-body",
+            "data_uk_toggle": "target: #modal",
         }
         return Tr(Td(page_number), Td(surah_name), **hx_attrs)
 
