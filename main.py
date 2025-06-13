@@ -3256,7 +3256,7 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly_memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
+    where_query = f"""revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC LIMIT 6"""
     newly_memorized = filter_query_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "page")
     grouped_list = list(grouped.items())
@@ -3698,7 +3698,6 @@ async def post(
 
     revisions.insert_all(parsed_data)
     referer = request.headers.get("referer")
-    print(referer)
     # return Redirect(f"/new_memorization/{current_type}")
     return Redirect(referer or f"/new_memorization/{current_type}")
 
