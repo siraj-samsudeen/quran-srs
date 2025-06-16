@@ -9,16 +9,19 @@ function toggleRadio(radio) {
 }
 
 // Initialize and add event listeners when the page loads
-document.addEventListener('htmx:load', function(event) {
+document.addEventListener('htmx:load', function (event) {
   const radios = event.detail.elt.querySelectorAll('.toggleable-radio');
-  
+
   // Initialize the state for all radio buttons
   radios.forEach(radio => {
     radio._clicked = radio.checked;
-    
+
     // Add click event listener
-    radio.addEventListener('click', function() {
+    radio.addEventListener('click', function () {
       toggleRadio(this);
     });
   });
 });
+
+// To check the timezone of the server
+console.log(Intl.DateTimeFormat().resolvedOptions().timeZone);
