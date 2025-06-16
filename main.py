@@ -3080,7 +3080,6 @@ def render_row_based_on_type(
     title_range=None,
     details_range=None,
     rev_date=None,
-    display_for=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -3148,6 +3147,15 @@ def render_row_based_on_type(
         "data_uk_toggle": "target: #modal",
     }
 
+    def render_checkbox(item_id, label_text=None):
+        check_form = Form(
+            CheckboxX(
+                (label_text or ""),
+                hx_post=f"/markas/new_memorization/{item_id}",
+            )
+        )
+        return check_form
+
     if continue_new_memorization and next_page_item_id == 0:
         link_content = display_next
     else:
@@ -3159,11 +3167,9 @@ def render_row_based_on_type(
             link_text = "Set as Newly Memorized"
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
         if len(item_ids) == 1 and not row_link and current_type == "page":
-            link_content = A(
-                link_text,
-                cls=AT.classic,
-                **{"hx-post": f"/markas/new_memorization/{item_ids[0]}"},
-            )
+            link_content = render_checkbox(item_ids[0])
+        elif row_link:
+            link_content = render_checkbox(next_page_item_id, link_text)
         else:
             link_content = A(
                 link_text,
@@ -3175,18 +3181,14 @@ def render_row_based_on_type(
     hx_attributes = (
         {}
         if continue_new_memorization and next_page_item_id == 0
-        else (
-            hx_attrs
-            if current_type != "page" or display_for == "recently_memorized"
-            else {} if row_link else {}
-        )
+        else (hx_attrs if current_type != "page" else {} if row_link else {})
     )
 
     return Tr(
         Td(title),
         Td(details),
         Td(rev_date) if rev_date is not None else None,
-        Td(link_content, cls="text-right"),
+        Td(link_content),
         **hx_attributes,
     )
 
@@ -3284,6 +3286,7 @@ def new_memorization(auth, current_type: str):
                 Tr(
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
+                    Th("SET AS NEWLY MEMORIZED"),
                 ),
             ),
             Tbody(*not_memorized_rows),
@@ -3343,7 +3346,6 @@ def new_memorization(auth, current_type: str):
             title_range=title_range,
             details_range=details_range,
             rev_date=revision_date,
-            display_for="recently_memorized",
         )
 
     newly_memorized_rows = list(
@@ -3360,6 +3362,7 @@ def new_memorization(auth, current_type: str):
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
                     Th("REVISION DATE"),
+                    Th("SET AS NEWLY MEMORIZED"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
@@ -3424,14 +3427,14 @@ def filtered_table_for_new_memorization_modal(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(
-                A(
-                    f"Set as Newly Memorized",
-                    hx_post=f"/markas/new_memorization/{record['id']}",
-                    cls=(AT.classic),
-                ),
-                cls="text-right",
-            ),
+            # Td(
+            #     A(
+            #         f"Set as Newly Memorized",
+            #         hx_post=f"/markas/new_memorization/{record['id']}",
+            #         cls=(AT.classic),
+            #     ),
+            #     cls="text-right",
+            # ),
         )
 
     table = Div(
