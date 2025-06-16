@@ -3065,7 +3065,8 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     else:
         next_pg = next[0]["page_number"]
         next_surah = next[0]["surah_name"]
-        display_next = (Span(Strong(next_pg)), " - ", next_surah)
+        display_next = f"Page {next_pg} - {next_surah}"
+        # display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
     return continue_page, display_next
 
@@ -3148,9 +3149,10 @@ def render_row_based_on_type(
     }
 
     def render_checkbox(item_id, label_text=None):
+        label = label_text or ""
         check_form = Form(
-            CheckboxX(
-                (label_text or ""),
+            LabelCheckboxX(
+                label,
                 hx_post=f"/markas/new_memorization/{item_id}",
             )
         )
