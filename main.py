@@ -3070,6 +3070,7 @@ def render_row_based_on_type(
     title_range=None,
     details_range=None,
     rev_date=None,
+    display_for=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -3153,20 +3154,22 @@ def render_row_based_on_type(
                 cls=AT.classic,
                 **{"hx-post": f"/markas/new_memorization/{item_ids[0]}"},
             )
-        elif row_link:
+        else:
             link_content = A(
                 link_text,
-                href=get_page,
                 cls=AT.classic,
-                hx_attrs={},
+                # **hx_attrs,
+                hx_attrs={**hx_attrs},
             )
-        else:
-            link_content = A(link_text, cls=AT.classic, **hx_attrs)
 
     hx_attributes = (
         {}
         if continue_new_memorization and next_page_item_id == 0
-        else hx_attrs if row_link else {}
+        else (
+            hx_attrs
+            if current_type != "page" or display_for == "recently_memorized"
+            else {} if row_link else {}
+        )
     )
 
     return Tr(
@@ -3330,6 +3333,7 @@ def new_memorization(auth, current_type: str):
             title_range=title_range,
             details_range=details_range,
             rev_date=revision_date,
+            display_for="recently_memorized",
         )
 
     newly_memorized_rows = list(
