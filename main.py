@@ -623,7 +623,7 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
-    revision_data = revisions()
+    revision_data = revisions(where="mode_id = 1")
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
@@ -1586,7 +1586,7 @@ def get(
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
@@ -1790,7 +1790,7 @@ def get(
     )
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
@@ -2508,7 +2508,6 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
         current_hafiz_item = current_hafiz_item[0]
         # To update the status of hafizs_items table if it is newly memorized
         if current_hafiz_item.mode_id == 2:
-            current_hafiz_item.status = "recently_reviewed"
             current_hafiz_item.mode_id = 3
         # update the last and next review on the hafizs_items
         current_hafiz_item.last_review = last_revision_date
@@ -2525,11 +2524,9 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     last_review = get_last_recent_review_date(item_id)
 
     if is_checked:
-        status = "watch_list"
         mode_id = 4
         next_review_day = 7
     else:
-        status = "recent_review"
         mode_id = 3
         next_review_day = 1
 
@@ -2542,7 +2539,6 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
             try:
                 hafizs_items.update(
                     {
-                        "status": status,
                         "mode_id": mode_id,
                         "last_review": last_review,
                         "next_review": add_days_to_date(last_review, next_review_day),
@@ -2918,7 +2914,7 @@ def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
         }
     else:
         data_to_update = {
-            "status": "watch_list",
+            "status": "newly_memorized",
             "mode_id": 4,
             "last_review": last_review,
             "next_review": add_days_to_date(last_review, 7),
