@@ -641,6 +641,8 @@ def index(auth):
     for plan_id in unique_seq_plan_id:
         if not plan_id:
             continue
+        if plans[plan_id].completed:
+            continue
         pages_list = sorted(
             [
                 items[r.item_id].page_id
@@ -649,13 +651,6 @@ def index(auth):
                 )
             ]
         )
-        # If the plan is completed then we are not showing the gaps (such as showing them in diff rows)
-        # instead we'll show the start and end page of the plan
-        if plans[plan_id].completed and pages_list:
-            unique_page_ranges.append(
-                {"plan_id": plan_id, "page_range": f"{pages_list[0]}-{pages_list[-1]}"}
-            )
-            continue
 
         for p in compact_format(pages_list).split(", "):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
@@ -674,16 +669,7 @@ def index(auth):
         start_page, end_page = split_page_range(page_range)
         next_page = (end_page or start_page) + 1
 
-        current_plan = plans(where=f"id = '{plan_id}'")
-        if current_plan:
-            is_completed = current_plan[0].completed
-        else:
-            is_completed = False
-
-        if is_completed:
-            continue_message = "Completed"
-            action_buttons = None
-        elif next_page > 604:
+        if next_page > 604:
             continue_message = "No further page"
             action_buttons = None
         else:
