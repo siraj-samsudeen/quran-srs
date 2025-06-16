@@ -623,7 +623,7 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
-    revision_data = revisions()
+    revision_data = revisions(where="mode_id = 1")
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
@@ -1586,7 +1586,7 @@ def get(
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
@@ -1790,7 +1790,7 @@ def get(
     )
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
