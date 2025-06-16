@@ -2557,16 +2557,14 @@ def watch_list_view(auth):
             due_day = 0
 
         def render_checkbox(_):
-            print(_)
             return Td(
-                # used span instead of checkbox so that I can trigger without checking the checkbox
-                Span(
-                    hx_get=f"/watch_list/add/{item_id}",
-                    hx_vals={"min_date": hafiz_item.next_review},
-                    hx_trigger="click",
-                    target_id="my-modal-body",
-                    data_uk_toggle="target: #my-modal",
-                    cls=("uk-checkbox"),
+                CheckboxX(
+                    hx_post=f"/watch_list/add",
+                    hx_vals={"item_id": item_id},
+                    hx_include="#global_rating, #global_date",
+                    hx_swap="outerHTML",
+                    target_id=f"row-{item_id}",
+                    hx_select=f"#row-{item_id}",
                 ),
                 cls="text-center",
             )
@@ -2664,8 +2662,35 @@ def watch_list_view(auth):
         ),
         id="my-modal",
     )
+
+    def rating_dropdown():
+        def mk_options(o):
+            id, name = o
+            is_selected = lambda m: m == "1"
+            return Option(name, value=id, selected=is_selected(id))
+
+        return LabelSelect(
+            map(mk_options, RATING_MAP.items()),
+            label="Rating",
+            name="rating",
+            id="global_rating",
+            cls="flex-1",
+        )
+
     content_body = Div(
         H2("Watch List"),
+        Div(
+            rating_dropdown(),
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=current_time("%Y-%m-%d"),
+                id="global_date",
+                cls="flex-1",
+            ),
+            cls=(FlexT.block, FlexT.middle, "w-full gap-3"),
+        ),
         Div(
             table,
             modal,
@@ -2747,11 +2772,6 @@ def watch_list_form(item_id: int, min_date: str, _type: str):
     )
 
 
-@app.get("/watch_list/add/{item_id}")
-def watch_list_single_entry_form(item_id: int, min_date: str):
-    return watch_list_form(item_id, min_date, "add")
-
-
 @app.get("/watch_list/edit/{rev_id}")
 def watch_list_edit_form(rev_id: int):
     current_revision = revisions[rev_id].__dict__
@@ -2791,7 +2811,7 @@ def watch_list_delete_data(id: int, item_id: int):
 
 @app.post("/watch_list/add")
 def watch_list_add_data(revision_details: Revision, auth):
-    del revision_details.id
+    revision_details.mode_id = 4
     revisions.insert(revision_details)
     item_id = revision_details.item_id
 
