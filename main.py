@@ -743,18 +743,18 @@ def index(auth):
         ),
         id="modal",
     )
+    tables = (
+        overall_table,
+        new_memorization_table,
+        recent_review_table,
+        watch_list_table,
+        datewise_summary_table(hafiz_id=auth),
+    )
+    # if the table is none then exclude them from the tables list
+    tables = [i for i in tables if i is not None]
+
     return main_area(
-        Div(
-            overall_table,
-            Divider(),
-            new_memorization_table,
-            Divider(),
-            recent_review_table,
-            Divider(),
-            watch_list_table,
-            Divider(),
-            datewise_summary_table(hafiz_id=auth),
-        ),
+        Div(*insert_between(tables, Divider())),
         Div(modal),
         active="Home",
         auth=auth,
@@ -857,6 +857,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         body_rows = list(map(render_page_row, recent_pages[:3]))
     else:
         body_rows = list(map(render_range_row, page_ranges))
+
+    if not body_rows:
+        return None
 
     return Div(
         DivFullySpaced(

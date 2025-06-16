@@ -252,6 +252,29 @@ def backup_sqlite_db(source_db_path, backup_dir):
     return backup_path
 
 
+def insert_between(lst, element):
+    """
+    Insert an element between every pair of elements in a list.
+
+    Args:
+        lst: The original list
+        element: The element to insert between each pair
+
+    Returns:
+        A new list with the element inserted between each pair
+    """
+    if len(lst) <= 1:
+        return lst.copy()
+
+    result = []
+    for i in range(len(lst)):
+        result.append(lst[i])
+        if i < len(lst) - 1:  # Don't add separator after last element
+            result.append(element)
+
+    return result
+
+
 def set_zero_to_none(data):
     if data == 0:
         return None
