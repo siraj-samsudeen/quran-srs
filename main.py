@@ -701,7 +701,7 @@ def index(auth):
         )
 
     overall_table = Div(
-        H4("Sequential Revision Round"),
+        H4(modes[1].name),
         Table(
             Thead(
                 Tr(
@@ -743,15 +743,23 @@ def index(auth):
         ),
         id="modal",
     )
-    tables = (
-        overall_table,
-        new_memorization_table,
-        recent_review_table,
-        watch_list_table,
-        datewise_summary_table(hafiz_id=auth),
+
+    tables_dict = {
+        modes[1].name: overall_table,
+        modes[2].name: new_memorization_table,
+        modes[3].name: recent_review_table,
+        modes[4].name: watch_list_table,
+        # datewise_summary_table(hafiz_id=auth),
+    }
+
+    # Sort the tables based on the key
+    tables_dict = dict(
+        sorted(tables_dict.items(), key=lambda x: int(x[0].split(". ")[0]))
     )
+
+    tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
-    tables = [i for i in tables if i is not None]
+    tables = [_table for _table in tables if _table is not None]
 
     return main_area(
         Div(*insert_between(tables, Divider())),
@@ -861,9 +869,18 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if not body_rows:
         return None
 
+    if route == "new_memorization":
+        mode_id = 2
+    elif route == "recent_review":
+        mode_id = 3
+    elif route == "watch_list":
+        mode_id = 4
+    else:
+        mode_id = 1
+
     return Div(
         DivFullySpaced(
-            H4(destandardize_text(route)),
+            H4(modes[mode_id].name),
             A(
                 "Record",
                 href=f"/{route}",
