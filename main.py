@@ -787,6 +787,21 @@ def index(auth):
     )
 
 
+def render_checkbox(item_id, label_text=None):
+    current_revision_data = revisions(where=f"item_id = {item_id} AND mode_id IN (2);")
+    label = label_text or ""
+    check_form = Form(
+        LabelCheckboxX(
+            label,
+            name=f"is_checked",
+            value="1",
+            hx_post=f"/markas/new_memorization/{item_id}",
+            checked=True if current_revision_data else False,
+        )
+    )
+    return check_form
+
+
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
         last_mem_id = get_last_memorized_item_id(auth)
@@ -819,16 +834,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
-
-    def render_checkbox(item_id):
-        check_form = (
-            Form(
-                CheckboxX(
-                    hx_post=f"/markas/new_memorization/{item_id}",
-                ),
-            ),
-        )
-        return check_form
 
     def render_page_row(record):
         return Tr(
@@ -896,23 +901,36 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
 
 @app.post("/markas/new_memorization/{item_id}")
-def mark_as_new_memorized(request, item_id: str, auth):
-    revisions.insert(
-        hafiz_id=auth,
-        item_id=item_id,
-        revision_date=current_time("%Y-%m-%d"),
-        rating=0,
-        mode_id=2,
-    )
-    # updating the status of the item to memorized
-    try:
-        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
-    except IndexError:
-        hafizs_items.insert(
-            Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False):
+    qry = f"item_id = {item_id} AND mode_id = 2;"
+    revisions_data = revisions(where=qry)
+    if not revisions_data and is_checked:
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id,
+            revision_date=current_time("%Y-%m-%d"),
+            rating=0,
+            mode_id=2,
         )
-    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    hafizs_items.update({"status": "newly_memorized", "mode_id": 2}, hafizs_items_id)
+        # updating the status of the item to memorized
+        try:
+            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+        except IndexError:
+            hafizs_items.insert(
+                Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+            )
+        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+        )
+    elif revisions_data and not is_checked:
+        revisions.delete(revisions_data[0].id)
+        hafizs_items_data = hafizs_items(
+            where=f"item_id = {item_id} AND hafiz_id= {auth}"
+        )[0]
+        del hafizs_items_data.status
+        hafizs_items_data.mode_id = 1
+        hafizs_items.update(hafizs_items_data)
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -3080,7 +3098,7 @@ def render_row_based_on_type(
     auth=None,
     title_range=None,
     details_range=None,
-    rev_date=None,
+    rev_date=False,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -3132,7 +3150,7 @@ def render_row_based_on_type(
                 if next_page_item_id == 0
                 else f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
             )
-            title = title_range
+            # title = title_range
             # details = details_range
     else:
         get_page = filter_url
@@ -3140,23 +3158,13 @@ def render_row_based_on_type(
     hx_attrs = {
         "hx_get": get_page,
         "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-            "CURRENT_TITLE", title
+            "CURRENT_TITLE", title or ""
         ).replace(
-            "CURRENT_DETAILS", details
+            "CURRENT_DETAILS", details or ""
         ),
         "target_id": "modal-body",
         "data_uk_toggle": "target: #modal",
     }
-
-    def render_checkbox(item_id, label_text=None):
-        label = label_text or ""
-        check_form = Form(
-            LabelCheckboxX(
-                label,
-                hx_post=f"/markas/new_memorization/{item_id}",
-            )
-        )
-        return check_form
 
     if continue_new_memorization and next_page_item_id == 0:
         link_content = display_next
@@ -3185,11 +3193,12 @@ def render_row_based_on_type(
         if continue_new_memorization and next_page_item_id == 0
         else (hx_attrs if current_type != "page" else {} if row_link else {})
     )
-
+    revision_date = records[0]["revision_date"]
     return Tr(
+        Td(render_checkbox(item_ids[0])) if rev_date else None,
         Td(title),
         Td(details),
-        Td(rev_date) if rev_date is not None else None,
+        Td(revision_date) if rev_date else None,
         Td(link_content),
         **hx_attributes,
     )
@@ -3350,17 +3359,29 @@ def new_memorization(auth, current_type: str):
             rev_date=revision_date,
         )
 
-    newly_memorized_rows = list(
-        filter(
-            None,
-            [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
+    # newly_memorized_rows = list(
+    #     filter(
+    #         None,
+    #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
+    #     )
+    # )
+    newly_memorized_rows = [
+        render_row_based_on_type(
+            type_number,
+            records,
+            "page",
+            continue_new_memorization=True,
+            auth=auth,
+            rev_date=True,
         )
-    )
+        for type_number, records in grouped.items()
+    ]
 
     recent_newly_memorized_table = Div(
         Table(
             Thead(
                 Tr(
+                    Th("DELETE"),
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
                     Th("REVISION DATE"),
