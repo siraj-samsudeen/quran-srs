@@ -185,28 +185,7 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
-def action_buttons(last_added_page=1, source="Home"):
-
-    if isinstance(last_added_page, int):
-        last_added_page += 1
-    entry_buttons = Form(
-        DivLAligned(
-            Input(
-                type="text",
-                placeholder="page",
-                cls="max-w-12 sm:max-w-16",
-                id="page",
-                value=last_added_page,
-                autocomplete="off",
-                required=True,
-            ),
-            Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
-            Button("Single Entry", name="type", value="single", cls=ButtonT.link),
-            cls=("gap-3", FlexT.wrap),
-        ),
-        action="/revision/entry",
-        method="POST",
-    )
+def action_buttons():
     # Enable and Disable the button based on the checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
@@ -236,8 +215,8 @@ def action_buttons(last_added_page=1, source="Home"):
         ),
     )
     return DivFullySpaced(
-        entry_buttons if source == "Home" else Div(),
-        import_export_buttons if source == "Revision" else Div(),
+        Div(),
+        import_export_buttons,
         cls="flex-wrap gap-4 mb-3",
     )
 
@@ -703,13 +682,28 @@ def index(auth):
 
         if is_completed:
             continue_message = "Completed"
+            action_buttons = None
         elif next_page > 604:
             continue_message = "No further page"
+            action_buttons = None
         else:
-            continue_message = A(
-                render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
-                cls=AT.classic,
+            continue_message = render_page(next_page)
+            action_buttons = DivLAligned(
+                Button(
+                    "Bulk Entry",
+                    hx_get=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=ButtonT.link,
+                ),
+                Button(
+                    "Single Entry",
+                    hx_get=f"revision/add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=ButtonT.link,
+                ),
+                cls=("gap-3", FlexT.wrap),
             )
 
         return Tr(
@@ -718,6 +712,7 @@ def index(auth):
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
             Td(continue_message),
+            Td(action_buttons),
         )
 
     overall_table = Div(
@@ -764,13 +759,6 @@ def index(auth):
         id="modal",
     )
     return main_area(
-        action_buttons(
-            **(
-                {"last_added_page": last_added_page}
-                if last_added_page is not None
-                else {}
-            )
-        ),
         Div(
             overall_table,
             Divider(),
@@ -1373,7 +1361,7 @@ def revision(auth, idx: int | None = 1):
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
         Form(
-            action_buttons(source="Revision"),
+            action_buttons(),
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
@@ -1650,18 +1638,15 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
     return RedirectResponse("/revision", status_code=303)
 
 
-# This route is used to redirect to the appropriate revision entry form
-@rt("/revision/entry")
-def post(type: str, page: str):
-    if type == "bulk":
-        return Redirect(f"/revision/bulk_add?page={page}")
-    elif type == "single":
-        return Redirect(f"/revision/add?page={page}")
-
-
 @rt("/revision/add")
 def get(
-    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+    auth,
+    page: str,
+    max_page: int = 605,
+    date: str = None,
+    show_id_fields: bool = False,
+    mode_id: int = None,
+    plan_id: int = None,
 ):
     if "-" in page:
         page = page.split("-")[0]
@@ -1691,8 +1676,8 @@ def get(
                 create_revision_form("add", show_id_fields=show_id_fields),
                 {
                     "page_no": page,
-                    "mode_id": defalut_mode_value,
-                    "plan_id": defalut_plan_value,
+                    "mode_id": mode_id or defalut_mode_value,
+                    "plan_id": plan_id or defalut_plan_value,
                     "revision_date": date,
                 },
             ),
