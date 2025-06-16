@@ -820,17 +820,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     else:
         page_ranges = compact_format(recent_pages).split(", ")
 
+    def render_checkbox(item_id):
+        check_form = (
+            Form(
+                CheckboxX(
+                    hx_post=f"/markas/new_memorization/{item_id}",
+                ),
+            ),
+        )
+        return check_form
+
     def render_page_row(record):
         return Tr(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(
-                A(
-                    "Set as Newly Memorized",
-                    hx_post=f"/markas/new_memorization/{record['item_id']}",
-                    cls=AT.classic,
-                ),
-                cls="text-right",
+                render_checkbox(record["item_id"]),
             ),
         )
 
@@ -878,6 +883,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(
                     Th("Page" if mode_ids == ["unmemorized"] else "Page Range"),
                     Th("Surah"),
+                    (
+                        Th("Set as Newly Memorized")
+                        if mode_ids == ["unmemorized"]
+                        else ""
+                    ),
                 )
             ),
             Tbody(*body_rows),
