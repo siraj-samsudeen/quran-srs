@@ -1961,6 +1961,24 @@ async def post(
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = None):
 
+    # This query will return all the missing items for that hafiz
+    # and we will add the items in to the hafizs_items table
+    qry = """
+    SELECT items.id from items
+    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = 1 
+    WHERE items.active <> 0 AND hafizs_items.item_id IS Null;
+    """
+    ct = db.q(qry)
+    missing_item_ids = [r["id"] for r in ct]
+
+    if missing_item_ids:
+        for missing_item_id in missing_item_ids:
+            hafizs_items.insert(
+                item_id=missing_item_id,
+                page_number=get_page_number(missing_item_id),
+                mode_id=1,
+            )
+
     def render_row_based_on_type(type_number: str, records: list, current_type):
         memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
         if all(memorized_status):
