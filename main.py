@@ -3313,7 +3313,6 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
         # )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
     return Tr(
-        Td(checkbox),
         Td(title),
         Td(details),
         Td(revision_date),
@@ -3453,7 +3452,6 @@ def new_memorization(auth, current_type: str):
         Table(
             Thead(
                 Tr(
-                    Th("DELETE"),
                     Th("NAME"),
                     Th("RANGE/DETAILS"),
                     Th("REVISION DATE"),
