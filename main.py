@@ -165,6 +165,16 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
+def get_page_number(item_id):
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number
+
+
+def find_next_item_id(item_id):
+    item_ids = [item.id for item in items(where="active = 1")]
+    return find_next_greater(item_ids, item_id)
+
+
 def get_recent_review_count(item_id):
     recent_review_count = revisions(where=f"item_id = {item_id} AND mode_id = 3")
     return len(recent_review_count)
@@ -603,30 +613,6 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
-    revision_data = revisions(where="mode_id = 1")
-    last_added_item_id = revision_data[-1].item_id if revision_data else None
-
-    if last_added_item_id:
-        item_details = items[last_added_item_id]
-        last_added_page = item_details.page_id
-
-        if item_details.item_type == "page-part":
-            # fill the page input with parts based on the last added record
-            # to start from the next part
-            if "1" in item_details.part:
-                last_added_page = last_added_page + 0.2
-            elif (
-                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
-                and "2" in item_details.part
-            ):
-                last_added_page = last_added_page + 0.3
-    else:
-        last_added_page = None
-
-    # if it is greater than 604, we are reseting the last added page to None
-    if isinstance(last_added_page, int) and last_added_page >= 604:
-        last_added_page = None
-
     ################### Overall summary ###################
     # Sequential revision table
     seq_id = "1"
@@ -656,24 +642,47 @@ def index(auth):
             unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
-        def render_page(page):
-            return Span(
-                Span(page, cls=TextPresets.bold_sm),
-                f" - {get_surah_name(page_id=page)}",
-            )
+        def render_page(page=None, item_id=None):
+            if item_id:
+                return Span(
+                    Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+                    f" - {get_surah_name(item_id=item_id)}",
+                )
+            elif page:
+                return Span(
+                    Span(page, cls=TextPresets.bold_sm),
+                    f" - {get_surah_name(page_id=page)}",
+                )
+            else:
+                return None
 
         plan_id, page_range = o["plan_id"], o["page_range"]
         if not page_range:
             return None
 
         start_page, end_page = split_page_range(page_range)
-        next_page = (end_page or start_page) + 1
+        # To get the next greater item id based on the page
+        qry = f"""
+        SELECT revisions.mode_id,revisions.plan_id, revisions.item_id, pages.page_number from revisions
+        LEFT JOIN Items ON items.id = revisions.item_id
+        LEFT JOIN pages ON pages.id = items.page_id 
+        WHERE pages.page_number = {end_page or start_page} AND revisions.mode_id = {seq_id} AND revisions.plan_id = {plan_id} 
+        ORDER BY revisions.item_id DESC
+        """
+        ct = db.q(qry)
 
-        if next_page > 604:
+        if ct:
+            last_added_item_id = ct[0]["item_id"]
+        else:
+            last_added_item_id = None
+
+        next_item_id = find_next_item_id(last_added_item_id)
+
+        if get_page_number(next_item_id) > 604:
             continue_message = "No further page"
             action_buttons = None
         else:
-            continue_message = render_page(next_page)
+            continue_message = render_page(item_id=next_item_id)
             action_buttons = DivLAligned(
                 Button(
                     "Bulk Entry",
