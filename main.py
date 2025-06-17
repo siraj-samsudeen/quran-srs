@@ -686,7 +686,7 @@ def index(auth):
             action_buttons = DivLAligned(
                 Button(
                     "Bulk Entry",
-                    hx_get=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&mode_id={seq_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=ButtonT.link,
@@ -1451,9 +1451,8 @@ def create_revision_form(type, show_id_fields=False):
         (
             toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
             if type == "add"
-            else Grid(*additional_fields)
+            else Grid(*additional_fields, cols=2)
         ),
-        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1472,12 +1471,15 @@ def create_revision_form(type, show_id_fields=False):
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int, auth):
     current_revision = revisions[revision_id].__dict__
-    current_revision["page_no"] = items[current_revision["item_id"]].page_id
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
+    item_id = current_revision["item_id"]
     form = create_revision_form("edit")
     return main_area(
-        Titled("Edit Revision", fill_form(form, current_revision)),
+        Titled(
+            f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+            fill_form(form, current_revision),
+        ),
         active="Revision",
         auth=auth,
     )
@@ -1657,7 +1659,7 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 @rt("/revision/add")
 def get(
     auth,
-    item_id: str,
+    item_id: int,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
@@ -1685,11 +1687,10 @@ def get(
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
+            f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
             fill_form(
                 create_revision_form("add", show_id_fields=show_id_fields),
                 {
-                    "page_no": page,
                     "item_id": item_id,
                     "mode_id": 1,
                     "plan_id": plan_id or defalut_plan_value,
@@ -1703,7 +1704,7 @@ def get(
 
 
 @rt("/revision/add")
-def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
+def post(revision_details: Revision, show_id_fields: bool = False):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
