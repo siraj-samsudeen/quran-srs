@@ -693,7 +693,7 @@ def index(auth):
                 ),
                 Button(
                     "Single Entry",
-                    hx_get=f"revision/add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_get=f"revision/add?item_id={next_item_id}&mode_id={seq_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=ButtonT.link,
@@ -1443,6 +1443,7 @@ def create_revision_form(type, show_id_fields=False):
 
     return Form(
         Hidden(name="id"),
+        Hidden(name="item_id"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
@@ -1656,32 +1657,30 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 @rt("/revision/add")
 def get(
     auth,
-    page: str,
+    item_id: str,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
-    mode_id: int = None,
     plan_id: int = None,
 ):
-    if "-" in page:
-        page = page.split("-")[0]
+    page = get_page_number(item_id)
+    # if "-" in page:
+    #     page = page.split("-")[0]
 
-    page_in_float = float(page)
-    page = int(page_in_float)
+    # page_in_float = float(page)
+    # page = int(page_in_float)
 
     if page >= max_page:
         return Redirect(index)
 
-    if len(get_item_id(page_number=int(page))) > 1:
+    if len(get_item_id(page_number=page)) > 1:
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
-        defalut_mode_value = 1
         defalut_plan_value = None
     else:
-        defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
     return main_area(
@@ -1691,7 +1690,8 @@ def get(
                 create_revision_form("add", show_id_fields=show_id_fields),
                 {
                     "page_no": page,
-                    "mode_id": mode_id or defalut_mode_value,
+                    "item_id": item_id,
+                    "mode_id": 1,
                     "plan_id": plan_id or defalut_plan_value,
                     "revision_date": date,
                 },
@@ -1709,8 +1709,7 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
 
-    item_id = items(where=f"page_id = {page_no}")[0].id
-    revision_details.item_id = item_id
+    item_id = revision_details.item_id
 
     # updating the status of the item to memorized
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
@@ -1719,7 +1718,7 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     rev = revisions.insert(revision_details)
 
     return Redirect(
-        f"/revision/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
     )
 
 
