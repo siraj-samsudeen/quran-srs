@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import bisect
 import re
 import sqlite3
 import os
@@ -27,6 +28,14 @@ def create_and_migrate_db(db_path):
 
 def flatten_list(list_of_lists):
     return list(itertools.chain(*list_of_lists))
+
+
+def find_next_greater(arr, target):
+    # Find insertion point for target
+    pos = bisect.bisect_right(arr, target)
+    if pos < len(arr):
+        return arr[pos]
+    return None
 
 
 def select_all_checkbox_x_data(class_name, is_select_all="true"):
