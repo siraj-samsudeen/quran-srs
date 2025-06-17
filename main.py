@@ -138,7 +138,7 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
         for hafiz_item in hafiz_data
         if items[hafiz_item.item_id].active
     ]
-    return item_ids
+    return sorted(item_ids)
 
 
 def get_column_headers(table):
@@ -615,18 +615,14 @@ def index(auth):
     ################### Overall summary ###################
     # Sequential revision table
     seq_id = "1"
-    qry = f"SELECT plan_id FROM {revisions} WHERE mode_id = {seq_id} ORDER BY revision_date DESC"
-    result = db.q(qry)
-    seq_plan_ids = [i["plan_id"] for i in result]
-    # when using the `DISTINCT` keyword in the query the original order of the rows is not preserved
-    # so we need to use the `dict.fromkeys` method to remove the duplicates which preserves the order
-    unique_seq_plan_id = list(dict.fromkeys(seq_plan_ids))
+
+    unique_seq_plan_id = [
+        i.id for i in plans(where="completed <> 1", order_by="id DESC")
+    ]
     # To get the unique page ranges for the plan_id
     unique_page_ranges = []
     for plan_id in unique_seq_plan_id:
         if not plan_id:
-            continue
-        if plans[plan_id].completed:
             continue
         pages_list = sorted(
             [
@@ -637,8 +633,11 @@ def index(auth):
             ]
         )
 
-        for p in compact_format(pages_list).split(", "):
-            unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
+        if not pages_list:
+            unique_page_ranges.append({"plan_id": plan_id, "page_range": "2"})
+        else:
+            for p in compact_format(pages_list).split(", "):
+                unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
 
     def render_overall_row(o: dict):
         def render_page(page=None, item_id=None):
@@ -673,11 +672,11 @@ def index(auth):
         if ct:
             last_added_item_id = ct[0]["item_id"]
         else:
-            last_added_item_id = None
+            last_added_item_id = 1
 
         next_item_id = find_next_item_id(last_added_item_id)
 
-        if get_page_number(next_item_id) > 604:
+        if next_item_id is None:
             continue_message = "No further page"
             action_buttons = None
         else:
@@ -685,14 +684,14 @@ def index(auth):
             action_buttons = DivLAligned(
                 Button(
                     "Bulk Entry",
-                    hx_get=f"revision/bulk_add?item_id={next_item_id}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=ButtonT.link,
                 ),
                 Button(
                     "Single Entry",
-                    hx_get=f"revision/add?item_id={next_item_id}&mode_id={seq_id}&plan_id={plan_id}",
+                    hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=ButtonT.link,
@@ -1645,7 +1644,7 @@ def get(
     page = get_page_number(item_id)
 
     # Handle the max page
-    if page >= max_page:
+    if page > max_page:
         return Redirect(index)
 
     # This is to show only one page if it came from single entry
@@ -1653,9 +1652,6 @@ def get(
         length = 1
 
     last_page = page + length
-
-    if last_page > max_page:
-        last_page = math.ceil(max_page)
 
     item_ids = flatten_list(
         [get_item_id(page_number=p) for p in range(page, last_page)]
@@ -1673,21 +1669,25 @@ def get(
         first_page_surah = get_surah_name(item_id=item_id)
         first_page_juz = get_juz_name(item_id=item_id)
 
-        for _item_id in item_ids:
-            current_surah = get_surah_name(item_id=_item_id)
-            current_juz = get_juz_name(item_id=_item_id)
+        if len(item_ids) == 1:
+            # This is to handle the last page where there will be only one item_id in the list
+            description = "Surah and Juz ends"
+        else:
+            for _item_id in item_ids:
+                current_surah = get_surah_name(item_id=_item_id)
+                current_juz = get_juz_name(item_id=_item_id)
 
-            if current_surah != first_page_surah and current_juz != first_page_juz:
-                description = "Surah and Juz ends"
-                break
-            elif current_surah != first_page_surah:
-                description = "Surah ends"
-                break
-            elif current_juz != first_page_juz:
-                description = "Juz ends"
-                break
-            else:
-                _temp_item_ids.append(_item_id)
+                if current_surah != first_page_surah and current_juz != first_page_juz:
+                    description = "Surah and Juz ends"
+                    break
+                elif current_surah != first_page_surah:
+                    description = "Surah ends"
+                    break
+                elif current_juz != first_page_juz:
+                    description = "Juz ends"
+                    break
+                else:
+                    _temp_item_ids.append(_item_id)
 
         if _temp_item_ids:
             item_ids = _temp_item_ids
@@ -1859,6 +1859,10 @@ async def post(
         return Redirect(index)
 
     next_item_id = find_next_item_id(last_item_id)
+
+    # if there is no next item id, then we are done with the revision
+    if next_item_id is None:
+        return Redirect(index)
 
     if is_part:
         return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
