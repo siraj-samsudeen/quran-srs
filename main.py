@@ -1666,17 +1666,12 @@ def get(
     plan_id: int = None,
 ):
     page = get_page_number(item_id)
-    # if "-" in page:
-    #     page = page.split("-")[0]
-
-    # page_in_float = float(page)
-    # page = int(page_in_float)
 
     if page >= max_page:
         return Redirect(index)
 
     if len(get_item_id(page_number=page)) > 1:
-        return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
+        return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
 
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
@@ -1727,33 +1722,21 @@ def post(revision_details: Revision, show_id_fields: bool = False):
 @app.get("/revision/bulk_add")
 def get(
     auth,
-    page: str,
+    item_id: int,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    mode_id: int = None,
     plan_id: int = None,
     revision_date: str = None,
     length: int = 5,
-    max_page: float = 604.4,
+    max_page: float = 604,
     show_id_fields: bool = False,
 ):
 
-    # the length only matters if the pages have consecutive surahs
-    if "-" in page:
-        page, length = page.split("-")
+    page = get_page_number(item_id)
 
     # Handle the max page
-    if float(page) >= max_page:
+    if page >= max_page:
         return Redirect(index)
-
-    if "." in page:
-        page, part = page.split(".")
-        part = int(part)
-    else:
-        part = None
-
-    page = int(page)
-    length = int(length)
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -1767,25 +1750,22 @@ def get(
     item_ids = flatten_list(
         [get_item_id(page_number=p) for p in range(page, last_page)]
     )
+    # To start from the not added item id
+    if item_id in item_ids:
+        item_ids = item_ids[item_ids.index(item_id) :]
 
     description = ""
-
-    # if there is part in the page number,
-    # then we need to slice them to exclude already added part
-    if part:
-        item_ids = item_ids[part - 1 :]
 
     if not is_part:
 
         # This will responsible for stopping the length on surah or juz end
-        # TODO: currently we are not showing what is stopped like `juz end` or `surah end`
         _temp_item_ids = []
-        first_page_surah = get_surah_name(item_id=item_ids[0])
-        first_page_juz = get_juz_name(item_id=item_ids[0])
+        first_page_surah = get_surah_name(item_id=item_id)
+        first_page_juz = get_juz_name(item_id=item_id)
 
-        for item_id in item_ids:
-            current_surah = get_surah_name(item_id=item_id)
-            current_juz = get_juz_name(item_id=item_id)
+        for _item_id in item_ids:
+            current_surah = get_surah_name(item_id=_item_id)
+            current_juz = get_juz_name(item_id=_item_id)
 
             if current_surah != first_page_surah and current_juz != first_page_juz:
                 description = "Surah and Juz ends"
@@ -1797,21 +1777,21 @@ def get(
                 description = "Juz ends"
                 break
             else:
-                _temp_item_ids.append(item_id)
+                _temp_item_ids.append(_item_id)
 
         if _temp_item_ids:
             item_ids = _temp_item_ids
 
     last_page = items[item_ids[-1]].page_id
 
-    def _render_row(item_id):
+    def _render_row(current_item_id):
 
         def _render_radio(o):
             value, label = o
             is_checked = True if value == "1" else False
             return FormLabel(
                 Radio(
-                    id=f"rating-{item_id}",
+                    id=f"rating-{current_item_id}",
                     value=value,
                     checked=is_checked,
                     cls="toggleable-radio",
@@ -1820,17 +1800,17 @@ def get(
                 cls="space-x-2",
             )
 
-        current_page_details = items[item_id]
+        current_page_details = items[current_item_id]
         return Tr(
             Td(
                 CheckboxX(
                     name="ids",
-                    value=item_id,
+                    value=current_item_id,
                     cls="revision_ids",
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(current_page_details.page_id)),
+            Td(P(get_page_number(current_item_id))),
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
@@ -1882,10 +1862,8 @@ def get(
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
-        defalut_mode_value = 1
         defalut_plan_value = None
     else:
-        defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
     # if this page comes from single entry page, then we are displaying the all the surahs in that page
@@ -1905,7 +1883,7 @@ def get(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
             toggle_input_fields(
-                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
+                mode_dropdown(),
                 LabelInput(
                     "Plan ID",
                     name="plan_id",
@@ -1935,7 +1913,6 @@ def get(
 @rt("/revision/bulk_add")
 async def post(
     revision_date: str,
-    mode_id: int,
     plan_id: int,
     length: int,
     is_part: bool,
@@ -1960,7 +1937,7 @@ async def post(
                         rating=int(value),
                         hafiz_id=auth,
                         revision_date=revision_date,
-                        mode_id=mode_id,
+                        mode_id=1,
                         plan_id=plan_id,
                     )
                 )
@@ -1968,32 +1945,16 @@ async def post(
     revisions.insert_all(parsed_data)
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
-        # To show the next page
-        last_page = items[last_item_id].page_id
     else:
         return Redirect(index)
 
-    last_page_item_ids = get_item_id(last_page)
-
-    if not last_page_item_ids:
-        return Redirect(index)  # Handle the case where no items are found
-
-    # if the last added page doesn't have part or it is the last part of that particular page
-    # then add full page
-    if len(last_page_item_ids) == 1 or last_item_id == last_page_item_ids[-1]:
-        next_page = last_page + 1
-    #  or if the page has parts then add decimal such as 604.2, 604.3
-    else:
-        next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
-        next_page = float(next_page)
+    next_item_id = find_next_item_id(last_item_id)
 
     if is_part:
-        return Redirect(
-            f"/revision/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
-        )
+        return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}"
     )
 
 
