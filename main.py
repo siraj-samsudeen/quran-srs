@@ -1817,7 +1817,8 @@ def get(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
                     cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
-                )
+                ),
+                cls="!pr-0",
             ),
         )
 
