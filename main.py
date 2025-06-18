@@ -550,21 +550,21 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
-                A(
-                    "New Memorization",
-                    href="/new_memorization/juz",
-                    cls=is_active("New Memorization"),
-                ),
-                A(
-                    "Recent Review",
-                    href="/recent_review",
-                    cls=is_active("Recent Review"),
-                ),
-                A(
-                    "Watch List",
-                    href="/watch_list",
-                    cls=is_active("Watch List"),
-                ),
+                # A(
+                #     "New Memorization",
+                #     href="/new_memorization/juz",
+                #     cls=is_active("New Memorization"),
+                # ),
+                # A(
+                #     "Recent Review",
+                #     href="/recent_review",
+                #     cls=is_active("Recent Review"),
+                # ),
+                # A(
+                #     "Watch List",
+                #     href="/watch_list",
+                #     cls=is_active("Watch List"),
+                # ),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
@@ -2583,7 +2583,7 @@ def recent_review_view(auth):
     return main_area(
         content_body,
         Script(src="/public/recent_review_logic.js"),
-        active="Recent Review",
+        active="Home",
         auth=auth,
     )
 
@@ -2882,7 +2882,7 @@ def watch_list_view(auth):
     return main_area(
         content_body,
         Script(src="/public/watch_list_logic.js"),
-        active="Watch List",
+        active="Home",
         auth=auth,
     )
 
@@ -3524,7 +3524,7 @@ def new_memorization(auth, current_type: str):
             cls="space-y-4",
         ),
         Div(modal),
-        active="New Memorization",
+        active="Home",
         auth=auth,
     )
 
