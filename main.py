@@ -1803,7 +1803,7 @@ def get(
             label="No of pages",
             name="length",
             id="length_field",
-            select_kwargs={"name": "length"},
+            # select_kwargs={"name": "length"},
             hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}",
             hx_trigger="change",
             hx_select="#table-container",
@@ -1815,7 +1815,6 @@ def get(
     return main_area(
         H1(heading),
         Form(
-            Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
             Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
             toggle_input_fields(
