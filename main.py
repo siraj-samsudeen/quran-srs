@@ -702,7 +702,7 @@ def index(auth):
 
         return Tr(
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
-            Td(page_range, cls="hidden md:block"),
+            Td(page_range, cls="hidden md:table-cell"),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
             Td(continue_message),
@@ -715,7 +715,7 @@ def index(auth):
             Thead(
                 Tr(
                     Th("Plan Id"),
-                    Th("Range", cls="hidden md:block"),
+                    Th("Range", cls="hidden md:table-cell"),
                     Th("Start"),
                     Th("End"),
                     Th("Next"),
