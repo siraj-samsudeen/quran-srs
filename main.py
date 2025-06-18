@@ -548,12 +548,19 @@ def main_area(*args, active=None, auth=None):
         Div(
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
-                A("Revision", href=revision, cls=is_active("Revision")),
                 A(
-                    "Memorization Status",
-                    href="/memorization_status/juz",
+                    "Profile",
+                    href="/profile/juz",
                     cls=is_active("Memorization Status"),
                 ),
+                A(
+                    "Page Details",
+                    href="/page_details",
+                    cls=is_active("Page Details"),
+                ),
+                A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
+                A("Report", href="/report", cls=is_active("Report")),
                 A(
                     "New Memorization",
                     href="/new_memorization/juz",
@@ -569,12 +576,6 @@ def main_area(*args, active=None, auth=None):
                     href="/watch_list",
                     cls=is_active("Watch List"),
                 ),
-                A(
-                    "Page Details",
-                    href="/page_details",
-                    cls=is_active("Page Details"),
-                ),
-                A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
@@ -623,7 +624,7 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
-    revision_data = revisions()
+    revision_data = revisions(where="mode_id = 1")
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
@@ -785,6 +786,11 @@ def index(auth):
         active="Home",
         auth=auth,
     )
+
+
+@app.get("/report")
+def datewise_summary_table_view(auth):
+    return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
 def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
@@ -1670,7 +1676,7 @@ def get(
         return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
@@ -1874,7 +1880,7 @@ def get(
     )
 
     try:
-        last_added_record = revisions()[-1]
+        last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
         defalut_mode_value = 1
         defalut_plan_value = None
@@ -1991,7 +1997,7 @@ async def post(
     )
 
 
-@app.get("/memorization_status/{current_type}")
+@app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = None):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
@@ -2044,7 +2050,7 @@ def show_page_status(current_type: str, auth, status: str = None):
             Td(details),
             Td(status_value),
             Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
+            hx_get=f"/partial_profile/{current_type}/{type_number}",
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
             ).replace(
@@ -2074,8 +2080,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         return Li(
             A(
                 f"by {_type}",
-                href=f"/memorization_status/{_type}"
-                + (f"?status={status}" if status else ""),
+                href=f"/profile/{_type}" + (f"?status={status}" if status else ""),
             ),
             cls=("uk-active" if _type == current_type else None),
         )
@@ -2095,7 +2100,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     def render_filter_btn(text):
         return Label(
             text,
-            hx_get=f"/memorization_status/{current_type}?status={standardize_column(text)}",
+            hx_get=f"/profile/{current_type}?status={standardize_column(text)}",
             hx_target="body",
             hx_push_url="true",
             cls=(
@@ -2114,7 +2119,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         (
             Label(
                 "X",
-                hx_get=f"/memorization_status/{current_type}",
+                hx_get=f"/profile/{current_type}",
                 hx_target="body",
                 hx_push_url="true",
                 cls=(
@@ -2226,7 +2231,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                     data_uk_overflow_auto=True,
                 ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
-                hx_post=f"/partial_memorization_status/{current_type}"
+                hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
             ),
@@ -2268,7 +2273,7 @@ def show_page_status(current_type: str, auth, status: str = None):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_memorization_status/{current_type}/{type_number}")
+@app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
     current_type: str, type_number: int, title: str, description: str, auth
 ):
@@ -2349,7 +2354,7 @@ def filtered_table_for_modal(
     )
 
 
-@app.post("/partial_memorization_status/{current_type}")
+@app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
 
@@ -2375,7 +2380,7 @@ async def update_page_status(current_type: str, req: Request, status: str = None
             )
 
     return Redirect(
-        f"/memorization_status/{current_type}" + (f"?status={status}" if status else "")
+        f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
 
 
@@ -2592,7 +2597,6 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
         current_hafiz_item = current_hafiz_item[0]
         # To update the status of hafizs_items table if it is newly memorized
         if current_hafiz_item.mode_id == 2:
-            current_hafiz_item.status = "recently_reviewed"
             current_hafiz_item.mode_id = 3
         # update the last and next review on the hafizs_items
         current_hafiz_item.last_review = last_revision_date
@@ -2609,11 +2613,9 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     last_review = get_last_recent_review_date(item_id)
 
     if is_checked:
-        status = "watch_list"
         mode_id = 4
         next_review_day = 7
     else:
-        status = "recent_review"
         mode_id = 3
         next_review_day = 1
 
@@ -2626,7 +2628,6 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
             try:
                 hafizs_items.update(
                     {
-                        "status": status,
                         "mode_id": mode_id,
                         "last_review": last_review,
                         "next_review": add_days_to_date(last_review, next_review_day),
@@ -2713,16 +2714,14 @@ def watch_list_view(auth):
             due_day = 0
 
         def render_checkbox(_):
-            print(_)
             return Td(
-                # used span instead of checkbox so that I can trigger without checking the checkbox
-                Span(
-                    hx_get=f"/watch_list/add/{item_id}",
-                    hx_vals={"min_date": hafiz_item.next_review},
-                    hx_trigger="click",
-                    target_id="my-modal-body",
-                    data_uk_toggle="target: #my-modal",
-                    cls=("uk-checkbox"),
+                CheckboxX(
+                    hx_post=f"/watch_list/add",
+                    hx_vals={"item_id": item_id},
+                    hx_include="#global_rating, #global_date",
+                    hx_swap="outerHTML",
+                    target_id=f"row-{item_id}",
+                    hx_select=f"#row-{item_id}",
                 ),
                 cls="text-center",
             )
@@ -2820,8 +2819,35 @@ def watch_list_view(auth):
         ),
         id="my-modal",
     )
+
+    def rating_dropdown():
+        def mk_options(o):
+            id, name = o
+            is_selected = lambda m: m == "1"
+            return Option(name, value=id, selected=is_selected(id))
+
+        return LabelSelect(
+            map(mk_options, RATING_MAP.items()),
+            label="Rating",
+            name="rating",
+            id="global_rating",
+            cls="flex-1",
+        )
+
     content_body = Div(
         H2("Watch List"),
+        Div(
+            rating_dropdown(),
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=current_time("%Y-%m-%d"),
+                id="global_date",
+                cls="flex-1",
+            ),
+            cls=(FlexT.block, FlexT.middle, "w-full gap-3"),
+        ),
         Div(
             table,
             modal,
@@ -2903,11 +2929,6 @@ def watch_list_form(item_id: int, min_date: str, _type: str):
     )
 
 
-@app.get("/watch_list/add/{item_id}")
-def watch_list_single_entry_form(item_id: int, min_date: str):
-    return watch_list_form(item_id, min_date, "add")
-
-
 @app.get("/watch_list/edit/{rev_id}")
 def watch_list_edit_form(rev_id: int):
     current_revision = revisions[rev_id].__dict__
@@ -2947,7 +2968,7 @@ def watch_list_delete_data(id: int, item_id: int):
 
 @app.post("/watch_list/add")
 def watch_list_add_data(revision_details: Revision, auth):
-    del revision_details.id
+    revision_details.mode_id = 4
     revisions.insert(revision_details)
     item_id = revision_details.item_id
 
@@ -2982,7 +3003,7 @@ def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
         }
     else:
         data_to_update = {
-            "status": "watch_list",
+            "status": "newly_memorized",
             "mode_id": 4,
             "last_review": last_review,
             "next_review": add_days_to_date(last_review, 7),
