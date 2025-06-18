@@ -717,7 +717,7 @@ def index(auth):
                     Th("Range"),
                     Th("Start"),
                     Th("End"),
-                    Th("Continue"),
+                    Th("Next"),
                 )
             ),
             Tbody(*map(render_overall_row, unique_page_ranges)),
