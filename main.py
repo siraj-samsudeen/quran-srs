@@ -4059,7 +4059,7 @@ def display_page_level_details(auth, item_id: int):
         H2("Summary"),
         P(
             "This page was added on: ",
-            Span(Strong(first_memorized_date)),
+            Span(Strong(date_to_human_readable(first_memorized_date))),
             " under ",
             Span(Strong(first_memorized_mode_name)),
         ),
