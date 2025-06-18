@@ -2002,13 +2002,15 @@ def show_page_status(current_type: str, auth, status: str = None):
 
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
-    qry = """
+    qry = f"""
     SELECT items.id from items
-    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = 1 
+    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth} 
     WHERE items.active <> 0 AND hafizs_items.item_id IS Null;
     """
     ct = db.q(qry)
     missing_item_ids = [r["id"] for r in ct]
+    print(missing_item_ids)
+    print(auth)
 
     if missing_item_ids:
         for missing_item_id in missing_item_ids:
