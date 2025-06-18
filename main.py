@@ -560,6 +560,7 @@ def main_area(*args, active=None, auth=None):
                 ),
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
+                A("Report", href="/report", cls=is_active("Report")),
                 A(
                     "New Memorization",
                     href="/new_memorization/juz",
@@ -785,6 +786,11 @@ def index(auth):
         active="Home",
         auth=auth,
     )
+
+
+@app.get("/report")
+def datewise_summary_table_view(auth):
+    return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
