@@ -1339,8 +1339,11 @@ def create_revision_form(type, show_id_fields=False):
         )
 
     additional_fields = (
-        mode_dropdown(),
-        LabelInput("Plan Id", name="plan_id", type="number"),
+        *(
+            (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+            if type == "edit"
+            else ()
+        ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -1353,6 +1356,7 @@ def create_revision_form(type, show_id_fields=False):
     return Form(
         Hidden(name="id"),
         Hidden(name="item_id"),
+        Hidden(name="plan_id"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
@@ -1596,7 +1600,6 @@ def get(
                 create_revision_form("add", show_id_fields=show_id_fields),
                 {
                     "item_id": item_id,
-                    "mode_id": 1,
                     "plan_id": plan_id or defalut_plan_value,
                     "revision_date": date,
                 },
@@ -1613,6 +1616,7 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+    revision_details.mode_id = 1
 
     item_id = revision_details.item_id
 
@@ -1792,14 +1796,15 @@ def get(
         Form(
             Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
+            Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
             toggle_input_fields(
-                mode_dropdown(),
-                LabelInput(
-                    "Plan ID",
-                    name="plan_id",
-                    type="number",
-                    value=(plan_id or defalut_plan_value),
-                ),
+                # mode_dropdown(),
+                # LabelInput(
+                #     "Plan ID",
+                #     name="plan_id",
+                #     type="number",
+                #     value=(plan_id or defalut_plan_value),
+                # ),
                 LabelInput(
                     "Revision Date",
                     name="revision_date",
