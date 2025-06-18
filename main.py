@@ -1972,7 +1972,15 @@ async def post(
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
     else:
-        return Redirect(index)
+        # This is to get the last value from the table to get the next item id
+        # If none were selected
+        rating_date = [
+            name for name, value in form_data.items() if name.startswith("rating-")
+        ][::-1]
+        if rating_date:
+            last_item_id = int(rating_date[0].split("-")[1])
+        else:
+            return Redirect(index)
 
     next_item_id = find_next_item_id(last_item_id)
 
