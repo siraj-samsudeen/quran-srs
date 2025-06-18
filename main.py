@@ -1321,7 +1321,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(RATING_MAP.get(str(rev.rating))),
             Td(get_surah_name(item_id=item_id)),
             Td(pages[page].juz_number),
-            Td(rev.revision_date),
+            Td(date_to_human_readable(rev.revision_date)),
             Td(
                 A(
                     "Delete",
@@ -3356,7 +3356,7 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
     return Tr(
         Td(title),
         Td(details),
-        Td(revision_date),
+        Td(date_to_human_readable(revision_date)),
         Td(
             render_checkbox(
                 auth=auth, item_id=next_page_item_id, label_text=display_next
@@ -3410,9 +3410,9 @@ def new_memorization(auth, current_type: str):
         Table(
             Thead(
                 Tr(
-                    Th("NAME"),
-                    Th("RANGE/DETAILS"),
-                    Th("SET AS NEWLY MEMORIZED"),
+                    Th("Name"),
+                    Th("Range / Details"),
+                    Th("Set As Newly Memorized"),
                 ),
             ),
             Tbody(*not_memorized_rows),
@@ -3493,11 +3493,11 @@ def new_memorization(auth, current_type: str):
         Table(
             Thead(
                 Tr(
-                    Th("NAME"),
-                    Th("RANGE/DETAILS"),
-                    Th("REVISION DATE"),
-                    Th("SET AS NEWLY MEMORIZED"),
-                    Th("ACTION"),
+                    Th("Name"),
+                    Th("Range / Details"),
+                    Th("Revision Date"),
+                    Th("Set As Newly Memorized"),
+                    Th("Action"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
@@ -4006,6 +4006,8 @@ def display_page_level_details(auth, item_id: int):
             value = data.get(col, "")
             if col == "rating":
                 value = RATING_MAP.get(str(value), value)
+            if col == "revision_date":
+                value = date_to_human_readable(str(value))
             tds.append(Td(value))
         return Tr(*tds)
 
@@ -4085,13 +4087,13 @@ def display_page_level_details(auth, item_id: int):
         """
 
     summary_table_query = build_revision_summary_query(
-        item_id, auth, (1, 2, 3, 4), "sno"
+        item_id, auth, (1, 2, 3, 4), "s_no"
     )
     summary_data = db.q(summary_table_query)
-    summary_cols = ["sno", "revision_date", "rating", "mode_name", "interval"]
+    summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
     summary_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in summary_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in summary_cols)),
             Tbody(*[_render_row(row, summary_cols) for row in summary_data]),
         ),
         # cls="uk-overflow-auto max-h-[30vh] p-4",
@@ -4117,26 +4119,26 @@ def display_page_level_details(auth, item_id: int):
         """
 
     ########### Sequence Table
-    sequence_query = build_revision_query(item_id, auth, 1, "sno")
+    sequence_query = build_revision_query(item_id, auth, 1, "s_no")
     sequence_data = db.q(sequence_query)
     sequence_data_display = True if len(sequence_data) != 0 else False
-    sequence_cols = ["sno", "revision_date", "rating", "interval"]
+    sequence_cols = ["s_no", "revision_date", "rating", "interval"]
     sequence_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in sequence_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in sequence_cols)),
             Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### New Memorization Table
-    new_memorization_query = build_revision_query(item_id, auth, 2, "sno")
+    new_memorization_query = build_revision_query(item_id, auth, 2, "s_no")
     new_memorization = db.q(new_memorization_query)
     new_memorization_display = True if len(new_memorization) != 0 else False
-    new_memorization_cols = ["sno", "revision_date", "rating", "interval"]
+    new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
     new_memorization_table = Div(
         Table(
             Thead(
-                *(Th(col.replace("_", " ").upper()) for col in new_memorization_cols)
+                *(Th(col.replace("_", " ").title()) for col in new_memorization_cols)
             ),
             Tbody(
                 *[_render_row(row, new_memorization_cols) for row in new_memorization]
@@ -4145,25 +4147,25 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Recent Review Table
-    recent_review_query = build_revision_query(item_id, auth, 3, "sno")
+    recent_review_query = build_revision_query(item_id, auth, 3, "s_no")
     recent_review = db.q(recent_review_query)
     recent_review_display = True if len(recent_review) != 0 else False
-    recent_review_cols = ["sno", "revision_date", "rating", "interval"]
+    recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
     recent_review_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in recent_review_cols)),
             Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Watch List Table
-    watch_list_query = build_revision_query(item_id, auth, 4, "sno")
+    watch_list_query = build_revision_query(item_id, auth, 4, "s_no")
     watch_list_data = db.q(watch_list_query)
     watch_list_display = True if len(watch_list_data) != 0 else False
-    watch_list_cols = ["sno", "revision_date", "rating", "interval"]
+    watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
     watch_list_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in watch_list_cols)),
             Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
