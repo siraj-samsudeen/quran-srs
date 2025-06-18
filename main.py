@@ -548,12 +548,18 @@ def main_area(*args, active=None, auth=None):
         Div(
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
-                A("Revision", href=revision, cls=is_active("Revision")),
                 A(
                     "Profile",
                     href="/profile/juz",
                     cls=is_active("Memorization Status"),
                 ),
+                A(
+                    "Page Details",
+                    href="/page_details",
+                    cls=is_active("Page Details"),
+                ),
+                A("Revision", href=revision, cls=is_active("Revision")),
+                A("Tables", href="/tables", cls=is_active("Tables")),
                 A(
                     "New Memorization",
                     href="/new_memorization/juz",
@@ -569,12 +575,6 @@ def main_area(*args, active=None, auth=None):
                     href="/watch_list",
                     cls=is_active("Watch List"),
                 ),
-                A(
-                    "Page Details",
-                    href="/page_details",
-                    cls=is_active("Page Details"),
-                ),
-                A("Tables", href="/tables", cls=is_active("Tables")),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
