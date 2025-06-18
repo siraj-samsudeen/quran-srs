@@ -550,8 +550,8 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A(
-                    "Memorization Status",
-                    href="/memorization_status/juz",
+                    "Profile",
+                    href="/profile/juz",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
@@ -1907,7 +1907,7 @@ async def post(
     )
 
 
-@app.get("/memorization_status/{current_type}")
+@app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = None):
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
@@ -1960,7 +1960,7 @@ def show_page_status(current_type: str, auth, status: str = None):
             Td(details),
             Td(status_value),
             Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
+            hx_get=f"/partial_profile/{current_type}/{type_number}",
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
             ).replace(
@@ -1990,8 +1990,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         return Li(
             A(
                 f"by {_type}",
-                href=f"/memorization_status/{_type}"
-                + (f"?status={status}" if status else ""),
+                href=f"/profile/{_type}" + (f"?status={status}" if status else ""),
             ),
             cls=("uk-active" if _type == current_type else None),
         )
@@ -2011,7 +2010,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     def render_filter_btn(text):
         return Label(
             text,
-            hx_get=f"/memorization_status/{current_type}?status={standardize_column(text)}",
+            hx_get=f"/profile/{current_type}?status={standardize_column(text)}",
             hx_target="body",
             hx_push_url="true",
             cls=(
@@ -2030,7 +2029,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         (
             Label(
                 "X",
-                hx_get=f"/memorization_status/{current_type}",
+                hx_get=f"/profile/{current_type}",
                 hx_target="body",
                 hx_push_url="true",
                 cls=(
@@ -2142,7 +2141,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                     data_uk_overflow_auto=True,
                 ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
-                hx_post=f"/partial_memorization_status/{current_type}"
+                hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
             ),
@@ -2184,7 +2183,7 @@ def show_page_status(current_type: str, auth, status: str = None):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_memorization_status/{current_type}/{type_number}")
+@app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
     current_type: str, type_number: int, title: str, description: str, auth
 ):
@@ -2265,7 +2264,7 @@ def filtered_table_for_modal(
     )
 
 
-@app.post("/partial_memorization_status/{current_type}")
+@app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
 
@@ -2291,7 +2290,7 @@ async def update_page_status(current_type: str, req: Request, status: str = None
             )
 
     return Redirect(
-        f"/memorization_status/{current_type}" + (f"?status={status}" if status else "")
+        f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
 
 
