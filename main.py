@@ -1729,7 +1729,7 @@ def get(
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
     plan_id: int = None,
-    revision_date: str = None,
+    revision_date: str = current_time("%Y-%m-%d"),
     length: int = 5,
     max_page: float = 604,
     show_id_fields: bool = False,
@@ -1881,6 +1881,27 @@ def get(
     else:
         heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
 
+    def length_dropdown(default_length=5):
+        def mk_options(length_number):
+            is_selected = lambda l: l == default_length
+            return Option(
+                length_number, value=length_number, selected=is_selected(length_number)
+            )
+
+        return LabelSelect(
+            map(mk_options, [5, 10, 15, 20]),
+            label="No of pages",
+            name="length",
+            id="length_field",
+            select_kwargs={"name": "length"},
+            hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}",
+            hx_trigger="change",
+            hx_select="#table-container",
+            hx_target="#table-container",
+            hx_swap="outerHTML",
+            hx_push_url="true",
+        )
+
     return main_area(
         H1(heading),
         Form(
@@ -1888,6 +1909,7 @@ def get(
             Hidden(name="is_part", value=str(is_part)),
             Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
             toggle_input_fields(
+                length_dropdown(default_length=length) if not is_part else None,
                 # mode_dropdown(),
                 # LabelInput(
                 #     "Plan ID",
@@ -1899,12 +1921,12 @@ def get(
                     "Revision Date",
                     name="revision_date",
                     type="date",
-                    value=(revision_date or current_time("%Y-%m-%d")),
-                    cls="space-y-2 col-span-2",
+                    value=revision_date,
+                    cls=("space-y-2", ("col-span-2" if is_part else None)),
                 ),
                 show_id_fields=show_id_fields,
             ),
-            Div(table, cls="uk-overflow-auto"),
+            Div(table, cls="uk-overflow-auto", id="table-container"),
             action_buttons,
             action="/revision/bulk_add",
             method="POST",
