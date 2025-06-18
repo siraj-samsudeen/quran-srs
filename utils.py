@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import bisect
 import re
 import sqlite3
 import os
@@ -27,6 +28,14 @@ def create_and_migrate_db(db_path):
 
 def flatten_list(list_of_lists):
     return list(itertools.chain(*list_of_lists))
+
+
+def find_next_greater(arr, target):
+    # Find insertion point for target
+    pos = bisect.bisect_right(arr, target)
+    if pos < len(arr):
+        return arr[pos]
+    return None
 
 
 def select_all_checkbox_x_data(class_name, is_select_all="true"):
@@ -250,6 +259,29 @@ def backup_sqlite_db(source_db_path, backup_dir):
     destination.close()
 
     return backup_path
+
+
+def insert_between(lst, element):
+    """
+    Insert an element between every pair of elements in a list.
+
+    Args:
+        lst: The original list
+        element: The element to insert between each pair
+
+    Returns:
+        A new list with the element inserted between each pair
+    """
+    if len(lst) <= 1:
+        return lst.copy()
+
+    result = []
+    for i in range(len(lst)):
+        result.append(lst[i])
+        if i < len(lst) - 1:  # Don't add separator after last element
+            result.append(element)
+
+    return result
 
 
 def set_zero_to_none(data):
