@@ -688,21 +688,21 @@ def index(auth):
                     hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
-                    cls=ButtonT.link,
+                    cls=(ButtonT.default, "p-2"),
                 ),
                 Button(
                     "Single Entry",
                     hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
-                    cls=ButtonT.link,
+                    cls=(ButtonT.default, "p-2"),
                 ),
                 cls=("gap-3", FlexT.wrap),
             )
 
         return Tr(
             Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
-            Td(page_range),
+            Td(page_range, cls="hidden md:block"),
             Td(render_page(start_page)),
             (Td(render_page(end_page) if end_page else None)),
             Td(continue_message),
@@ -715,7 +715,7 @@ def index(auth):
             Thead(
                 Tr(
                     Th("Plan Id"),
-                    Th("Range"),
+                    Th("Range", cls="hidden md:block"),
                     Th("Start"),
                     Th("End"),
                     Th("Next"),
