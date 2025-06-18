@@ -240,6 +240,14 @@ def split_page_range(page_range: str):
     return start_id, end_id
 
 
+# This is used to dynamically sort them by mode name which contains the sort order
+# eg: sorted(mode_ids, key=lambda id: extract_mode_sort_number(id))
+def extract_mode_sort_number(mode_id):
+    """Extract the number from mode name like '1. full Cycle' -> 1"""
+    mode_name = modes[mode_id].name
+    return int(mode_name.split(". ")[0])
+
+
 def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
@@ -259,7 +267,8 @@ def datewise_summary_table(show=None, hafiz_id=None):
             f" AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
         )
         unique_modes = db.q(f"SELECT DISTINCT mode_id FROM {revisions} {rev_condition}")
-        unique_modes = sorted([m["mode_id"] for m in unique_modes])
+        unique_modes = [m["mode_id"] for m in unique_modes]
+        unique_modes = sorted(unique_modes, key=lambda id: extract_mode_sort_number(id))
 
         mode_with_ids_and_pages = []
         for mode_id in unique_modes:
