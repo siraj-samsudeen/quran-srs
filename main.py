@@ -684,14 +684,14 @@ def index(auth):
             continue_message = render_page(item_id=next_item_id)
             action_buttons = DivLAligned(
                 Button(
-                    "Bulk Entry",
+                    "Bulk",
                     hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=(ButtonT.default, "p-2"),
                 ),
                 Button(
-                    "Single Entry",
+                    "Single",
                     hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
                     hx_target="body",
                     hx_push_url="true",
@@ -719,6 +719,7 @@ def index(auth):
                     Th("Start"),
                     Th("End"),
                     Th("Next"),
+                    Th("Entry"),
                 )
             ),
             Tbody(*map(render_overall_row, unique_page_ranges)),
