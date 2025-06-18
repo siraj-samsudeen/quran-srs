@@ -3873,10 +3873,11 @@ def page_details_view(auth):
                             items.surah_id,
                             pages.page_number,
                             pages.juz_number,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS full_cycle,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS new_memorization,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS recent_review,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS watch_list,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS "1",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS "2",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS "3",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS "4",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 5 THEN 1 END), '-') AS "5",
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
@@ -3885,6 +3886,26 @@ def page_details_view(auth):
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
 
+    def get_all_mode_names():
+        mode_rows = db.q("SELECT * FROM modes;")
+        mode_list = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+            }
+            for row in mode_rows
+        ]
+        return mode_list
+
+    mode_name_list = [mode["name"] for mode in get_all_mode_names()]
+    mode_id_list = [mode["id"] for mode in get_all_mode_names()]
+    # to display the mode names in the correct order
+    mode_id_list, mode_name_list = zip(
+        *sorted(
+            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
+        )
+    )
     hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
@@ -3910,19 +3931,12 @@ def page_details_view(auth):
             if data_for == "page_details"
             else {}
         )
-        new_memorization = r["new_memorization"]
-        recent_review = r["recent_review"]
-        watch_list = r["watch_list"]
-        full_cycle = r["full_cycle"]
         rating_summary = r["rating_summary"]
 
         return Tr(
             Td(title),
             Td(details),
-            Td(new_memorization),
-            Td(recent_review),
-            Td(watch_list),
-            Td(full_cycle),
+            *map(lambda id: Td(r[str(id)]), mode_id_list),
             Td(rating_summary),
             Td(
                 A(
@@ -3944,10 +3958,7 @@ def page_details_view(auth):
             Tr(
                 Th("Page"),
                 Th("Details"),
-                Th("New Memorization"),
-                Th("Recent Review"),
-                Th("Watch List"),
-                Th("Full Cycle"),
+                *map(Th, mode_name_list),
                 Th("Rating Summary"),
             )
         ),
