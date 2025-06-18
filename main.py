@@ -1735,6 +1735,9 @@ def get(
     max_page: float = 604,
     show_id_fields: bool = False,
 ):
+    # This is to handle the empty `No of page`
+    if length < 1:
+        length = 5
 
     page = get_page_number(item_id)
 
@@ -1755,41 +1758,33 @@ def get(
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
 
-    description = ""
+    _temp_item_ids = []
+    page_surah = get_surah_name(item_id=item_id)
+    page_juz = get_juz_name(item_id=item_id)
 
-    if not is_part:
+    for _item_id in item_ids:
+        current_surah = get_surah_name(item_id=_item_id)
+        current_juz = get_juz_name(item_id=_item_id)
 
-        # This will responsible for stopping the length on surah or juz end
-        _temp_item_ids = []
-        first_page_surah = get_surah_name(item_id=item_id)
-        first_page_juz = get_juz_name(item_id=item_id)
+        if current_surah != page_surah and current_juz != page_juz:
+            _temp_item_ids.append(f"{page_surah} surah and Juz {page_juz} ends")
+            page_surah, page_juz = current_surah, current_juz
+        elif current_surah != page_surah:
+            _temp_item_ids.append(f"{page_surah} surah ends")
+            page_surah = current_surah
+        elif current_juz != page_juz:
+            _temp_item_ids.append(f"Juz {page_juz} ends")
+            page_juz = current_juz
 
-        if len(item_ids) == 1:
-            # This is to handle the last page where there will be only one item_id in the list
-            description = "Surah and Juz ends"
-        else:
-            for _item_id in item_ids:
-                current_surah = get_surah_name(item_id=_item_id)
-                current_juz = get_juz_name(item_id=_item_id)
+        _temp_item_ids.append(_item_id)
 
-                if current_surah != first_page_surah and current_juz != first_page_juz:
-                    description = "Surah and Juz ends"
-                    break
-                elif current_surah != first_page_surah:
-                    description = "Surah ends"
-                    break
-                elif current_juz != first_page_juz:
-                    description = "Juz ends"
-                    break
-                else:
-                    _temp_item_ids.append(_item_id)
-
-        if _temp_item_ids:
-            item_ids = _temp_item_ids
-
-    last_page = items[item_ids[-1]].page_id
+    if _temp_item_ids:
+        item_ids = _temp_item_ids
 
     def _render_row(current_item_id):
+        # This is to render the description such as surah and juz end-0
+        if isinstance(current_item_id, str):
+            return Tr(Td(P(current_item_id), colspan="5", cls="text-center"))
 
         def _render_radio(o):
             value, label = o
@@ -1840,14 +1835,7 @@ def get(
                 Th("Rating"),
             )
         ),
-        Tbody(
-            *map(_render_row, item_ids),
-            (
-                Tr(Td(P(description), colspan="5", cls="text-center"))
-                if description
-                else None
-            ),
-        ),
+        Tbody(*map(_render_row, item_ids)),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
             is_select_all="false" if is_part else "true",
@@ -1864,24 +1852,6 @@ def get(
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_plan_value = None
-    else:
-        defalut_plan_value = last_added_record.plan_id
-
-    # if this page comes from single entry page, then we are displaying the all the surahs in that page
-    if is_part:
-        heading = f"{page} - " + ", ".join(
-            [get_surah_name(item_id=item_id) for item_id in item_ids]
-        )
-    # if the bulk entry page shows only start page
-    elif len(item_ids) == 1:
-        heading = f"{page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
-    else:
-        heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
-
     length_input = LabelInput(
         "No of pages",
         name="length",
@@ -1891,17 +1861,59 @@ def get(
         hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}",
         hx_trigger="keyup delay:200ms changed",
         hx_select="#table-container",
-        hx_select_oob="#header",
+        hx_select_oob="#header_area",
         hx_target="#table-container",
         hx_swap="outerHTML",
         hx_push_url="true",
     )
 
+    # This is to render the surah and juz based in the lenth
+    def get_description(type):
+        get_type_function = {
+            "surah": get_surah_name,
+            "juz": get_juz_name,
+            "page": get_page_number,
+        }
+        if type not in get_type_function.keys():
+            return ""
+
+        unique_type = list(
+            dict.fromkeys(
+                [
+                    get_type_function[type](item_id=item_id)
+                    for item_id in item_ids
+                    if isinstance(item_id, int)
+                ]
+            )
+        )
+        if len(unique_type) == 1:
+            return unique_type[0]
+        else:
+            return f"{unique_type[0]} => {unique_type[-1]}"
+
+    surah_description = get_description("surah")
+    juz_description = get_description("juz")
+    page_description = get_description("page")
+
     return main_area(
-        H1(heading, id="header"),
+        Div(
+            # This will show in the desktop view
+            H1(
+                f"{page_description} - {surah_description} - Juz {juz_description}",
+                cls="hidden md:block",
+            ),
+            # This will show in the mobile view
+            Div(
+                H2(page_description),
+                H2(surah_description),
+                H2(f"Juz {juz_description}"),
+                cls="[&>*]:font-extrabold space-y-2 block md:hidden",
+            ),
+            id="header_area",
+        ),
         Form(
             Hidden(name="is_part", value=str(is_part)),
-            Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
+            Hidden(name="plan_id", value=plan_id),
             toggle_input_fields(
                 length_input if not is_part else None,
                 # mode_dropdown(),
@@ -2003,8 +2015,6 @@ def show_page_status(current_type: str, auth, status: str = None):
     """
     ct = db.q(qry)
     missing_item_ids = [r["id"] for r in ct]
-    print(missing_item_ids)
-    print(auth)
 
     if missing_item_ids:
         for missing_item_id in missing_item_ids:
