@@ -2063,11 +2063,14 @@ def show_page_status(current_type: str, auth, status: str = None):
         juz_range = render_range(_juzs, "Juz")
 
         if current_type == "juz":
-            details = f"{surah_range} ({page_range})"
+            details = [surah_range, page_range]
+            details_str = f"{surah_range} ({page_range})"
         elif current_type == "surah":
-            details = f"{juz_range} ({page_range})"
+            details = [juz_range, page_range]
+            details_str = f"{juz_range} ({page_range})"
         elif current_type == "page":
-            details = f"{juz_range} | {surah_range}"
+            details = [juz_range, surah_range]
+            details_str = f"{juz_range} | {surah_range}"
 
         title = (
             f"{current_type.capitalize()} {type_number}"
@@ -2076,7 +2079,8 @@ def show_page_status(current_type: str, auth, status: str = None):
         )
         return Tr(
             Td(title),
-            Td(details),
+            Td(details[0]),
+            Td(details[1]),
             Td(status_value),
             Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
             hx_get=f"/partial_profile/{current_type}/{type_number}"
@@ -2084,7 +2088,7 @@ def show_page_status(current_type: str, auth, status: str = None):
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
             ).replace(
-                "CURRENT_DETAILS", details
+                "CURRENT_DETAILS", details_str
             ),
             target_id="my-modal-body",
             data_uk_toggle="target: #my-modal",
@@ -2156,7 +2160,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         P("Status Filter:", cls=TextPresets.muted_sm),
         *map(
             render_filter_btn,
-            ["Memorized", "Not Memorized", "Partially Memorized", "Newly Memorized"],
+            ["Memorized", "Not Memorized", "Newly Memorized", "Partially Memorized"],
         ),
         (
             Label(
@@ -2289,6 +2293,12 @@ def show_page_status(current_type: str, auth, status: str = None):
         ),
         id="my-modal",
     )
+    if current_type == "page":
+        Details = ["Juz", "Surah"]
+    elif current_type == "surah":
+        Details = ["Juz", "Page"]
+    elif current_type == "juz":
+        Details = ["Surah", "Page"]
     return main_area(
         Div(
             progress_bar_with_stats,
@@ -2302,8 +2312,9 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Table(
                         Thead(
                             Tr(
-                                Th("Name"),
-                                Th("Range / Details"),
+                                Th(current_type.title()),
+                                Th(Details[0]),
+                                Th(Details[1]),
                                 Th("Status"),
                                 Th(""),
                             )
