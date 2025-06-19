@@ -1998,7 +1998,7 @@ async def post(
 
 
 @app.get("/profile/{current_type}")
-def show_page_status(current_type: str, auth, status: str = None):
+def show_page_status(current_type: str, auth, status: str = ""):
 
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
@@ -2009,8 +2009,6 @@ def show_page_status(current_type: str, auth, status: str = None):
     """
     ct = db.q(qry)
     missing_item_ids = [r["id"] for r in ct]
-    print(missing_item_ids)
-    print(auth)
 
     if missing_item_ids:
         for missing_item_id in missing_item_ids:
@@ -2077,10 +2075,28 @@ def show_page_status(current_type: str, auth, status: str = None):
             if current_type != "surah"
             else surahs[type_number].name
         )
+        status_dd = ["Memorized", "Newly Memorized", "Not Memorized"]
+
+        def render_status_options(status_):
+            return fh.Option(
+                status_,
+                value=standardize_column(status_),
+                selected=(status_ == status_value),
+            )
+
         return Tr(
             Td(title),
             Td(details[0]),
             Td(details[1]),
+            Td(
+                Form(
+                    fh.Select(
+                        map(render_status_options, status_dd), name="selected_status"
+                    ),
+                    hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_trigger="change",
+                )
+            ),
             Td(status_value),
             Td(
                 A("Update Status ➡️"),
@@ -2127,12 +2143,14 @@ def show_page_status(current_type: str, auth, status: str = None):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
+    print("status", status)
 
-    status_condition = (
-        f"AND hafizs_items.status = '{status}'"
-        if status != "not_memorized"
-        else "AND hafizs_items.status IS NULL"
-    )
+    if status in ["memorized", "newly_memorized"]:
+        status_condition = f" AND hafizs_items.status = '{status}'"
+    elif status == "not_memorized":
+        status_condition = " AND hafizs_items.status IS NULL"
+    else:
+        status_condition = ""
     query_with_status = qry.replace(";", f" {status_condition};")
 
     qry_data = db.q(query_with_status if status else qry)
@@ -2307,7 +2325,7 @@ def show_page_status(current_type: str, auth, status: str = None):
             progress_bar_with_stats,
             DividerLine(),
             filter_btns,
-            Form(
+            Div(
                 TabContainer(
                     *map(render_navigation_item, ["juz", "surah", "page"]),
                 ),
@@ -2334,6 +2352,29 @@ def show_page_status(current_type: str, auth, status: str = None):
         auth=auth,
         active="Memorization Status",
     )
+
+
+@app.post("/update_status/{current_type}/{type_number}")
+def update_page_status(
+    current_type: str, type_number: str, req: Request, selected_status: str, auth
+):
+    if selected_status == "newly_memorized":
+        mode_id = 2
+    else:
+        mode_id = 1
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.active != 0;"""
+    ct = db.q(qry)
+
+    grouped = group_by_type(ct, current_type, feild="id")
+    for item_id in grouped[type_number]:
+        current_hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": selected_status, "mode_id": mode_id}, current_hafizs_items_id
+        )
+    referer = req.headers.get("referer", "/")
+    return Redirect(referer)
 
 
 # This is responsible for updating the modal
@@ -3158,7 +3199,7 @@ def filter_query_records(auth, custom_where=None):
     return db.q(not_memorized_tb)
 
 
-def group_by_type(data, current_type):
+def group_by_type(data, current_type, feild=None):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
@@ -3170,7 +3211,9 @@ def group_by_type(data, current_type):
         list
     )  # defaultdict() is creating the key as the each column_map number and value as the list of records
     for row in data:
-        grouped[row[columns_map[current_type]]].append(row)
+        grouped[row[columns_map[current_type]]].append(
+            row if feild is None else row[feild]
+        )
     return grouped
 
 
