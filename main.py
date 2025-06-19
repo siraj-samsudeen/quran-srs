@@ -2356,7 +2356,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
 
 @app.post("/update_status/{current_type}/{type_number}")
 def update_page_status(
-    current_type: str, type_number: str, req: Request, selected_status: str, auth
+    current_type: str, type_number: int, req: Request, selected_status: str, auth
 ):
     if selected_status == "newly_memorized":
         mode_id = 2
