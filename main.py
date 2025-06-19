@@ -2079,7 +2079,8 @@ def show_page_status(current_type: str, auth, status: str = None):
             Td(details),
             Td(status_value),
             Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_profile/{status}/{current_type}/{type_number}",
+            hx_get=f"/partial_profile/{current_type}/{type_number}"
+            + (f"?status={status}" if status else ""),
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
             ).replace(
@@ -2127,10 +2128,9 @@ def show_page_status(current_type: str, auth, status: str = None):
     )
     query_with_status = qry.replace(";", f" {status_condition};")
 
-    filtered_data = db.q(query_with_status)
+    qry_data = db.q(query_with_status if status else qry)
 
-    grouped = group_by_type(filtered_data, current_type)
-    print(grouped)
+    grouped = group_by_type(qry_data, current_type)
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -2323,9 +2323,14 @@ def show_page_status(current_type: str, auth, status: str = None):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_profile/{status}/{current_type}/{type_number}")
+@app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
-    status: str, current_type: str, type_number: int, title: str, description: str, auth
+    current_type: str,
+    type_number: int,
+    title: str,
+    description: str,
+    auth,
+    status: str = None,
 ):
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -2335,11 +2340,18 @@ def filtered_table_for_modal(
         condition = f"pages.page_number = {type_number}"
     else:
         return "Invalid current_type"
-    status_query = f"= '{status}'" if status != "not_memorized" else "IS NULL"
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-                          WHERE items.active != 0 AND {condition} AND hafizs_items.status {status_query};"""
+                          WHERE items.active != 0 AND {condition};"""
+
+    status_condition = (
+        f"AND hafizs_items.status = '{status}'"
+        if status != "not_memorized"
+        else "AND hafizs_items.status IS NULL"
+    )
+    if status is not None:
+        qry = qry.replace(";", f" {status_condition};")
     ct = db.q(qry)
 
     def render_row(record):
