@@ -2100,7 +2100,8 @@ def show_page_status(current_type: str, auth, status: str = None):
         )  # defaultdict() is creating the key as the each column_map number and value as the list of records
         for row in data:
             grouped[row[columns_map[current_type]]].append(row)
-        return grouped
+        sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+        return sorted_grouped
 
     if not current_type:
         current_type = "juz"
@@ -2118,9 +2119,18 @@ def show_page_status(current_type: str, auth, status: str = None):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    ct = db.q(qry)
 
-    grouped = group_by_type(ct, current_type)
+    status_condition = (
+        f"AND hafizs_items.status = '{status}'"
+        if status != "not_memorized"
+        else "AND hafizs_items.status IS NULL"
+    )
+    query_with_status = qry.replace(";", f" {status_condition};")
+
+    filtered_data = db.q(query_with_status)
+
+    grouped = group_by_type(filtered_data, current_type)
+    print(grouped)
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -2165,8 +2175,9 @@ def show_page_status(current_type: str, auth, status: str = None):
     )
 
     # For memorization progress
+    unfiltered_data = db.q(qry)
     page_stats = defaultdict(lambda: {"memorized": 0, "total": 0})
-    for item in ct:
+    for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
         if item["status"] == "memorized":
@@ -2179,7 +2190,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     # Is to get the total count of the type: ["juz", "surah", "page"]
     # to show stats below the progress bar
     def total_count(_type, _status):
-        type_stats = group_by_type(ct, _type)
+        type_stats = group_by_type(unfiltered_data, _type)
         count = 0
         for type_number, stats in type_stats.items():
 
