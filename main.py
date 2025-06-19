@@ -2358,6 +2358,8 @@ def show_page_status(current_type: str, auth, status: str = ""):
 def update_page_status(
     current_type: str, type_number: int, req: Request, selected_status: str, auth
 ):
+    #  "not_memorized" means no status, so store it as NULL in DB
+    selected_status = None if selected_status == "not_memorized" else selected_status
     if selected_status == "newly_memorized":
         mode_id = 2
     else:
