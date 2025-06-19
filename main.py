@@ -2082,16 +2082,19 @@ def show_page_status(current_type: str, auth, status: str = None):
             Td(details[0]),
             Td(details[1]),
             Td(status_value),
-            Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_profile/{current_type}/{type_number}"
-            + (f"?status={status}" if status else ""),
-            hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", title
-            ).replace(
-                "CURRENT_DETAILS", details_str
+            Td(
+                A("Update Status ➡️"),
+                cls=(AT.classic, "text-right"),
+                hx_get=f"/partial_profile/{current_type}/{type_number}"
+                + (f"?status={status}" if status else ""),
+                hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                    "CURRENT_TITLE", title
+                ).replace(
+                    "CURRENT_DETAILS", details_str
+                ),
+                target_id="my-modal-body",
+                data_uk_toggle="target: #my-modal",
             ),
-            target_id="my-modal-body",
-            data_uk_toggle="target: #my-modal",
         )
 
     def group_by_type(data, current_type):
@@ -2294,11 +2297,11 @@ def show_page_status(current_type: str, auth, status: str = None):
         id="my-modal",
     )
     if current_type == "page":
-        Details = ["Juz", "Surah"]
+        details = ["Juz", "Surah"]
     elif current_type == "surah":
-        Details = ["Juz", "Page"]
+        details = ["Juz", "Page"]
     elif current_type == "juz":
-        Details = ["Surah", "Page"]
+        details = ["Surah", "Page"]
     return main_area(
         Div(
             progress_bar_with_stats,
@@ -2313,8 +2316,8 @@ def show_page_status(current_type: str, auth, status: str = None):
                         Thead(
                             Tr(
                                 Th(current_type.title()),
-                                Th(Details[0]),
-                                Th(Details[1]),
+                                Th(details[0]),
+                                Th(details[1]),
                                 Th("Status"),
                                 Th(""),
                             )
