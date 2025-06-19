@@ -351,19 +351,31 @@ def datewise_summary_table(show=None, hafiz_id=None):
                     Td("-"),
                     Td("-"),
                     Td("-"),
+                    Td("-"),
                 )
             ]
 
         rows = [
             Tr(
-                (
-                    # Only add the date for the first row and use rowspan to expand them for the modes breakdown
-                    Td(
-                        date_to_human_readable(date),
-                        rowspan=f"{len(mode_with_ids_and_pages)}",
+                *(
+                    # Only add the date and total_count for the first row and use rowspan to expand them for the modes breakdown
+                    (
+                        Td(
+                            date_to_human_readable(date),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
+                        Td(
+                            sum(
+                                [
+                                    len(i["revision_data"])
+                                    for i in mode_with_ids_and_pages
+                                ]
+                            ),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
                     )
                     if mode_with_ids_and_pages[0]["mode_id"] == o["mode_id"]
-                    else None
+                    else ()
                 ),
                 Td(modes[o["mode_id"]].name),
                 Td(len(o["revision_data"])),
@@ -375,7 +387,15 @@ def datewise_summary_table(show=None, hafiz_id=None):
 
     datewise_table = Div(
         Table(
-            Thead(Tr(Th("Date"), Th("Mode"), Th("Count"), Th("Range"))),
+            Thead(
+                Tr(
+                    Th("Date"),
+                    Th("Total Count", cls="uk-table-shrink"),
+                    Th("Mode"),
+                    Th("Count"),
+                    Th("Range"),
+                )
+            ),
             Tbody(*flatten_list(map(_render_datewise_row, date_range))),
         ),
         cls="uk-overflow-auto",
