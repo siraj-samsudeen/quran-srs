@@ -954,7 +954,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
         if not current_revision_data and route == "watch_list":
-            rating_placeholder = [rating_dropdown( is_label=False, id=f"rating-{item_id}")]
+            rating_placeholder = [
+                rating_dropdown(is_label=False, id=f"rating-{item_id}")
+            ]
         elif current_revision_data:
             current_rating = current_revision_data[0].rating
             rating_placeholder = [
@@ -1005,7 +1007,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Td(get_page_number(item_id)),
             Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
-            Td(*rating_placeholder),
+            Td(
+                Div(
+                    *rating_placeholder,
+                    cls=f"{"max-w-28" if route == "watch_list" else None}",
+                )
+            ),
             id=f"{route}_row-{item_id}",
         )
 
@@ -1039,10 +1046,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         Table(
             Thead(
                 Tr(
-                    Th("Page"),
-                    Th("Surah"),
-                    Th("Set as Newly Memorized" if is_unmemorized else "Record"),
-                    (Th("Rating") if not is_unmemorized else None),
+                    Th("Page", cls="min-w-24"),
+                    Th("Surah", cls="min-w-24"),
+                    Th(
+                        "Set as Newly Memorized" if is_unmemorized else "Record",
+                        cls="min-w-24",
+                    ),
+                    (Th("Rating", cls="min-w-24") if not is_unmemorized else None),
                 )
             ),
             Tbody(*body_rows),
