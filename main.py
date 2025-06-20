@@ -13,6 +13,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
+STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
 DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
@@ -1997,6 +1998,15 @@ async def post(
     )
 
 
+def render_status_options(status, current_status):
+    print(status, current_status)
+    return fh.Option(
+        status,
+        value=standardize_column(status),
+        selected=(status == current_status),
+    )
+
+
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = ""):
 
@@ -2075,14 +2085,6 @@ def show_page_status(current_type: str, auth, status: str = ""):
             if current_type != "surah"
             else surahs[type_number].name
         )
-        status_dd = ["Memorized", "Newly Memorized", "Not Memorized"]
-
-        def render_status_options(status_):
-            return fh.Option(
-                status_,
-                value=standardize_column(status_),
-                selected=(status_ == status_value),
-            )
 
         return Tr(
             Td(title),
@@ -2091,7 +2093,11 @@ def show_page_status(current_type: str, auth, status: str = ""):
             Td(
                 Form(
                     fh.Select(
-                        map(render_status_options, status_dd), name="selected_status"
+                        map(
+                            lambda status: render_status_options(status, status_value),
+                            STATUS_OPTIONS,
+                        ),
+                        name="selected_status",
                     ),
                     hx_post=f"/update_status/{current_type}/{type_number}",
                     hx_trigger="change",
@@ -2300,11 +2306,11 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 ModalCloseButton(),
                 cls="space-y-3",
             ),
+            ModalBody(
+                Div(id="my-modal-body"),
+                data_uk_overflow_auto=True,
+            ),
             Form(
-                ModalBody(
-                    Div(id="my-modal-body"),
-                    data_uk_overflow_auto=True,
-                ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
                 hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
@@ -2412,15 +2418,17 @@ def filtered_table_for_modal(
     ct = db.q(qry)
 
     def render_row(record):
+        current_status = destandardize_text(record["status"] or "not_memorized")
+        current_id = record["id"]
         return Tr(
             Td(
                 # This hidden input is to send the id to the backend even if it is unchecked
-                Hidden(name=f"id-{record['id']}", value="0"),
+                Hidden(name=f"id-{current_id}", value="0"),
                 CheckboxX(
-                    name=f"id-{record['id']}",
+                    name=f"id-{current_id}",
                     value="1",
                     cls="partial_rows",  # Alpine js reference
-                    checked=record["status"] == "memorized",
+                    checked=current_status == "Memorized",
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
@@ -2428,10 +2436,21 @@ def filtered_table_for_modal(
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
             Td(
-                destandardize_text(
-                    record["status"] if record["status"] else "not_memorized"
+                Form(
+                    fh.Select(
+                        map(
+                            lambda status: render_status_options(
+                                status, current_status
+                            ),
+                            STATUS_OPTIONS,
+                        ),
+                        name="selected_status",
+                    ),
+                    hx_post=f"/update_status/id/{current_id}",
+                    hx_trigger="change",
                 )
             ),
+            Td(current_status),
         )
 
     table = Table(
