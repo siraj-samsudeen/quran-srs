@@ -2254,7 +2254,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                     hx_trigger="change",
                 )
             ),
-            Td(status_value),
+            # Td(status_value),
             Td(
                 A("Customize ➡️"),
                 cls=(AT.classic, "text-right"),
