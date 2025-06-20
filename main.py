@@ -2303,11 +2303,11 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 ModalCloseButton(),
                 cls="space-y-3",
             ),
-            ModalBody(
-                Div(id="my-modal-body"),
-                data_uk_overflow_auto=True,
-            ),
             Form(
+                ModalBody(
+                    Div(id="my-modal-body"),
+                    data_uk_overflow_auto=True,
+                ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
                 hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
@@ -2425,28 +2425,12 @@ def filtered_table_for_modal(
                     name=f"id-{current_id}",
                     value="1",
                     cls="partial_rows",  # Alpine js reference
-                    checked=current_status == "Memorized",
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(
-                Form(
-                    fh.Select(
-                        map(
-                            lambda status: render_status_options(
-                                status, current_status
-                            ),
-                            STATUS_OPTIONS,
-                        ),
-                        name="selected_status",
-                    ),
-                    hx_post=f"/update_status/id/{current_id}",
-                    hx_trigger="change",
-                )
-            ),
             Td(current_status),
         )
 
@@ -2472,8 +2456,18 @@ def filtered_table_for_modal(
         ),
         x_init="updateSelectAll()",
     )
-
+    modal_level_dd = Div(
+        fh.Select(
+            map(
+                lambda status_option: render_status_options(status_option, status),
+                STATUS_OPTIONS,
+            ),
+            name="selected_status",
+        ),
+        id="my-modal-body",
+    )
     return (
+        modal_level_dd,
         table,
         ModalTitle(
             "" if title == "" else f"{title} - Select Memorized Page",
@@ -2492,21 +2486,25 @@ def filtered_table_for_modal(
 @app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
+    selected_status = form_data.get("selected_status")
+    updated_status = None if selected_status == "not_memorized" else selected_status
 
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
-            break
+            continue  # Skip non-id keys
         # extract id from the key
-        id = int(id_str.split("-")[1])
-        # based check value update status
-        updated_status = "memorized" if int(check) == 1 else None
+        try:
+            id = int(id_str.split("-")[1])
+        except (IndexError, ValueError):
+            continue  # Skip invalid id keys
+
+        if check != "1":
+            continue  # Skip unchecked checkboxes
+
         current_hafiz_items = hafizs_items(where=f"item_id = {id}")
         if current_hafiz_items:
             current_hafiz_items = current_hafiz_items[0]
-            if not int(check) and current_hafiz_items.status != "memorized":
-                pass
-            else:
-                current_hafiz_items.status = updated_status
+            current_hafiz_items.status = updated_status
             hafizs_items.update(current_hafiz_items)
         else:
             page_number = items[id].page_id
