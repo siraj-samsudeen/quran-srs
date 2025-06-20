@@ -2464,10 +2464,6 @@ def update_page_status(
 ):
     #  "not_memorized" means no status, so store it as NULL in DB
     selected_status = None if selected_status == "not_memorized" else selected_status
-    if selected_status == "newly_memorized":
-        mode_id = 2
-    else:
-        mode_id = 1
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.active != 0;"""
@@ -2475,10 +2471,21 @@ def update_page_status(
 
     grouped = group_by_type(ct, current_type, feild="id")
     for item_id in grouped[type_number]:
-        current_hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-        hafizs_items.update(
-            {"status": selected_status, "mode_id": mode_id}, current_hafizs_items_id
-        )
+        current_hafizs_items = hafizs_items(where=f"item_id = {item_id}")
+        current_item = current_hafizs_items[0]
+
+        # determine what to update
+        if current_item.mode_id in (3, 4):
+            # Already a newly memorized type — preserve mode_id
+            update_data = {"status": selected_status}
+        else:
+            if selected_status == "newly_memorized":
+                mode_id = 2
+            else:
+                mode_id = 1
+            update_data = {"status": selected_status, "mode_id": mode_id}
+
+        hafizs_items.update(update_data, current_item.id)
     referer = req.headers.get("referer", "/")
     return Redirect(referer)
 
@@ -2487,7 +2494,7 @@ def update_page_status(
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
     selected_status = form_data.get("selected_status")
-    updated_status = None if selected_status == "not_memorized" else selected_status
+    selected_status = None if selected_status == "not_memorized" else selected_status
 
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
@@ -2501,17 +2508,21 @@ async def update_page_status(current_type: str, req: Request, status: str = None
         if check != "1":
             continue  # Skip unchecked checkboxes
 
-        current_hafiz_items = hafizs_items(where=f"item_id = {id}")
-        if current_hafiz_items:
-            current_hafiz_items = current_hafiz_items[0]
-            current_hafiz_items.status = updated_status
-            hafizs_items.update(current_hafiz_items)
-        else:
-            page_number = items[id].page_id
-            hafizs_items.insert(
-                item_id=id, status=updated_status, mode_id=1, page_number=page_number
-            )
+        current_hafizs_items = hafizs_items(where=f"item_id = {id}")
+        current_item = current_hafizs_items[0]
 
+        # determine what to update
+        if current_item.mode_id in (3, 4):
+            # Already a newly memorized type — preserve mode_id
+            update_data = {"status": selected_status}
+        else:
+            if selected_status == "newly_memorized":
+                mode_id = 2
+            else:
+                mode_id = 1
+            update_data = {"status": selected_status, "mode_id": mode_id}
+
+        hafizs_items.update(update_data, current_item.id)
     return Redirect(
         f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
