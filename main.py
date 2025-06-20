@@ -2458,6 +2458,14 @@ def filtered_table_for_modal(
     )
 
 
+def resolve_update_data(current_item, selected_status):
+    if current_item.mode_id in (3, 4):
+        return {"status": selected_status}
+    if selected_status == "newly_memorized":
+        return {"status": selected_status, "mode_id": 2}
+    return {"status": selected_status, "mode_id": 1}
+
+
 @app.post("/update_status/{current_type}/{type_number}")
 def update_page_status(
     current_type: str, type_number: int, req: Request, selected_status: str, auth
@@ -2471,20 +2479,9 @@ def update_page_status(
 
     grouped = group_by_type(ct, current_type, feild="id")
     for item_id in grouped[type_number]:
-        current_hafizs_items = hafizs_items(where=f"item_id = {item_id}")
-        current_item = current_hafizs_items[0]
-
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
         # determine what to update
-        if current_item.mode_id in (3, 4):
-            # Already a newly memorized type — preserve mode_id
-            update_data = {"status": selected_status}
-        else:
-            if selected_status == "newly_memorized":
-                mode_id = 2
-            else:
-                mode_id = 1
-            update_data = {"status": selected_status, "mode_id": mode_id}
-
+        update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
     referer = req.headers.get("referer", "/")
     return Redirect(referer)
@@ -2501,27 +2498,16 @@ async def update_page_status(current_type: str, req: Request, status: str = None
             continue  # Skip non-id keys
         # extract id from the key
         try:
-            id = int(id_str.split("-")[1])
+            item_id = int(id_str.split("-")[1])
         except (IndexError, ValueError):
             continue  # Skip invalid id keys
 
         if check != "1":
             continue  # Skip unchecked checkboxes
 
-        current_hafizs_items = hafizs_items(where=f"item_id = {id}")
-        current_item = current_hafizs_items[0]
-
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
         # determine what to update
-        if current_item.mode_id in (3, 4):
-            # Already a newly memorized type — preserve mode_id
-            update_data = {"status": selected_status}
-        else:
-            if selected_status == "newly_memorized":
-                mode_id = 2
-            else:
-                mode_id = 1
-            update_data = {"status": selected_status, "mode_id": mode_id}
-
+        update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
     return Redirect(
         f"/profile/{current_type}" + (f"?status={status}" if status else "")
