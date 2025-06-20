@@ -2242,7 +2242,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
         memorized_count = total_count(_type, "memorized")
         not_memorized_count = total_count(_type, "not_memorized")
         partially_memorized_count = total_count(_type, "partially_memorized")
-        newly_memorized_count = total_count(_type, "newly_memorized")
+        # newly_memorized_count = total_count(_type, "newly_memorized")
 
         current_type_total = type_with_total[_type]
         count_percentage = lambda x: format_number(x / current_type_total * 100)
@@ -2261,7 +2261,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                     memorized_count,
                     not_memorized_count,
                     partially_memorized_count,
-                    newly_memorized_count,
+                    # newly_memorized_count,
                 ],
             ),
         )
@@ -2274,7 +2274,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                     Th("Memorized", cls="min-w-28"),
                     Th("Not Memorized", cls="min-w-28"),
                     Th("Partially Memorized", cls="min-w-28"),
-                    Th("Newly Memorized", cls="min-w-28"),
+                    # Th("Newly Memorized", cls="min-w-28"),
                 )
             ),
             Tbody(*map(render_stat_row, ["juz", "surah", "page"])),
