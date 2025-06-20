@@ -817,6 +817,7 @@ def index(auth):
             Td(modes[current_mode_id].name),
             Td(today_count),
             Td(yesterday_count),
+            id=f"stat-row-{current_mode_id}",
         )
 
     system_date_description = P(
@@ -945,6 +946,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                     value="1",
                     hx_post=f"/home/recent_review/update_status/{item_id}",
                     hx_select=f"#recent_review_row-{item_id}",
+                    hx_select_oob="#stat-row-3",
                     hx_target=f"#recent_review_row-{item_id}",
                     hx_swap="outerHTML",
                     checked=(len(current_revision_data) != 0),
