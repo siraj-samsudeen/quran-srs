@@ -1973,7 +1973,7 @@ async def post(
 
     # if there is no next item id, then we are done with the revision
     # and handling the upper limit logic
-    if next_item_id is None or next_item_id > max_item_id:
+    if next_item_id is None or next_item_id >= max_item_id:
         return Redirect(index)
 
     if is_part:
