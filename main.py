@@ -2308,7 +2308,15 @@ def show_page_status(current_type: str, auth, status: str = ""):
                     Div(id="my-modal-body"),
                     data_uk_overflow_auto=True,
                 ),
-                ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
+                ModalFooter(
+                    Div(
+                        Button("Update and Close", cls="bg-green-600 text-white"),
+                        Button(
+                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
+                        ),
+                        cls="space-x-2",
+                    )
+                ),
                 hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
