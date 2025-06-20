@@ -13,6 +13,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
+STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
 DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
@@ -604,7 +605,7 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/juz",
+                    href="/profile/surah",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
@@ -896,8 +897,6 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
         current_revision_data = revisions(
             where=f"item_id = {item_id} AND mode_id = 2 AND hafiz_id = {auth};"
         )
-        # print(current_revision_data)
-        # print(current_revision_data if item_id in [545, 546, 547, 548] else "None")
         check_form = Form(
             LabelCheckboxX(
                 label,
@@ -2151,8 +2150,16 @@ async def post(
     )
 
 
+def render_status_options(status, current_status):
+    return fh.Option(
+        status,
+        value=standardize_column(status),
+        selected=(status == current_status),
+    )
+
+
 @app.get("/profile/{current_type}")
-def show_page_status(current_type: str, auth, status: str = None):
+def show_page_status(current_type: str, auth, status: str = ""):
 
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
@@ -2173,14 +2180,23 @@ def show_page_status(current_type: str, auth, status: str = None):
             )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
-        if all(memorized_status):
-            status_value = "Memorized"
-        elif any(memorized_status):
-            status_value = "Partially Memorized"
-        else:
-            status_value = "Not Memorized"
+        # memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
+        # newly_memorized_status = [
+        #     str(r["status"]).lower() == "newly_memorized" for r in records
+        # ]
+        # if all(memorized_status):
+        #     status_value = "Memorized"
+        # elif all(newly_memorized_status):
+        #     status_value = "Newly Memorized"
+        # else:
+        #     status_value = "Not Memorized"
 
+        status_name = records[0]["status"]
+        status_value = (
+            status_name.replace("_", " ").title()
+            if status_name is not None
+            else "Not Memorized"
+        )
         if status and status != standardize_column(status_value):
             return None
 
@@ -2206,30 +2222,52 @@ def show_page_status(current_type: str, auth, status: str = None):
         juz_range = render_range(_juzs, "Juz")
 
         if current_type == "juz":
-            details = f"{surah_range} ({page_range})"
+            details = [surah_range, page_range]
+            details_str = f"{surah_range} ({page_range})"
         elif current_type == "surah":
-            details = f"{juz_range} ({page_range})"
+            details = [juz_range, page_range]
+            details_str = f"{juz_range} ({page_range})"
         elif current_type == "page":
-            details = f"{juz_range} | {surah_range}"
+            details = [juz_range, surah_range]
+            details_str = f"{juz_range} | {surah_range}"
 
         title = (
             f"{current_type.capitalize()} {type_number}"
             if current_type != "surah"
             else surahs[type_number].name
         )
+
         return Tr(
             Td(title),
-            Td(details),
-            Td(status_value),
-            Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_profile/{current_type}/{type_number}",
-            hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", title
-            ).replace(
-                "CURRENT_DETAILS", details
+            Td(details[0]),
+            Td(details[1]),
+            Td(
+                Form(
+                    fh.Select(
+                        map(
+                            lambda status: render_status_options(status, status_value),
+                            STATUS_OPTIONS,
+                        ),
+                        name="selected_status",
+                    ),
+                    hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_trigger="change",
+                )
             ),
-            target_id="my-modal-body",
-            data_uk_toggle="target: #my-modal",
+            Td(status_value),
+            Td(
+                A("Customize ➡️"),
+                cls=(AT.classic, "text-right"),
+                hx_get=f"/partial_profile/{current_type}/{type_number}"
+                + (f"?status={status}" if status else ""),
+                hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                    "CURRENT_TITLE", title
+                ).replace(
+                    "CURRENT_DETAILS", details_str
+                ),
+                target_id="my-modal-body",
+                data_uk_toggle="target: #my-modal",
+            ),
         )
 
     def group_by_type(data, current_type):
@@ -2243,7 +2281,8 @@ def show_page_status(current_type: str, auth, status: str = None):
         )  # defaultdict() is creating the key as the each column_map number and value as the list of records
         for row in data:
             grouped[row[columns_map[current_type]]].append(row)
-        return grouped
+        sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+        return sorted_grouped
 
     if not current_type:
         current_type = "juz"
@@ -2261,9 +2300,19 @@ def show_page_status(current_type: str, auth, status: str = None):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    ct = db.q(qry)
+    print("status", status)
 
-    grouped = group_by_type(ct, current_type)
+    if status in ["memorized", "newly_memorized"]:
+        status_condition = f" AND hafizs_items.status = '{status}'"
+    elif status == "not_memorized":
+        status_condition = " AND hafizs_items.status IS NULL"
+    else:
+        status_condition = ""
+    query_with_status = qry.replace(";", f" {status_condition};")
+
+    qry_data = db.q(query_with_status if status else qry)
+
+    grouped = group_by_type(qry_data, current_type)
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -2287,7 +2336,10 @@ def show_page_status(current_type: str, auth, status: str = None):
 
     filter_btns = DivLAligned(
         P("Status Filter:", cls=TextPresets.muted_sm),
-        *map(render_filter_btn, ["Memorized", "Not Memorized", "Partially Memorized"]),
+        *map(
+            render_filter_btn,
+            ["Memorized", "Not Memorized", "Newly Memorized"],
+        ),
         (
             Label(
                 "X",
@@ -2305,8 +2357,9 @@ def show_page_status(current_type: str, auth, status: str = None):
     )
 
     # For memorization progress
+    unfiltered_data = db.q(qry)
     page_stats = defaultdict(lambda: {"memorized": 0, "total": 0})
-    for item in ct:
+    for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
         if item["status"] == "memorized":
@@ -2319,7 +2372,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     # Is to get the total count of the type: ["juz", "surah", "page"]
     # to show stats below the progress bar
     def total_count(_type, _status):
-        type_stats = group_by_type(ct, _type)
+        type_stats = group_by_type(unfiltered_data, _type)
         count = 0
         for type_number, stats in type_stats.items():
 
@@ -2346,6 +2399,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         memorized_count = total_count(_type, "memorized")
         not_memorized_count = total_count(_type, "not_memorized")
         partially_memorized_count = total_count(_type, "partially_memorized")
+        # newly_memorized_count = total_count(_type, "newly_memorized")
 
         current_type_total = type_with_total[_type]
         count_percentage = lambda x: format_number(x / current_type_total * 100)
@@ -2360,7 +2414,12 @@ def show_page_status(current_type: str, auth, status: str = None):
             Th(destandardize_text(_type)),
             *map(
                 render_td,
-                [memorized_count, not_memorized_count, partially_memorized_count],
+                [
+                    memorized_count,
+                    not_memorized_count,
+                    partially_memorized_count,
+                    # newly_memorized_count,
+                ],
             ),
         )
 
@@ -2372,6 +2431,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Th("Memorized", cls="min-w-28"),
                     Th("Not Memorized", cls="min-w-28"),
                     Th("Partially Memorized", cls="min-w-28"),
+                    # Th("Newly Memorized", cls="min-w-28"),
                 )
             ),
             Tbody(*map(render_stat_row, ["juz", "surah", "page"])),
@@ -2402,7 +2462,15 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Div(id="my-modal-body"),
                     data_uk_overflow_auto=True,
                 ),
-                ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
+                ModalFooter(
+                    Div(
+                        Button("Update and Close", cls="bg-green-600 text-white"),
+                        Button(
+                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
+                        ),
+                        cls="space-x-2",
+                    )
+                ),
                 hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
@@ -2411,12 +2479,18 @@ def show_page_status(current_type: str, auth, status: str = None):
         ),
         id="my-modal",
     )
+    if current_type == "page":
+        details = ["Juz", "Surah"]
+    elif current_type == "surah":
+        details = ["Juz", "Page"]
+    elif current_type == "juz":
+        details = ["Surah", "Page"]
     return main_area(
         Div(
             progress_bar_with_stats,
             DividerLine(),
             filter_btns,
-            Form(
+            Div(
                 TabContainer(
                     *map(render_navigation_item, ["juz", "surah", "page"]),
                 ),
@@ -2424,8 +2498,9 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Table(
                         Thead(
                             Tr(
-                                Th("Name"),
-                                Th("Range / Details"),
+                                Th(current_type.title()),
+                                Th(details[0]),
+                                Th(details[1]),
                                 Th("Status"),
                                 Th(""),
                             )
@@ -2447,7 +2522,12 @@ def show_page_status(current_type: str, auth, status: str = None):
 # This is responsible for updating the modal
 @app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
-    current_type: str, type_number: int, title: str, description: str, auth
+    current_type: str,
+    type_number: int,
+    title: str,
+    description: str,
+    auth,
+    status: str = None,
 ):
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -2457,34 +2537,38 @@ def filtered_table_for_modal(
         condition = f"pages.page_number = {type_number}"
     else:
         return "Invalid current_type"
-
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-                          WHERE items.active != 0 AND {condition}"""
+                          WHERE items.active != 0 AND {condition};"""
+
+    status_condition = (
+        f"AND hafizs_items.status = '{status}'"
+        if status != "not_memorized"
+        else "AND hafizs_items.status IS NULL"
+    )
+    if status is not None:
+        qry = qry.replace(";", f" {status_condition};")
     ct = db.q(qry)
 
     def render_row(record):
+        current_status = destandardize_text(record["status"] or "not_memorized")
+        current_id = record["id"]
         return Tr(
             Td(
                 # This hidden input is to send the id to the backend even if it is unchecked
-                Hidden(name=f"id-{record['id']}", value="0"),
+                Hidden(name=f"id-{current_id}", value="0"),
                 CheckboxX(
-                    name=f"id-{record['id']}",
+                    name=f"id-{current_id}",
                     value="1",
                     cls="partial_rows",  # Alpine js reference
-                    checked=record["status"] == "memorized",
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(
-                destandardize_text(
-                    record["status"] if record["status"] else "not_memorized"
-                )
-            ),
+            Td(current_status),
         )
 
     table = Table(
@@ -2509,8 +2593,18 @@ def filtered_table_for_modal(
         ),
         x_init="updateSelectAll()",
     )
-
+    modal_level_dd = Div(
+        fh.Select(
+            map(
+                lambda status_option: render_status_options(status_option, status),
+                STATUS_OPTIONS,
+            ),
+            name="selected_status",
+        ),
+        id="my-modal-body",
+    )
     return (
+        modal_level_dd,
         table,
         ModalTitle(
             "" if title == "" else f"{title} - Select Memorized Page",
@@ -2526,31 +2620,57 @@ def filtered_table_for_modal(
     )
 
 
+def resolve_update_data(current_item, selected_status):
+    if current_item.mode_id in (3, 4):
+        return {"status": selected_status}
+    if selected_status == "newly_memorized":
+        return {"status": selected_status, "mode_id": 2}
+    return {"status": selected_status, "mode_id": 1}
+
+
+@app.post("/update_status/{current_type}/{type_number}")
+def update_page_status(
+    current_type: str, type_number: int, req: Request, selected_status: str, auth
+):
+    #  "not_memorized" means no status, so store it as NULL in DB
+    selected_status = None if selected_status == "not_memorized" else selected_status
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.active != 0;"""
+    ct = db.q(qry)
+
+    grouped = group_by_type(ct, current_type, feild="id")
+    for item_id in grouped[type_number]:
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        # determine what to update
+        update_data = resolve_update_data(current_item, selected_status)
+        hafizs_items.update(update_data, current_item.id)
+    referer = req.headers.get("referer", "/")
+    return Redirect(referer)
+
+
 @app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
+    selected_status = form_data.get("selected_status")
+    selected_status = None if selected_status == "not_memorized" else selected_status
 
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
-            break
+            continue  # Skip non-id keys
         # extract id from the key
-        id = int(id_str.split("-")[1])
-        # based check value update status
-        updated_status = "memorized" if int(check) == 1 else None
-        current_hafiz_items = hafizs_items(where=f"item_id = {id}")
-        if current_hafiz_items:
-            current_hafiz_items = current_hafiz_items[0]
-            if not int(check) and current_hafiz_items.status != "memorized":
-                pass
-            else:
-                current_hafiz_items.status = updated_status
-            hafizs_items.update(current_hafiz_items)
-        else:
-            page_number = items[id].page_id
-            hafizs_items.insert(
-                item_id=id, status=updated_status, mode_id=1, page_number=page_number
-            )
+        try:
+            item_id = int(id_str.split("-")[1])
+        except (IndexError, ValueError):
+            continue  # Skip invalid id keys
 
+        if check != "1":
+            continue  # Skip unchecked checkboxes
+
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        # determine what to update
+        update_data = resolve_update_data(current_item, selected_status)
+        hafizs_items.update(update_data, current_item.id)
     return Redirect(
         f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
@@ -3237,7 +3357,7 @@ def filter_query_records(auth, custom_where=None):
     return db.q(not_memorized_tb)
 
 
-def group_by_type(data, current_type):
+def group_by_type(data, current_type, feild=None):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
@@ -3249,7 +3369,9 @@ def group_by_type(data, current_type):
         list
     )  # defaultdict() is creating the key as the each column_map number and value as the list of records
     for row in data:
-        grouped[row[columns_map[current_type]]].append(row)
+        grouped[row[columns_map[current_type]]].append(
+            row if feild is None else row[feild]
+        )
     return grouped
 
 
@@ -3480,13 +3602,9 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
 
     next_page_item_id, display_next = (0, "")
     if type_number:
-        # print(f"current_item_ids: {type_number}", f"current_page_id: {title}")
         next_page_item_id, display_next = get_closest_unmemorized_item_id(
             auth, type_number
         )
-        # print(
-        #     f"next_page_item_id: {next_page_item_id}", f"display_next: {display_next}"
-        # )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
     return Tr(
         Td(title),
