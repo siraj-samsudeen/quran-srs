@@ -813,8 +813,6 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
         current_revision_data = revisions(
             where=f"item_id = {item_id} AND mode_id = 2 AND hafiz_id = {auth};"
         )
-        # print(current_revision_data)
-        # print(current_revision_data if item_id in [545, 546, 547, 548] else "None")
         check_form = Form(
             LabelCheckboxX(
                 label,
@@ -1999,7 +1997,6 @@ async def post(
 
 
 def render_status_options(status, current_status):
-    print(status, current_status)
     return fh.Option(
         status,
         value=standardize_column(status),
@@ -3465,13 +3462,9 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
 
     next_page_item_id, display_next = (0, "")
     if type_number:
-        # print(f"current_item_ids: {type_number}", f"current_page_id: {title}")
         next_page_item_id, display_next = get_closest_unmemorized_item_id(
             auth, type_number
         )
-        # print(
-        #     f"next_page_item_id: {next_page_item_id}", f"display_next: {display_next}"
-        # )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
     return Tr(
         Td(title),
