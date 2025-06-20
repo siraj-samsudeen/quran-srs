@@ -132,6 +132,12 @@ def add_days_to_date(date_str, days):
     return new_date.strftime("%Y-%m-%d")
 
 
+def sub_days_to_date(date_str, days):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    new_date = date_obj - timedelta(days=days)
+    return new_date.strftime("%Y-%m-%d")
+
+
 def is_first_date_greater(
     date1: str, date2: str, date_format: str = "%Y-%m-%d"
 ) -> bool:

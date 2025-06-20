@@ -13,6 +13,7 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
+STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
 DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
@@ -184,6 +185,10 @@ def get_recent_review_count(item_id):
     return len(recent_review_count)
 
 
+def render_rating(rating: int):
+    return RATING_MAP.get(str(rating))
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -195,6 +200,20 @@ def mode_dropdown(default_mode=1, **kwargs):
         label="Mode Id",
         name="mode_id",
         select_kwargs={"name": "mode_id"},
+        **kwargs,
+    )
+
+
+def rating_dropdown(default_mode="1", is_label=True, **kwargs):
+    def mk_options(o):
+        id, name = o
+        is_selected = lambda m: m == default_mode
+        return Option(name, value=id, selected=is_selected(id))
+
+    return LabelSelect(
+        map(mk_options, RATING_MAP.items()),
+        label=("Rating" if is_label else None),
+        name="rating",
         **kwargs,
     )
 
@@ -244,6 +263,28 @@ def split_page_range(page_range: str):
     return start_id, end_id
 
 
+# This is used to dynamically sort them by mode name which contains the sort order
+# eg: sorted(mode_ids, key=lambda id: extract_mode_sort_number(id))
+def extract_mode_sort_number(mode_id):
+    """Extract the number from mode name like '1. full Cycle' -> 1"""
+    mode_name = modes[mode_id].name
+    return int(mode_name.split(". ")[0])
+
+
+def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
+    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
+    revisions_data = revisions(where=qry)
+
+    if not revisions_data and is_checked:
+        revisions.insert(
+            Revision(
+                revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
+            )
+        )
+    elif revisions_data and not is_checked:
+        revisions.delete(revisions_data[0].id)
+
+
 def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
@@ -263,7 +304,8 @@ def datewise_summary_table(show=None, hafiz_id=None):
             f" AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
         )
         unique_modes = db.q(f"SELECT DISTINCT mode_id FROM {revisions} {rev_condition}")
-        unique_modes = sorted([m["mode_id"] for m in unique_modes])
+        unique_modes = [m["mode_id"] for m in unique_modes]
+        unique_modes = sorted(unique_modes, key=lambda id: extract_mode_sort_number(id))
 
         mode_with_ids_and_pages = []
         for mode_id in unique_modes:
@@ -346,19 +388,31 @@ def datewise_summary_table(show=None, hafiz_id=None):
                     Td("-"),
                     Td("-"),
                     Td("-"),
+                    Td("-"),
                 )
             ]
 
         rows = [
             Tr(
-                (
-                    # Only add the date for the first row and use rowspan to expand them for the modes breakdown
-                    Td(
-                        date_to_human_readable(date),
-                        rowspan=f"{len(mode_with_ids_and_pages)}",
+                *(
+                    # Only add the date and total_count for the first row and use rowspan to expand them for the modes breakdown
+                    (
+                        Td(
+                            date_to_human_readable(date),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
+                        Td(
+                            sum(
+                                [
+                                    len(i["revision_data"])
+                                    for i in mode_with_ids_and_pages
+                                ]
+                            ),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
                     )
                     if mode_with_ids_and_pages[0]["mode_id"] == o["mode_id"]
-                    else None
+                    else ()
                 ),
                 Td(modes[o["mode_id"]].name),
                 Td(len(o["revision_data"])),
@@ -370,7 +424,15 @@ def datewise_summary_table(show=None, hafiz_id=None):
 
     datewise_table = Div(
         Table(
-            Thead(Tr(Th("Date"), Th("Mode"), Th("Count"), Th("Range"))),
+            Thead(
+                Tr(
+                    Th("Date"),
+                    Th("Total Count", cls="uk-table-shrink"),
+                    Th("Mode"),
+                    Th("Count"),
+                    Th("Range"),
+                )
+            ),
             Tbody(*flatten_list(map(_render_datewise_row, date_range))),
         ),
         cls="uk-overflow-auto",
@@ -543,7 +605,7 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/juz",
+                    href="/profile/surah",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
@@ -747,8 +809,55 @@ def index(auth):
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
 
+    ############### stat table ################
+
+    # exlcuded the srs mode
+    mode_ids = [mode.id for mode in modes()][:-1]
+    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
+
+    def get_count_of_mode(_mode_id, _revision_date):
+        return len(
+            revisions(
+                where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+            )
+        )
+
+    def render_stat_rows(current_mode_id):
+
+        today = current_time(f="%Y-%m-%d")
+        yesterday = sub_days_to_date(today, 1)
+
+        today_count = get_count_of_mode(current_mode_id, today)
+        yesterday_count = get_count_of_mode(current_mode_id, yesterday)
+
+        return Tr(
+            Td(modes[current_mode_id].name),
+            Td(today_count),
+            Td(yesterday_count),
+            id=f"stat-row-{current_mode_id}",
+        )
+
+    system_date_description = P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        date_to_human_readable(current_time(f="%Y-%m-%d")),
+    )
+
+    stat_table = Div(
+        system_date_description,
+        Table(
+            Thead(
+                Tr(
+                    Th("Modes"),
+                    Th("Today"),
+                    Th("Yesterday"),
+                )
+            ),
+            Tbody(*map(render_stat_rows, sorted_mode_ids)),
+        ),
+    )
+
     return main_area(
-        Div(*insert_between(tables, Divider())),
+        Div(stat_table, Divider(), *insert_between(tables, Divider())),
         Div(modal),
         active="Home",
         auth=auth,
@@ -788,8 +897,6 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
         current_revision_data = revisions(
             where=f"item_id = {item_id} AND mode_id = 2 AND hafiz_id = {auth};"
         )
-        # print(current_revision_data)
-        # print(current_revision_data if item_id in [545, 546, 547, 548] else "None")
         check_form = Form(
             LabelCheckboxX(
                 label,
@@ -803,7 +910,9 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
 
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
-    if mode_ids == ["unmemorized"]:
+    system_date = current_time("%Y-%m-%d")
+    is_unmemorized = mode_ids == ["unmemorized"]
+    if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
         qry = f"""
             SELECT items.id AS item_id, items.surah_id, items.page_id AS page_number, items.surah_name FROM items
@@ -812,28 +921,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ORDER BY items.id ASC;
         """
         ct = db.q(qry)
-        recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
-        recent_pages = [i["page_number"] for i in ct]
     else:
         qry = f"""
-            SELECT hafizs_items.page_number, items.surah_name, hafizs_items.next_review FROM hafizs_items
+            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review FROM hafizs_items
             LEFT JOIN items on hafizs_items.item_id = items.id 
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
             ORDER BY hafizs_items.item_id ASC
         """
         ct = db.q(qry)
-        recent_pages = list(
+        recent_items = list(
             dict.fromkeys(
-                i["page_number"]
+                i["item_id"]
                 for i in ct
-                if day_diff(i["next_review"], current_time("%Y-%m-%d")) >= 0
+                if (day_diff(i["next_review"], system_date) >= 0)
+                or (i["last_review"] == system_date)
             )
         )
-
-    if not recent_pages:
-        page_ranges = []
-    else:
-        page_ranges = compact_format(recent_pages).split(", ")
 
     def render_page_row(record):
         return Tr(
@@ -844,34 +947,78 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ),
         )
 
-    def render_range_row(page_range: str):
-        first_page, last_page = split_page_range(page_range)
-        first_page_surah_name = [
-            i["surah_name"] for i in ct if i["page_number"] == first_page
-        ][0]
-
-        if last_page:
-            last_page_surah_name = [
-                i["surah_name"] for i in ct if i["page_number"] == last_page
-            ][-1]
-
-            if first_page_surah_name == last_page_surah_name:
-                last_page_surah_name = None
-        else:
-            last_page_surah_name = None
-
-        return Tr(
-            Td(page_range),
-            Td(
-                first_page_surah_name,
-                (f" - {last_page_surah_name}" if last_page_surah_name else ""),
-            ),
+    def render_range_row(item_id: str):
+        current_revision_data = revisions(
+            where=f"revision_date = '{system_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
         )
 
-    if mode_ids == ["unmemorized"]:
+        if not current_revision_data and route == "watch_list":
+            rating_placeholder = [
+                rating_dropdown(is_label=False, id=f"rating-{item_id}")
+            ]
+        elif current_revision_data:
+            current_rating = current_revision_data[0].rating
+            rating_placeholder = [
+                render_rating(current_rating),
+                # This hidden value is need so that `checkbox_update_logic` function will work
+                # Which will lookup the and delete that particular revision data
+                Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
+            ]
+        else:
+            rating_placeholder = [None]
+
+        if route == "recent_review":
+            record_btn = Form(
+                Hidden(name="date", value=system_date),
+                CheckboxX(
+                    name=f"is_checked",
+                    value="1",
+                    hx_post=f"/home/recent_review/add/{item_id}",
+                    hx_select=f"#recent_review_row-{item_id}",
+                    hx_select_oob="#stat-row-3",
+                    hx_target=f"#recent_review_row-{item_id}",
+                    hx_swap="outerHTML",
+                    checked=(len(current_revision_data) != 0),
+                ),
+                cls="",
+            )
+        elif route == "watch_list":
+            record_btn = Form(
+                Hidden(name="date", value=system_date),
+                CheckboxX(
+                    name=f"is_checked",
+                    value="1",
+                    hx_post=f"/home/watch_list/add/{item_id}",
+                    hx_vals={"date": system_date},
+                    hx_include=f"#rating-{item_id}",
+                    hx_select=f"#watch_list_row-{item_id}",
+                    hx_select_oob="#stat-row-4",
+                    hx_target=f"#watch_list_row-{item_id}",
+                    hx_swap="outerHTML",
+                    checked=(len(current_revision_data) != 0),
+                ),
+                cls="",
+            )
+        else:
+            return None
+
+        return Tr(
+            Td(get_page_number(item_id)),
+            Td(get_surah_name(item_id=item_id)),
+            Td(record_btn),
+            Td(
+                Div(
+                    *rating_placeholder,
+                    cls=f"{"max-w-28" if route == "watch_list" else None}",
+                )
+            ),
+            id=f"{route}_row-{item_id}",
+        )
+
+    if is_unmemorized:
         body_rows = list(map(render_page_row, ct[:3]))
     else:
-        body_rows = list(map(render_range_row, page_ranges))
+        body_rows = list(map(render_range_row, recent_items))
 
     if not body_rows:
         return None
@@ -898,18 +1045,36 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         Table(
             Thead(
                 Tr(
-                    Th("Page" if mode_ids == ["unmemorized"] else "Page Range"),
-                    Th("Surah"),
-                    (
-                        Th("Set as Newly Memorized")
-                        if mode_ids == ["unmemorized"]
-                        else ""
+                    Th("Page", cls="min-w-24"),
+                    Th("Surah", cls="min-w-24"),
+                    Th(
+                        "Set as Newly Memorized" if is_unmemorized else "Record",
+                        cls="min-w-24",
                     ),
+                    (Th("Rating", cls="min-w-24") if not is_unmemorized else None),
                 )
             ),
             Tbody(*body_rows),
         ),
     )
+
+
+@app.post("/home/recent_review/add/{item_id}")
+def update_recent_review_status_from_index(
+    date: str, item_id: str, is_checked: bool = False
+):
+    checkbox_update_logic(
+        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+    )
+    return RedirectResponse("/")
+
+
+@app.post("/home/watch_list/add/{item_id}")
+def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool = False):
+    checkbox_update_logic(
+        mode_id=4, rating=rating, item_id=item_id, date=date, is_checked=is_checked
+    )
+    return RedirectResponse("/")
 
 
 @app.post("/markas/new_memorization/{item_id}")
@@ -1294,7 +1459,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(item_details.part),
             Td(rev.mode_id),
             Td(rev.plan_id),
-            Td(RATING_MAP.get(str(rev.rating))),
+            Td(render_rating(rev.rating)),
             Td(get_surah_name(item_id=item_id)),
             Td(pages[page].juz_number),
             Td(date_to_human_readable(rev.revision_date)),
@@ -1985,8 +2150,16 @@ async def post(
     )
 
 
+def render_status_options(status, current_status):
+    return fh.Option(
+        status,
+        value=standardize_column(status),
+        selected=(status == current_status),
+    )
+
+
 @app.get("/profile/{current_type}")
-def show_page_status(current_type: str, auth, status: str = None):
+def show_page_status(current_type: str, auth, status: str = ""):
 
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
@@ -2007,14 +2180,23 @@ def show_page_status(current_type: str, auth, status: str = None):
             )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
-        if all(memorized_status):
-            status_value = "Memorized"
-        elif any(memorized_status):
-            status_value = "Partially Memorized"
-        else:
-            status_value = "Not Memorized"
+        # memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
+        # newly_memorized_status = [
+        #     str(r["status"]).lower() == "newly_memorized" for r in records
+        # ]
+        # if all(memorized_status):
+        #     status_value = "Memorized"
+        # elif all(newly_memorized_status):
+        #     status_value = "Newly Memorized"
+        # else:
+        #     status_value = "Not Memorized"
 
+        status_name = records[0]["status"]
+        status_value = (
+            status_name.replace("_", " ").title()
+            if status_name is not None
+            else "Not Memorized"
+        )
         if status and status != standardize_column(status_value):
             return None
 
@@ -2040,30 +2222,52 @@ def show_page_status(current_type: str, auth, status: str = None):
         juz_range = render_range(_juzs, "Juz")
 
         if current_type == "juz":
-            details = f"{surah_range} ({page_range})"
+            details = [surah_range, page_range]
+            details_str = f"{surah_range} ({page_range})"
         elif current_type == "surah":
-            details = f"{juz_range} ({page_range})"
+            details = [juz_range, page_range]
+            details_str = f"{juz_range} ({page_range})"
         elif current_type == "page":
-            details = f"{juz_range} | {surah_range}"
+            details = [juz_range, surah_range]
+            details_str = f"{juz_range} | {surah_range}"
 
         title = (
             f"{current_type.capitalize()} {type_number}"
             if current_type != "surah"
             else surahs[type_number].name
         )
+
         return Tr(
             Td(title),
-            Td(details),
-            Td(status_value),
-            Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_profile/{current_type}/{type_number}",
-            hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", title
-            ).replace(
-                "CURRENT_DETAILS", details
+            Td(details[0]),
+            Td(details[1]),
+            Td(
+                Form(
+                    fh.Select(
+                        map(
+                            lambda status: render_status_options(status, status_value),
+                            STATUS_OPTIONS,
+                        ),
+                        name="selected_status",
+                    ),
+                    hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_trigger="change",
+                )
             ),
-            target_id="my-modal-body",
-            data_uk_toggle="target: #my-modal",
+            Td(status_value),
+            Td(
+                A("Customize ➡️"),
+                cls=(AT.classic, "text-right"),
+                hx_get=f"/partial_profile/{current_type}/{type_number}"
+                + (f"?status={status}" if status else ""),
+                hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                    "CURRENT_TITLE", title
+                ).replace(
+                    "CURRENT_DETAILS", details_str
+                ),
+                target_id="my-modal-body",
+                data_uk_toggle="target: #my-modal",
+            ),
         )
 
     def group_by_type(data, current_type):
@@ -2077,7 +2281,8 @@ def show_page_status(current_type: str, auth, status: str = None):
         )  # defaultdict() is creating the key as the each column_map number and value as the list of records
         for row in data:
             grouped[row[columns_map[current_type]]].append(row)
-        return grouped
+        sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+        return sorted_grouped
 
     if not current_type:
         current_type = "juz"
@@ -2095,9 +2300,19 @@ def show_page_status(current_type: str, auth, status: str = None):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    ct = db.q(qry)
+    print("status", status)
 
-    grouped = group_by_type(ct, current_type)
+    if status in ["memorized", "newly_memorized"]:
+        status_condition = f" AND hafizs_items.status = '{status}'"
+    elif status == "not_memorized":
+        status_condition = " AND hafizs_items.status IS NULL"
+    else:
+        status_condition = ""
+    query_with_status = qry.replace(";", f" {status_condition};")
+
+    qry_data = db.q(query_with_status if status else qry)
+
+    grouped = group_by_type(qry_data, current_type)
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -2121,7 +2336,10 @@ def show_page_status(current_type: str, auth, status: str = None):
 
     filter_btns = DivLAligned(
         P("Status Filter:", cls=TextPresets.muted_sm),
-        *map(render_filter_btn, ["Memorized", "Not Memorized", "Partially Memorized"]),
+        *map(
+            render_filter_btn,
+            ["Memorized", "Not Memorized", "Newly Memorized"],
+        ),
         (
             Label(
                 "X",
@@ -2139,8 +2357,9 @@ def show_page_status(current_type: str, auth, status: str = None):
     )
 
     # For memorization progress
+    unfiltered_data = db.q(qry)
     page_stats = defaultdict(lambda: {"memorized": 0, "total": 0})
-    for item in ct:
+    for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
         if item["status"] == "memorized":
@@ -2153,7 +2372,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     # Is to get the total count of the type: ["juz", "surah", "page"]
     # to show stats below the progress bar
     def total_count(_type, _status):
-        type_stats = group_by_type(ct, _type)
+        type_stats = group_by_type(unfiltered_data, _type)
         count = 0
         for type_number, stats in type_stats.items():
 
@@ -2180,6 +2399,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         memorized_count = total_count(_type, "memorized")
         not_memorized_count = total_count(_type, "not_memorized")
         partially_memorized_count = total_count(_type, "partially_memorized")
+        # newly_memorized_count = total_count(_type, "newly_memorized")
 
         current_type_total = type_with_total[_type]
         count_percentage = lambda x: format_number(x / current_type_total * 100)
@@ -2194,7 +2414,12 @@ def show_page_status(current_type: str, auth, status: str = None):
             Th(destandardize_text(_type)),
             *map(
                 render_td,
-                [memorized_count, not_memorized_count, partially_memorized_count],
+                [
+                    memorized_count,
+                    not_memorized_count,
+                    partially_memorized_count,
+                    # newly_memorized_count,
+                ],
             ),
         )
 
@@ -2206,6 +2431,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Th("Memorized", cls="min-w-28"),
                     Th("Not Memorized", cls="min-w-28"),
                     Th("Partially Memorized", cls="min-w-28"),
+                    # Th("Newly Memorized", cls="min-w-28"),
                 )
             ),
             Tbody(*map(render_stat_row, ["juz", "surah", "page"])),
@@ -2236,7 +2462,15 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Div(id="my-modal-body"),
                     data_uk_overflow_auto=True,
                 ),
-                ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
+                ModalFooter(
+                    Div(
+                        Button("Update and Close", cls="bg-green-600 text-white"),
+                        Button(
+                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
+                        ),
+                        cls="space-x-2",
+                    )
+                ),
                 hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
@@ -2245,12 +2479,18 @@ def show_page_status(current_type: str, auth, status: str = None):
         ),
         id="my-modal",
     )
+    if current_type == "page":
+        details = ["Juz", "Surah"]
+    elif current_type == "surah":
+        details = ["Juz", "Page"]
+    elif current_type == "juz":
+        details = ["Surah", "Page"]
     return main_area(
         Div(
             progress_bar_with_stats,
             DividerLine(),
             filter_btns,
-            Form(
+            Div(
                 TabContainer(
                     *map(render_navigation_item, ["juz", "surah", "page"]),
                 ),
@@ -2258,8 +2498,9 @@ def show_page_status(current_type: str, auth, status: str = None):
                     Table(
                         Thead(
                             Tr(
-                                Th("Name"),
-                                Th("Range / Details"),
+                                Th(current_type.title()),
+                                Th(details[0]),
+                                Th(details[1]),
                                 Th("Status"),
                                 Th(""),
                             )
@@ -2281,7 +2522,12 @@ def show_page_status(current_type: str, auth, status: str = None):
 # This is responsible for updating the modal
 @app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
-    current_type: str, type_number: int, title: str, description: str, auth
+    current_type: str,
+    type_number: int,
+    title: str,
+    description: str,
+    auth,
+    status: str = None,
 ):
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -2291,34 +2537,38 @@ def filtered_table_for_modal(
         condition = f"pages.page_number = {type_number}"
     else:
         return "Invalid current_type"
-
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-                          WHERE items.active != 0 AND {condition}"""
+                          WHERE items.active != 0 AND {condition};"""
+
+    status_condition = (
+        f"AND hafizs_items.status = '{status}'"
+        if status != "not_memorized"
+        else "AND hafizs_items.status IS NULL"
+    )
+    if status is not None:
+        qry = qry.replace(";", f" {status_condition};")
     ct = db.q(qry)
 
     def render_row(record):
+        current_status = destandardize_text(record["status"] or "not_memorized")
+        current_id = record["id"]
         return Tr(
             Td(
                 # This hidden input is to send the id to the backend even if it is unchecked
-                Hidden(name=f"id-{record['id']}", value="0"),
+                Hidden(name=f"id-{current_id}", value="0"),
                 CheckboxX(
-                    name=f"id-{record['id']}",
+                    name=f"id-{current_id}",
                     value="1",
                     cls="partial_rows",  # Alpine js reference
-                    checked=record["status"] == "memorized",
                     _at_click="handleCheckboxClick($event)",
                 ),
             ),
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(
-                destandardize_text(
-                    record["status"] if record["status"] else "not_memorized"
-                )
-            ),
+            Td(current_status),
         )
 
     table = Table(
@@ -2343,8 +2593,18 @@ def filtered_table_for_modal(
         ),
         x_init="updateSelectAll()",
     )
-
+    modal_level_dd = Div(
+        fh.Select(
+            map(
+                lambda status_option: render_status_options(status_option, status),
+                STATUS_OPTIONS,
+            ),
+            name="selected_status",
+        ),
+        id="my-modal-body",
+    )
     return (
+        modal_level_dd,
         table,
         ModalTitle(
             "" if title == "" else f"{title} - Select Memorized Page",
@@ -2360,31 +2620,57 @@ def filtered_table_for_modal(
     )
 
 
+def resolve_update_data(current_item, selected_status):
+    if current_item.mode_id in (3, 4):
+        return {"status": selected_status}
+    if selected_status == "newly_memorized":
+        return {"status": selected_status, "mode_id": 2}
+    return {"status": selected_status, "mode_id": 1}
+
+
+@app.post("/update_status/{current_type}/{type_number}")
+def update_page_status(
+    current_type: str, type_number: int, req: Request, selected_status: str, auth
+):
+    #  "not_memorized" means no status, so store it as NULL in DB
+    selected_status = None if selected_status == "not_memorized" else selected_status
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.active != 0;"""
+    ct = db.q(qry)
+
+    grouped = group_by_type(ct, current_type, feild="id")
+    for item_id in grouped[type_number]:
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        # determine what to update
+        update_data = resolve_update_data(current_item, selected_status)
+        hafizs_items.update(update_data, current_item.id)
+    referer = req.headers.get("referer", "/")
+    return Redirect(referer)
+
+
 @app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
+    selected_status = form_data.get("selected_status")
+    selected_status = None if selected_status == "not_memorized" else selected_status
 
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
-            break
+            continue  # Skip non-id keys
         # extract id from the key
-        id = int(id_str.split("-")[1])
-        # based check value update status
-        updated_status = "memorized" if int(check) == 1 else None
-        current_hafiz_items = hafizs_items(where=f"item_id = {id}")
-        if current_hafiz_items:
-            current_hafiz_items = current_hafiz_items[0]
-            if not int(check) and current_hafiz_items.status != "memorized":
-                pass
-            else:
-                current_hafiz_items.status = updated_status
-            hafizs_items.update(current_hafiz_items)
-        else:
-            page_number = items[id].page_id
-            hafizs_items.insert(
-                item_id=id, status=updated_status, mode_id=1, page_number=page_number
-            )
+        try:
+            item_id = int(id_str.split("-")[1])
+        except (IndexError, ValueError):
+            continue  # Skip invalid id keys
 
+        if check != "1":
+            continue  # Skip unchecked checkboxes
+
+        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        # determine what to update
+        update_data = resolve_update_data(current_item, selected_status)
+        hafizs_items.update(update_data, current_item.id)
     return Redirect(
         f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
@@ -2576,16 +2862,10 @@ def recent_review_view(auth):
 
 @app.post("/recent_review/update_status/{item_id}")
 def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
-    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = 3;"
-    revisions_data = revisions(where=qry)
 
-    if not revisions_data and is_checked:
-        revisions.insert(
-            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=0)
-        )
-    elif revisions_data and not is_checked:
-        revisions.delete(revisions_data[0].id)
-
+    checkbox_update_logic(
+        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+    )
     revision_count = get_recent_review_count(item_id)
 
     if revision_count > 6:
@@ -2741,7 +3021,7 @@ def watch_list_view(auth):
         def render_rev(rev: Revision):
             rev_date = rev.revision_date
             ctn = (
-                RATING_MAP[f"{rev.rating}"].split()[0],
+                render_rating(rev.rating).split()[0],
                 (
                     f" {date_to_human_readable(rev_date)}"
                     if not (rev_date == current_time("%Y-%m-%d"))
@@ -2826,24 +3106,13 @@ def watch_list_view(auth):
         id="my-modal",
     )
 
-    def rating_dropdown():
-        def mk_options(o):
-            id, name = o
-            is_selected = lambda m: m == "1"
-            return Option(name, value=id, selected=is_selected(id))
-
-        return LabelSelect(
-            map(mk_options, RATING_MAP.items()),
-            label="Rating",
-            name="rating",
-            id="global_rating",
-            cls="flex-1",
-        )
-
     content_body = Div(
         H2("Watch List"),
         Div(
-            rating_dropdown(),
+            rating_dropdown(
+                id="global_rating",
+                cls="flex-1",
+            ),
             LabelInput(
                 "Revision Date",
                 name="revision_date",
@@ -3088,7 +3357,7 @@ def filter_query_records(auth, custom_where=None):
     return db.q(not_memorized_tb)
 
 
-def group_by_type(data, current_type):
+def group_by_type(data, current_type, feild=None):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
@@ -3100,7 +3369,9 @@ def group_by_type(data, current_type):
         list
     )  # defaultdict() is creating the key as the each column_map number and value as the list of records
     for row in data:
-        grouped[row[columns_map[current_type]]].append(row)
+        grouped[row[columns_map[current_type]]].append(
+            row if feild is None else row[feild]
+        )
     return grouped
 
 
@@ -3331,13 +3602,9 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
 
     next_page_item_id, display_next = (0, "")
     if type_number:
-        # print(f"current_item_ids: {type_number}", f"current_page_id: {title}")
         next_page_item_id, display_next = get_closest_unmemorized_item_id(
             auth, type_number
         )
-        # print(
-        #     f"next_page_item_id: {next_page_item_id}", f"display_next: {display_next}"
-        # )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
     return Tr(
         Td(title),
