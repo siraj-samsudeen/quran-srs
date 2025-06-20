@@ -2357,31 +2357,6 @@ def show_page_status(current_type: str, auth, status: str = ""):
     )
 
 
-@app.post("/update_status/{current_type}/{type_number}")
-def update_page_status(
-    current_type: str, type_number: int, req: Request, selected_status: str, auth
-):
-    #  "not_memorized" means no status, so store it as NULL in DB
-    selected_status = None if selected_status == "not_memorized" else selected_status
-    if selected_status == "newly_memorized":
-        mode_id = 2
-    else:
-        mode_id = 1
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.active != 0;"""
-    ct = db.q(qry)
-
-    grouped = group_by_type(ct, current_type, feild="id")
-    for item_id in grouped[type_number]:
-        current_hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-        hafizs_items.update(
-            {"status": selected_status, "mode_id": mode_id}, current_hafizs_items_id
-        )
-    referer = req.headers.get("referer", "/")
-    return Redirect(referer)
-
-
 # This is responsible for updating the modal
 @app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
@@ -2481,6 +2456,31 @@ def filtered_table_for_modal(
             cls=TextPresets.muted_lg,
         ),
     )
+
+
+@app.post("/update_status/{current_type}/{type_number}")
+def update_page_status(
+    current_type: str, type_number: int, req: Request, selected_status: str, auth
+):
+    #  "not_memorized" means no status, so store it as NULL in DB
+    selected_status = None if selected_status == "not_memorized" else selected_status
+    if selected_status == "newly_memorized":
+        mode_id = 2
+    else:
+        mode_id = 1
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
+                          LEFT JOIN pages ON items.page_id = pages.id
+                          WHERE items.active != 0;"""
+    ct = db.q(qry)
+
+    grouped = group_by_type(ct, current_type, feild="id")
+    for item_id in grouped[type_number]:
+        current_hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": selected_status, "mode_id": mode_id}, current_hafizs_items_id
+        )
+    referer = req.headers.get("referer", "/")
+    return Redirect(referer)
 
 
 @app.post("/partial_profile/{current_type}")
