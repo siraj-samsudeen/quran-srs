@@ -203,7 +203,7 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
-def rating_dropdown(number=None, default_mode="1", is_label=True, **kwargs):
+def rating_dropdown(default_mode="1", is_label=True, **kwargs):
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == default_mode
@@ -213,7 +213,6 @@ def rating_dropdown(number=None, default_mode="1", is_label=True, **kwargs):
         map(mk_options, RATING_MAP.items()),
         label=("Rating" if is_label else None),
         name="rating",
-        id=("rating" if number is None else f"rating-{number}"),
         **kwargs,
     )
 
@@ -955,7 +954,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
         if not current_revision_data and route == "watch_list":
-            rating_placeholder = [rating_dropdown(number=item_id, is_label=False)]
+            rating_placeholder = [rating_dropdown( is_label=False, id=f"rating-{item_id}")]
         elif current_revision_data:
             current_rating = current_revision_data[0].rating
             rating_placeholder = [
