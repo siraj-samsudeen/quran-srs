@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import bisect
 import re
 import sqlite3
 import os
@@ -27,6 +28,14 @@ def create_and_migrate_db(db_path):
 
 def flatten_list(list_of_lists):
     return list(itertools.chain(*list_of_lists))
+
+
+def find_next_greater(arr, target):
+    # Find insertion point for target
+    pos = bisect.bisect_right(arr, target)
+    if pos < len(arr):
+        return arr[pos]
+    return None
 
 
 def select_all_checkbox_x_data(class_name, is_select_all="true"):
@@ -252,6 +261,29 @@ def backup_sqlite_db(source_db_path, backup_dir):
     return backup_path
 
 
+def insert_between(lst, element):
+    """
+    Insert an element between every pair of elements in a list.
+
+    Args:
+        lst: The original list
+        element: The element to insert between each pair
+
+    Returns:
+        A new list with the element inserted between each pair
+    """
+    if len(lst) <= 1:
+        return lst.copy()
+
+    result = []
+    for i in range(len(lst)):
+        result.append(lst[i])
+        if i < len(lst) - 1:  # Don't add separator after last element
+            result.append(element)
+
+    return result
+
+
 def set_zero_to_none(data):
     if data == 0:
         return None
@@ -266,3 +298,57 @@ def format_number(num):
     # Round to 1 decimal place
     rounded = round(num, 1)
     return rounded
+
+
+# This function is used to get the gaps in a list of numbers.
+# This is mainly used for continuation logic
+def find_gaps(input_list, master_list):
+    """
+    Find gaps by identifying the last number before each gap in the sequence.
+
+    Args:
+        input_list: List of numbers to check for gaps
+        master_list: Master list containing all possible valid numbers
+
+    Returns:
+        List of tuples representing gaps, where:
+        - First element is the last number before the gap
+        - Second element is the next number in input_list after the gap (or None if at the end)
+    """
+    result = []
+
+    if not input_list:
+        return result
+
+    # Sort lists and convert master to set for efficient lookup
+    input_sorted = sorted(input_list)
+    master_set = set(master_list)
+
+    # Check for gaps between consecutive numbers in input_list
+    for i in range(len(input_sorted) - 1):
+        current = input_sorted[i]
+        next_num = input_sorted[i + 1]
+
+        # Check if there's a gap between current and next_num
+        # A gap exists if there are master numbers between them
+        gap_exists = False
+        for check_num in range(current + 1, next_num):
+            if check_num in master_set:
+                gap_exists = True
+                break
+
+        if gap_exists:
+            result.append((current, next_num))
+
+    # Check if there's a potential continuation after the last number
+    # This handles the business case where None indicates "use default upper limit"
+    last_num = input_sorted[-1]
+
+    # Check if there are numbers in master_list that come after last_num
+    # This suggests the sequence could continue
+    has_continuation = any(num > last_num for num in master_set)
+
+    if has_continuation:
+        result.append((last_num, None))
+
+    return result

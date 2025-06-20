@@ -138,7 +138,7 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
         for hafiz_item in hafiz_data
         if items[hafiz_item.item_id].active
     ]
-    return item_ids
+    return sorted(item_ids)
 
 
 def get_column_headers(table):
@@ -165,6 +165,20 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
+def get_page_number(item_id):
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number
+
+
+def get_last_item_id():
+    return items(where="active = 1", order_by="id DESC")[0].id
+
+
+def find_next_item_id(item_id):
+    item_ids = [item.id for item in items(where="active = 1")]
+    return find_next_greater(item_ids, item_id)
+
+
 def get_recent_review_count(item_id):
     recent_review_count = revisions(where=f"item_id = {item_id} AND mode_id = 3")
     return len(recent_review_count)
@@ -185,28 +199,7 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
-def action_buttons(last_added_page=1, source="Home"):
-
-    if isinstance(last_added_page, int):
-        last_added_page += 1
-    entry_buttons = Form(
-        DivLAligned(
-            Input(
-                type="text",
-                placeholder="page",
-                cls="max-w-12 sm:max-w-16",
-                id="page",
-                value=last_added_page,
-                autocomplete="off",
-                required=True,
-            ),
-            Button("Bulk Entry", name="type", value="bulk", cls=ButtonT.link),
-            Button("Single Entry", name="type", value="single", cls=ButtonT.link),
-            cls=("gap-3", FlexT.wrap),
-        ),
-        action="/revision/entry",
-        method="POST",
-    )
+def action_buttons():
     # Enable and Disable the button based on the checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
@@ -236,8 +229,8 @@ def action_buttons(last_added_page=1, source="Home"):
         ),
     )
     return DivFullySpaced(
-        entry_buttons if source == "Home" else Div(),
-        import_export_buttons if source == "Revision" else Div(),
+        Div(),
+        import_export_buttons,
         cls="flex-wrap gap-4 mb-3",
     )
 
@@ -548,33 +541,34 @@ def main_area(*args, active=None, auth=None):
         Div(
             NavBar(
                 A("Home", href=index, cls=is_active("Home")),
-                A("Revision", href=revision, cls=is_active("Revision")),
                 A(
-                    "Memorization Status",
-                    href="/memorization_status/juz",
+                    "Profile",
+                    href="/profile/juz",
                     cls=is_active("Memorization Status"),
-                ),
-                A(
-                    "New Memorization",
-                    href="/new_memorization/juz",
-                    cls=is_active("New Memorization"),
-                ),
-                A(
-                    "Recent Review",
-                    href="/recent_review",
-                    cls=is_active("Recent Review"),
-                ),
-                A(
-                    "Watch List",
-                    href="/watch_list",
-                    cls=is_active("Watch List"),
                 ),
                 A(
                     "Page Details",
                     href="/page_details",
                     cls=is_active("Page Details"),
                 ),
+                A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
+                A("Report", href="/report", cls=is_active("Report")),
+                # A(
+                #     "New Memorization",
+                #     href="/new_memorization/juz",
+                #     cls=is_active("New Memorization"),
+                # ),
+                # A(
+                #     "Recent Review",
+                #     href="/recent_review",
+                #     cls=is_active("Recent Review"),
+                # ),
+                # A(
+                #     "Watch List",
+                #     href="/watch_list",
+                #     cls=is_active("Watch List"),
+                # ),
                 A("logout", href="/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
@@ -623,115 +617,88 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
-    revision_data = revisions(where="mode_id = 1")
-    last_added_item_id = revision_data[-1].item_id if revision_data else None
-
-    if last_added_item_id:
-        item_details = items[last_added_item_id]
-        last_added_page = item_details.page_id
-
-        if item_details.item_type == "page-part":
-            # fill the page input with parts based on the last added record
-            # to start from the next part
-            if "1" in item_details.part:
-                last_added_page = last_added_page + 0.2
-            elif (
-                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
-                and "2" in item_details.part
-            ):
-                last_added_page = last_added_page + 0.3
-    else:
-        last_added_page = None
-
-    # if it is greater than 604, we are reseting the last added page to None
-    if isinstance(last_added_page, int) and last_added_page >= 604:
-        last_added_page = None
-
     ################### Overall summary ###################
     # Sequential revision table
     seq_id = "1"
-    qry = f"SELECT plan_id FROM {revisions} WHERE mode_id = {seq_id} ORDER BY revision_date DESC"
-    result = db.q(qry)
-    seq_plan_ids = [i["plan_id"] for i in result]
-    # when using the `DISTINCT` keyword in the query the original order of the rows is not preserved
-    # so we need to use the `dict.fromkeys` method to remove the duplicates which preserves the order
-    unique_seq_plan_id = list(dict.fromkeys(seq_plan_ids))
-    # To get the unique page ranges for the plan_id
-    unique_page_ranges = []
-    for plan_id in unique_seq_plan_id:
-        if not plan_id:
-            continue
-        pages_list = sorted(
+
+    unique_seq_plan_id = [
+        i.id for i in plans(where="completed <> 1", order_by="id DESC")
+    ]
+
+    if unique_seq_plan_id and not len(unique_seq_plan_id) > 1:
+        plan_id = unique_seq_plan_id[0]
+    else:
+        plan_id = None
+
+    if plan_id is None:
+        items_gaps_with_limit = []
+    else:
+        current_plan_item_ids = sorted(
             [
-                items[r.item_id].page_id
+                r.item_id
                 for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
+                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}'"
                 )
             ]
         )
-        # If the plan is completed then we are not showing the gaps (such as showing them in diff rows)
-        # instead we'll show the start and end page of the plan
-        if plans[plan_id].completed and pages_list:
-            unique_page_ranges.append(
-                {"plan_id": plan_id, "page_range": f"{pages_list[0]}-{pages_list[-1]}"}
-            )
-            continue
+        item_ids = [i.id for i in items(where="active = 1")]
+        # this will return the gap of the current_plan_item_ids based on the master(items_id)
+        items_gaps_with_limit = find_gaps(current_plan_item_ids, item_ids)
 
-        for p in compact_format(pages_list).split(", "):
-            unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
+    def render_overall_row(o: tuple):
+        last_added_item_id, upper_limit = o
+        # If there are items after the last_added_item_id then it will come as `None`
+        # So we are handling them here by setting the upper limit based on the items
+        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-    def render_overall_row(o: dict):
-        def render_page(page):
+        def render_page(item_id):
             return Span(
-                Span(page, cls=TextPresets.bold_sm),
-                f" - {get_surah_name(page_id=page)}",
+                Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+                f" - {get_surah_name(item_id=item_id)}",
             )
 
-        plan_id, page_range = o["plan_id"], o["page_range"]
-        if not page_range:
-            return None
+        next_item_id = find_next_item_id(last_added_item_id)
 
-        start_page, end_page = split_page_range(page_range)
-        next_page = (end_page or start_page) + 1
-
-        current_plan = plans(where=f"id = '{plan_id}'")
-        if current_plan:
-            is_completed = current_plan[0].completed
+        if next_item_id is None:
+            next_page = "No further page"
+            action_buttons = None
         else:
-            is_completed = False
-
-        if is_completed:
-            continue_message = "Completed"
-        elif next_page > 604:
-            continue_message = "No further page"
-        else:
-            continue_message = A(
-                render_page(next_page),
-                href=f"revision/bulk_add?page={next_page}&mode_id={seq_id}&plan_id={plan_id}",
-                cls=AT.classic,
+            next_page = render_page(next_item_id)
+            action_buttons = DivLAligned(
+                Button(
+                    "Bulk",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=(ButtonT.default, "p-2"),
+                ),
+                Button(
+                    "Single",
+                    hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=(ButtonT.default, "p-2"),
+                ),
+                cls=("gap-3", FlexT.wrap),
             )
 
         return Tr(
-            Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
-            Td(page_range),
-            Td(render_page(start_page)),
-            (Td(render_page(end_page) if end_page else None)),
-            Td(continue_message),
+            # Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
+            Td(next_page),
+            Td(action_buttons),
         )
 
     overall_table = Div(
-        H4("Sequential Revision Round"),
+        H4(modes[1].name),
         Table(
             Thead(
                 Tr(
-                    Th("Plan Id"),
-                    Th("Range"),
-                    Th("Start"),
-                    Th("End"),
-                    Th("Continue"),
+                    # Th("Plan Id"),
+                    Th("Next"),
+                    Th("Entry"),
                 )
             ),
-            Tbody(*map(render_overall_row, unique_page_ranges)),
+            Tbody(*map(render_overall_row, items_gaps_with_limit)),
         ),
         cls="uk-overflow-auto",
     )
@@ -762,42 +729,91 @@ def index(auth):
         ),
         id="modal",
     )
+
+    tables_dict = {
+        modes[1].name: overall_table if items_gaps_with_limit else None,
+        modes[2].name: new_memorization_table,
+        modes[3].name: recent_review_table,
+        modes[4].name: watch_list_table,
+        # datewise_summary_table(hafiz_id=auth),
+    }
+
+    # Sort the tables based on the key
+    tables_dict = dict(
+        sorted(tables_dict.items(), key=lambda x: int(x[0].split(". ")[0]))
+    )
+
+    tables = tables_dict.values()
+    # if the table is none then exclude them from the tables list
+    tables = [_table for _table in tables if _table is not None]
+
     return main_area(
-        action_buttons(
-            **(
-                {"last_added_page": last_added_page}
-                if last_added_page is not None
-                else {}
-            )
-        ),
-        Div(
-            overall_table,
-            Divider(),
-            new_memorization_table,
-            Divider(),
-            recent_review_table,
-            Divider(),
-            watch_list_table,
-            Divider(),
-            datewise_summary_table(hafiz_id=auth),
-        ),
+        Div(*insert_between(tables, Divider())),
         Div(modal),
         active="Home",
         auth=auth,
     )
 
 
+@app.get("/report")
+def datewise_summary_table_view(auth):
+    return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
+
+
+def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
+    label = label_text or ""
+
+    if page_id is not None:
+        item_id_list = items(where=f"page_id = {page_id} AND active != 0")
+        item_ids = []
+        for i in item_id_list:
+            item_ids.append(i.id)
+        check_form = Form(
+            LabelCheckboxX(
+                label,
+                hx_get=f"/new_memorization/filter/page/{page_id}",
+                checked=False,
+                hx_trigger="click",
+                onClick="return false",
+            ),
+            hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
+                "CURRENT_TITLE", ""
+            ).replace(
+                "CURRENT_DETAILS", ""
+            ),
+            target_id="modal-body",
+            data_uk_toggle="target: #modal",
+        )
+    else:
+        current_revision_data = revisions(
+            where=f"item_id = {item_id} AND mode_id = 2 AND hafiz_id = {auth};"
+        )
+        # print(current_revision_data)
+        # print(current_revision_data if item_id in [545, 546, 547, 548] else "None")
+        check_form = Form(
+            LabelCheckboxX(
+                label,
+                name=f"is_checked",
+                value="1",
+                hx_post=f"/markas/new_memorization/{item_id}",
+                checked=True if current_revision_data else False,
+            )
+        )
+    return check_form
+
+
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if mode_ids == ["unmemorized"]:
         last_mem_id = get_last_memorized_item_id(auth)
         qry = f"""
-            SELECT items.id AS item_id, items.page_id AS page_number, items.surah_name FROM items
+            SELECT items.id AS item_id, items.surah_id, items.page_id AS page_number, items.surah_name FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
             WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
             ORDER BY items.id ASC;
         """
         ct = db.q(qry)
         recent_pages = list(dict.fromkeys(i["page_number"] for i in ct))
+        recent_pages = [i["page_number"] for i in ct]
     else:
         qry = f"""
             SELECT hafizs_items.page_number, items.surah_name, hafizs_items.next_review FROM hafizs_items
@@ -814,45 +830,18 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         )
 
-    # recent_pages = [i["page_number"] for i in ct]
     if not recent_pages:
         page_ranges = []
     else:
         page_ranges = compact_format(recent_pages).split(", ")
 
-    def render_page_row(page_number: int):
-        surah_names = sorted(
-            {i["surah_name"] for i in ct if i["page_number"] == page_number}
-        )
-        surah_display = " - ".join(surah_names)
-        item_ids = [item.id for item in items(where=f"page_id = {page_number}")]
-        get_page = (
-            f"/new_memorization/add/page?item_id={item_ids[0]}"
-            if len(item_ids) == 1
-            else f"/new_memorization/filter/page/{page_number}"
-        )
-        hx_attrs = {
-            "hx_get": get_page,
-            "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                "CURRENT_TITLE", ""
-            ).replace(
-                "CURRENT_DETAILS", "New Memorization"
-            ),
-            "target_id": "modal-body",
-            "data_uk_toggle": "target: #modal",
-        }
+    def render_page_row(record):
         return Tr(
-            Td(page_number),
-            Td(surah_display),
+            Td(record["page_number"]),
+            Td(surahs[record["surah_id"]].name),
             Td(
-                A(
-                    "Start Memorization ➡️",
-                    href={},
-                    cls=AT.classic,
-                ),
-                cls="text-right",
+                render_checkbox(auth=auth, item_id=record["item_id"]),
             ),
-            **hx_attrs,
         )
 
     def render_range_row(page_range: str):
@@ -880,13 +869,25 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     if mode_ids == ["unmemorized"]:
-        body_rows = list(map(render_page_row, recent_pages[:3]))
+        body_rows = list(map(render_page_row, ct[:3]))
     else:
         body_rows = list(map(render_range_row, page_ranges))
 
+    if not body_rows:
+        return None
+
+    if route == "new_memorization":
+        mode_id = 2
+    elif route == "recent_review":
+        mode_id = 3
+    elif route == "watch_list":
+        mode_id = 4
+    else:
+        mode_id = 1
+
     return Div(
         DivFullySpaced(
-            H4(destandardize_text(route)),
+            H4(modes[mode_id].name),
             A(
                 "Record",
                 href=f"/{route}",
@@ -899,11 +900,79 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(
                     Th("Page" if mode_ids == ["unmemorized"] else "Page Range"),
                     Th("Surah"),
+                    (
+                        Th("Set as Newly Memorized")
+                        if mode_ids == ["unmemorized"]
+                        else ""
+                    ),
                 )
             ),
             Tbody(*body_rows),
         ),
     )
+
+
+@app.post("/markas/new_memorization/{item_id}")
+def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False):
+    qry = f"item_id = {item_id} AND mode_id = 2;"
+    revisions_data = revisions(where=qry)
+    if not revisions_data and is_checked:
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id,
+            revision_date=current_time("%Y-%m-%d"),
+            rating=0,
+            mode_id=2,
+        )
+        # updating the status of the item to memorized
+        try:
+            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+        except IndexError:
+            hafizs_items.insert(
+                Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+            )
+        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+        )
+    elif revisions_data and not is_checked:
+        revisions.delete(revisions_data[0].id)
+        hafizs_items_data = hafizs_items(
+            where=f"item_id = {item_id} AND hafiz_id= {auth}"
+        )[0]
+        del hafizs_items_data.status
+        hafizs_items_data.mode_id = 1
+        hafizs_items.update(hafizs_items_data)
+    referer = request.headers.get("Referer")
+    return Redirect(referer)
+
+
+@app.post("/markas/new_memorization_bulk")
+def bulk_mark_as_new_memorized(
+    request, item_ids: list[int], auth
+):  # for query string format
+
+    for item_id in item_ids:
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id,
+            revision_date=current_time("%Y-%m-%d"),
+            rating=0,
+            mode_id=2,
+        )
+
+        try:
+            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+        except IndexError:
+            hafizs_items.insert(
+                Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
+            )
+        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+        hafizs_items.update(
+            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+        )
+    referer = request.headers.get("Referer")
+    return Redirect(referer)
 
 
 @app.get("/tables")
@@ -1228,7 +1297,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             Td(RATING_MAP.get(str(rev.rating))),
             Td(get_surah_name(item_id=item_id)),
             Td(pages[page].juz_number),
-            Td(rev.revision_date),
+            Td(date_to_human_readable(rev.revision_date)),
             Td(
                 A(
                     "Delete",
@@ -1283,7 +1352,7 @@ def revision(auth, idx: int | None = 1):
     return main_area(
         # To send the selected revision ids for bulk delete and bulk edit
         Form(
-            action_buttons(source="Revision"),
+            action_buttons(),
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
@@ -1337,8 +1406,11 @@ def create_revision_form(type, show_id_fields=False):
         )
 
     additional_fields = (
-        mode_dropdown(),
-        LabelInput("Plan Id", name="plan_id", type="number"),
+        *(
+            (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+            if type == "edit"
+            else ()
+        ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -1350,6 +1422,8 @@ def create_revision_form(type, show_id_fields=False):
 
     return Form(
         Hidden(name="id"),
+        Hidden(name="item_id"),
+        Hidden(name="plan_id"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
@@ -1357,9 +1431,8 @@ def create_revision_form(type, show_id_fields=False):
         (
             toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
             if type == "add"
-            else Grid(*additional_fields)
+            else Grid(*additional_fields, cols=2)
         ),
-        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1378,12 +1451,15 @@ def create_revision_form(type, show_id_fields=False):
 @rt("/revision/edit/{revision_id}")
 def get(revision_id: int, auth):
     current_revision = revisions[revision_id].__dict__
-    current_revision["page_no"] = items[current_revision["item_id"]].page_id
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
+    item_id = current_revision["item_id"]
     form = create_revision_form("edit")
     return main_area(
-        Titled("Edit Revision", fill_form(form, current_revision)),
+        Titled(
+            f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+            fill_form(form, current_revision),
+        ),
         active="Revision",
         auth=auth,
     )
@@ -1560,67 +1636,56 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
     return RedirectResponse("/revision", status_code=303)
 
 
-# This route is used to redirect to the appropriate revision entry form
-@rt("/revision/entry")
-def post(type: str, page: str):
-    if type == "bulk":
-        return Redirect(f"/revision/bulk_add?page={page}")
-    elif type == "single":
-        return Redirect(f"/revision/add?page={page}")
-
-
 @rt("/revision/add")
 def get(
-    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+    auth,
+    item_id: int,
+    max_page: int = 605,
+    date: str = None,
+    show_id_fields: bool = False,
+    plan_id: int = None,
 ):
-    if "-" in page:
-        page = page.split("-")[0]
-
-    page_in_float = float(page)
-    page = int(page_in_float)
+    page = get_page_number(item_id)
 
     if page >= max_page:
         return Redirect(index)
 
-    if len(get_item_id(page_number=int(page))) > 1:
-        return Redirect(f"/revision/bulk_add?page={page}&is_part=1")
+    if len(get_item_id(page_number=page)) > 1:
+        return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
 
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
-        defalut_mode_value = 1
         defalut_plan_value = None
     else:
-        defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
+            f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
             fill_form(
                 create_revision_form("add", show_id_fields=show_id_fields),
                 {
-                    "page_no": page,
-                    "mode_id": defalut_mode_value,
-                    "plan_id": defalut_plan_value,
+                    "item_id": item_id,
+                    "plan_id": plan_id or defalut_plan_value,
                     "revision_date": date,
                 },
             ),
         ),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
 
 @rt("/revision/add")
-def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
+def post(revision_details: Revision, show_id_fields: bool = False):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+    revision_details.mode_id = 1
 
-    item_id = items(where=f"page_id = {page_no}")[0].id
-    revision_details.item_id = item_id
+    item_id = revision_details.item_id
 
     # updating the status of the item to memorized
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
@@ -1629,7 +1694,7 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     rev = revisions.insert(revision_details)
 
     return Redirect(
-        f"/revision/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
     )
 
 
@@ -1637,33 +1702,20 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
 @app.get("/revision/bulk_add")
 def get(
     auth,
-    page: str,
+    item_id: int,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    mode_id: int = None,
     plan_id: int = None,
-    revision_date: str = None,
+    revision_date: str = current_time("%Y-%m-%d"),
     length: int = 5,
-    max_page: float = 604.4,
+    max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
+    # This is to handle the empty `No of page`
+    if length < 1:
+        length = 5
 
-    # the length only matters if the pages have consecutive surahs
-    if "-" in page:
-        page, length = page.split("-")
-
-    # Handle the max page
-    if float(page) >= max_page:
-        return Redirect(index)
-
-    if "." in page:
-        page, part = page.split(".")
-        part = int(part)
-    else:
-        part = None
-
-    page = int(page)
-    length = int(length)
+    page = get_page_number(item_id)
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -1671,57 +1723,53 @@ def get(
 
     last_page = page + length
 
-    if last_page > max_page:
-        last_page = math.ceil(max_page)
-
     item_ids = flatten_list(
         [get_item_id(page_number=p) for p in range(page, last_page)]
     )
+    # To start from the not added item id
+    if item_id in item_ids:
+        item_ids = item_ids[item_ids.index(item_id) :]
 
-    description = ""
+    # This is to set the upper limit for continuation logic
+    # To prevent the user from adding already added pages twice
+    if max_item_id in item_ids:
+        if not item_ids[-1] == max_item_id:
+            item_ids = item_ids[: item_ids.index(max_item_id)]
 
-    # if there is part in the page number,
-    # then we need to slice them to exclude already added part
-    if part:
-        item_ids = item_ids[part - 1 :]
+    _temp_item_ids = []
+    page_surah = get_surah_name(item_id=item_id)
+    page_juz = get_juz_name(item_id=item_id)
 
-    if not is_part:
+    for _item_id in item_ids:
+        current_surah = get_surah_name(item_id=_item_id)
+        current_juz = get_juz_name(item_id=_item_id)
 
-        # This will responsible for stopping the length on surah or juz end
-        # TODO: currently we are not showing what is stopped like `juz end` or `surah end`
-        _temp_item_ids = []
-        first_page_surah = get_surah_name(item_id=item_ids[0])
-        first_page_juz = get_juz_name(item_id=item_ids[0])
+        if current_surah != page_surah and current_juz != page_juz:
+            _temp_item_ids.append(f"{page_surah} surah and Juz {page_juz} ends")
+            page_surah, page_juz = current_surah, current_juz
+        elif current_surah != page_surah:
+            _temp_item_ids.append(f"{page_surah} surah ends")
+            page_surah = current_surah
+        elif current_juz != page_juz:
+            _temp_item_ids.append(f"Juz {page_juz} ends")
+            page_juz = current_juz
 
-        for item_id in item_ids:
-            current_surah = get_surah_name(item_id=item_id)
-            current_juz = get_juz_name(item_id=item_id)
+        _temp_item_ids.append(_item_id)
 
-            if current_surah != first_page_surah and current_juz != first_page_juz:
-                description = "Surah and Juz ends"
-                break
-            elif current_surah != first_page_surah:
-                description = "Surah ends"
-                break
-            elif current_juz != first_page_juz:
-                description = "Juz ends"
-                break
-            else:
-                _temp_item_ids.append(item_id)
+    if _temp_item_ids:
+        item_ids = _temp_item_ids
 
-        if _temp_item_ids:
-            item_ids = _temp_item_ids
-
-    last_page = items[item_ids[-1]].page_id
-
-    def _render_row(item_id):
+    def _render_row(current_item_id):
+        # This is to render the description such as surah and juz end-0
+        if isinstance(current_item_id, str):
+            return Tr(Td(P(current_item_id), colspan="5", cls="text-center"))
 
         def _render_radio(o):
             value, label = o
             is_checked = True if value == "1" else False
             return FormLabel(
                 Radio(
-                    id=f"rating-{item_id}",
+                    id=f"rating-{current_item_id}",
                     value=value,
                     checked=is_checked,
                     cls="toggleable-radio",
@@ -1730,24 +1778,25 @@ def get(
                 cls="space-x-2",
             )
 
-        current_page_details = items[item_id]
+        current_page_details = items[current_item_id]
         return Tr(
             Td(
                 CheckboxX(
                     name="ids",
-                    value=item_id,
+                    value=current_item_id,
                     cls="revision_ids",
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(current_page_details.page_id)),
+            Td(P(get_page_number(current_item_id))),
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 Div(
                     *map(_render_radio, RATING_MAP.items()),
                     cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
-                )
+                ),
+                cls="!pr-0",
             ),
         )
 
@@ -1765,14 +1814,7 @@ def get(
                 Th("Rating"),
             )
         ),
-        Tbody(
-            *map(_render_row, item_ids),
-            (
-                Tr(Td(P(description), colspan="5", cls="text-center"))
-                if description
-                else None
-            ),
-        ),
+        Tbody(*map(_render_row, item_ids)),
         x_data=select_all_checkbox_x_data(
             class_name="revision_ids",
             is_select_all="false" if is_part else "true",
@@ -1789,55 +1831,94 @@ def get(
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_mode_value = 1
-        defalut_plan_value = None
-    else:
-        defalut_mode_value = last_added_record.mode_id
-        defalut_plan_value = last_added_record.plan_id
+    length_input = LabelInput(
+        "No of pages",
+        name="length",
+        type="number",
+        id="length_field",
+        value=length,
+        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
+        hx_trigger="keyup delay:200ms changed",
+        hx_select="#table-container",
+        hx_select_oob="#header_area",
+        hx_target="#table-container",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+    )
 
-    # if this page comes from single entry page, then we are displaying the all the surahs in that page
-    if is_part:
-        heading = f"{page} - " + ", ".join(
-            [get_surah_name(item_id=item_id) for item_id in item_ids]
+    # This is to render the surah and juz based in the lenth
+    def get_description(type):
+        get_type_function = {
+            "surah": get_surah_name,
+            "juz": get_juz_name,
+            "page": get_page_number,
+        }
+        if type not in get_type_function.keys():
+            return ""
+
+        unique_type = list(
+            dict.fromkeys(
+                [
+                    get_type_function[type](item_id=item_id)
+                    for item_id in item_ids
+                    if isinstance(item_id, int)
+                ]
+            )
         )
-    # if the bulk entry page shows only start page
-    elif len(item_ids) == 1:
-        heading = f"{page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
-    else:
-        heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
+        if len(unique_type) == 1:
+            return unique_type[0]
+        else:
+            return f"{unique_type[0]} => {unique_type[-1]}"
+
+    surah_description = get_description("surah")
+    juz_description = get_description("juz")
+    page_description = get_description("page")
 
     return main_area(
-        H1(heading),
+        Div(
+            # This will show in the desktop view
+            H1(
+                f"{page_description} - {surah_description} - Juz {juz_description}",
+                cls="hidden md:block",
+            ),
+            # This will show in the mobile view
+            Div(
+                H2(page_description),
+                H2(surah_description),
+                H2(f"Juz {juz_description}"),
+                cls="[&>*]:font-extrabold space-y-2 block md:hidden",
+            ),
+            id="header_area",
+        ),
         Form(
-            Hidden(name="length", value=length),
             Hidden(name="is_part", value=str(is_part)),
+            Hidden(name="plan_id", value=plan_id),
+            Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
-                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
-                LabelInput(
-                    "Plan ID",
-                    name="plan_id",
-                    type="number",
-                    value=(plan_id or defalut_plan_value),
-                ),
+                length_input if not is_part else None,
+                # mode_dropdown(),
+                # LabelInput(
+                #     "Plan ID",
+                #     name="plan_id",
+                #     type="number",
+                #     value=(plan_id or defalut_plan_value),
+                # ),
                 LabelInput(
                     "Revision Date",
                     name="revision_date",
                     type="date",
-                    value=(revision_date or current_time("%Y-%m-%d")),
-                    cls="space-y-2 col-span-2",
+                    value=revision_date,
+                    cls=("space-y-2", ("col-span-2" if is_part else None)),
                 ),
                 show_id_fields=show_id_fields,
             ),
-            Div(table, cls="uk-overflow-auto"),
+            Div(table, cls="uk-overflow-auto", id="table-container"),
             action_buttons,
             action="/revision/bulk_add",
             method="POST",
         ),
         Script(src="/public/script.js"),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
@@ -1845,10 +1926,10 @@ def get(
 @rt("/revision/bulk_add")
 async def post(
     revision_date: str,
-    mode_id: int,
     plan_id: int,
     length: int,
     is_part: bool,
+    max_item_id: int,
     auth,
     req,
     show_id_fields: bool = False,
@@ -1870,7 +1951,7 @@ async def post(
                         rating=int(value),
                         hafiz_id=auth,
                         revision_date=revision_date,
-                        mode_id=mode_id,
+                        mode_id=1,
                         plan_id=plan_id,
                     )
                 )
@@ -1878,37 +1959,52 @@ async def post(
     revisions.insert_all(parsed_data)
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
-        # To show the next page
-        last_page = items[last_item_id].page_id
     else:
+        # This is to get the last value from the table to get the next item id
+        # If none were selected
+        rating_date = [
+            name for name, value in form_data.items() if name.startswith("rating-")
+        ][::-1]
+        if rating_date:
+            last_item_id = int(rating_date[0].split("-")[1])
+        else:
+            return Redirect(index)
+
+    next_item_id = find_next_item_id(last_item_id)
+
+    # if there is no next item id, then we are done with the revision
+    # and handling the upper limit logic
+    if next_item_id is None or next_item_id >= max_item_id:
         return Redirect(index)
 
-    last_page_item_ids = get_item_id(last_page)
-
-    if not last_page_item_ids:
-        return Redirect(index)  # Handle the case where no items are found
-
-    # if the last added page doesn't have part or it is the last part of that particular page
-    # then add full page
-    if len(last_page_item_ids) == 1 or last_item_id == last_page_item_ids[-1]:
-        next_page = last_page + 1
-    #  or if the page has parts then add decimal such as 604.2, 604.3
-    else:
-        next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
-        next_page = float(next_page)
-
     if is_part:
-        return Redirect(
-            f"/revision/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
-        )
+        return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
     )
 
 
-@app.get("/memorization_status/{current_type}")
+@app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = None):
+
+    # This query will return all the missing items for that hafiz
+    # and we will add the items in to the hafizs_items table
+    qry = f"""
+    SELECT items.id from items
+    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth} 
+    WHERE items.active <> 0 AND hafizs_items.item_id IS Null;
+    """
+    ct = db.q(qry)
+    missing_item_ids = [r["id"] for r in ct]
+
+    if missing_item_ids:
+        for missing_item_id in missing_item_ids:
+            hafizs_items.insert(
+                item_id=missing_item_id,
+                page_number=get_page_number(missing_item_id),
+                mode_id=1,
+            )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
         memorized_status = [str(r["status"]).lower() == "memorized" for r in records]
@@ -1960,7 +2056,7 @@ def show_page_status(current_type: str, auth, status: str = None):
             Td(details),
             Td(status_value),
             Td(A("Update Status ➡️"), cls=(AT.classic, "text-right")),
-            hx_get=f"/partial_memorization_status/{current_type}/{type_number}",
+            hx_get=f"/partial_profile/{current_type}/{type_number}",
             hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
                 "CURRENT_TITLE", title
             ).replace(
@@ -1990,8 +2086,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         return Li(
             A(
                 f"by {_type}",
-                href=f"/memorization_status/{_type}"
-                + (f"?status={status}" if status else ""),
+                href=f"/profile/{_type}" + (f"?status={status}" if status else ""),
             ),
             cls=("uk-active" if _type == current_type else None),
         )
@@ -2011,7 +2106,7 @@ def show_page_status(current_type: str, auth, status: str = None):
     def render_filter_btn(text):
         return Label(
             text,
-            hx_get=f"/memorization_status/{current_type}?status={standardize_column(text)}",
+            hx_get=f"/profile/{current_type}?status={standardize_column(text)}",
             hx_target="body",
             hx_push_url="true",
             cls=(
@@ -2030,7 +2125,7 @@ def show_page_status(current_type: str, auth, status: str = None):
         (
             Label(
                 "X",
-                hx_get=f"/memorization_status/{current_type}",
+                hx_get=f"/profile/{current_type}",
                 hx_target="body",
                 hx_push_url="true",
                 cls=(
@@ -2142,7 +2237,7 @@ def show_page_status(current_type: str, auth, status: str = None):
                     data_uk_overflow_auto=True,
                 ),
                 ModalFooter(Button("Set to Memorized", cls="bg-green-600 text-white")),
-                hx_post=f"/partial_memorization_status/{current_type}"
+                hx_post=f"/partial_profile/{current_type}"
                 + (f"?status={status}" if status else ""),
                 hx_target="#my-modal",
             ),
@@ -2184,7 +2279,7 @@ def show_page_status(current_type: str, auth, status: str = None):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_memorization_status/{current_type}/{type_number}")
+@app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
     current_type: str, type_number: int, title: str, description: str, auth
 ):
@@ -2265,7 +2360,7 @@ def filtered_table_for_modal(
     )
 
 
-@app.post("/partial_memorization_status/{current_type}")
+@app.post("/partial_profile/{current_type}")
 async def update_page_status(current_type: str, req: Request, status: str = None):
     form_data = await req.form()
 
@@ -2291,7 +2386,7 @@ async def update_page_status(current_type: str, req: Request, status: str = None
             )
 
     return Redirect(
-        f"/memorization_status/{current_type}" + (f"?status={status}" if status else "")
+        f"/profile/{current_type}" + (f"?status={status}" if status else "")
     )
 
 
@@ -2474,7 +2569,7 @@ def recent_review_view(auth):
     return main_area(
         content_body,
         Script(src="/public/recent_review_logic.js"),
-        active="Recent Review",
+        active="Home",
         auth=auth,
     )
 
@@ -2773,7 +2868,7 @@ def watch_list_view(auth):
     return main_area(
         content_body,
         Script(src="/public/watch_list_logic.js"),
-        active="Watch List",
+        active="Home",
         auth=auth,
     )
 
@@ -3042,21 +3137,18 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     else:
         next_pg = next[0]["page_number"]
         next_surah = next[0]["surah_name"]
-        display_next = (Span(Strong(next_pg)), " - ", next_surah)
+        display_next = f"Page {next_pg} - {next_surah}"
+        # display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
     return continue_page, display_next
 
 
 def render_row_based_on_type(
+    auth,
     type_number: str,
     records: list,
     current_type,
     row_link: bool = True,
-    continue_new_memorization=False,
-    auth=None,
-    title_range=None,
-    details_range=None,
-    rev_date=None,
 ):
     _surahs = sorted({r["surah_id"] for r in records})
     _pages = sorted([r["page_number"] for r in records])
@@ -3099,58 +3191,42 @@ def render_row_based_on_type(
             if len(item_ids) == 1
             else filter_url
         )
-        if continue_new_memorization:
-            next_page_item_id, display_next = get_closest_unmemorized_item_id(
-                auth, item_ids[0]
-            )
-            get_page = (
-                ""
-                if next_page_item_id == 0
-                else f"/new_memorization/add/{current_type}?item_id={next_page_item_id}"
-            )
-            title = title_range
-            # details = details_range
     else:
         get_page = filter_url
 
     hx_attrs = {
         "hx_get": get_page,
         "hx_vals": '{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-            "CURRENT_TITLE", title
+            "CURRENT_TITLE", title or ""
         ).replace(
-            "CURRENT_DETAILS", details
+            "CURRENT_DETAILS", details or ""
         ),
         "target_id": "modal-body",
         "data_uk_toggle": "target: #modal",
     }
 
-    if continue_new_memorization and next_page_item_id == 0:
-        link_content = display_next
+    if current_type != "page":
+        link_text = "Show Pages ➡️"
     else:
-        if current_type != "page":
-            link_text = "Show Pages ➡️"
-        elif continue_new_memorization:
-            link_text = display_next
-        else:
-            link_text = "Start Memorization ➡️"
-
+        link_text = "Set as Newly Memorized"
+    item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
+    if len(item_ids) == 1 and not row_link and current_type == "page":
+        link_content = render_checkbox(auth=auth, item_id=item_ids[0])
+    elif len(item_ids) > 1 and current_type == "page":
+        link_content = render_checkbox(auth=auth, page_id=type_number)
+    else:
         link_content = A(
             link_text,
-            href={},
             cls=AT.classic,
+            # **hx_attrs,
+            hx_attrs={**hx_attrs},
         )
 
-    hx_attributes = (
-        {}
-        if continue_new_memorization and next_page_item_id == 0
-        else hx_attrs if row_link else {}
-    )
-
+    hx_attributes = hx_attrs if current_type != "page" else {} if row_link else {}
     return Tr(
         Td(title),
         Td(details),
-        Td(rev_date) if rev_date is not None else None,
-        Td(link_content, cls="text-right"),
+        Td(link_content),
         **hx_attributes,
     )
 
@@ -3232,6 +3308,74 @@ def format_output(groups: list):
     return formatted
 
 
+def render_recently_memorized_row(type_number: str, records: list, auth):
+    _surahs = sorted({r["surah_id"] for r in records})
+    _juzs = sorted({r["juz_number"] for r in records})
+
+    def render_range(list, _type=""):
+        first_description = list[0]
+        last_description = list[-1]
+
+        if _type == "Surah":
+            _type = ""
+            first_description = surahs[first_description].name
+            last_description = surahs[last_description].name
+
+        if len(list) == 1:
+            return f"{_type} {first_description}"
+        return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
+
+    title = f"Page {records[0]['page_number']}"
+    details = f"Juz {render_range(_juzs)} | {render_range(_surahs, 'Surah')}"
+    revision_date = records[0]["revision_date"]
+
+    next_page_item_id, display_next = (0, "")
+    if type_number:
+        # print(f"current_item_ids: {type_number}", f"current_page_id: {title}")
+        next_page_item_id, display_next = get_closest_unmemorized_item_id(
+            auth, type_number
+        )
+        # print(
+        #     f"next_page_item_id: {next_page_item_id}", f"display_next: {display_next}"
+        # )
+    checkbox = render_checkbox(auth=auth, item_id=type_number)
+    return Tr(
+        Td(title),
+        Td(details),
+        Td(date_to_human_readable(revision_date)),
+        Td(
+            render_checkbox(
+                auth=auth, item_id=next_page_item_id, label_text=display_next
+            )
+            if next_page_item_id
+            else checkbox
+        ),
+        Td(
+            A(
+                "Delete",
+                hx_delete=f"/markas/new_memorization/{type_number}",
+                hx_confirm="Are you sure? This page might be available in other modes.",
+            ),
+            cls=AT.muted,
+        ),
+    )
+
+
+@app.delete("/markas/new_memorization/{item_id}")
+def delete(auth, request, item_id: str):
+    qry = f"item_id = {item_id} AND mode_id = 2;"
+    revisions_data = revisions(where=qry)
+    revisions.delete(revisions_data[0].id)
+    hafizs_items_data = hafizs_items(where=f"item_id = {item_id} AND hafiz_id= {auth}")[
+        0
+    ]
+    del hafizs_items_data.status
+    hafizs_items_data.mode_id = 1
+    hafizs_items.update(hafizs_items_data)
+    referer = request.headers.get("Referer")
+    return Redirect(referer)
+
+
 @app.get("/new_memorization/{current_type}")
 def new_memorization(auth, current_type: str):
     if not current_type:
@@ -3239,15 +3383,22 @@ def new_memorization(auth, current_type: str):
     ct = filter_query_records(auth)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
-        render_row_based_on_type(type_number, records, current_type)
+        render_row_based_on_type(
+            auth=auth,
+            type_number=type_number,
+            records=records,
+            current_type=current_type,
+            row_link=False,
+        )
         for type_number, records in list(grouped.items())
     ]
     not_memorized_table = Div(
         Table(
             Thead(
                 Tr(
-                    Th("NAME"),
-                    Th("RANGE/DETAILS"),
+                    Th("Name"),
+                    Th("Range / Details"),
+                    Th("Set As Newly Memorized"),
                 ),
             ),
             Tbody(*not_memorized_rows),
@@ -3272,9 +3423,9 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = """revisions.mode_id = 2 AND hafizs_items.status IS 'newly_memorized' AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC"""
+    where_query = f"""revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC LIMIT 10;"""
     newly_memorized = filter_query_records(auth, where_query)
-    grouped = group_by_type(newly_memorized, "page")
+    grouped = group_by_type(newly_memorized, "item_id")
     grouped_list = list(grouped.items())
 
     if grouped_list:
@@ -3309,20 +3460,30 @@ def new_memorization(auth, current_type: str):
             rev_date=revision_date,
         )
 
-    newly_memorized_rows = list(
-        filter(
-            None,
-            [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
+    # newly_memorized_rows = list(
+    #     filter(
+    #         None,
+    #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
+    #     )
+    # )
+    newly_memorized_rows = [
+        render_recently_memorized_row(
+            type_number,
+            records,
+            auth=auth,
         )
-    )
-
+        for type_number, records in grouped.items()
+        if type_number is not None
+    ]
     recent_newly_memorized_table = Div(
         Table(
             Thead(
                 Tr(
-                    Th("NAME"),
-                    Th("RANGE/DETAILS"),
-                    Th("REVISION DATE"),
+                    Th("Name"),
+                    Th("Range / Details"),
+                    Th("Revision Date"),
+                    Th("Set As Newly Memorized"),
+                    Th("Action"),
                 ),
             ),
             Tbody(*newly_memorized_rows),
@@ -3349,7 +3510,7 @@ def new_memorization(auth, current_type: str):
             cls="space-y-4",
         ),
         Div(modal),
-        active="New Memorization",
+        active="Home",
         auth=auth,
     )
 
@@ -3387,20 +3548,14 @@ def filtered_table_for_new_memorization_modal(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(
-                A(
-                    f"Start Memorization ➡️",
-                    hx_get=f"/new_memorization/add/{current_type}?item_id={record['id']}",
-                    hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                        "CURRENT_TITLE", title
-                    ).replace(
-                        "CURRENT_DETAILS", description
-                    ),
-                    hx_target="#modal-body",
-                    cls=(AT.classic),
-                ),
-                cls="text-right",
-            ),
+            # Td(
+            #     A(
+            #         f"Set as Newly Memorized",
+            #         hx_post=f"/markas/new_memorization/{record['id']}",
+            #         cls=(AT.classic),
+            #     ),
+            #     cls="text-right",
+            # ),
         )
 
     table = Div(
@@ -3431,9 +3586,8 @@ def filtered_table_for_new_memorization_modal(
     return (
         Form(
             table,
-            Button("Bulk Entry", cls="bg-green-600 text-white"),
-            hx_get=f"/new_memorization/bulk_add/{current_type}",
-            hx_target="#modal-body",
+            Button("Set as Newly Memorized", cls="bg-green-600 text-white"),
+            hx_post=f"/markas/new_memorization_bulk",
             cls="space-y-2",
         ),
         ModalTitle(
@@ -3714,7 +3868,6 @@ async def post(
 
     revisions.insert_all(parsed_data)
     referer = request.headers.get("referer")
-    print(referer)
     # return Redirect(f"/new_memorization/{current_type}")
     return Redirect(referer or f"/new_memorization/{current_type}")
 
@@ -3726,10 +3879,11 @@ def page_details_view(auth):
                             items.surah_id,
                             pages.page_number,
                             pages.juz_number,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS full_cycle,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS new_memorization,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS recent_review,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS watch_list,
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS "1",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS "2",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS "3",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS "4",
+                            COALESCE(SUM(CASE WHEN revisions.mode_id = 5 THEN 1 END), '-') AS "5",
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
@@ -3738,6 +3892,26 @@ def page_details_view(auth):
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
 
+    def get_all_mode_names():
+        mode_rows = db.q("SELECT * FROM modes;")
+        mode_list = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+            }
+            for row in mode_rows
+        ]
+        return mode_list
+
+    mode_name_list = [mode["name"] for mode in get_all_mode_names()]
+    mode_id_list = [mode["id"] for mode in get_all_mode_names()]
+    # to display the mode names in the correct order
+    mode_id_list, mode_name_list = zip(
+        *sorted(
+            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
+        )
+    )
     hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
@@ -3763,19 +3937,12 @@ def page_details_view(auth):
             if data_for == "page_details"
             else {}
         )
-        new_memorization = r["new_memorization"]
-        recent_review = r["recent_review"]
-        watch_list = r["watch_list"]
-        full_cycle = r["full_cycle"]
         rating_summary = r["rating_summary"]
 
         return Tr(
             Td(title),
             Td(details),
-            Td(new_memorization),
-            Td(recent_review),
-            Td(watch_list),
-            Td(full_cycle),
+            *map(lambda id: Td(r[str(id)]), mode_id_list),
             Td(rating_summary),
             Td(
                 A(
@@ -3797,10 +3964,7 @@ def page_details_view(auth):
             Tr(
                 Th("Page"),
                 Th("Details"),
-                Th("New Memorization"),
-                Th("Recent Review"),
-                Th("Watch List"),
-                Th("Full Cycle"),
+                *map(Th, mode_name_list),
                 Th("Rating Summary"),
             )
         ),
@@ -3828,6 +3992,8 @@ def display_page_level_details(auth, item_id: int):
             value = data.get(col, "")
             if col == "rating":
                 value = RATING_MAP.get(str(value), value)
+            if col == "revision_date":
+                value = date_to_human_readable(str(value))
             tds.append(Td(value))
         return Tr(*tds)
 
@@ -3879,7 +4045,7 @@ def display_page_level_details(auth, item_id: int):
         H2("Summary"),
         P(
             "This page was added on: ",
-            Span(Strong(first_memorized_date)),
+            Span(Strong(date_to_human_readable(first_memorized_date))),
             " under ",
             Span(Strong(first_memorized_mode_name)),
         ),
@@ -3907,13 +4073,13 @@ def display_page_level_details(auth, item_id: int):
         """
 
     summary_table_query = build_revision_summary_query(
-        item_id, auth, (1, 2, 3, 4), "sno"
+        item_id, auth, (1, 2, 3, 4), "s_no"
     )
     summary_data = db.q(summary_table_query)
-    summary_cols = ["sno", "revision_date", "rating", "mode_name", "interval"]
+    summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
     summary_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in summary_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in summary_cols)),
             Tbody(*[_render_row(row, summary_cols) for row in summary_data]),
         ),
         # cls="uk-overflow-auto max-h-[30vh] p-4",
@@ -3939,26 +4105,26 @@ def display_page_level_details(auth, item_id: int):
         """
 
     ########### Sequence Table
-    sequence_query = build_revision_query(item_id, auth, 1, "sno")
+    sequence_query = build_revision_query(item_id, auth, 1, "s_no")
     sequence_data = db.q(sequence_query)
     sequence_data_display = True if len(sequence_data) != 0 else False
-    sequence_cols = ["sno", "revision_date", "rating", "interval"]
+    sequence_cols = ["s_no", "revision_date", "rating", "interval"]
     sequence_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in sequence_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in sequence_cols)),
             Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### New Memorization Table
-    new_memorization_query = build_revision_query(item_id, auth, 2, "sno")
+    new_memorization_query = build_revision_query(item_id, auth, 2, "s_no")
     new_memorization = db.q(new_memorization_query)
     new_memorization_display = True if len(new_memorization) != 0 else False
-    new_memorization_cols = ["sno", "revision_date", "rating", "interval"]
+    new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
     new_memorization_table = Div(
         Table(
             Thead(
-                *(Th(col.replace("_", " ").upper()) for col in new_memorization_cols)
+                *(Th(col.replace("_", " ").title()) for col in new_memorization_cols)
             ),
             Tbody(
                 *[_render_row(row, new_memorization_cols) for row in new_memorization]
@@ -3967,25 +4133,25 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Recent Review Table
-    recent_review_query = build_revision_query(item_id, auth, 3, "sno")
+    recent_review_query = build_revision_query(item_id, auth, 3, "s_no")
     recent_review = db.q(recent_review_query)
     recent_review_display = True if len(recent_review) != 0 else False
-    recent_review_cols = ["sno", "revision_date", "rating", "interval"]
+    recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
     recent_review_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in recent_review_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in recent_review_cols)),
             Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Watch List Table
-    watch_list_query = build_revision_query(item_id, auth, 4, "sno")
+    watch_list_query = build_revision_query(item_id, auth, 4, "s_no")
     watch_list_data = db.q(watch_list_query)
     watch_list_display = True if len(watch_list_data) != 0 else False
-    watch_list_cols = ["sno", "revision_date", "rating", "interval"]
+    watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
     watch_list_table = Div(
         Table(
-            Thead(*(Th(col.replace("_", " ").upper()) for col in watch_list_cols)),
+            Thead(*(Th(col.replace("_", " ").title()) for col in watch_list_cols)),
             Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
         ),
         cls="uk-overflow-auto max-h-[30vh] p-4",
