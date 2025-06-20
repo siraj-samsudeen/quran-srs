@@ -625,17 +625,30 @@ def index(auth):
     for plan_id in unique_seq_plan_id:
         if not plan_id:
             continue
-        pages_list = sorted(
-            [
-                items[r.item_id].page_id
-                for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
-                )
-            ]
-        )
+        item_ids = [
+            r.item_id
+            for r in revisions(where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'")
+        ]
+
+        pages_list = sorted(list(set([get_page_number(i) for i in item_ids])))
+
+        # This will filter out the pages which has parts and all the parts is not added in the revisions
+        # In order to show that page in separate rows to enter the data
+        temp_pages = []
+        for page in pages_list:
+            current_page_item_ids = items(where=f"page_id = '{page}' AND active = 1")
+            if len(current_page_item_ids) > 1:
+                # this will check if all the items in for that page is in the revisions table
+                if all([i.id in item_ids for i in current_page_item_ids]):
+                    temp_pages.append(page)
+            else:
+                temp_pages.append(page)
+        pages_list = temp_pages
 
         if not pages_list:
-            unique_page_ranges.append({"plan_id": plan_id, "page_range": "2"})
+            unique_page_ranges.append(
+                {"plan_id": plan_id, "page_range": f"{plans[plan_id].start_page}"}
+            )
         else:
             for p in compact_format(pages_list).split(", "):
                 unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
@@ -661,6 +674,7 @@ def index(auth):
 
         start_page, end_page = split_page_range(page_range)
         # To get the next greater item id based on the page
+        # so that if there is a gap in-between the continue logic we will take the next item_id based on the revisons table.
         qry = f"""
         SELECT revisions.mode_id,revisions.plan_id, revisions.item_id, pages.page_number from revisions
         LEFT JOIN Items ON items.id = revisions.item_id
@@ -701,10 +715,10 @@ def index(auth):
             )
 
         return Tr(
-            # Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
-            # Td(page_range, cls="hidden md:table-cell"),
-            # Td(render_page(start_page)),
-            # (Td(render_page(end_page) if end_page else None)),
+            Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
+            Td(page_range, cls="hidden md:table-cell"),
+            Td(render_page(start_page)),
+            (Td(render_page(end_page) if end_page else None)),
             Td(continue_message),
             Td(action_buttons),
         )
