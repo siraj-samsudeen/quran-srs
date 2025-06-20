@@ -1672,7 +1672,7 @@ def get(
                 },
             ),
         ),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
@@ -1917,7 +1917,7 @@ def get(
             method="POST",
         ),
         Script(src="/public/script.js"),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
