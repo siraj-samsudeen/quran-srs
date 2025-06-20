@@ -244,6 +244,14 @@ def split_page_range(page_range: str):
     return start_id, end_id
 
 
+# This is used to dynamically sort them by mode name which contains the sort order
+# eg: sorted(mode_ids, key=lambda id: extract_mode_sort_number(id))
+def extract_mode_sort_number(mode_id):
+    """Extract the number from mode name like '1. full Cycle' -> 1"""
+    mode_name = modes[mode_id].name
+    return int(mode_name.split(". ")[0])
+
+
 def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
@@ -263,7 +271,8 @@ def datewise_summary_table(show=None, hafiz_id=None):
             f" AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
         )
         unique_modes = db.q(f"SELECT DISTINCT mode_id FROM {revisions} {rev_condition}")
-        unique_modes = sorted([m["mode_id"] for m in unique_modes])
+        unique_modes = [m["mode_id"] for m in unique_modes]
+        unique_modes = sorted(unique_modes, key=lambda id: extract_mode_sort_number(id))
 
         mode_with_ids_and_pages = []
         for mode_id in unique_modes:
@@ -346,19 +355,31 @@ def datewise_summary_table(show=None, hafiz_id=None):
                     Td("-"),
                     Td("-"),
                     Td("-"),
+                    Td("-"),
                 )
             ]
 
         rows = [
             Tr(
-                (
-                    # Only add the date for the first row and use rowspan to expand them for the modes breakdown
-                    Td(
-                        date_to_human_readable(date),
-                        rowspan=f"{len(mode_with_ids_and_pages)}",
+                *(
+                    # Only add the date and total_count for the first row and use rowspan to expand them for the modes breakdown
+                    (
+                        Td(
+                            date_to_human_readable(date),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
+                        Td(
+                            sum(
+                                [
+                                    len(i["revision_data"])
+                                    for i in mode_with_ids_and_pages
+                                ]
+                            ),
+                            rowspan=f"{len(mode_with_ids_and_pages)}",
+                        ),
                     )
                     if mode_with_ids_and_pages[0]["mode_id"] == o["mode_id"]
-                    else None
+                    else ()
                 ),
                 Td(modes[o["mode_id"]].name),
                 Td(len(o["revision_data"])),
@@ -370,7 +391,15 @@ def datewise_summary_table(show=None, hafiz_id=None):
 
     datewise_table = Div(
         Table(
-            Thead(Tr(Th("Date"), Th("Mode"), Th("Count"), Th("Range"))),
+            Thead(
+                Tr(
+                    Th("Date"),
+                    Th("Total Count", cls="uk-table-shrink"),
+                    Th("Mode"),
+                    Th("Count"),
+                    Th("Range"),
+                )
+            ),
             Tbody(*flatten_list(map(_render_datewise_row, date_range))),
         ),
         cls="uk-overflow-auto",
