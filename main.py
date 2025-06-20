@@ -540,7 +540,7 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href=index, cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/juz",
+                    href="/profile/surah",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
@@ -2102,7 +2102,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             ),
             Td(status_value),
             Td(
-                A("Update Status ➡️"),
+                A("Customize ➡️"),
                 cls=(AT.classic, "text-right"),
                 hx_get=f"/partial_profile/{current_type}/{type_number}"
                 + (f"?status={status}" if status else ""),
@@ -2184,7 +2184,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
         P("Status Filter:", cls=TextPresets.muted_sm),
         *map(
             render_filter_btn,
-            ["Memorized", "Not Memorized", "Newly Memorized", "Partially Memorized"],
+            ["Memorized", "Not Memorized", "Newly Memorized"],
         ),
         (
             Label(
