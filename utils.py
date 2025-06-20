@@ -358,3 +358,38 @@ def find_gaps(input_list, master_list):
         result.append((last_num, None))
 
     return result
+
+
+def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
+    """
+    Calculate the difference in days between two dates.
+
+    Args:
+        date1_str (str): First date as string
+        date2_str (str): Second date as string
+        date_format (str): Format of the date strings (default: '%Y-%m-%d')
+
+    Returns:
+        int: Number of days between the dates (positive if date2 > date1, negative if date2 < date1)
+
+    Example:
+        >>> calculate_days_difference('2024-01-01', '2024-01-10')
+        9
+        >>> calculate_days_difference('2024-01-10', '2024-01-01')
+        -9
+    """
+    try:
+        # Parse the date strings into datetime objects
+        date1 = datetime.strptime(date1_str, date_format)
+        date2 = datetime.strptime(date2_str, date_format)
+
+        # Calculate the difference
+        difference = date2 - date1
+
+        # Return the difference in days
+        return difference.days
+
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid date format. Expected format: {date_format}. Error: {e}"
+        )
