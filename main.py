@@ -203,6 +203,21 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
+def rating_dropdown(number=None, default_mode="1", is_label=True, **kwargs):
+    def mk_options(o):
+        id, name = o
+        is_selected = lambda m: m == default_mode
+        return Option(name, value=id, selected=is_selected(id))
+
+    return LabelSelect(
+        map(mk_options, RATING_MAP.items()),
+        label=("Rating" if is_label else None),
+        name="rating",
+        id=("rating" if number is None else f"rating-{number}"),
+        **kwargs,
+    )
+
+
 def action_buttons():
     # Enable and Disable the button based on the checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
@@ -256,13 +271,15 @@ def extract_mode_sort_number(mode_id):
     return int(mode_name.split(". ")[0])
 
 
-def update_recent_review_logic(item_id, date, is_checked):
-    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = 3;"
+def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
+    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
     revisions_data = revisions(where=qry)
 
     if not revisions_data and is_checked:
         revisions.insert(
-            Revision(revision_date=date, item_id=item_id, mode_id=3, rating=0)
+            Revision(
+                revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
+            )
         )
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
@@ -933,18 +950,30 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     def render_range_row(item_id: str):
-        current_revision_data = []
+        current_revision_data = revisions(
+            where=f"revision_date = '{system_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
+        )
+
+        if not current_revision_data and route == "watch_list":
+            rating_placeholder = [rating_dropdown(number=item_id, is_label=False)]
+        elif current_revision_data:
+            current_rating = current_revision_data[0].rating
+            rating_placeholder = [
+                render_rating(current_rating),
+                # This hidden value is need so that `checkbox_update_logic` function will work
+                # Which will lookup the and delete that particular revision data
+                Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
+            ]
+        else:
+            rating_placeholder = [None]
+
         if route == "recent_review":
-            current_revision_data = revisions(
-                where=f"revision_date = '{system_date}' AND item_id = {item_id} AND mode_id IN (2,3);"
-            )
-            print(current_revision_data)
             record_btn = Form(
                 Hidden(name="date", value=system_date),
                 CheckboxX(
                     name=f"is_checked",
                     value="1",
-                    hx_post=f"/home/recent_review/update_status/{item_id}",
+                    hx_post=f"/home/recent_review/add/{item_id}",
                     hx_select=f"#recent_review_row-{item_id}",
                     hx_select_oob="#stat-row-3",
                     hx_target=f"#recent_review_row-{item_id}",
@@ -954,7 +983,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 cls="",
             )
         elif route == "watch_list":
-            record_btn = "Test"
+            record_btn = Form(
+                Hidden(name="date", value=system_date),
+                CheckboxX(
+                    name=f"is_checked",
+                    value="1",
+                    hx_post=f"/home/watch_list/add/{item_id}",
+                    hx_vals={"date": system_date},
+                    hx_include=f"#rating-{item_id}",
+                    hx_select=f"#watch_list_row-{item_id}",
+                    hx_select_oob="#stat-row-4",
+                    hx_target=f"#watch_list_row-{item_id}",
+                    hx_swap="outerHTML",
+                    checked=(len(current_revision_data) != 0),
+                ),
+                cls="",
+            )
         else:
             return None
 
@@ -962,12 +1006,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Td(get_page_number(item_id)),
             Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
-            Td(
-                render_rating(current_revision_data[0].rating)
-                if current_revision_data
-                else ""
-            ),
-            id=f"recent_review_row-{item_id}",
+            Td(*rating_placeholder),
+            id=f"{route}_row-{item_id}",
         )
 
     if is_unmemorized:
@@ -1011,11 +1051,21 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     )
 
 
-@app.post("/home/recent_review/update_status/{item_id}")
+@app.post("/home/recent_review/add/{item_id}")
 def update_recent_review_status_from_index(
     date: str, item_id: str, is_checked: bool = False
 ):
-    update_recent_review_logic(item_id, date, is_checked)
+    checkbox_update_logic(
+        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+    )
+    return RedirectResponse("/")
+
+
+@app.post("/home/watch_list/add/{item_id}")
+def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool = False):
+    checkbox_update_logic(
+        mode_id=4, rating=rating, item_id=item_id, date=date, is_checked=is_checked
+    )
     return RedirectResponse("/")
 
 
@@ -2684,8 +2734,9 @@ def recent_review_view(auth):
 @app.post("/recent_review/update_status/{item_id}")
 def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
 
-    update_recent_review_logic(item_id, date, is_checked)
-
+    checkbox_update_logic(
+        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+    )
     revision_count = get_recent_review_count(item_id)
 
     if revision_count > 6:
@@ -2841,7 +2892,7 @@ def watch_list_view(auth):
         def render_rev(rev: Revision):
             rev_date = rev.revision_date
             ctn = (
-                RATING_MAP[f"{rev.rating}"].split()[0],
+                render_rating(rev.rating).split()[0],
                 (
                     f" {date_to_human_readable(rev_date)}"
                     if not (rev_date == current_time("%Y-%m-%d"))
@@ -2926,24 +2977,13 @@ def watch_list_view(auth):
         id="my-modal",
     )
 
-    def rating_dropdown():
-        def mk_options(o):
-            id, name = o
-            is_selected = lambda m: m == "1"
-            return Option(name, value=id, selected=is_selected(id))
-
-        return LabelSelect(
-            map(mk_options, RATING_MAP.items()),
-            label="Rating",
-            name="rating",
-            id="global_rating",
-            cls="flex-1",
-        )
-
     content_body = Div(
         H2("Watch List"),
         Div(
-            rating_dropdown(),
+            rating_dropdown(
+                id="global_rating",
+                cls="flex-1",
+            ),
             LabelInput(
                 "Revision Date",
                 name="revision_date",
