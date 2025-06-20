@@ -750,8 +750,43 @@ def index(auth):
             Td(action_buttons),
         )
 
+    if plan_id:
+        current_plans_revision_date = revisions(
+            where=f"plan_id = {plan_id} AND mode_id = {seq_id}",
+            order_by="revision_date ASC",
+        )
+
+        if current_plans_revision_date:
+            unique_pages = list(
+                set([get_page_number(i.item_id) for i in current_plans_revision_date])
+            )
+            total_pages = len(unique_pages)
+
+            first_date = current_plans_revision_date[0].revision_date
+            total_days = calculate_days_difference(first_date, current_time("%Y-%m-%d"))
+
+            average_pages = total_pages / total_days
+            average_pages = (
+                int(average_pages)
+                if average_pages.is_integer()
+                else round(average_pages, 1)
+            )
+
+            description = P(
+                f"{total_pages} pages in {total_days} days => ",
+                Span(average_pages, cls=TextT.bold),
+                " pages per day",
+                cls=TextPresets.muted_sm,
+            )
+
+        else:
+            description = None
+    else:
+        description = None
+
     overall_table = Div(
         H4(modes[1].name),
+        description,
         Table(
             Thead(
                 Tr(
