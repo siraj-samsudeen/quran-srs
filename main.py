@@ -170,6 +170,10 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
+def get_last_item_id():
+    return items(where="active = 1", order_by="id DESC")[0].id
+
+
 def find_next_item_id(item_id):
     item_ids = [item.id for item in items(where="active = 1")]
     return find_next_greater(item_ids, item_id)
@@ -643,6 +647,9 @@ def index(auth):
 
     def render_overall_row(o: tuple):
         last_added_item_id, upper_limit = o
+        # If there are items after the last_added_item_id then it will come as `None`
+        # So we are handling them here by setting the upper limit based on the items
+        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
         def render_page(item_id):
             return Span(
@@ -660,7 +667,7 @@ def index(auth):
             action_buttons = DivLAligned(
                 Button(
                     "Bulk",
-                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={upper_limit}",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=(ButtonT.default, "p-2"),
@@ -1701,8 +1708,7 @@ def get(
     plan_id: int = None,
     revision_date: str = current_time("%Y-%m-%d"),
     length: int = 5,
-    max_item_id: int = 722,  # FIXME: This is used to set the upper limit for the continuation logic
-    max_page: float = 604,
+    max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
     # This is to handle the empty `No of page`
@@ -1710,10 +1716,6 @@ def get(
         length = 5
 
     page = get_page_number(item_id)
-
-    # Handle the max page
-    if page > max_page:
-        return Redirect(index)
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -1727,6 +1729,12 @@ def get(
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
+
+    # This is to set the upper limit for continuation logic
+    # To prevent the user from adding already added pages twice
+    if max_item_id in item_ids:
+        if not item_ids[-1] == max_item_id:
+            item_ids = item_ids[: item_ids.index(max_item_id)]
 
     _temp_item_ids = []
     page_surah = get_surah_name(item_id=item_id)
@@ -1828,7 +1836,7 @@ def get(
         type="number",
         id="length_field",
         value=length,
-        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}",
+        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
         hx_trigger="keyup delay:200ms changed",
         hx_select="#table-container",
         hx_select_oob="#header_area",
@@ -1884,6 +1892,7 @@ def get(
         Form(
             Hidden(name="is_part", value=str(is_part)),
             Hidden(name="plan_id", value=plan_id),
+            Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
                 length_input if not is_part else None,
                 # mode_dropdown(),
@@ -1919,6 +1928,7 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
+    max_item_id: int,
     auth,
     req,
     show_id_fields: bool = False,
@@ -1962,14 +1972,15 @@ async def post(
     next_item_id = find_next_item_id(last_item_id)
 
     # if there is no next item id, then we are done with the revision
-    if next_item_id is None:
+    # and handling the upper limit logic
+    if next_item_id is None or next_item_id > max_item_id:
         return Redirect(index)
 
     if is_part:
         return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
     )
 
 
