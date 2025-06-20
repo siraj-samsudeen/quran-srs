@@ -776,8 +776,48 @@ def index(auth):
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
 
+    ############### stat table ################
+
+    # exlcuded the srs mode
+    mode_ids = [mode.id for mode in modes()][:-1]
+    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
+
+    def get_count_of_mode(_mode_id, _revision_date):
+        return len(
+            revisions(
+                where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+            )
+        )
+
+    def render_stat_rows(current_mode_id):
+
+        today = current_time(f="%Y-%m-%d")
+        yesterday = sub_days_to_date(today, 1)
+
+        today_count = get_count_of_mode(current_mode_id, today)
+        yesterday_count = get_count_of_mode(current_mode_id, yesterday)
+
+        return Tr(
+            Td(modes[current_mode_id].name),
+            Td(today_count),
+            Td(yesterday_count),
+        )
+
+    stat_table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th("Modes"),
+                    Th("Today"),
+                    Th("Yesterday"),
+                )
+            ),
+            Tbody(*map(render_stat_rows, sorted_mode_ids)),
+        )
+    )
+
     return main_area(
-        Div(*insert_between(tables, Divider())),
+        Div(stat_table, Divider(), *insert_between(tables, Divider())),
         Div(modal),
         active="Home",
         auth=auth,
