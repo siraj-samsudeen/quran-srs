@@ -803,7 +803,13 @@ def index(auth):
             Td(yesterday_count),
         )
 
+    system_date_description = P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        date_to_human_readable(current_time(f="%Y-%m-%d")),
+    )
+
     stat_table = Div(
+        system_date_description,
         Table(
             Thead(
                 Tr(
@@ -813,7 +819,7 @@ def index(auth):
                 )
             ),
             Tbody(*map(render_stat_rows, sorted_mode_ids)),
-        )
+        ),
     )
 
     return main_area(
