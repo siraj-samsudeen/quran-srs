@@ -170,6 +170,10 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
+def get_last_item_id():
+    return items(where="active = 1", order_by="id DESC")[0].id
+
+
 def find_next_item_id(item_id):
     item_ids = [item.id for item in items(where="active = 1")]
     return find_next_greater(item_ids, item_id)
@@ -620,72 +624,50 @@ def index(auth):
     unique_seq_plan_id = [
         i.id for i in plans(where="completed <> 1", order_by="id DESC")
     ]
-    # To get the unique page ranges for the plan_id
-    unique_page_ranges = []
-    for plan_id in unique_seq_plan_id:
-        if not plan_id:
-            continue
-        pages_list = sorted(
+
+    if unique_seq_plan_id and not len(unique_seq_plan_id) > 1:
+        plan_id = unique_seq_plan_id[0]
+    else:
+        plan_id = None
+
+    if plan_id is None:
+        items_gaps_with_limit = []
+    else:
+        current_plan_item_ids = sorted(
             [
-                items[r.item_id].page_id
+                r.item_id
                 for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{plan_id}'"
+                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}'"
                 )
             ]
         )
+        item_ids = [i.id for i in items(where="active = 1")]
+        # this will return the gap of the current_plan_item_ids based on the master(items_id)
+        items_gaps_with_limit = find_gaps(current_plan_item_ids, item_ids)
 
-        if not pages_list:
-            unique_page_ranges.append({"plan_id": plan_id, "page_range": "2"})
-        else:
-            for p in compact_format(pages_list).split(", "):
-                unique_page_ranges.append({"plan_id": plan_id, "page_range": p})
+    def render_overall_row(o: tuple):
+        last_added_item_id, upper_limit = o
+        # If there are items after the last_added_item_id then it will come as `None`
+        # So we are handling them here by setting the upper limit based on the items
+        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-    def render_overall_row(o: dict):
-        def render_page(page=None, item_id=None):
-            if item_id:
-                return Span(
-                    Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-                    f" - {get_surah_name(item_id=item_id)}",
-                )
-            elif page:
-                return Span(
-                    Span(page, cls=TextPresets.bold_sm),
-                    f" - {get_surah_name(page_id=page)}",
-                )
-            else:
-                return None
-
-        plan_id, page_range = o["plan_id"], o["page_range"]
-        if not page_range:
-            return None
-
-        start_page, end_page = split_page_range(page_range)
-        # To get the next greater item id based on the page
-        qry = f"""
-        SELECT revisions.mode_id,revisions.plan_id, revisions.item_id, pages.page_number from revisions
-        LEFT JOIN Items ON items.id = revisions.item_id
-        LEFT JOIN pages ON pages.id = items.page_id 
-        WHERE pages.page_number = {end_page or start_page} AND revisions.mode_id = {seq_id} AND revisions.plan_id = {plan_id} 
-        ORDER BY revisions.item_id DESC
-        """
-        ct = db.q(qry)
-
-        if ct:
-            last_added_item_id = ct[0]["item_id"]
-        else:
-            last_added_item_id = 1
+        def render_page(item_id):
+            return Span(
+                Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+                f" - {get_surah_name(item_id=item_id)}",
+            )
 
         next_item_id = find_next_item_id(last_added_item_id)
 
         if next_item_id is None:
-            continue_message = "No further page"
+            next_page = "No further page"
             action_buttons = None
         else:
-            continue_message = render_page(item_id=next_item_id)
+            next_page = render_page(next_item_id)
             action_buttons = DivLAligned(
                 Button(
                     "Bulk",
-                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
                     hx_target="body",
                     hx_push_url="true",
                     cls=(ButtonT.default, "p-2"),
@@ -702,10 +684,7 @@ def index(auth):
 
         return Tr(
             # Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
-            # Td(page_range, cls="hidden md:table-cell"),
-            # Td(render_page(start_page)),
-            # (Td(render_page(end_page) if end_page else None)),
-            Td(continue_message),
+            Td(next_page),
             Td(action_buttons),
         )
 
@@ -715,14 +694,11 @@ def index(auth):
             Thead(
                 Tr(
                     # Th("Plan Id"),
-                    # Th("Range", cls="hidden md:table-cell"),
-                    # Th("Start"),
-                    # Th("End"),
                     Th("Next"),
                     Th("Entry"),
                 )
             ),
-            Tbody(*map(render_overall_row, unique_page_ranges)),
+            Tbody(*map(render_overall_row, items_gaps_with_limit)),
         ),
         cls="uk-overflow-auto",
     )
@@ -755,7 +731,7 @@ def index(auth):
     )
 
     tables_dict = {
-        modes[1].name: overall_table,
+        modes[1].name: overall_table if items_gaps_with_limit else None,
         modes[2].name: new_memorization_table,
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
@@ -1696,7 +1672,7 @@ def get(
                 },
             ),
         ),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
@@ -1732,7 +1708,7 @@ def get(
     plan_id: int = None,
     revision_date: str = current_time("%Y-%m-%d"),
     length: int = 5,
-    max_page: float = 604,
+    max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
     # This is to handle the empty `No of page`
@@ -1740,10 +1716,6 @@ def get(
         length = 5
 
     page = get_page_number(item_id)
-
-    # Handle the max page
-    if page > max_page:
-        return Redirect(index)
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -1757,6 +1729,12 @@ def get(
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
+
+    # This is to set the upper limit for continuation logic
+    # To prevent the user from adding already added pages twice
+    if max_item_id in item_ids:
+        if not item_ids[-1] == max_item_id:
+            item_ids = item_ids[: item_ids.index(max_item_id)]
 
     _temp_item_ids = []
     page_surah = get_surah_name(item_id=item_id)
@@ -1859,7 +1837,7 @@ def get(
         type="number",
         id="length_field",
         value=length,
-        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}",
+        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
         hx_trigger="keyup delay:200ms changed",
         hx_select="#table-container",
         hx_select_oob="#header_area",
@@ -1915,6 +1893,7 @@ def get(
         Form(
             Hidden(name="is_part", value=str(is_part)),
             Hidden(name="plan_id", value=plan_id),
+            Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
                 length_input if not is_part else None,
                 # mode_dropdown(),
@@ -1939,7 +1918,7 @@ def get(
             method="POST",
         ),
         Script(src="/public/script.js"),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
@@ -1950,6 +1929,7 @@ async def post(
     plan_id: int,
     length: int,
     is_part: bool,
+    max_item_id: int,
     auth,
     req,
     show_id_fields: bool = False,
@@ -1993,14 +1973,15 @@ async def post(
     next_item_id = find_next_item_id(last_item_id)
 
     # if there is no next item id, then we are done with the revision
-    if next_item_id is None:
+    # and handling the upper limit logic
+    if next_item_id is None or next_item_id >= max_item_id:
         return Redirect(index)
 
     if is_part:
         return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
 
     return Redirect(
-        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
     )
 
 
