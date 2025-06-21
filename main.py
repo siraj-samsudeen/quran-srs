@@ -2098,6 +2098,10 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 Form(
                     status_dropdown(status_value),
                     hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_target=f"#{current_type}-{type_number}",
+                    hx_select=f"#{current_type}-{type_number}",
+                    hx_select_oob="#stats_info",
+                    hx_swap="outerHTML",
                     hx_trigger="change",
                 )
             ),
@@ -2115,6 +2119,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 target_id="my-modal-body",
                 data_uk_toggle="target: #my-modal",
             ),
+            id=f"{current_type}-{type_number}",
         )
 
     def group_by_type(data, current_type):
@@ -2294,6 +2299,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             Progress(value=f"{total_memorized_pages}", max="604"),
             Div(status_stats_table, cls=FlexT.block),
             cls="space-y-2",
+            id="stats_info",
         ),
     )
     modal = ModalContainer(
@@ -2487,7 +2493,7 @@ def update_page_status(
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
     referer = req.headers.get("referer", "/")
-    return Redirect(referer)
+    return RedirectResponse(referer, status_code=303)
 
 
 @app.post("/partial_profile/{current_type}")
