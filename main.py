@@ -196,6 +196,20 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
+def status_dropdown(current_status):
+    def render_options(status):
+        return fh.Option(
+            status,
+            value=standardize_column(status),
+            selected=(status == current_status),
+        )
+
+    return fh.Select(
+        map(render_options, STATUS_OPTIONS),
+        name="selected_status",
+    )
+
+
 def action_buttons():
     # Enable and Disable the button based on the checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
@@ -1996,13 +2010,6 @@ async def post(
     )
 
 
-def render_status_options(status, current_status):
-    return fh.Option(
-        status,
-        value=standardize_column(status),
-        selected=(status == current_status),
-    )
-
 
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, status: str = ""):
@@ -2089,13 +2096,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             Td(details[1]),
             Td(
                 Form(
-                    fh.Select(
-                        map(
-                            lambda status: render_status_options(status, status_value),
-                            STATUS_OPTIONS,
-                        ),
-                        name="selected_status",
-                    ),
+                    status_dropdown(status_value),
                     hx_post=f"/update_status/{current_type}/{type_number}",
                     hx_trigger="change",
                 )
@@ -2440,13 +2441,7 @@ def filtered_table_for_modal(
         x_init="updateSelectAll()",
     )
     modal_level_dd = Div(
-        fh.Select(
-            map(
-                lambda status_option: render_status_options(status_option, status),
-                STATUS_OPTIONS,
-            ),
-            name="selected_status",
-        ),
+        status_dropdown(status),
         id="my-modal-body",
     )
     return (
