@@ -2298,6 +2298,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             id="stats_info",
         ),
     )
+    ##
     modal = Div(ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -2495,9 +2496,9 @@ def filtered_table_for_modal(
     base = f"/partial_profile/{current_type}"
     if type_number is not None:
         base += f"/{type_number}"
-    query = f"?status={status}" if status else ""
+    query = f"?status={status}" if status else "?" + f"title={title}&description={description}"
     link = base + query
-
+    ##
     return (
         modal_level_dd,
         table,
@@ -2513,8 +2514,8 @@ def filtered_table_for_modal(
             cls=TextPresets.muted_lg,
         ),
         Div(
-            Button("Update and Close", name="action", value="close", cls="bg-green-600 text-white"),
-            Button("Update and Stay", name="action", value="stay", cls="bg-green-600 text-white"),
+            Button("Update and Close", hx_post=link, hx_select=f"#filtered-table",hx_select_oob="#filtered-table", name="action", value="close", cls="bg-green-600 text-white"),
+            Button("Update and Stay", hx_post=link, hx_select=f"#filtered-table", hx_select_oob="#filtered-table",  name="action", value="stay", cls="bg-green-600 text-white"),
             Button(
                 "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
             ),
@@ -2522,11 +2523,6 @@ def filtered_table_for_modal(
             id="my-modal-footer",
             hx_swap_oob="true"
         ),
-        Div(hx_post=link,
-        hx_select=f"#filtered-table",
-        hx_select_oob="#filtered-table",
-        id="my-modal-link",
-        hx_swap_oob="true")
     )
 
 
