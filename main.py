@@ -2451,7 +2451,7 @@ def filtered_table_for_modal(
     base = f"/partial_profile/{current_type}"
     if type_number is not None:
         base += f"/{type_number}"
-    query = f"?status={status}" if status else "?" + f"title={title}&description={description}"
+    query = f"?title={title}&description={description}"
     link = base + query
     ##
     return (
@@ -2511,7 +2511,7 @@ def update_page_status(
 
 
 @app.post("/partial_profile/{current_type}/{type_number}")
-async def update_page_status(current_type: str,type_number:int, req: Request,title:str, description:str, action:str, status: str = None):
+async def update_page_status(current_type: str,type_number:int, req: Request,title:str, description:str, action:str, status=None):
     form_data = await req.form()
     selected_status = form_data.get("selected_status")
     selected_status = None if selected_status == "not_memorized" else selected_status
@@ -2539,7 +2539,7 @@ async def update_page_status(current_type: str,type_number:int, req: Request,tit
     if action =="stay":
         return RedirectResponse(url, status_code=303)
     else:
-        return Redirect(f"/profile/{current_type}")
+        return Redirect(f"/profile/{current_type}" + "?status={status}" if status is not None else "")
 
 
 @app.get
