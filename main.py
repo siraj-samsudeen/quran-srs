@@ -2361,51 +2361,6 @@ def show_page_status(current_type: str, auth, status: str = ""):
         active="Memorization Status",
     )
 
-def profile_modal(current_type, status, type_number=None, body=None, title="", description="") :
-    base = f"/partial_profile/{current_type}"
-    if type_number is not None:
-        base += f"/{type_number}"
-    query = f"?status={status}" if status else ""
-    link = base + query
-
-    return Div(ModalContainer(
-        ModalDialog(
-            ModalHeader(
-                ModalTitle(title, id="my-modal-title"),
-                P(description, cls=TextPresets.muted_sm, id="my-modal-description"),
-                ModalCloseButton(),
-                cls="space-y-3",
-            ),
-            Form(
-                Hidden(name="title", value=title),
-                Hidden(name="description", value=description),
-
-                ModalBody(
-                    Div(body, id="my-modal-body"),
-                    data_uk_overflow_auto=True,
-                ),
-                ModalFooter(
-                    Div(
-                        Button("Update and Close", name="action", value="close", cls="bg-green-600 text-white"),
-                        Button("Update and Stay", name="action", value="stay", cls="bg-green-600 text-white"),
-                        Button(
-                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
-                        ),
-                        cls="space-x-2",
-                    )
-                ),
-                hx_post=link,
-                hx_select=f"#filtered-table",
-                hx_select_oob="#filtered-table",
-                hx_swap="outerHTML",
-                hx_target="#my-modal",
-            ),
-            cls="uk-margin-auto-vertical",
-        ),
-        id="my-modal",
-    ), id="modal-container")
-
-
 # This is responsible for updating the modal
 @app.get("/partial_profile/{current_type}/{type_number}")
 def filtered_table_for_modal(
