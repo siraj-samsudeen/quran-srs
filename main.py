@@ -2112,7 +2112,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 hx_get=f"/partial_profile/{current_type}/{type_number}"
                 + (f"?status={status}" if status else ""),
                 hx_vals={"title": title, "description": details_str},
-                target_id="modal-container",
+                target_id="my-modal-body",
                 data_uk_toggle="target: #my-modal"
             ),
             id=f"{current_type}-{type_number}",
@@ -2298,7 +2298,29 @@ def show_page_status(current_type: str, auth, status: str = ""):
             id="stats_info",
         ),
     )
-    modal = profile_modal(current_type=current_type, status=status)
+    modal = Div(ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(id="my-modal-title"),
+                P(cls=TextPresets.muted_sm, id="my-modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            Form(
+                ModalBody(
+                    Div(id="my-modal-body"),
+                    data_uk_overflow_auto=True,
+                ),
+                ModalFooter(
+                    Div(id="my-modal-footer"),
+                ),
+                Div(id="my-modal-link"),
+            ),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="my-modal",
+    ), id="modal-container")
+
     if current_type == "page":
         details = ["Juz", "Surah"]
     elif current_type == "surah":
@@ -2462,16 +2484,50 @@ def filtered_table_for_modal(
         status_dropdown(status),
         id="my-modal-body",
     )
-    args = {
-    "current_type": current_type,
-    "status": status,
-    "type_number": type_number,
-    "body": Div(modal_level_dd, table),
-    "title": title,
-    "description": description
-    }
+    # args = {
+    # "current_type": current_type,
+    # "status": status,
+    # "type_number": type_number,
+    # "body": Div(modal_level_dd, table),
+    # "title": title,
+    # "description": description
+    # }
+    base = f"/partial_profile/{current_type}"
+    if type_number is not None:
+        base += f"/{type_number}"
+    query = f"?status={status}" if status else ""
+    link = base + query
 
-    return profile_modal(**args)
+    return (
+        modal_level_dd,
+        table,
+        ModalTitle(
+            "" if title == "" else f"{title} - Select Memorized Page",
+            id="my-modal-title",
+            hx_swap_oob="true",
+        ),
+        P(
+            description,
+            id="my-modal-description",
+            hx_swap_oob="true",
+            cls=TextPresets.muted_lg,
+        ),
+        Div(
+            Button("Update and Close", name="action", value="close", cls="bg-green-600 text-white"),
+            Button("Update and Stay", name="action", value="stay", cls="bg-green-600 text-white"),
+            Button(
+                "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
+            ),
+            cls="space-x-2",
+            id="my-modal-footer",
+            hx_swap_oob="true"
+        ),
+        Div(hx_post=link,
+        hx_select=f"#filtered-table",
+        hx_select_oob="#filtered-table",
+        id="my-modal-link",
+        hx_swap_oob="true")
+    )
 
 
 def resolve_update_data(current_item, selected_status):
