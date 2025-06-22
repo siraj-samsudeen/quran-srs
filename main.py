@@ -2111,13 +2111,9 @@ def show_page_status(current_type: str, auth, status: str = ""):
                 cls=(AT.classic, "text-right"),
                 hx_get=f"/partial_profile/{current_type}/{type_number}"
                 + (f"?status={status}" if status else ""),
-                hx_vals='{"title": "CURRENT_TITLE", "description": "CURRENT_DETAILS"}'.replace(
-                    "CURRENT_TITLE", title
-                ).replace(
-                    "CURRENT_DETAILS", details_str
-                ),
-                target_id="my-modal-body",
-                data_uk_toggle="target: #my-modal",
+                hx_vals={"title": title, "description": details_str},
+                target_id="modal-container",
+                data_uk_toggle="target: #my-modal"
             ),
             id=f"{current_type}-{type_number}",
         )
@@ -2302,36 +2298,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             id="stats_info",
         ),
     )
-    modal = ModalContainer(
-        ModalDialog(
-            ModalHeader(
-                ModalTitle(id="my-modal-title"),
-                P(cls=TextPresets.muted_sm, id="my-modal-description"),
-                ModalCloseButton(),
-                cls="space-y-3",
-            ),
-            Form(
-                ModalBody(
-                    Div(id="my-modal-body"),
-                    data_uk_overflow_auto=True,
-                ),
-                ModalFooter(
-                    Div(
-                        Button("Update and Close", cls="bg-green-600 text-white"),
-                        Button(
-                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
-                        ),
-                        cls="space-x-2",
-                    )
-                ),
-                hx_post=f"/partial_profile/{current_type}"
-                + (f"?status={status}" if status else ""),
-                hx_target="#my-modal",
-            ),
-            cls="uk-margin-auto-vertical",
-        ),
-        id="my-modal",
-    )
+    modal = profile_modal(current_type=current_type, status=status)
     if current_type == "page":
         details = ["Juz", "Surah"]
     elif current_type == "surah":
@@ -2370,6 +2337,50 @@ def show_page_status(current_type: str, auth, status: str = ""):
         auth=auth,
         active="Memorization Status",
     )
+
+def profile_modal(current_type, status, type_number=None, body=None, title="", description="") :
+    base = f"/partial_profile/{current_type}"
+    if type_number is not None:
+        base += f"/{type_number}"
+    query = f"?status={status}" if status else ""
+    link = base + query
+
+    return Div(ModalContainer(
+        ModalDialog(
+            ModalHeader(
+                ModalTitle(title, id="my-modal-title"),
+                P(description, cls=TextPresets.muted_sm, id="my-modal-description"),
+                ModalCloseButton(),
+                cls="space-y-3",
+            ),
+            Form(
+                Hidden(name="title", value=title),
+                Hidden(name="description", value=description),
+
+                ModalBody(
+                    Div(body, id="my-modal-body"),
+                    data_uk_overflow_auto=True,
+                ),
+                ModalFooter(
+                    Div(
+                        Button("Update and Close", name="action", value="close", cls="bg-green-600 text-white"),
+                        Button("Update and Stay", name="action", value="stay", cls="bg-green-600 text-white"),
+                        Button(
+                            "Cancel", cls=("bg-red-600 text-white", "uk-modal-close")
+                        ),
+                        cls="space-x-2",
+                    )
+                ),
+                hx_post=link,
+                hx_select=f"#filtered-table",
+                hx_select_oob="#filtered-table",
+                hx_swap="outerHTML",
+                hx_target="#my-modal",
+            ),
+            cls="uk-margin-auto-vertical",
+        ),
+        id="my-modal",
+    ), id="modal-container")
 
 
 # This is responsible for updating the modal
@@ -2421,7 +2432,7 @@ def filtered_table_for_modal(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(current_status),
+            Td(current_status)
         )
 
     table = Table(
@@ -2445,26 +2456,22 @@ def filtered_table_for_modal(
             class_name="partial_rows", is_select_all="false"
         ),
         x_init="updateSelectAll()",
+        id="filtered-table"
     )
     modal_level_dd = Div(
         status_dropdown(status),
         id="my-modal-body",
     )
-    return (
-        modal_level_dd,
-        table,
-        ModalTitle(
-            "" if title == "" else f"{title} - Select Memorized Page",
-            id="my-modal-title",
-            hx_swap_oob="true",
-        ),
-        P(
-            description,
-            id="my-modal-description",
-            hx_swap_oob="true",
-            cls=TextPresets.muted_lg,
-        ),
-    )
+    args = {
+    "current_type": current_type,
+    "status": status,
+    "type_number": type_number,
+    "body": Div(modal_level_dd, table),
+    "title": title,
+    "description": description
+    }
+
+    return profile_modal(**args)
 
 
 def resolve_update_data(current_item, selected_status):
@@ -2496,8 +2503,8 @@ def update_page_status(
     return RedirectResponse(referer, status_code=303)
 
 
-@app.post("/partial_profile/{current_type}")
-async def update_page_status(current_type: str, req: Request, status: str = None):
+@app.post("/partial_profile/{current_type}/{type_number}")
+async def update_page_status(current_type: str,type_number:int, req: Request,title:str, description:str, action:str, status: str = None):
     form_data = await req.form()
     selected_status = form_data.get("selected_status")
     selected_status = None if selected_status == "not_memorized" else selected_status
@@ -2518,9 +2525,14 @@ async def update_page_status(current_type: str, req: Request, status: str = None
         # determine what to update
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
-    return Redirect(
-        f"/profile/{current_type}" + (f"?status={status}" if status else "")
-    )
+
+    query_string = f"?status={status}&" if status else "?"
+    query_string += f"title={title}&description={description}"
+    url = f"/partial_profile/{current_type}/{type_number}{query_string}"
+    if action =="stay":
+        return RedirectResponse(url, status_code=303)
+    else:
+        return Redirect(f"/profile/{current_type}")
 
 
 @app.get
