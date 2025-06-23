@@ -1117,11 +1117,12 @@ def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool =
 def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False):
     qry = f"item_id = {item_id} AND mode_id = 2;"
     revisions_data = revisions(where=qry)
+    current_date = current_time("%Y-%m-%d")
     if not revisions_data and is_checked:
         revisions.insert(
             hafiz_id=auth,
             item_id=item_id,
-            revision_date=current_time("%Y-%m-%d"),
+            revision_date=current_date,
             rating=0,
             mode_id=2,
         )
@@ -1134,7 +1135,13 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
             )
         hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
         hafizs_items.update(
-            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+            {
+                "status": "newly_memorized",
+                "mode_id": 2,
+                "last_review": current_date,
+                "next_review": add_days_to_date(current_date, 1),
+            },
+            hafizs_items_id,
         )
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
@@ -1152,12 +1159,13 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
 def bulk_mark_as_new_memorized(
     request, item_ids: list[int], auth
 ):  # for query string format
+    current_date = current_time("%Y-%m-%d")
 
     for item_id in item_ids:
         revisions.insert(
             hafiz_id=auth,
             item_id=item_id,
-            revision_date=current_time("%Y-%m-%d"),
+            revision_date=current_date,
             rating=0,
             mode_id=2,
         )
@@ -1170,7 +1178,13 @@ def bulk_mark_as_new_memorized(
             )
         hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
         hafizs_items.update(
-            {"status": "newly_memorized", "mode_id": 2}, hafizs_items_id
+            {
+                "status": "newly_memorized",
+                "mode_id": 2,
+                "last_review": current_date,
+                "next_review": add_days_to_date(current_date, 1),
+            },
+            hafizs_items_id,
         )
     referer = request.headers.get("Referer")
     return Redirect(referer)
