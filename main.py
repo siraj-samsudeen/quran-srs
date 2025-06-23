@@ -2011,7 +2011,7 @@ async def post(
 
 
 @app.get("/profile/{current_type}")
-def show_page_status(current_type: str, auth, status: str = ""):
+def show_page_status(current_type: str, auth, sess, status: str = ""):
 
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
@@ -2084,6 +2084,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
             Td(details[1]),
             Td(
                 Form(
+                    Hidden(name="filter_status", value=status),
                     status_dropdown(status_value),
                     hx_post=f"/update_status/{current_type}/{type_number}",
                     hx_target=f"#{current_type}-{type_number}",
@@ -2320,11 +2321,24 @@ def show_page_status(current_type: str, auth, status: str = ""):
     }
 
     details = type_details.get(current_type, ["", ""])
+    last_updated = sess.get("last_updated", {})
+    type_ = last_updated.get("type")
+    number = last_updated.get("type_number")
+
+    if type_ and number is not None:
+        locate = f"#{type_}-{number}"
+        url = f"/profile/{type_}{locate}"
+        resume = A("Resume ↩️", href=url, cls=ButtonT.text)
+    else:
+        resume = None
     return main_area(
         Div(
             progress_bar_with_stats,
             DividerLine(),
-            filter_btns,
+            DivFullySpaced(
+                filter_btns,
+                resume,
+            ),
             Div(
                 TabContainer(
                     *map(render_navigation_item, ["juz", "surah", "page"]),
@@ -2499,7 +2513,12 @@ def resolve_update_data(current_item, selected_status):
 
 @app.post("/update_status/{current_type}/{type_number}")
 def update_page_status(
-    current_type: str, type_number: int, req: Request, selected_status: str, auth
+    current_type: str,
+    type_number: int,
+    req: Request,
+    selected_status: str,
+    filter_status: str,
+    sess,
 ):
     #  "not_memorized" means no status, so store it as NULL in DB
     selected_status = None if selected_status == "not_memorized" else selected_status
@@ -2515,6 +2534,12 @@ def update_page_status(
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
     referer = req.headers.get("referer", "/")
+    last_added_details = {
+        "status": filter_status,
+        "type": current_type,
+        "type_number": type_number,
+    }
+    sess["last_updated"] = last_added_details
     return RedirectResponse(referer, status_code=303)
 
 
