@@ -3612,10 +3612,16 @@ def render_row_based_on_type(
     else:
         link_text = "Set as Newly Memorized"
     item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
+    render_attrs = {
+            # "hx_select": f"#new_memorization_{current_type}-{type_number}",
+            # "hx_target": f"#new_memorization_{current_type}-{type_number}", 
+            # "hx_swap": "outerHTML",
+            "hx_select_oob": "#recently_memorized_table",
+            }
     if len(item_ids) == 1 and not row_link and current_type == "page":
-        link_content = render_checkbox(auth=auth, item_id=item_ids[0])
+        link_content = render_checkbox(auth=auth, item_id=item_ids[0], **render_attrs)
     elif len(item_ids) > 1 and current_type == "page":
-        link_content = render_checkbox(auth=auth, page_id=type_number)
+        link_content = render_checkbox(auth=auth, page_id=type_number, **render_attrs)
     else:
         link_content = A(
             link_text,
@@ -3630,6 +3636,7 @@ def render_row_based_on_type(
         Td(details),
         Td(link_content),
         **hx_attributes,
+        id=f"new_memorization_{current_type}-{type_number}"
     )
 
 
@@ -3737,13 +3744,19 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
             auth, type_number
         )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
+    render_attrs = {
+            "hx_select": f"#recently_memorized_table",
+            "hx_target": f"#recently_memorized_table", 
+            "hx_swap": "outerHTML",
+            "hx_select_oob": "#new_memorization_table",
+            }
     return Tr(
         Td(title),
         Td(details),
         Td(date_to_human_readable(revision_date)),
         Td(
             render_checkbox(
-                auth=auth, item_id=next_page_item_id, label_text=display_next
+                auth=auth, item_id=next_page_item_id, label_text=display_next, **render_attrs
             )
             if next_page_item_id
             else checkbox
@@ -3893,7 +3906,7 @@ def new_memorization(auth, current_type: str):
         H1("New Memorization", cls="uk-text-center"),
         Div(
             Div(
-                H4("Recently Memorized Pages"), recent_newly_memorized_table, cls="mt-4"
+                H4("Recently Memorized Pages"), recent_newly_memorized_table, cls="mt-4", id="recently_memorized_table"
             ),
             Div(
                 H4("Select a Page Not Yet Memorized"),
@@ -3904,6 +3917,7 @@ def new_memorization(auth, current_type: str):
                     ),
                 ),
                 not_memorized_table,
+                id="new_memorization_table",
             ),
             cls="space-y-4",
         ),
