@@ -2437,7 +2437,19 @@ def filtered_table_for_modal(
         base += f"/{type_number}"
     query = f"?title={title}&description={description}"
     link = base + query
+
     ##
+    def update_button(label, value):
+        return Button(
+            label,
+            hx_post=link,
+            hx_select="#filtered-table",
+            hx_select_oob="#filtered-table",
+            name="action",
+            value=value,
+            cls="bg-green-600 text-white",
+        )
+
     return (
         modal_level_dd,
         table,
@@ -2453,24 +2465,8 @@ def filtered_table_for_modal(
             cls=TextPresets.muted_lg,
         ),
         Div(
-            Button(
-                "Update and Close",
-                hx_post=link,
-                hx_select=f"#filtered-table",
-                hx_select_oob="#filtered-table",
-                name="action",
-                value="close",
-                cls="bg-green-600 text-white",
-            ),
-            Button(
-                "Update and Stay",
-                hx_post=link,
-                hx_select=f"#filtered-table",
-                hx_select_oob="#filtered-table",
-                name="action",
-                value="stay",
-                cls="bg-green-600 text-white",
-            ),
+            update_button("Update and Close", "close"),
+            update_button("Update and Stay", "stay"),
             Button("Cancel", cls=("bg-red-600 text-white", "uk-modal-close")),
             cls="space-x-2",
             id="my-modal-footer",
