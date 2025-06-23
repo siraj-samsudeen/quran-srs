@@ -991,16 +991,40 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         ct = db.q(qry)
 
-        is_review_today = lambda i: day_diff(i["next_review"], current_date) >= 0
-        # The `mode_ids[-1]` is to get the mode_id for the recent review fom ['2','3'] and will also work for watch list ['4']
-        is_reviewed_today = lambda i: i["last_review"] == current_date and i[
-            "mode_id"
-        ] == int(mode_ids[-1])
+        def is_review_due(item: dict) -> bool:
+            """Check if item is due for review today or overdue."""
+            return day_diff(item["next_review"], current_date) >= 0
+
+        def is_reviewed_today(item: dict) -> bool:
+            """Check if item was already reviewed today."""
+            return item["last_review"] == current_date
+
+        def has_recent_mode_id(item: dict) -> bool:
+            """Check if item has the recent_review mode ID."""
+            return item["mode_id"] == 3
+
+        def has_revisions(item: dict) -> bool:
+            """Check if item has revisions for current mode."""
+            return bool(
+                revisions(
+                    where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
+                )
+            )
+
+        # Route-specific condition builders
+        route_conditions = {
+            "recent_review": lambda item: (
+                is_review_due(item)
+                or (is_reviewed_today(item) and has_recent_mode_id(item))
+            ),
+            "watch_list": lambda item: (
+                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+            ),
+            "default": lambda item: is_review_due(item) or is_reviewed_today(item),
+        }
 
         recent_items = list(
-            dict.fromkeys(
-                i["item_id"] for i in ct if is_review_today(i) or is_reviewed_today(i)
-            )
+            dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
         )
 
     def render_page_row(record):
