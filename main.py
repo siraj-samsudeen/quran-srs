@@ -959,18 +959,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         ct = db.q(qry)
     else:
         qry = f"""
-            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review FROM hafizs_items
+            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
             LEFT JOIN items on hafizs_items.item_id = items.id 
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
             ORDER BY hafizs_items.item_id ASC
         """
         ct = db.q(qry)
+
+        is_review_today = lambda i: day_diff(i["next_review"], system_date) >= 0
+        # The `mode_ids[-1]` is to get the mode_id for the recent review fom ['2','3'] and will also work for watch list ['4']
+        is_reviewed_today = lambda i: i["last_review"] == system_date and i[
+            "mode_id"
+        ] == int(mode_ids[-1])
+
         recent_items = list(
             dict.fromkeys(
-                i["item_id"]
-                for i in ct
-                if (day_diff(i["next_review"], system_date) >= 0)
-                or (i["last_review"] == system_date)
+                i["item_id"] for i in ct if is_review_today or is_reviewed_today
             )
         )
 
