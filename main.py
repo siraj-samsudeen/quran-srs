@@ -2100,7 +2100,11 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 cls=(AT.classic, "text-right"),
                 hx_get=f"/partial_profile/{current_type}/{type_number}"
                 + (f"?status={status}" if status else ""),
-                hx_vals={"title": title, "description": details_str},
+                hx_vals={
+                    "title": title,
+                    "description": details_str,
+                    "filter_status": status,
+                },
                 target_id="my-modal-body",
                 data_uk_toggle="target: #my-modal",
             ),
@@ -2374,6 +2378,7 @@ def filtered_table_for_modal(
     type_number: int,
     title: str,
     description: str,
+    filter_status: str,
     auth,
     status: str = None,
 ):
@@ -2451,7 +2456,7 @@ def filtered_table_for_modal(
         base += f"/{type_number}"
     # adding status filter to the response
     query = f"?status={status}&" if status else "?"
-    query += f"title={title}&description={description}"
+    query += f"title={title}&description={description}&filter_status={filter_status}"
 
     link = base + query
 
@@ -2548,8 +2553,10 @@ async def update_page_status(
     current_type: str,
     type_number: int,
     req: Request,
+    sess,
     title: str,
     description: str,
+    filter_status: str,
     action: str,
     status: str = None,
 ):
@@ -2573,9 +2580,17 @@ async def update_page_status(
         # determine what to update
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
-
+    last_added_details = {
+        "status": filter_status,
+        "type": current_type,
+        "type_number": type_number,
+    }
+    sess["last_updated"] = last_added_details
+    print(sess["last_updated"])
     query_string = f"?status={status}&" if status else "?"
-    query_string += f"title={title}&description={description}"
+    query_string += (
+        f"title={title}&description={description}&filter_status={filter_status}"
+    )
     stay_url = f"/partial_profile/{current_type}/{type_number}{query_string}"
     close_url = f"/profile/{current_type}{query_string}"
     if action == "stay":
