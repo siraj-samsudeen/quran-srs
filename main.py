@@ -964,6 +964,10 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
                 name=f"is_checked",
                 value="1",
                 hx_post=f"/markas/new_memorization/{item_id}",
+                hx_select=f"#new_memorization_summary_table",
+                hx_target=f"#new_memorization_summary_table",
+                hx_swap="outerHTML",
+                hx_select_oob="#stat-row-2",
                 checked=True if current_revision_data else False,
             )
         )
@@ -1157,6 +1161,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 )
             ),
             Tbody(*body_rows),
+            id=f"{route}_summary_table"
         ),
     )
 
@@ -1218,7 +1223,7 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
         hafizs_items_data.mode_id = 1
         hafizs_items.update(hafizs_items_data)
     referer = request.headers.get("Referer")
-    return Redirect(referer)
+    return RedirectResponse(referer,status_code=303)
 
 
 @app.post("/markas/new_memorization_bulk")
