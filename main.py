@@ -973,7 +973,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
         recent_items = list(
             dict.fromkeys(
-                i["item_id"] for i in ct if is_review_today or is_reviewed_today
+                i["item_id"] for i in ct if is_review_today(i) or is_reviewed_today(i)
             )
         )
 
