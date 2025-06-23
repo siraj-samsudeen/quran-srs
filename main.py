@@ -881,13 +881,22 @@ def index(auth):
             id=f"stat-row-{current_mode_id}",
         )
 
-    system_date_description = P(
+    current_date_description = P(
         Span("System Date: ", cls=TextPresets.bold_lg),
-        date_to_human_readable(current_date),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
     )
 
     stat_table = Div(
-        system_date_description,
+        DivLAligned(
+            current_date_description,
+            Button(
+                "Close Date",
+                hx_get="/close_date",
+                target_id="current_date_description",
+                hx_confirm="Are you sure?",
+                cls=(ButtonT.default, "px-2 py-3 h-0"),
+            ),
+        ),
         Table(
             Thead(
                 Tr(
@@ -906,6 +915,14 @@ def index(auth):
         active="Home",
         auth=auth,
     )
+
+
+@app.get("/close_date")
+def change_the_current_date(auth):
+    hafiz_data = hafizs[auth]
+    hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
+    hafizs.update(hafiz_data)
+    return Redirect("/")
 
 
 @app.get("/report")
