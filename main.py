@@ -1041,11 +1041,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
         )
 
-        if not current_revision_data and route == "watch_list":
-            rating_placeholder = [
-                rating_dropdown(is_label=False, id=f"rating-{item_id}")
-            ]
-        elif current_revision_data:
+        if current_revision_data:
             current_rating = current_revision_data[0].rating
             rating_placeholder = [
                 render_rating(current_rating),
@@ -1155,15 +1151,15 @@ def update_recent_review_status_from_index(
     checkbox_update_logic(
         mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
     )
-    return RedirectResponse("/")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/home/watch_list/add/{item_id}")
-def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool = False):
+def watch_list_add_data(date: str, item_id: int, is_checked: bool = False):
     checkbox_update_logic(
-        mode_id=4, rating=rating, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=4, rating=1, item_id=item_id, date=date, is_checked=is_checked
     )
-    return RedirectResponse("/")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/markas/new_memorization/{item_id}")
