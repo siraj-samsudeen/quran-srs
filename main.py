@@ -142,6 +142,14 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
     return sorted(item_ids)
 
 
+def get_current_date(auth) -> str:
+    current_hafiz = hafizs[auth]
+    current_date = current_hafiz.current_date
+    if current_date is None:
+        current_date = hafizs.update(current_date=current_time(), id=auth).current_date
+    return current_date
+
+
 def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
@@ -290,7 +298,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
     result = db.q(qry)
     earliest_date = result[0]["earliest_date"]
-    current_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(hafiz_id)
 
     date_range = pd.date_range(
         start=(earliest_date or current_date), end=current_date, freq="D"
@@ -679,6 +687,7 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 @rt
 def index(auth):
+    current_date = get_current_date(auth)
     ################### Overall summary ###################
     # Sequential revision table
     seq_id = "1"
@@ -763,7 +772,7 @@ def index(auth):
             total_pages = len(unique_pages)
 
             first_date = current_plans_revision_date[0].revision_date
-            total_days = calculate_days_difference(first_date, current_time("%Y-%m-%d"))
+            total_days = calculate_days_difference(first_date, current_date)
 
             average_pages = total_pages / total_days
             average_pages = (
@@ -859,7 +868,7 @@ def index(auth):
 
     def render_stat_rows(current_mode_id):
 
-        today = current_time(f="%Y-%m-%d")
+        today = current_date
         yesterday = sub_days_to_date(today, 1)
 
         today_count = get_count_of_mode(current_mode_id, today)
@@ -872,13 +881,22 @@ def index(auth):
             id=f"stat-row-{current_mode_id}",
         )
 
-    system_date_description = P(
+    current_date_description = P(
         Span("System Date: ", cls=TextPresets.bold_lg),
-        date_to_human_readable(current_time(f="%Y-%m-%d")),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
     )
 
     stat_table = Div(
-        system_date_description,
+        DivLAligned(
+            current_date_description,
+            Button(
+                "Close Date",
+                hx_get="/close_date",
+                target_id="current_date_description",
+                hx_confirm="Are you sure?",
+                cls=(ButtonT.default, "px-2 py-3 h-0"),
+            ),
+        ),
         Table(
             Thead(
                 Tr(
@@ -897,6 +915,14 @@ def index(auth):
         active="Home",
         auth=auth,
     )
+
+
+@app.get("/close_date")
+def change_the_current_date(auth):
+    hafiz_data = hafizs[auth]
+    hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
+    hafizs.update(hafiz_data)
+    return Redirect("/")
 
 
 @app.get("/report")
@@ -945,7 +971,7 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
 
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
-    system_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(auth)
     is_unmemorized = mode_ids == ["unmemorized"]
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
@@ -965,9 +991,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         ct = db.q(qry)
 
-        is_review_today = lambda i: day_diff(i["next_review"], system_date) >= 0
+        is_review_today = lambda i: day_diff(i["next_review"], current_date) >= 0
         # The `mode_ids[-1]` is to get the mode_id for the recent review fom ['2','3'] and will also work for watch list ['4']
-        is_reviewed_today = lambda i: i["last_review"] == system_date and i[
+        is_reviewed_today = lambda i: i["last_review"] == current_date and i[
             "mode_id"
         ] == int(mode_ids[-1])
 
@@ -988,7 +1014,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
     def render_range_row(item_id: str):
         current_revision_data = revisions(
-            where=f"revision_date = '{system_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
         )
 
         if not current_revision_data and route == "watch_list":
@@ -1008,7 +1034,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
         if route == "recent_review":
             record_btn = Form(
-                Hidden(name="date", value=system_date),
+                Hidden(name="date", value=current_date),
                 CheckboxX(
                     name=f"is_checked",
                     value="1",
@@ -1023,12 +1049,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         elif route == "watch_list":
             record_btn = Form(
-                Hidden(name="date", value=system_date),
+                Hidden(name="date", value=current_date),
                 CheckboxX(
                     name=f"is_checked",
                     value="1",
                     hx_post=f"/home/watch_list/add/{item_id}",
-                    hx_vals={"date": system_date},
+                    hx_vals={"date": current_date},
                     hx_include=f"#rating-{item_id}",
                     hx_select=f"#watch_list_row-{item_id}",
                     hx_select_oob="#stat-row-4",
@@ -1120,7 +1146,7 @@ def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool =
 def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False):
     qry = f"item_id = {item_id} AND mode_id = 2;"
     revisions_data = revisions(where=qry)
-    current_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(auth)
     if not revisions_data and is_checked:
         revisions.insert(
             hafiz_id=auth,
@@ -1162,7 +1188,7 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
 def bulk_mark_as_new_memorized(
     request, item_ids: list[int], auth
 ):  # for query string format
-    current_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(auth)
 
     for item_id in item_ids:
         revisions.insert(
@@ -1388,7 +1414,6 @@ def export_specific_table(table: str):
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
 
-    # file_name = f"{table}_{current_time("%Y%m%d%I%M")}"
     file_name = f"{table}.csv"
     return StreamingResponse(
         csv_buffer,
@@ -1599,7 +1624,7 @@ def toggle_input_fields(*args, show_id_fields=False):
     )
 
 
-def create_revision_form(type, show_id_fields=False):
+def create_revision_form(type, auth, show_id_fields=False):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1633,7 +1658,7 @@ def create_revision_form(type, show_id_fields=False):
             "Revision Date",
             name="revision_date",
             type="date",
-            value=current_time("%Y-%m-%d"),
+            value=get_current_date(auth),
             cls="space-y-2 col-span-2",
         ),
     )
@@ -1672,7 +1697,7 @@ def get(revision_id: int, auth):
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     item_id = current_revision["item_id"]
-    form = create_revision_form("edit")
+    form = create_revision_form("edit", auth=auth)
     return main_area(
         Titled(
             f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
@@ -1882,7 +1907,7 @@ def get(
         Titled(
             f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
             fill_form(
-                create_revision_form("add", show_id_fields=show_id_fields),
+                create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
                 {
                     "item_id": item_id,
                     "plan_id": plan_id or defalut_plan_value,
@@ -1924,11 +1949,15 @@ def get(
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
     plan_id: int = None,
-    revision_date: str = current_time("%Y-%m-%d"),
+    revision_date: str = None,
     length: int = 5,
     max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
+
+    if revision_date is None:
+        revision_date = get_current_date(auth)
+
     # This is to handle the empty `No of page`
     if length < 1:
         length = 5
@@ -2793,7 +2822,7 @@ def recent_review_view(auth):
     # generate last ten days for column header
     # earliest_date = calculate_date_difference(days=10, date_format="%Y-%m-%d")
 
-    current_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(auth)
     # Change the date range to start from the earliest date
     date_range = pd.date_range(
         start=(earliest_date or current_date), end=current_date, freq="D"
@@ -3001,6 +3030,7 @@ def get_last_watch_list_date(item_id):
 
 @app.get("/watch_list")
 def watch_list_view(auth):
+    current_date = get_current_date(auth)
     week_column = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7"]
 
     # This is to only get the watch_list item_id (which are not graduated yet)
@@ -3048,7 +3078,7 @@ def watch_list_view(auth):
         revision_count = len(watch_list_revisions)
 
         if not is_graduated:
-            due_day = day_diff(last_review, current_time("%Y-%m-%d"))
+            due_day = day_diff(last_review, current_date)
         else:
             due_day = 0
 
@@ -3077,7 +3107,7 @@ def watch_list_view(auth):
                 render_rating(rev.rating).split()[0],
                 (
                     f" {date_to_human_readable(rev_date)}"
-                    if not (rev_date == current_time("%Y-%m-%d"))
+                    if not (rev_date == current_date)
                     else None
                 ),
             )
@@ -3170,7 +3200,7 @@ def watch_list_view(auth):
                 "Revision Date",
                 name="revision_date",
                 type="date",
-                value=current_time("%Y-%m-%d"),
+                value=current_date,
                 id="global_date",
                 cls="flex-1",
             ),
@@ -3195,9 +3225,10 @@ def watch_list_view(auth):
     )
 
 
-def watch_list_form(item_id: int, min_date: str, _type: str):
+# TODO: Needs refactoring, as it was being used only once
+def watch_list_form(item_id: int, min_date: str, _type: str, auth):
     page = items[item_id].page_id
-    current_date = current_time("%Y-%m-%d")
+    current_date = get_current_date(auth)
 
     def RadioLabel(o):
         value, label = o
@@ -3258,11 +3289,11 @@ def watch_list_form(item_id: int, min_date: str, _type: str):
 
 
 @app.get("/watch_list/edit/{rev_id}")
-def watch_list_edit_form(rev_id: int):
+def watch_list_edit_form(rev_id: int, auth):
     current_revision = revisions[rev_id].__dict__
     current_revision["rating"] = str(current_revision["rating"])
     return fill_form(
-        watch_list_form(current_revision["item_id"], "", "edit"), current_revision
+        watch_list_form(current_revision["item_id"], "", "edit", auth), current_revision
     )
 
 
@@ -3925,7 +3956,7 @@ def filtered_table_for_new_memorization_modal(
 
 
 def create_new_memorization_revision_form(
-    current_type: str, title: str, description: str
+    current_type: str, title: str, description: str, current_date: str
 ):
     def RadioLabel(o):
         value, label = o
@@ -3946,7 +3977,7 @@ def create_new_memorization_revision_form(
                 "Revision Date",
                 name="revision_date",
                 type="date",
-                value=current_time("%Y-%m-%d"),
+                value=current_date,
             ),
             Input(name="page_no", type="hidden"),
             Input(name="mode_id", type="hidden"),
@@ -3986,6 +4017,7 @@ def create_new_memorization_revision_form(
 
 @rt("/new_memorization/add/{current_type}")
 def get(
+    auth,
     current_type: str,
     item_id: str,
     title: str = None,
@@ -4001,7 +4033,9 @@ def get(
     return Titled(
         f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
         fill_form(
-            create_new_memorization_revision_form(current_type, title, description),
+            create_new_memorization_revision_form(
+                current_type, title, description, get_current_date(auth)
+            ),
             {
                 "page_no": page,
                 "mode_id": 2,
@@ -4046,6 +4080,8 @@ def get(
     is_part: bool = False,
     revision_date: str = None,
 ):
+    if revision_date is None:
+        revision_date = get_current_date(auth)
 
     def _render_row(item_id):
 
@@ -4134,7 +4170,7 @@ def get(
                 "Revision Date",
                 name="revision_date",
                 type="date",
-                value=(revision_date or current_time("%Y-%m-%d")),
+                value=revision_date,
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
