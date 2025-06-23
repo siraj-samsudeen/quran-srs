@@ -3613,9 +3613,9 @@ def render_row_based_on_type(
         link_text = "Set as Newly Memorized"
     item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
     render_attrs = {
-            # "hx_select": f"#new_memorization_{current_type}-{type_number}",
-            # "hx_target": f"#new_memorization_{current_type}-{type_number}", 
-            # "hx_swap": "outerHTML",
+            "hx_select": f"#new_memorization_{current_type}-{type_number}",
+            "hx_target": f"#new_memorization_{current_type}-{type_number}", 
+            "hx_swap": "outerHTML",
             "hx_select_oob": "#recently_memorized_table",
             }
     if len(item_ids) == 1 and not row_link and current_type == "page":
