@@ -2439,15 +2439,15 @@ def filtered_table_for_modal(
     link = base + query
 
     ##
-    def update_button(label, value):
+    def update_button(label, value, hx_select_id, hx_select_oob_id, cls=""):
         return Button(
             label,
             hx_post=link,
-            hx_select="#filtered-table",
-            hx_select_oob="#filtered-table",
+            hx_select=hx_select_id,
+            hx_select_oob=hx_select_oob_id,
             name="action",
             value=value,
-            cls="bg-green-600 text-white",
+            cls=("bg-green-600 text-white", cls),
         )
 
     return (
@@ -2465,8 +2465,19 @@ def filtered_table_for_modal(
             cls=TextPresets.muted_lg,
         ),
         Div(
-            update_button("Update and Close", "close"),
-            update_button("Update and Stay", "stay"),
+            update_button(
+                label="Update and Close",
+                value="close",
+                hx_select_id=f"#{current_type}-{type_number}",
+                hx_select_oob_id=f"#{current_type}-{type_number}",
+                cls="uk-modal-close",
+            ),
+            update_button(
+                label="Update and Stay",
+                value="stay",
+                hx_select_id="#filtered-table",
+                hx_select_oob_id="#filtered-table",
+            ),
             Button("Cancel", cls=("bg-red-600 text-white", "uk-modal-close")),
             cls="space-x-2",
             id="my-modal-footer",
@@ -2512,7 +2523,7 @@ async def update_page_status(
     title: str,
     description: str,
     action: str,
-    status=None,
+    status: str = None,
 ):
     form_data = await req.form()
     selected_status = form_data.get("selected_status")
@@ -2542,7 +2553,7 @@ async def update_page_status(
         return RedirectResponse(url, status_code=303)
     else:
         return Redirect(
-            f"/profile/{current_type}" + "?status={status}"
+            f"/profile/{current_type}" + f"?status={status}"
             if status is not None
             else ""
         )
