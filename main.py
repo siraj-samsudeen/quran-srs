@@ -2313,12 +2313,13 @@ def show_page_status(current_type: str, auth, status: str = ""):
         id="modal-container",
     )
 
-    if current_type == "page":
-        details = ["Juz", "Surah"]
-    elif current_type == "surah":
-        details = ["Juz", "Page"]
-    elif current_type == "juz":
-        details = ["Surah", "Page"]
+    type_details = {
+        "page": ["Juz", "Surah"],
+        "surah": ["Juz", "Page"],
+        "juz": ["Surah", "Page"],
+    }
+
+    details = type_details.get(current_type, ["", ""])
     return main_area(
         Div(
             progress_bar_with_stats,
@@ -2333,8 +2334,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
                         Thead(
                             Tr(
                                 Th(current_type.title()),
-                                Th(details[0]),
-                                Th(details[1]),
+                                *map(Th, details),
                                 Th("Status"),
                                 Th(""),
                             )
