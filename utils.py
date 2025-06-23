@@ -116,7 +116,7 @@ def destandardize_text(text):
     return text.title()
 
 
-def current_time(f="%Y-%m-%d %I:%M %p"):
+def current_time(f="%Y-%m-%d"):
     return datetime.now().strftime(f)
 
 
