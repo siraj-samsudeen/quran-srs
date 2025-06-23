@@ -2551,6 +2551,11 @@ async def update_page_status(
     url = f"/partial_profile/{current_type}/{type_number}{query_string}"
     if action == "stay":
         return RedirectResponse(url, status_code=303)
+    elif action == "close":
+        print("triggered-close")
+        print(status)
+        # need change redirection with status to update status
+        return RedirectResponse(f"/profile/{current_type}", status_code=303)
     else:
         return Redirect(
             f"/profile/{current_type}" + f"?status={status}"
