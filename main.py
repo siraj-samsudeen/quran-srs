@@ -1042,9 +1042,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
         if current_revision_data:
-            current_rating = current_revision_data[0].rating
+            current_rev_date = current_revision_data[0]
+            current_rating = current_rev_date.rating
             rating_placeholder = [
-                render_rating(current_rating),
+                A(
+                    render_rating(current_rating),
+                    href=f"/revision/edit/{current_rev_date.id}",
+                    cls=AT.classic
+                ),
                 # This hidden value is need so that `checkbox_update_logic` function will work
                 # Which will lookup the and delete that particular revision data
                 Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
