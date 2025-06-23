@@ -2435,7 +2435,10 @@ def filtered_table_for_modal(
     base = f"/partial_profile/{current_type}"
     if type_number is not None:
         base += f"/{type_number}"
-    query = f"?title={title}&description={description}"
+    # adding status filter to the response
+    query = f"?status={status}&" if status else "?"
+    query += f"title={title}&description={description}"
+
     link = base + query
 
     ##
@@ -2548,20 +2551,14 @@ async def update_page_status(
 
     query_string = f"?status={status}&" if status else "?"
     query_string += f"title={title}&description={description}"
-    url = f"/partial_profile/{current_type}/{type_number}{query_string}"
+    stay_url = f"/partial_profile/{current_type}/{type_number}{query_string}"
+    close_url = f"/profile/{current_type}{query_string}"
     if action == "stay":
-        return RedirectResponse(url, status_code=303)
+        return RedirectResponse(stay_url, status_code=303)
     elif action == "close":
-        print("triggered-close")
-        print(status)
-        # need change redirection with status to update status
-        return RedirectResponse(f"/profile/{current_type}", status_code=303)
+        return RedirectResponse(close_url, status_code=303)
     else:
-        return Redirect(
-            f"/profile/{current_type}" + f"?status={status}"
-            if status is not None
-            else ""
-        )
+        return Redirect(close_url)
 
 
 @app.get
