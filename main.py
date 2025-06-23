@@ -973,8 +973,28 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     current_date = get_current_date(auth)
     is_unmemorized = mode_ids == ["unmemorized"]
+    def is_review_due(item: dict) -> bool:
+        """Check if item is due for review today or overdue."""
+        return day_diff(item["next_review"], current_date) >= 0
+
+    def is_reviewed_today(item: dict) -> bool:
+        """Check if item was already reviewed today."""
+        return item["last_review"] == current_date
+
+    def has_recent_mode_id(item: dict) -> bool:
+        """Check if item has the recent_review mode ID."""
+        return item["mode_id"] == 3
+
+    def has_revisions(item: dict) -> bool:
+        """Check if item has revisions for current mode."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
+            )
+        )
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
+        ### This is for display next new_memorization page
         qry = f"""
             SELECT items.id AS item_id, items.surah_id, items.page_id AS page_number, items.surah_name FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
@@ -982,6 +1002,21 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ORDER BY items.id ASC;
         """
         ct = db.q(qry)
+        newly_memorized_items = list(
+            dict.fromkeys(i["item_id"] for i in ct if i)
+        )
+        ### This is for display previously updated newly_memorized pages
+        display_qry = f"""
+            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review,
+            hafizs_items.mode_id, items.page_id AS page_number, items.surah_id FROM hafizs_items
+            LEFT JOIN items on hafizs_items.item_id = items.id 
+            WHERE hafizs_items.mode_id = 2 AND hafizs_items.hafiz_id = {auth}
+            ORDER BY hafizs_items.item_id ASC
+        """
+        display_ct = db.q(display_qry)
+        recent_items = list(
+            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i)))
+
     else:
         qry = f"""
             SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
@@ -991,25 +1026,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         ct = db.q(qry)
 
-        def is_review_due(item: dict) -> bool:
-            """Check if item is due for review today or overdue."""
-            return day_diff(item["next_review"], current_date) >= 0
-
-        def is_reviewed_today(item: dict) -> bool:
-            """Check if item was already reviewed today."""
-            return item["last_review"] == current_date
-
-        def has_recent_mode_id(item: dict) -> bool:
-            """Check if item has the recent_review mode ID."""
-            return item["mode_id"] == 3
-
-        def has_revisions(item: dict) -> bool:
-            """Check if item has revisions for current mode."""
-            return bool(
-                revisions(
-                    where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
-                )
-            )
 
         # Route-specific condition builders
         route_conditions = {
@@ -1027,18 +1043,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
         )
 
-    def render_page_row(record):
-        return Tr(
-            Td(record["page_number"]),
-            Td(surahs[record["surah_id"]].name),
-            Td(
-                render_checkbox(auth=auth, item_id=record["item_id"]),
-            ),
-        )
-
     def render_range_row(item_id: str):
+        mode_filter = "2" if route == "new_memorization" else ", ".join(mode_ids)
+
         current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({mode_filter});"
         )
 
         if current_revision_data:
@@ -1072,6 +1081,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 ),
                 cls="",
             )
+        elif route == "new_memorization":
+            record_btn = render_checkbox(auth=auth, item_id=item_id)
         elif route == "watch_list":
             record_btn = Form(
                 Hidden(name="date", value=current_date),
@@ -1106,7 +1117,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     if is_unmemorized:
-        body_rows = list(map(render_page_row, ct[:3]))
+        body_rows = list(map(render_range_row, recent_items))
+        body_rows += list(map(render_range_row, newly_memorized_items[:1]))
     else:
         body_rows = list(map(render_range_row, recent_items))
 
