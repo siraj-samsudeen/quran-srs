@@ -991,16 +991,40 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         ct = db.q(qry)
 
-        is_review_today = lambda i: day_diff(i["next_review"], current_date) >= 0
-        # The `mode_ids[-1]` is to get the mode_id for the recent review fom ['2','3'] and will also work for watch list ['4']
-        is_reviewed_today = lambda i: i["last_review"] == current_date and i[
-            "mode_id"
-        ] == int(mode_ids[-1])
+        def is_review_due(item: dict) -> bool:
+            """Check if item is due for review today or overdue."""
+            return day_diff(item["next_review"], current_date) >= 0
+
+        def is_reviewed_today(item: dict) -> bool:
+            """Check if item was already reviewed today."""
+            return item["last_review"] == current_date
+
+        def has_recent_mode_id(item: dict) -> bool:
+            """Check if item has the recent_review mode ID."""
+            return item["mode_id"] == 3
+
+        def has_revisions(item: dict) -> bool:
+            """Check if item has revisions for current mode."""
+            return bool(
+                revisions(
+                    where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
+                )
+            )
+
+        # Route-specific condition builders
+        route_conditions = {
+            "recent_review": lambda item: (
+                is_review_due(item)
+                or (is_reviewed_today(item) and has_recent_mode_id(item))
+            ),
+            "watch_list": lambda item: (
+                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+            ),
+            "default": lambda item: is_review_due(item) or is_reviewed_today(item),
+        }
 
         recent_items = list(
-            dict.fromkeys(
-                i["item_id"] for i in ct if is_review_today(i) or is_reviewed_today(i)
-            )
+            dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
         )
 
     def render_page_row(record):
@@ -1017,14 +1041,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
         )
 
-        if not current_revision_data and route == "watch_list":
+        if current_revision_data:
+            current_rev_date = current_revision_data[0]
+            current_rating = current_rev_date.rating
             rating_placeholder = [
-                rating_dropdown(is_label=False, id=f"rating-{item_id}")
-            ]
-        elif current_revision_data:
-            current_rating = current_revision_data[0].rating
-            rating_placeholder = [
-                render_rating(current_rating),
+                A(
+                    render_rating(current_rating),
+                    href=f"/revision/edit/{current_rev_date.id}",
+                    cls=AT.classic,
+                ),
                 # This hidden value is need so that `checkbox_update_logic` function will work
                 # Which will lookup the and delete that particular revision data
                 Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
@@ -1131,15 +1156,15 @@ def update_recent_review_status_from_index(
     checkbox_update_logic(
         mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
     )
-    return RedirectResponse("/")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/home/watch_list/add/{item_id}")
-def watch_list_add_data(date: str, item_id: int, rating: str, is_checked: bool = False):
+def watch_list_add_data(date: str, item_id: int, is_checked: bool = False):
     checkbox_update_logic(
-        mode_id=4, rating=rating, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=4, rating=1, item_id=item_id, date=date, is_checked=is_checked
     )
-    return RedirectResponse("/")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/markas/new_memorization/{item_id}")
@@ -1624,7 +1649,7 @@ def toggle_input_fields(*args, show_id_fields=False):
     )
 
 
-def create_revision_form(type, auth, show_id_fields=False):
+def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1682,8 +1707,8 @@ def create_revision_form(type, auth, show_id_fields=False):
             cls="space-y-2 leading-8 sm:leading-6 ",
         ),
         Div(
-            Button("Save", cls=ButtonT.primary),
-            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+            Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
+            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=backlink),
             cls="flex justify-around items-center w-full",
         ),
         action=f"/revision/{type}",
@@ -1692,12 +1717,14 @@ def create_revision_form(type, auth, show_id_fields=False):
 
 
 @rt("/revision/edit/{revision_id}")
-def get(revision_id: int, auth):
+def get(revision_id: int, auth, req):
     current_revision = revisions[revision_id].__dict__
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     item_id = current_revision["item_id"]
-    form = create_revision_form("edit", auth=auth)
+    form = create_revision_form(
+        "edit", auth=auth, backlink=req.headers.get("referer", "/")
+    )
     return main_area(
         Titled(
             f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
@@ -1709,12 +1736,12 @@ def get(revision_id: int, auth):
 
 
 @rt("/revision/edit")
-def post(revision_details: Revision):
+def post(revision_details: Revision, backlink: str):
     # setting the plan_id to None if it is 0
     # as it get defaults to 0 if the field is empty.
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     revisions.update(revision_details)
-    return Redirect(revision)
+    return Redirect(backlink)
 
 
 @rt("/revision/delete/{revision_id}")
