@@ -930,7 +930,7 @@ def datewise_summary_table_view(auth):
     return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
-def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
+def render_checkbox(auth, item_id=None, page_id=None, label_text=None, **kwrgs):
     label = label_text or ""
 
     if page_id is not None:
@@ -964,10 +964,7 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
                 name=f"is_checked",
                 value="1",
                 hx_post=f"/markas/new_memorization/{item_id}",
-                hx_select=f"#new_memorization_summary_table",
-                hx_target=f"#new_memorization_summary_table",
-                hx_swap="outerHTML",
-                hx_select_oob="#stat-row-2",
+                **kwrgs,
                 checked=True if current_revision_data else False,
             )
         )
@@ -1086,7 +1083,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 cls="",
             )
         elif route == "new_memorization":
-            record_btn = render_checkbox(auth=auth, item_id=item_id)
+            hx_attrs = {
+            "hx_select": "#new_memorization_summary_table",
+            "hx_target": "#new_memorization_summary_table",
+            "hx_swap": "outerHTML",
+            "hx_select_oob": "#stat-row-2",
+            }
+            record_btn = render_checkbox(auth=auth, item_id=item_id, **hx_attrs)
         elif route == "watch_list":
             record_btn = Form(
                 Hidden(name="date", value=current_date),
