@@ -1048,7 +1048,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 A(
                     render_rating(current_rating),
                     href=f"/revision/edit/{current_rev_date.id}",
-                    cls=AT.classic
+                    cls=AT.classic,
                 ),
                 # This hidden value is need so that `checkbox_update_logic` function will work
                 # Which will lookup the and delete that particular revision data
@@ -1649,7 +1649,7 @@ def toggle_input_fields(*args, show_id_fields=False):
     )
 
 
-def create_revision_form(type, auth, show_id_fields=False):
+def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1707,8 +1707,8 @@ def create_revision_form(type, auth, show_id_fields=False):
             cls="space-y-2 leading-8 sm:leading-6 ",
         ),
         Div(
-            Button("Save", cls=ButtonT.primary),
-            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+            Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
+            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=backlink),
             cls="flex justify-around items-center w-full",
         ),
         action=f"/revision/{type}",
@@ -1717,12 +1717,14 @@ def create_revision_form(type, auth, show_id_fields=False):
 
 
 @rt("/revision/edit/{revision_id}")
-def get(revision_id: int, auth):
+def get(revision_id: int, auth, req):
     current_revision = revisions[revision_id].__dict__
     # Convert rating to string in order to make the fill_form to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     item_id = current_revision["item_id"]
-    form = create_revision_form("edit", auth=auth)
+    form = create_revision_form(
+        "edit", auth=auth, backlink=req.headers.get("referer", "/")
+    )
     return main_area(
         Titled(
             f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
@@ -1734,12 +1736,12 @@ def get(revision_id: int, auth):
 
 
 @rt("/revision/edit")
-def post(revision_details: Revision):
+def post(revision_details: Revision, backlink: str):
     # setting the plan_id to None if it is 0
     # as it get defaults to 0 if the field is empty.
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     revisions.update(revision_details)
-    return Redirect(revision)
+    return Redirect(backlink)
 
 
 @rt("/revision/delete/{revision_id}")
