@@ -974,6 +974,7 @@ def render_checkbox(auth, item_id=None, page_id=None, label_text=None, **kwrgs):
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     current_date = get_current_date(auth)
     is_unmemorized = mode_ids == ["unmemorized"]
+
     def is_review_due(item: dict) -> bool:
         """Check if item is due for review today or overdue."""
         return day_diff(item["next_review"], current_date) >= 0
@@ -993,6 +994,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
             )
         )
+
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
         ### This is for display next new_memorization page
@@ -1003,9 +1005,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ORDER BY items.id ASC;
         """
         ct = db.q(qry)
-        newly_memorized_items = list(
-            dict.fromkeys(i["item_id"] for i in ct if i)
-        )
+        newly_memorized_items = list(dict.fromkeys(i["item_id"] for i in ct if i))
         ### This is for display previously updated newly_memorized pages
         display_qry = f"""
             SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review,
@@ -1016,7 +1016,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         display_ct = db.q(display_qry)
         recent_items = list(
-            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i)))
+            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i))
+        )
 
     else:
         qry = f"""
@@ -1026,7 +1027,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             ORDER BY hafizs_items.item_id ASC
         """
         ct = db.q(qry)
-
 
         # Route-specific condition builders
         route_conditions = {
@@ -1084,10 +1084,10 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         elif route == "new_memorization":
             hx_attrs = {
-            "hx_select": "#new_memorization_summary_table",
-            "hx_target": "#new_memorization_summary_table",
-            "hx_swap": "outerHTML",
-            "hx_select_oob": "#stat-row-2",
+                "hx_select": "#new_memorization_summary_table",
+                "hx_target": "#new_memorization_summary_table",
+                "hx_swap": "outerHTML",
+                "hx_select_oob": "#stat-row-2",
             }
             record_btn = render_checkbox(auth=auth, item_id=item_id, **hx_attrs)
         elif route == "watch_list":
@@ -1160,11 +1160,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                         "Set as Newly Memorized" if is_unmemorized else "Record",
                         cls="min-w-24",
                     ),
-                    (Th("Rating", cls="min-w-24") if not is_unmemorized else None),
+                    Th("Rating", cls="min-w-24"),
                 )
             ),
             Tbody(*body_rows),
-            id=f"{route}_summary_table"
+            id=f"{route}_summary_table",
         ),
     )
 
@@ -1226,7 +1226,7 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
         hafizs_items_data.mode_id = 1
         hafizs_items.update(hafizs_items_data)
     referer = request.headers.get("Referer")
-    return RedirectResponse(referer,status_code=303)
+    return RedirectResponse(referer, status_code=303)
 
 
 @app.post("/markas/new_memorization_bulk")
@@ -3613,11 +3613,11 @@ def render_row_based_on_type(
         link_text = "Set as Newly Memorized"
     item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
     render_attrs = {
-            "hx_select": f"#new_memorization_{current_type}-{type_number}",
-            "hx_target": f"#new_memorization_{current_type}-{type_number}", 
-            "hx_swap": "outerHTML",
-            "hx_select_oob": "#recently_memorized_table",
-            }
+        "hx_select": f"#new_memorization_{current_type}-{type_number}",
+        "hx_target": f"#new_memorization_{current_type}-{type_number}",
+        "hx_swap": "outerHTML",
+        "hx_select_oob": "#recently_memorized_table",
+    }
     if len(item_ids) == 1 and not row_link and current_type == "page":
         link_content = render_checkbox(auth=auth, item_id=item_ids[0], **render_attrs)
     elif len(item_ids) > 1 and current_type == "page":
@@ -3636,7 +3636,7 @@ def render_row_based_on_type(
         Td(details),
         Td(link_content),
         **hx_attributes,
-        id=f"new_memorization_{current_type}-{type_number}"
+        id=f"new_memorization_{current_type}-{type_number}",
     )
 
 
@@ -3745,18 +3745,21 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
         )
     checkbox = render_checkbox(auth=auth, item_id=type_number)
     render_attrs = {
-            "hx_select": f"#recently_memorized_table",
-            "hx_target": f"#recently_memorized_table", 
-            "hx_swap": "outerHTML",
-            "hx_select_oob": "#new_memorization_table",
-            }
+        "hx_select": f"#recently_memorized_table",
+        "hx_target": f"#recently_memorized_table",
+        "hx_swap": "outerHTML",
+        "hx_select_oob": "#new_memorization_table",
+    }
     return Tr(
         Td(title),
         Td(details),
         Td(date_to_human_readable(revision_date)),
         Td(
             render_checkbox(
-                auth=auth, item_id=next_page_item_id, label_text=display_next, **render_attrs
+                auth=auth,
+                item_id=next_page_item_id,
+                label_text=display_next,
+                **render_attrs,
             )
             if next_page_item_id
             else checkbox
@@ -3906,7 +3909,10 @@ def new_memorization(auth, current_type: str):
         H1("New Memorization", cls="uk-text-center"),
         Div(
             Div(
-                H4("Recently Memorized Pages"), recent_newly_memorized_table, cls="mt-4", id="recently_memorized_table"
+                H4("Recently Memorized Pages"),
+                recent_newly_memorized_table,
+                cls="mt-4",
+                id="recently_memorized_table",
             ),
             Div(
                 H4("Select a Page Not Yet Memorized"),
