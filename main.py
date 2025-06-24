@@ -3451,7 +3451,7 @@ def watch_list_add_data(revision_details: Revision, auth):
     recent_review_count = len(revisions(where=f"item_id = {item_id} AND mode_id = 4"))
 
     if recent_review_count >= 7:
-        graduate_watch_list(item_id, auth, True)
+        graduate_the_item_id(item_id=item_id, mode_id=4, auth=auth)
         return RedirectResponse(f"/watch_list", status_code=303)
 
     update_review_dates(item_id, 4)
