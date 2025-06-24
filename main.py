@@ -2079,17 +2079,27 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             else surahs[type_number].name
         )
         item_length = 1
+        existing_status = standardize_column(status_value)
+        if existing_status == "not_memorized":
+            status_filter = "status IS NULL"
+        else:
+            status_filter = f"status = '{existing_status}'"
+
         if current_type == "page":
-            existing_status = standardize_column(status_value)
-            if existing_status == "not_memorized":
-                status_filter = "status IS NULL"
-            else:
-                status_filter = f"status = '{existing_status}'"
             where_clause = (
                 f"page_number={type_number} and hafiz_id={auth} and {status_filter}"
             )
             item_length = len(hafizs_items(where=where_clause) or [])
-        show_customize_button = current_type != "page" or item_length > 1
+
+        elif current_type in ("surah", "juz"):
+            item_ids = grouped.get(type_number, [])
+            if item_ids:
+                print(item_ids)
+                if len(item_ids) > 1:
+                    item_id_list = ",".join(str(i["id"]) for i in item_ids)
+                    where_clause = f"item_id IN ({item_id_list}) and hafiz_id={auth} and {status_filter}"
+                    item_length = len(hafizs_items(where=where_clause) or [])
+        show_customize_button = item_length > 1
         return Tr(
             Td(title),
             Td(details[0]),
@@ -2126,20 +2136,6 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             ),
             id=f"{current_type}-{type_number}",
         )
-
-    def group_by_type(data, current_type):
-        columns_map = {
-            "juz": "juz_number",
-            "surah": "surah_id",
-            "page": "page_number",
-        }
-        grouped = defaultdict(
-            list
-        )  # defaultdict() is creating the key as the each column_map number and value as the list of records
-        for row in data:
-            grouped[row[columns_map[current_type]]].append(row)
-        sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
-        return sorted_grouped
 
     if not current_type:
         current_type = "juz"
