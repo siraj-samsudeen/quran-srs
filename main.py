@@ -279,6 +279,43 @@ def extract_mode_sort_number(mode_id):
     return int(mode_name.split(". ")[0])
 
 
+def get_lastest_date(item_id: int, mode_ids: list[str]):
+    last_reviewed = revisions(
+        where=f"item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)})",
+        order_by="revision_date DESC",
+        limit=1,
+    )
+
+    if last_reviewed:
+        return last_reviewed[0].revision_date
+    return None
+
+
+def update_review_dates(item_id: int, mode_id: int):
+    if mode_id == 3:
+        mode_ids = ("2", "3")
+        increment_day = 1
+    elif mode_id == 4:
+        mode_ids = ("3", "4")
+        increment_day = 7
+    else:
+        return None
+
+    latest_revision_date = get_lastest_date(item_id, mode_ids)
+
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        # To update the status of hafizs_items table if it is newly memorized
+        if current_hafiz_item.mode_id == 2:
+            current_hafiz_item.mode_id = 3
+        current_hafiz_item.last_review = latest_revision_date
+        current_hafiz_item.next_review = add_days_to_date(
+            latest_revision_date, increment_day
+        )
+        hafizs_items.update(current_hafiz_item)
+
+
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
     revisions_data = revisions(where=qry)
@@ -291,6 +328,8 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
         )
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
+    # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
+    update_review_dates(item_id, mode_id)
 
 
 def datewise_summary_table(show=None, hafiz_id=None):
@@ -1667,7 +1706,7 @@ def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
         return Option(
             f"{obj.id} ({obj.name})",
             value=obj.id,
-            # TODO: Temp condition for selecting siraj, later it should be handled by sess
+            # FIXME: Temp condition for selecting siraj, later it should be handled by sess
             # Another caviat is that siraj should be in the top of the list of users
             # or else the edit functionality will not work properly.
             selected=True if "siraj" in obj.name.lower() else False,
@@ -2811,16 +2850,17 @@ def graduate_btn_recent_review(
     )
 
 
-def get_last_recent_review_date(item_id):
-    last_reviewed = revisions(
-        where=f"item_id = {item_id} AND mode_id IN (2,3)",
-        order_by="revision_date DESC",
-        limit=1,
-    )
+# TODO: refactor this function
+# def get_last_recent_review_date(item_id):
+#     last_reviewed = revisions(
+#         where=f"item_id = {item_id} AND mode_id IN (2,3)",
+#         order_by="revision_date DESC",
+#         limit=1,
+#     )
 
-    if last_reviewed:
-        return last_reviewed[0].revision_date
-    return None
+#     if last_reviewed:
+#         return last_reviewed[0].revision_date
+#     return None
 
 
 @app.get("/recent_review")
@@ -2981,22 +3021,22 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
         # We are redirecting to swap the entire row
         # as we want to render the disabled checkbox with graduated button
         return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
+    # # TODO: This logic is as same as the update watch_list logic
+    # if is_checked:
+    #     last_revision_date = date
+    # else:
+    #     last_revision_date = get_last_recent_review_date(item_id)
 
-    if is_checked:
-        last_revision_date = date
-    else:
-        last_revision_date = get_last_recent_review_date(item_id)
-
-    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_item:
-        current_hafiz_item = current_hafiz_item[0]
-        # To update the status of hafizs_items table if it is newly memorized
-        if current_hafiz_item.mode_id == 2:
-            current_hafiz_item.mode_id = 3
-        # update the last and next review on the hafizs_items
-        current_hafiz_item.last_review = last_revision_date
-        current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
-        hafizs_items.update(current_hafiz_item)
+    # current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    # if current_hafiz_item:
+    #     current_hafiz_item = current_hafiz_item[0]
+    #     # To update the status of hafizs_items table if it is newly memorized
+    #     if current_hafiz_item.mode_id == 2:
+    #         current_hafiz_item.mode_id = 3
+    #     # update the last and next review on the hafizs_items
+    #     current_hafiz_item.last_review = last_revision_date
+    #     current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
+    #     hafizs_items.update(current_hafiz_item)
 
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
@@ -3005,7 +3045,7 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 @app.post("/recent_review/graduate")
 def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
-    last_review = get_last_recent_review_date(item_id)
+    last_review = get_lastest_date(item_id, mode_ids=["2", "3"])
 
     if is_checked:
         mode_id = 4
@@ -3324,6 +3364,8 @@ def watch_list_edit_form(rev_id: int, auth):
     )
 
 
+# TODO: Need to repourpose this function to make it work for recent_review also
+# watch_list = (3,4) amd recent_review = (2,3) | add days by 7 (or) 1
 def update_review_date_watch_list(item_id: int):
     qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id IN (3, 4) ORDER BY revision_date ASC"
     ct = db.q(qry)
