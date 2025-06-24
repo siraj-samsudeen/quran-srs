@@ -2390,6 +2390,8 @@ def filtered_table_for_modal(
     description: str,
     filter_status: str,
     auth,
+    req,
+    sess,
     status: str = None,
 ):
     if current_type == "juz":
@@ -2471,11 +2473,13 @@ def filtered_table_for_modal(
     link = base + query
 
     ##
-    def update_button(label, value, hx_select_id, hx_select_oob_id, cls=""):
+    def update_button(label, value, hx_select_id, hx_select_oob_id="", cls=""):
         return Button(
             label,
             hx_post=link,
             hx_select=hx_select_id,
+            hx_target=hx_select_id,
+            hx_swap="outerHTML",
             hx_select_oob=hx_select_oob_id,
             name="action",
             value=value,
@@ -2501,7 +2505,7 @@ def filtered_table_for_modal(
                 label="Update and Close",
                 value="close",
                 hx_select_id=f"#{current_type}-{type_number}",
-                hx_select_oob_id=f"#{current_type}-{type_number}",
+                hx_select_oob_id=f"#stats_info",
                 cls="uk-modal-close",
             ),
             update_button(
