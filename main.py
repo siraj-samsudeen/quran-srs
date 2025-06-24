@@ -2533,6 +2533,7 @@ def update_page_status(
     selected_status: str,
     filter_status: str,
     sess,
+    auth,
 ):
     #  "not_memorized" means no status, so store it as NULL in DB
     selected_status = None if selected_status == "not_memorized" else selected_status
@@ -2540,13 +2541,23 @@ def update_page_status(
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.active != 0;"""
     ct = db.q(qry)
-
+    is_newly_memorized = selected_status == "newly_memorized"
     grouped = group_by_type(ct, current_type, feild="id")
     for item_id in grouped[type_number]:
-        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
+        current_item = current_item[0]
         # determine what to update
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
+        if is_newly_memorized:
+            # add revision newly_memorized pages
+            revisions.insert(
+                hafiz_id=auth,
+                item_id=item_id,
+                revision_date=current_time("%Y-%m-%d"),
+                rating=0,
+                mode_id=2,
+            )
     referer = req.headers.get("referer", "/")
     last_added_details = {
         "status": filter_status,
@@ -2567,12 +2578,13 @@ async def update_page_status(
     description: str,
     filter_status: str,
     action: str,
+    auth,
     status: str = None,
 ):
     form_data = await req.form()
     selected_status = form_data.get("selected_status")
     selected_status = None if selected_status == "not_memorized" else selected_status
-
+    is_newly_memorized = selected_status == "newly_memorized"
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
             continue  # Skip non-id keys
@@ -2585,10 +2597,21 @@ async def update_page_status(
         if check != "1":
             continue  # Skip unchecked checkboxes
 
-        current_item = hafizs_items(where=f"item_id = {item_id}")[0]
+        current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
+        current_item = current_item[0]
         # determine what to update
         update_data = resolve_update_data(current_item, selected_status)
         hafizs_items.update(update_data, current_item.id)
+        if is_newly_memorized:
+            # add revision newly_memorized pages
+            revisions.insert(
+                hafiz_id=auth,
+                item_id=item_id,
+                revision_date=current_time("%Y-%m-%d"),
+                rating=0,
+                mode_id=2,
+            )
+
     last_added_details = {
         "status": filter_status,
         "type": current_type,
