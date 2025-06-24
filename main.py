@@ -14,6 +14,9 @@ OPTION_MAP = {
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
 STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
+DEFAULT_RATINGS = {
+    "new_memorization": 1,
+}
 DB_PATH = "data/quran_v9.db"
 
 # This function will handle table creation and migration using fastmigrate
@@ -1295,7 +1298,7 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=0,
+            rating=DEFAULT_RATINGS.get("new_memorization"),
             mode_id=2,
         )
         # updating the status of the item to memorized
@@ -1338,7 +1341,7 @@ def bulk_mark_as_new_memorized(
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=0,
+            rating=DEFAULT_RATINGS.get("new_memorization"),
             mode_id=2,
         )
 
