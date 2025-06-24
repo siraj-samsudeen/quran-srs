@@ -2077,7 +2077,12 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             if current_type != "surah"
             else surahs[type_number].name
         )
-
+        item_length = 1
+        if current_type == "page":
+            item_length = len(
+                items(where=f"page_id={type_number} and active != 0") or []
+            )
+        show_customize_button = current_type != "page" or item_length > 1
         return Tr(
             Td(title),
             Td(details[0]),
@@ -2095,18 +2100,22 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 )
             ),
             # Td(status_value),
-            Td(
-                A("Customize ➡️"),
-                cls=(AT.classic, "text-right"),
-                hx_get=f"/partial_profile/{current_type}/{type_number}"
-                + (f"?status={status}" if status else ""),
-                hx_vals={
-                    "title": title,
-                    "description": details_str,
-                    "filter_status": status,
-                },
-                target_id="my-modal-body",
-                data_uk_toggle="target: #my-modal",
+            (
+                Td(
+                    A("Customize ➡️"),
+                    cls=(AT.classic, "text-right"),
+                    hx_get=f"/partial_profile/{current_type}/{type_number}"
+                    + (f"?status={status}" if status else ""),
+                    hx_vals={
+                        "title": title,
+                        "description": details_str,
+                        "filter_status": status,
+                    },
+                    target_id="my-modal-body",
+                    data_uk_toggle="target: #my-modal",
+                )
+                if show_customize_button
+                else None
             ),
             id=f"{current_type}-{type_number}",
         )
