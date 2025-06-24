@@ -1272,7 +1272,7 @@ def update_recent_review_status_from_index(
     date: str, item_id: str, is_checked: bool = False
 ):
     checkbox_update_logic(
-        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=3, rating=1, item_id=item_id, date=date, is_checked=is_checked
     )
     return RedirectResponse("/", status_code=303)
 
@@ -3079,7 +3079,7 @@ def recent_review_view(auth):
 def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
 
     checkbox_update_logic(
-        mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=3, rating=1, item_id=item_id, date=date, is_checked=is_checked
     )
     revision_count = get_mode_count(item_id, 3)
 
