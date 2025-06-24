@@ -188,9 +188,9 @@ def find_next_item_id(item_id):
     return find_next_greater(item_ids, item_id)
 
 
-def get_recent_review_count(item_id):
-    recent_review_count = revisions(where=f"item_id = {item_id} AND mode_id = 3")
-    return len(recent_review_count)
+def get_mode_count(item_id, mode_id):
+    mode_records = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
+    return len(mode_records)
 
 
 def render_rating(rating: int):
@@ -3003,7 +3003,7 @@ def recent_review_view(auth):
                 cls="text-center",
             )
 
-        revision_count = get_recent_review_count(item_id)
+        revision_count = get_mode_count(item_id, 3)
 
         return Tr(
             Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
@@ -3065,7 +3065,7 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
     checkbox_update_logic(
         mode_id=3, rating=0, item_id=item_id, date=date, is_checked=is_checked
     )
-    revision_count = get_recent_review_count(item_id)
+    revision_count = get_mode_count(item_id, 3)
 
     if revision_count > 6:
         # We are redirecting to swap the entire row
@@ -3190,7 +3190,7 @@ def watch_list_view(auth):
         )
         weeks_revision_excluded = week_column[len(watch_list_revisions) :]
 
-        revision_count = len(watch_list_revisions)
+        revision_count = get_mode_count(item_id, 4)
 
         if not is_graduated:
             due_day = day_diff(last_review, current_date)
@@ -3448,9 +3448,9 @@ def watch_list_add_data(revision_details: Revision, auth):
     revisions.insert(revision_details)
     item_id = revision_details.item_id
 
-    recent_review_count = len(revisions(where=f"item_id = {item_id} AND mode_id = 4"))
+    revision_count = get_mode_count(item_id, 4)
 
-    if recent_review_count >= 7:
+    if revision_count > 6:
         graduate_the_item_id(item_id=item_id, mode_id=4, auth=auth)
         return RedirectResponse(f"/watch_list", status_code=303)
 
