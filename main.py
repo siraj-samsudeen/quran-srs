@@ -279,6 +279,13 @@ def extract_mode_sort_number(mode_id):
     return int(mode_name.split(". ")[0])
 
 
+def update_hafizs_items_table(item_id, data_to_update):
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+
+    if current_hafiz_items:
+        hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+
+
 def get_lastest_date(item_id: int, mode_ids: list[str]):
     last_reviewed = revisions(
         where=f"item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)})",
@@ -3054,25 +3061,21 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
         mode_id = 3
         next_review_day = 1
 
-    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_items:
-        # Retry logic with 3 attempts and 50ms delay
-        # To handle multiple simultaneous req from the user
-        # typically when shift-clicking the checkbox where it will trigger multiple requests
-        for attempt in range(3):
-            try:
-                hafizs_items.update(
-                    {
-                        "mode_id": mode_id,
-                        "last_review": last_review,
-                        "next_review": add_days_to_date(last_review, next_review_day),
-                    },
-                    current_hafiz_items[0].id,
-                )
-                break  # Success, exit the loop
-            except Exception as e:
-                if attempt < 2:  # Only delay if not the last attempt
-                    time.sleep(0.05)
+    data_to_update = {
+        "mode_id": mode_id,
+        "last_review": last_review,
+        "next_review": add_days_to_date(last_review, next_review_day),
+    }
+    # Retry logic with 3 attempts and 50ms delay
+    # To handle multiple simultaneous req from the user
+    # typically when shift-clicking the checkbox where it will trigger multiple requests
+    for attempt in range(3):
+        try:
+            update_hafizs_items_table(item_id, data_to_update)
+            break  # Success, exit the loop
+        except Exception as e:
+            if attempt < 2:  # Only delay if not the last attempt
+                time.sleep(0.05)
 
     # We can also use the route funtion to return the entire page as output
     # And the HTMX headers are used to change the (re)target,(re)select only the current row
@@ -3083,16 +3086,16 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
     )
 
 
-def get_last_watch_list_date(item_id):
-    last_reviewed = revisions(
-        where=f"item_id = {item_id} AND mode_id = 4",
-        order_by="revision_date DESC",
-        limit=1,
-    )
+# def get_last_watch_list_date(item_id):
+#     last_reviewed = revisions(
+#         where=f"item_id = {item_id} AND mode_id = 4",
+#         order_by="revision_date DESC",
+#         limit=1,
+#     )
 
-    if last_reviewed:
-        return last_reviewed[0].revision_date
-    return None
+#     if last_reviewed:
+#         return last_reviewed[0].revision_date
+#     return None
 
 
 @app.get("/watch_list")
@@ -3421,14 +3424,14 @@ def watch_list_add_data(revision_details: Revision, auth):
 
 @app.post("/watch_list/graduate")
 def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
-    last_review = get_last_watch_list_date(item_id)
+    last_review = get_lastest_date(item_id, mode_ids=["4"])
     if is_checked:
         data_to_update = {
             "status": "memorized",
             "mode_id": 1,
             "last_review": "",
             "next_review": "",
-            "watch_list_graduation_date": last_review,
+            "watch_list_graduation_date": get_current_date(auth),
         }
     else:
         data_to_update = {
@@ -3439,10 +3442,7 @@ def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
             "watch_list_graduation_date": "",
         }
 
-    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-
-    if current_hafiz_items:
-        hafizs_items.update(data_to_update, current_hafiz_items[0].id)
+    update_hafizs_items_table(item_id, data_to_update)
 
     return watch_list_view(auth), HtmxResponseHeaders(
         retarget=f"#row-{item_id}",
