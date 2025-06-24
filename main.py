@@ -2080,9 +2080,15 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         )
         item_length = 1
         if current_type == "page":
-            item_length = len(
-                items(where=f"page_id={type_number} and active != 0") or []
+            existing_status = standardize_column(status_value)
+            if existing_status == "not_memorized":
+                status_filter = "status IS NULL"
+            else:
+                status_filter = f"status = '{existing_status}'"
+            where_clause = (
+                f"page_number={type_number} and hafiz_id={auth} and {status_filter}"
             )
+            item_length = len(hafizs_items(where=where_clause) or [])
         show_customize_button = current_type != "page" or item_length > 1
         return Tr(
             Td(title),
