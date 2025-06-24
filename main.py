@@ -207,6 +207,7 @@ def status_dropdown(current_status):
     return fh.Select(
         map(render_options, STATUS_OPTIONS),
         name="selected_status",
+        style="margin: 0 !important;",
     )
 
 
@@ -2115,7 +2116,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                     data_uk_toggle="target: #my-modal",
                 )
                 if show_customize_button
-                else None
+                else Td("")
             ),
             id=f"{current_type}-{type_number}",
         )
