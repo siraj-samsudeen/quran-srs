@@ -1009,6 +1009,15 @@ def index(auth):
 @app.get("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
+    # This will retrive the revision records of the recent review and watch list for the current date as per the hafiz
+    revision_data = revisions(
+        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4)"
+    )
+    for rev in revision_data:
+        # if the count is greater than 6 then it will graduate that item to next level
+        if get_mode_count(rev.item_id, rev.mode_id) > 6:
+            graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+    # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
     return Redirect("/")
