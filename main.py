@@ -279,14 +279,24 @@ def extract_mode_sort_number(mode_id):
     return int(mode_name.split(". ")[0])
 
 
-def update_hafizs_items_table(item_id, data_to_update):
+####################### Recent_review and Watch_list common function #######################
+
+
+def update_hafizs_items_table(item_id: int, data_to_update: dict):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
 
     if current_hafiz_items:
         hafizs_items.update(data_to_update, current_hafiz_items[0].id)
 
 
-def get_lastest_date(item_id: int, mode_ids: list[str]):
+def get_lastest_date(item_id: int, mode_id: int):
+    if mode_id == 3:
+        mode_ids = ("2", "3")
+    elif mode_id == 4:
+        mode_ids = ("3", "4")
+    else:
+        return None
+
     last_reviewed = revisions(
         where=f"item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)})",
         order_by="revision_date DESC",
@@ -300,15 +310,13 @@ def get_lastest_date(item_id: int, mode_ids: list[str]):
 
 def update_review_dates(item_id: int, mode_id: int):
     if mode_id == 3:
-        mode_ids = ("2", "3")
         increment_day = 1
     elif mode_id == 4:
-        mode_ids = ("3", "4")
         increment_day = 7
     else:
         return None
 
-    latest_revision_date = get_lastest_date(item_id, mode_ids)
+    latest_revision_date = get_lastest_date(item_id, mode_id)
 
     current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_item:
@@ -337,6 +345,41 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
         revisions.delete(revisions_data[0].id)
     # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
     update_review_dates(item_id, mode_id)
+
+
+def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
+    last_review_date = get_lastest_date(item_id, mode_id)
+    recent_review = {
+        "mode_id": 3,
+        "last_review": last_review_date,
+        "next_review": add_days_to_date(last_review_date, 1),
+    }
+    watch_list = {
+        "status": "newly_memorized",
+        "mode_id": 4,
+        "last_review": last_review_date,
+        "next_review": add_days_to_date(last_review_date, 7),
+        "watch_list_graduation_date": None,
+    }
+    memorized = {
+        "status": "memorized",
+        "mode_id": 1,
+        "last_review": None,
+        "next_review": None,
+        "watch_list_graduation_date": get_current_date(auth),
+    }
+
+    if mode_id == 3:
+        data_to_update = watch_list if checked else recent_review
+    elif mode_id == 4:
+        data_to_update = memorized if checked else watch_list
+    else:
+        return None
+
+    update_hafizs_items_table(item_id, data_to_update)
+
+
+####################### END #######################
 
 
 def datewise_summary_table(show=None, hafiz_id=None):
@@ -3052,26 +3095,28 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 @app.post("/recent_review/graduate")
 def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
-    last_review = get_lastest_date(item_id, mode_ids=["2", "3"])
+    # last_review = get_lastest_date(item_id, mode_ids=["2", "3"])
 
-    if is_checked:
-        mode_id = 4
-        next_review_day = 7
-    else:
-        mode_id = 3
-        next_review_day = 1
+    # if is_checked:
+    #     mode_id = 4
+    #     next_review_day = 7
+    # else:
+    #     mode_id = 3
+    #     next_review_day = 1
 
-    data_to_update = {
-        "mode_id": mode_id,
-        "last_review": last_review,
-        "next_review": add_days_to_date(last_review, next_review_day),
-    }
+    # data_to_update = {
+    #     "mode_id": mode_id,
+    #     "last_review": last_review,
+    #     "next_review": add_days_to_date(last_review, next_review_day),
+    # }
     # Retry logic with 3 attempts and 50ms delay
     # To handle multiple simultaneous req from the user
     # typically when shift-clicking the checkbox where it will trigger multiple requests
     for attempt in range(3):
         try:
-            update_hafizs_items_table(item_id, data_to_update)
+            graduate_the_item_id(
+                item_id=item_id, mode_id=3, auth=auth, checked=is_checked
+            )
             break  # Success, exit the loop
         except Exception as e:
             if attempt < 2:  # Only delay if not the last attempt
@@ -3424,25 +3469,26 @@ def watch_list_add_data(revision_details: Revision, auth):
 
 @app.post("/watch_list/graduate")
 def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
-    last_review = get_lastest_date(item_id, mode_ids=["4"])
-    if is_checked:
-        data_to_update = {
-            "status": "memorized",
-            "mode_id": 1,
-            "last_review": "",
-            "next_review": "",
-            "watch_list_graduation_date": get_current_date(auth),
-        }
-    else:
-        data_to_update = {
-            "status": "newly_memorized",
-            "mode_id": 4,
-            "last_review": last_review,
-            "next_review": add_days_to_date(last_review, 7),
-            "watch_list_graduation_date": "",
-        }
+    # last_review = get_lastest_date(item_id, mode_ids=["4"])
+    # if is_checked:
+    #     data_to_update = {
+    #         "status": "memorized",
+    #         "mode_id": 1,
+    #         "last_review": "",
+    #         "next_review": "",
+    #         "watch_list_graduation_date": get_current_date(auth),
+    #     }
+    # else:
+    #     data_to_update = {
+    #         "status": "newly_memorized",
+    #         "mode_id": 4,
+    #         "last_review": last_review,
+    #         "next_review": add_days_to_date(last_review, 7),
+    #         "watch_list_graduation_date": None,
+    #     }
 
-    update_hafizs_items_table(item_id, data_to_update)
+    # update_hafizs_items_table(item_id, data_to_update)
+    graduate_the_item_id(item_id=item_id, mode_id=4, auth=auth, checked=is_checked)
 
     return watch_list_view(auth), HtmxResponseHeaders(
         retarget=f"#row-{item_id}",
