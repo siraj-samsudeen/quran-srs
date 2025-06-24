@@ -2909,19 +2909,6 @@ def graduate_btn_recent_review(
     )
 
 
-# TODO: refactor this function
-# def get_last_recent_review_date(item_id):
-#     last_reviewed = revisions(
-#         where=f"item_id = {item_id} AND mode_id IN (2,3)",
-#         order_by="revision_date DESC",
-#         limit=1,
-#     )
-
-#     if last_reviewed:
-#         return last_reviewed[0].revision_date
-#     return None
-
-
 @app.get("/recent_review")
 def recent_review_view(auth):
     hafiz_items_data = hafizs_items(where="mode_id IN (2,3,4)", order_by="item_id ASC")
@@ -3080,22 +3067,6 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
         # We are redirecting to swap the entire row
         # as we want to render the disabled checkbox with graduated button
         return RedirectResponse(f"/recent_review/graduate?item_id={item_id}")
-    # # TODO: This logic is as same as the update watch_list logic
-    # if is_checked:
-    #     last_revision_date = date
-    # else:
-    #     last_revision_date = get_last_recent_review_date(item_id)
-
-    # current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-    # if current_hafiz_item:
-    #     current_hafiz_item = current_hafiz_item[0]
-    #     # To update the status of hafizs_items table if it is newly memorized
-    #     if current_hafiz_item.mode_id == 2:
-    #         current_hafiz_item.mode_id = 3
-    #     # update the last and next review on the hafizs_items
-    #     current_hafiz_item.last_review = last_revision_date
-    #     current_hafiz_item.next_review = add_days_to_date(last_revision_date, 1)
-    #     hafizs_items.update(current_hafiz_item)
 
     return revision_count, graduate_btn_recent_review(
         item_id, is_disabled=(revision_count == 0), hx_swap_oob="true"
@@ -3104,20 +3075,7 @@ def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = 
 
 @app.post("/recent_review/graduate")
 def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
-    # last_review = get_lastest_date(item_id, mode_ids=["2", "3"])
 
-    # if is_checked:
-    #     mode_id = 4
-    #     next_review_day = 7
-    # else:
-    #     mode_id = 3
-    #     next_review_day = 1
-
-    # data_to_update = {
-    #     "mode_id": mode_id,
-    #     "last_review": last_review,
-    #     "next_review": add_days_to_date(last_review, next_review_day),
-    # }
     # Retry logic with 3 attempts and 50ms delay
     # To handle multiple simultaneous req from the user
     # typically when shift-clicking the checkbox where it will trigger multiple requests
@@ -3138,18 +3096,6 @@ def graduate_recent_review(item_id: int, auth, is_checked: bool = False):
         reselect=f"#row-{item_id}",
         reswap="outerHTML",
     )
-
-
-# def get_last_watch_list_date(item_id):
-#     last_reviewed = revisions(
-#         where=f"item_id = {item_id} AND mode_id = 4",
-#         order_by="revision_date DESC",
-#         limit=1,
-#     )
-
-#     if last_reviewed:
-#         return last_reviewed[0].revision_date
-#     return None
 
 
 @app.get("/watch_list")
@@ -3421,21 +3367,6 @@ def watch_list_edit_form(rev_id: int, auth):
     )
 
 
-# TODO: Need to repourpose this function to make it work for recent_review also
-# watch_list = (3,4) amd recent_review = (2,3) | add days by 7 (or) 1
-# def update_review_date_watch_list(item_id: int):
-#     qry = f"SELECT revision_date from revisions where item_id = {item_id} AND mode_id IN (3, 4) ORDER BY revision_date ASC"
-#     ct = db.q(qry)
-#     latest_revision_date = [i["revision_date"] for i in ct][-1]
-
-#     current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-#     if current_hafiz_item:
-#         current_hafiz_item = current_hafiz_item[0]
-#         current_hafiz_item.last_review = latest_revision_date
-#         current_hafiz_item.next_review = add_days_to_date(latest_revision_date, 7)
-#         hafizs_items.update(current_hafiz_item)
-
-
 @app.post("/watch_list/edit")
 def watch_list_edit_data(revision_details: Revision):
     revisions.update(revision_details)
@@ -3464,39 +3395,13 @@ def watch_list_add_data(revision_details: Revision, auth):
         return RedirectResponse(f"/watch_list", status_code=303)
 
     update_review_dates(item_id, 4)
-    # last_review_date = revision_details.revision_date
-    # current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-
-    # if current_hafiz_item:
-    # current_hafiz_item = current_hafiz_item[0]
-    # current_hafiz_item.last_review = last_review_date
-    # current_hafiz_item.next_review = add_days_to_date(last_review_date, 7)
-    # hafizs_items.update(current_hafiz_item)
 
     return RedirectResponse("/watch_list", status_code=303)
 
 
 @app.post("/watch_list/graduate")
 def graduate_watch_list(item_id: int, auth, is_checked: bool = False):
-    # last_review = get_lastest_date(item_id, mode_ids=["4"])
-    # if is_checked:
-    #     data_to_update = {
-    #         "status": "memorized",
-    #         "mode_id": 1,
-    #         "last_review": "",
-    #         "next_review": "",
-    #         "watch_list_graduation_date": get_current_date(auth),
-    #     }
-    # else:
-    #     data_to_update = {
-    #         "status": "newly_memorized",
-    #         "mode_id": 4,
-    #         "last_review": last_review,
-    #         "next_review": add_days_to_date(last_review, 7),
-    #         "watch_list_graduation_date": None,
-    #     }
 
-    # update_hafizs_items_table(item_id, data_to_update)
     graduate_the_item_id(item_id=item_id, mode_id=4, auth=auth, checked=is_checked)
 
     return watch_list_view(auth), HtmxResponseHeaders(
