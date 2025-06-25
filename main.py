@@ -1019,9 +1019,10 @@ def index(auth):
             ),
             Tfoot(
                 Tr(
-                    Th("Total"),
-                    Th(today_total_count),
-                    Th(yesterday_total_count),
+                    Td("Total"),
+                    Td(today_total_count),
+                    Td(yesterday_total_count),
+                    cls="[&>*]:font-bold",
                     id="total_row",
                 ),
             ),
