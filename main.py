@@ -207,7 +207,7 @@ def status_dropdown(current_status):
     return fh.Select(
         map(render_options, STATUS_OPTIONS),
         name="selected_status",
-        style="margin: 0 !important;",
+        style="margin: 0px 12px 12px 12px !important;",
     )
 
 
@@ -2489,7 +2489,6 @@ def filtered_table_for_modal(
         )
 
     return (
-        modal_level_dd,
         table,
         ModalTitle(
             "" if title == "" else f"{title} - Select Memorized Page",
@@ -2503,6 +2502,7 @@ def filtered_table_for_modal(
             cls=TextPresets.muted_lg,
         ),
         Div(
+            modal_level_dd,
             update_button(
                 label="Update and Close",
                 value="close",
@@ -2517,9 +2517,9 @@ def filtered_table_for_modal(
                 hx_select_oob_id="#filtered-table",
             ),
             Button("Cancel", cls=("bg-red-600 text-white", "uk-modal-close")),
-            cls="space-x-2",
             id="my-modal-footer",
             hx_swap_oob="true",
+            cls=("space-x-2", "space-y-2"),
         ),
     )
 
