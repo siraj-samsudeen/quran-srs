@@ -1132,7 +1132,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
             LEFT JOIN items on hafizs_items.item_id = items.id 
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
-            ORDER BY hafizs_items.mode_id DESC, hafizs_items.next_review ASC, hafizs_items.item_id ASC
+            ORDER BY hafizs_items.item_id ASC
         """
         ct = db.q(qry)
 
