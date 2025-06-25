@@ -1172,6 +1172,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     def render_range_row(item_id: str):
+        row_id = f"{route}_row-{item_id}"
         mode_filter = "2" if route == "new_memorization" else ", ".join(mode_ids)
 
         current_revision_data = revisions(
@@ -1195,20 +1196,18 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         else:
             rating_placeholder = [None]
 
-        if route == "recent_review":
-            record_btn = Form(
-                Hidden(name="date", value=current_date),
-                CheckboxX(
-                    name=f"is_checked",
-                    value="1",
-                    hx_post=f"/home/recent_review/add/{item_id}",
-                    hx_select=f"#recent_review_row-{item_id}",
-                    hx_select_oob="#stat-row-3, #total_row",
-                    hx_target=f"#recent_review_row-{item_id}",
-                    hx_swap="outerHTML",
-                    checked=(len(current_revision_data) != 0),
-                ),
-                cls="",
+        if route in ["recent_review", "watch_list"]:
+            mode_id = 3 if route == "recent_review" else 4
+            record_btn = CheckboxX(
+                name=f"is_checked",
+                value="1",
+                hx_post=f"/home/add/{item_id}",
+                hx_vals={"date": current_date, "mode_id": mode_id},
+                hx_select=f"#{row_id}",
+                hx_select_oob=f"#stat-row-{mode_id}, #total_row",
+                hx_target=f"#{row_id}",
+                hx_swap="outerHTML",
+                checked=(len(current_revision_data) != 0),
             )
         elif route == "new_memorization":
             hx_attrs = {
@@ -1218,23 +1217,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 "hx_select_oob": "#stat-row-2, #total_row",
             }
             record_btn = render_checkbox(auth=auth, item_id=item_id, **hx_attrs)
-        elif route == "watch_list":
-            record_btn = Form(
-                Hidden(name="date", value=current_date),
-                CheckboxX(
-                    name=f"is_checked",
-                    value="1",
-                    hx_post=f"/home/watch_list/add/{item_id}",
-                    hx_vals={"date": current_date},
-                    hx_include=f"#rating-{item_id}",
-                    hx_select=f"#watch_list_row-{item_id}",
-                    hx_select_oob="#stat-row-4, #total_row",
-                    hx_target=f"#watch_list_row-{item_id}",
-                    hx_swap="outerHTML",
-                    checked=(len(current_revision_data) != 0),
-                ),
-                cls="",
-            )
         else:
             return None
 
@@ -1248,7 +1230,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                     cls=f"{"max-w-28" if route == "watch_list" else None}",
                 )
             ),
-            id=f"{route}_row-{item_id}",
+            id=row_id,
         )
 
     if is_unmemorized:
@@ -1297,20 +1279,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     )
 
 
-@app.post("/home/recent_review/add/{item_id}")
-def update_recent_review_status_from_index(
-    date: str, item_id: str, is_checked: bool = False
+# This route is responsible for adding and deleting record for the recent_review and watch_list
+# and update the review dates for that item_id
+@app.post("/home/add/{item_id}")
+def update_status_from_index(
+    date: str, item_id: str, mode_id: int, is_checked: bool = False
 ):
     checkbox_update_logic(
-        mode_id=3, rating=1, item_id=item_id, date=date, is_checked=is_checked
-    )
-    return RedirectResponse("/", status_code=303)
-
-
-@app.post("/home/watch_list/add/{item_id}")
-def watch_list_add_data(date: str, item_id: int, is_checked: bool = False):
-    checkbox_update_logic(
-        mode_id=4, rating=1, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=mode_id, rating=1, item_id=item_id, date=date, is_checked=is_checked
     )
     return RedirectResponse("/", status_code=303)
 
