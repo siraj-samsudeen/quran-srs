@@ -1143,14 +1143,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             current_rev_date = current_revision_data[0]
             current_rating = current_rev_date.rating
             rating_placeholder = [
-                A(
-                    render_rating(current_rating),
-                    href=f"/revision/edit/{current_rev_date.id}",
-                    cls=AT.classic,
+                rating_dropdown(
+                    default_mode=str(current_rating),
+                    is_label=False,
+                    cls="[&>div]:h-8 uk-form-sm w-28",
+                    hx_put=f"/revision/{current_rev_date.id}",
+                    hx_trigger="change",
+                    hx_swap="none",
+                    id=f"rev-{current_rev_date.id}",
                 ),
-                # This hidden value is need so that `checkbox_update_logic` function will work
-                # Which will lookup the and delete that particular revision data
-                Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
             ]
         else:
             rating_placeholder = [None]
@@ -2064,6 +2065,11 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     return Redirect(
         f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
     )
+
+
+@app.put("/revision/{rev_id}")
+def update_revision_rating(rev_id: int, rating: int):
+    revisions.update({"rating": rating}, rev_id)
 
 
 # Bulk add
