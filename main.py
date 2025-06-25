@@ -2095,7 +2095,6 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         elif current_type in ("surah", "juz"):
             item_ids = grouped.get(type_number, [])
             if item_ids:
-                print(item_ids)
                 if len(item_ids) > 1:
                     item_id_list = ",".join(str(i["id"]) for i in item_ids)
                     where_clause = f"item_id IN ({item_id_list}) and hafiz_id={auth}"
@@ -2157,7 +2156,6 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    # print("status", status)
 
     if status in ["memorized", "newly_memorized"]:
         status_condition = f" AND hafizs_items.status = '{status}'"
@@ -4211,7 +4209,6 @@ def page_details_view(auth):
 def display_page_level_details(auth, item_id: int):
     rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
     if not rev_data:
-        # print("No revisions found for item_id:", item_id)
         return Redirect("/page_details")
 
     def _render_row(data, columns):
