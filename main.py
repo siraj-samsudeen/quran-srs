@@ -234,6 +234,7 @@ def rating_dropdown(default_mode="1", is_label=True, **kwargs):
         map(mk_options, RATING_MAP.items()),
         label=("Rating" if is_label else None),
         name="rating",
+        select_kwargs={"name": "rating"},
         **kwargs,
     )
 
@@ -1188,29 +1189,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({mode_filter});"
         )
 
-        if current_revision_data:
-            current_rev_date = current_revision_data[0]
-            current_rating = current_rev_date.rating
-            rating_placeholder = [
-                rating_dropdown(
-                    default_mode=str(current_rating),
-                    is_label=False,
-                    cls="[&>div]:h-8 uk-form-sm w-28",
-                    hx_put=f"/revision/{current_rev_date.id}",
-                    hx_trigger="change",
-                    hx_swap="none",
-                    id=f"rev-{current_rev_date.id}",
-                ),
-            ]
-        else:
-            rating_placeholder = [None]
-
         if route in ["recent_review", "watch_list"]:
             record_btn = CheckboxX(
                 name=f"is_checked",
                 value="1",
                 hx_post=f"/home/add/{item_id}",
                 hx_vals={"date": current_date, "mode_id": mode_id},
+                hx_include=f"#rev-{item_id}",
                 hx_select=f"#{row_id}",
                 hx_select_oob=f"#stat-row-{mode_id}, #total_row",
                 hx_target=f"#{row_id}",
@@ -1226,7 +1211,48 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             }
             record_btn = render_checkbox(auth=auth, item_id=item_id, **hx_attrs)
         else:
+            # hx_attrs = {}
             return None
+
+        if current_revision_data:
+            current_rev_date = current_revision_data[0]
+
+            default_rating = current_rev_date.rating
+            rev_id = current_rev_date.id
+            change_rating_hx_attrs = {
+                "hx_put": f"/revision/{rev_id}",
+                "hx_swap": "none",
+            }
+        else:
+            default_rating = 1
+            rev_id = None
+            if route == "new_memorization":
+                change_rating_hx_attrs = hx_attrs
+                change_rating_hx_attrs["hx_post"] = (
+                    f"/markas/new_memorization/{item_id}"
+                )
+            else:
+                change_rating_hx_attrs = {
+                    "hx_post": f"/home/add/{item_id}",
+                    "hx_select": f"#{row_id}",
+                    "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
+                    "hx_target": f"#{row_id}",
+                    "hx_swap": "outerHTML",
+                }
+            change_rating_hx_attrs["hx_vals"] = {
+                "date": current_date,
+                "mode_id": mode_id,
+                "is_checked": True,
+            }
+
+        rating_dropdown_input = rating_dropdown(
+            default_mode=str(default_rating),
+            is_label=False,
+            cls="[&>div]:h-8 uk-form-sm w-28",
+            id=f"rev-{item_id}",
+            hx_trigger="change",
+            **change_rating_hx_attrs,
+        )
 
         return Tr(
             Td(get_page_number(item_id)),
@@ -1234,8 +1260,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Td(record_btn),
             Td(
                 Div(
-                    *rating_placeholder,
-                    cls=f"{"max-w-28" if route == "watch_list" else None}",
+                    rating_dropdown_input,
+                    cls="max-w-28",
                 )
             ),
             id=row_id,
@@ -1282,16 +1308,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 # and update the review dates for that item_id
 @app.post("/home/add/{item_id}")
 def update_status_from_index(
-    date: str, item_id: str, mode_id: int, is_checked: bool = False
+    date: str, item_id: str, mode_id: int, rating: int, is_checked: bool = False
 ):
     checkbox_update_logic(
-        mode_id=mode_id, rating=1, item_id=item_id, date=date, is_checked=is_checked
+        mode_id=mode_id,
+        rating=rating,
+        item_id=item_id,
+        date=date,
+        is_checked=is_checked,
     )
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/markas/new_memorization/{item_id}")
-def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False):
+def mark_as_new_memorized(
+    auth, request, item_id: str, is_checked: bool = False, rating: int = None
+):
     qry = f"item_id = {item_id} AND mode_id = 2;"
     revisions_data = revisions(where=qry)
     current_date = get_current_date(auth)
@@ -1300,7 +1332,9 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=DEFAULT_RATINGS.get("new_memorization"),
+            rating=(
+                DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
+            ),
             mode_id=2,
         )
         # updating the status of the item to memorized
@@ -1334,7 +1368,7 @@ def mark_as_new_memorized(auth, request, item_id: str, is_checked: bool = False)
 
 @app.post("/markas/new_memorization_bulk")
 def bulk_mark_as_new_memorized(
-    request, item_ids: list[int], auth
+    request, item_ids: list[int], auth, rating: int = None
 ):  # for query string format
     current_date = get_current_date(auth)
 
@@ -1343,7 +1377,9 @@ def bulk_mark_as_new_memorized(
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=DEFAULT_RATINGS.get("new_memorization"),
+            rating=(
+                DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
+            ),
             mode_id=2,
         )
 
