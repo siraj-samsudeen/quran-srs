@@ -116,7 +116,7 @@ def destandardize_text(text):
     return text.title()
 
 
-def current_time(f="%Y-%m-%d %I:%M %p"):
+def current_time(f="%Y-%m-%d"):
     return datetime.now().strftime(f)
 
 
@@ -129,6 +129,12 @@ def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
 def add_days_to_date(date_str, days):
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     new_date = date_obj + timedelta(days=days)
+    return new_date.strftime("%Y-%m-%d")
+
+
+def sub_days_to_date(date_str, days):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    new_date = date_obj - timedelta(days=days)
     return new_date.strftime("%Y-%m-%d")
 
 
@@ -298,3 +304,92 @@ def format_number(num):
     # Round to 1 decimal place
     rounded = round(num, 1)
     return rounded
+
+
+# This function is used to get the gaps in a list of numbers.
+# This is mainly used for continuation logic
+def find_gaps(input_list, master_list):
+    """
+    Find gaps by identifying the last number before each gap in the sequence.
+
+    Args:
+        input_list: List of numbers to check for gaps
+        master_list: Master list containing all possible valid numbers
+
+    Returns:
+        List of tuples representing gaps, where:
+        - First element is the last number before the gap
+        - Second element is the next number in input_list after the gap (or None if at the end)
+    """
+    result = []
+
+    if not input_list:
+        return result
+
+    # Sort lists and convert master to set for efficient lookup
+    input_sorted = sorted(input_list)
+    master_set = set(master_list)
+
+    # Check for gaps between consecutive numbers in input_list
+    for i in range(len(input_sorted) - 1):
+        current = input_sorted[i]
+        next_num = input_sorted[i + 1]
+
+        # Check if there's a gap between current and next_num
+        # A gap exists if there are master numbers between them
+        gap_exists = False
+        for check_num in range(current + 1, next_num):
+            if check_num in master_set:
+                gap_exists = True
+                break
+
+        if gap_exists:
+            result.append((current, next_num))
+
+    # Check if there's a potential continuation after the last number
+    # This handles the business case where None indicates "use default upper limit"
+    last_num = input_sorted[-1]
+
+    # Check if there are numbers in master_list that come after last_num
+    # This suggests the sequence could continue
+    has_continuation = any(num > last_num for num in master_set)
+
+    if has_continuation:
+        result.append((last_num, None))
+
+    return result
+
+
+def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
+    """
+    Calculate the difference in days between two dates.
+
+    Args:
+        date1_str (str): First date as string
+        date2_str (str): Second date as string
+        date_format (str): Format of the date strings (default: '%Y-%m-%d')
+
+    Returns:
+        int: Number of days between the dates (positive if date2 > date1, negative if date2 < date1)
+
+    Example:
+        >>> calculate_days_difference('2024-01-01', '2024-01-10')
+        9
+        >>> calculate_days_difference('2024-01-10', '2024-01-01')
+        -9
+    """
+    try:
+        # Parse the date strings into datetime objects
+        date1 = datetime.strptime(date1_str, date_format)
+        date2 = datetime.strptime(date2_str, date_format)
+
+        # Calculate the difference
+        difference = date2 - date1
+
+        # Return the difference in days
+        return difference.days
+
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid date format. Expected format: {date_format}. Error: {e}"
+        )
