@@ -207,7 +207,7 @@ def status_dropdown(current_status):
     return fh.Select(
         map(render_options, STATUS_OPTIONS),
         name="selected_status",
-        style="margin: 0px 12px 12px 12px !important;",
+        style="margin: 0px 12px 12px 0px !important;",
     )
 
 
