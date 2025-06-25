@@ -196,6 +196,15 @@ def get_mode_count(item_id, mode_id):
     return len(mode_records)
 
 
+def get_page_count(records: list[Revision]) -> float:
+    total_count = 0
+    for record in records:
+        page_no = items[record.item_id].page_id
+        total_parts = items(where=f"page_id = {page_no} and active = 1")
+        total_count += 1 / len(total_parts)
+    return format_number(total_count)
+
+
 def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
@@ -951,12 +960,12 @@ def index(auth):
     mode_ids = [mode.id for mode in modes()][:-1]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
-    def get_count_of_mode(_mode_id, _revision_date):
+    def render_count(_mode_id, _revision_date):
         records = revisions(
             where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
         )
         rev_ids = [str(r.id) for r in records]
-        count = len(records)
+        count = get_page_count(records)
 
         if count == 0:
             return "-"
@@ -965,18 +974,18 @@ def index(auth):
             count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
         )
 
+    today = current_date
+    yesterday = sub_days_to_date(today, 1)
+    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
+    yesterday_total_count = get_page_count(
+        revisions(where=f"revision_date = '{yesterday}'")
+    )
+
     def render_stat_rows(current_mode_id):
-
-        today = current_date
-        yesterday = sub_days_to_date(today, 1)
-
-        today_count = get_count_of_mode(current_mode_id, today)
-        yesterday_count = get_count_of_mode(current_mode_id, yesterday)
-
         return Tr(
             Td(modes[current_mode_id].name),
-            Td(today_count),
-            Td(yesterday_count),
+            Td(render_count(current_mode_id, today)),
+            Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
 
@@ -1004,7 +1013,17 @@ def index(auth):
                     Th("Yesterday"),
                 )
             ),
-            Tbody(*map(render_stat_rows, sorted_mode_ids)),
+            Tbody(
+                *map(render_stat_rows, sorted_mode_ids),
+            ),
+            Tfoot(
+                Tr(
+                    Th("Total"),
+                    Th(today_total_count),
+                    Th(yesterday_total_count),
+                    id="total_row",
+                ),
+            ),
         ),
     )
 
@@ -1184,7 +1203,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                     value="1",
                     hx_post=f"/home/recent_review/add/{item_id}",
                     hx_select=f"#recent_review_row-{item_id}",
-                    hx_select_oob="#stat-row-3",
+                    hx_select_oob="#stat-row-3, #total_row",
                     hx_target=f"#recent_review_row-{item_id}",
                     hx_swap="outerHTML",
                     checked=(len(current_revision_data) != 0),
@@ -1196,7 +1215,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 "hx_select": "#new_memorization_summary_table",
                 "hx_target": "#new_memorization_summary_table",
                 "hx_swap": "outerHTML",
-                "hx_select_oob": "#stat-row-2",
+                "hx_select_oob": "#stat-row-2, #total_row",
             }
             record_btn = render_checkbox(auth=auth, item_id=item_id, **hx_attrs)
         elif route == "watch_list":
@@ -1209,7 +1228,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                     hx_vals={"date": current_date},
                     hx_include=f"#rating-{item_id}",
                     hx_select=f"#watch_list_row-{item_id}",
-                    hx_select_oob="#stat-row-4",
+                    hx_select_oob="#stat-row-4, #total_row",
                     hx_target=f"#watch_list_row-{item_id}",
                     hx_swap="outerHTML",
                     checked=(len(current_revision_data) != 0),
