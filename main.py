@@ -2298,7 +2298,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 cls="font-bold text-sm sm:text-lg ",
             ),
             Progress(value=f"{total_memorized_pages}", max="604"),
-            Div(status_stats_table, cls=FlexT.block),
+            # Div(status_stats_table, cls=FlexT.block),
             cls="space-y-2",
             id="stats_info",
         ),
@@ -2353,7 +2353,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             DividerLine(),
             DivFullySpaced(
                 filter_btns,
-                resume,
+                # resume,
             ),
             Div(
                 TabContainer(
@@ -2371,7 +2371,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                         ),
                         Tbody(*rows),
                     ),
-                    cls="h-[45vh] overflow-auto uk-overflow-auto",
+                    cls="h-[68vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
