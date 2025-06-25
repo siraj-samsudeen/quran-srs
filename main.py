@@ -2108,6 +2108,17 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             Td(details[0]),
             Td(details[1]),
             Td(
+                # This hidden input is to send the id to the backend even if it is unchecked
+                Hidden(name=f"{current_type}-{type_number}", value="0"),
+                CheckboxX(
+                    name=f"{current_type}-{type_number}",
+                    value="1",
+                    cls="profile_rows",  # Alpine js reference
+                    _at_click="handleCheckboxClick($event)",
+                ),
+            ),
+            # Td(render_checkbox),
+            Td(
                 Form(
                     Hidden(name="filter_status", value=status),
                     status_dropdown(status_value),
@@ -2356,11 +2367,22 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                             Tr(
                                 Th(current_type.title()),
                                 *map(Th, details),
+                                Th(
+                                    CheckboxX(
+                                        cls="select_all",
+                                        x_model="selectAll",
+                                        _at_change="toggleAll()",
+                                    )
+                                ),
                                 Th("Status"),
                                 Th(""),
                             )
                         ),
                         Tbody(*rows),
+                        x_data=select_all_checkbox_x_data(
+                            class_name="profile_rows", is_select_all="false"
+                        ),
+                        x_init="updateSelectAll()",
                     ),
                     cls="h-[68vh] overflow-auto uk-overflow-auto",
                 ),
