@@ -2080,15 +2080,16 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         )
         item_length = 1
         existing_status = standardize_column(status_value)
-        if existing_status == "not_memorized":
-            status_filter = "status IS NULL"
-        else:
-            status_filter = f"status = '{existing_status}'"
+        status_filter = (
+            "status IS NULL"
+            if existing_status == "not_memorized"
+            else f"status = '{existing_status}'"
+        )
 
         if current_type == "page":
-            where_clause = (
-                f"page_number={type_number} and hafiz_id={auth} and {status_filter}"
-            )
+            where_clause = f"page_number={type_number} and hafiz_id={auth}"
+            if status:
+                where_clause += f" and {status_filter}"
             item_length = len(hafizs_items(where=where_clause) or [])
 
         elif current_type in ("surah", "juz"):
@@ -2097,8 +2098,11 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 print(item_ids)
                 if len(item_ids) > 1:
                     item_id_list = ",".join(str(i["id"]) for i in item_ids)
-                    where_clause = f"item_id IN ({item_id_list}) and hafiz_id={auth} and {status_filter}"
+                    where_clause = f"item_id IN ({item_id_list}) and hafiz_id={auth}"
+                    if status:
+                        where_clause += f" and {status_filter}"
                     item_length = len(hafizs_items(where=where_clause) or [])
+
         show_customize_button = item_length > 1
         return Tr(
             Td(title),
@@ -2153,7 +2157,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    print("status", status)
+    # print("status", status)
 
     if status in ["memorized", "newly_memorized"]:
         status_condition = f" AND hafizs_items.status = '{status}'"
