@@ -2561,6 +2561,7 @@ async def update_status(
 ):
     form_data = await req.form()
     print(filter_status)
+    existing_status = filter_status
     ##
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
@@ -2571,14 +2572,13 @@ async def update_status(
         current_record = hafizs_items(
             where=f"item_id = {item_id} and hafiz_id = {auth}"
         )[0]
-        existing_status = current_record.status
         # update logic
         if existing_status == "memorized":
             set_status = None
         elif existing_status is None:
             set_status = "memorized"
         else:
-            set_status = existing_status
+            set_status = current_record.status
         current_record.status = set_status
         hafizs_items.update(current_record)
     query_string = f"?status={filter_status}&" if filter_status else ""
@@ -3393,7 +3393,8 @@ def group_by_type(data, current_type, feild=None):
         grouped[row[columns_map[current_type]]].append(
             row if feild is None else row[feild]
         )
-    return grouped
+    sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+    return sorted_grouped
 
 
 def get_last_memorized_item_id(auth):
