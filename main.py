@@ -800,7 +800,7 @@ def datewise_summary_table_view(auth):
     return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
-def render_checkbox(auth, item_id=None, page_id=None, label_text=None):
+def render_new_memorization_checkbox(auth, item_id=None, page_id=None, label_text=None):
     label = label_text or ""
 
     if page_id is not None:
@@ -878,7 +878,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(
-                render_checkbox(auth=auth, item_id=record["item_id"]),
+                render_new_memorization_checkbox(auth=auth, item_id=record["item_id"]),
             ),
         )
 
@@ -3441,9 +3441,9 @@ def render_row_based_on_type(
         link_text = "Set as Newly Memorized"
     item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
     if len(item_ids) == 1 and not row_link and current_type == "page":
-        link_content = render_checkbox(auth=auth, item_id=item_ids[0])
+        link_content = render_new_memorization_checkbox(auth=auth, item_id=item_ids[0])
     elif len(item_ids) > 1 and current_type == "page":
-        link_content = render_checkbox(auth=auth, page_id=type_number)
+        link_content = render_new_memorization_checkbox(auth=auth, page_id=type_number)
     else:
         link_content = A(
             link_text,
@@ -3564,13 +3564,13 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
         next_page_item_id, display_next = get_closest_unmemorized_item_id(
             auth, type_number
         )
-    checkbox = render_checkbox(auth=auth, item_id=type_number)
+    checkbox = render_new_memorization_checkbox(auth=auth, item_id=type_number)
     return Tr(
         Td(title),
         Td(details),
         Td(date_to_human_readable(revision_date)),
         Td(
-            render_checkbox(
+            render_new_memorization_checkbox(
                 auth=auth, item_id=next_page_item_id, label_text=display_next
             )
             if next_page_item_id
