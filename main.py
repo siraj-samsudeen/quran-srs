@@ -1102,6 +1102,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     current_date = get_current_date(auth)
     is_unmemorized = mode_ids == ["unmemorized"]
 
+    if route == "new_memorization":
+        mode_id = 2
+    elif route == "recent_review":
+        mode_id = 3
+    elif route == "watch_list":
+        mode_id = 4
+    else:
+        mode_id = 1
+
     def is_review_due(item: dict) -> bool:
         """Check if item is due for review today or overdue."""
         return day_diff(item["next_review"], current_date) >= 0
@@ -1197,7 +1206,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             rating_placeholder = [None]
 
         if route in ["recent_review", "watch_list"]:
-            mode_id = 3 if route == "recent_review" else 4
             record_btn = CheckboxX(
                 name=f"is_checked",
                 value="1",
@@ -1241,15 +1249,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
     if not body_rows:
         return None
-
-    if route == "new_memorization":
-        mode_id = 2
-    elif route == "recent_review":
-        mode_id = 3
-    elif route == "watch_list":
-        mode_id = 4
-    else:
-        mode_id = 1
 
     return Div(
         DivFullySpaced(
