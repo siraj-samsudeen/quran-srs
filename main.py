@@ -1291,10 +1291,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(
                     Th("Page", cls="min-w-24"),
                     Th("Surah", cls="min-w-24"),
-                    Th(
-                        "Set as Newly Memorized" if is_unmemorized else "Record",
-                        cls="min-w-24",
-                    ),
+                    Th(""),
                     Th("Rating", cls="min-w-24"),
                 )
             ),
