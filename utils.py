@@ -297,13 +297,7 @@ def set_zero_to_none(data):
 
 
 def format_number(num):
-    # Check if the number is effectively an integer (no meaningful decimal part)
-    if num % 1 == 0:
-        return int(num)
-
-    # Round to 1 decimal place
-    rounded = round(num, 1)
-    return rounded
+    return int(num) if num.is_integer() else round(num, 1)
 
 
 # This function is used to get the gaps in a list of numbers.
