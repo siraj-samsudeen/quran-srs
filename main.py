@@ -949,10 +949,17 @@ def index(auth):
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
     def get_count_of_mode(_mode_id, _revision_date):
-        return len(
-            revisions(
-                where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-            )
+        records = revisions(
+            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+        )
+        rev_ids = [str(r.id) for r in records]
+        count = len(records)
+
+        if count == 0:
+            return "-"
+
+        return A(
+            count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
         )
 
     def render_stat_rows(current_mode_id):
