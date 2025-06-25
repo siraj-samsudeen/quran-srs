@@ -2559,12 +2559,6 @@ def update_page_status(
                 mode_id=2,
             )
     referer = req.headers.get("referer", "/")
-    last_added_details = {
-        "status": filter_status,
-        "type": current_type,
-        "type_number": type_number,
-    }
-    sess["last_updated"] = last_added_details
     return RedirectResponse(referer, status_code=303)
 
 
@@ -2612,13 +2606,6 @@ async def update_page_status(
                 mode_id=2,
             )
 
-    last_added_details = {
-        "status": filter_status,
-        "type": current_type,
-        "type_number": type_number,
-    }
-    sess["last_updated"] = last_added_details
-    print(sess["last_updated"])
     query_string = f"?status={status}&" if status else "?"
     query_string += (
         f"title={title}&description={description}&filter_status={filter_status}"
