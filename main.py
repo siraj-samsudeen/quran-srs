@@ -2107,26 +2107,25 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             Td(title),
             Td(details[0]),
             Td(details[1]),
-            Td(
-                Form(
-                    # This hidden input is to send the id to the backend even if it is unchecked
-                    Hidden(name=f"{current_type}-{type_number}", value="0"),
-                    CheckboxX(
-                        name=f"{current_type}-{type_number}",
-                        value="1",
-                        cls="profile_rows",  # Alpine js reference
-                        _at_click="handleCheckboxClick($event)",
-                    ),
-                    hx_post=f"/update_checkbox/{current_type}/{type_number}/{status}",
-                    hx_trigger="click",
-                    onClick="return false",
-                    hx_select=f"#{current_type}-{type_number}",
-                    hx_target=f"#{current_type}-{type_number}",
-                    hx_swap="outerHTML",
-                    hx_select_oob="#stats_info",
-                )
-            ),
-            # Td(render_checkbox),
+            # Td(
+            #     Form(
+            #         # This hidden input is to send the id to the backend even if it is unchecked
+            #         Hidden(name=f"{current_type}-{type_number}", value="0"),
+            #         CheckboxX(
+            #             name=f"{current_type}-{type_number}",
+            #             value="1",
+            #             cls="profile_rows",  # Alpine js reference
+            #             _at_click="handleCheckboxClick($event)",
+            #         ),
+            #         hx_post=f"/update_checkbox/{current_type}/{type_number}/{status}",
+            #         hx_trigger="click",
+            #         onClick="return false",
+            #         hx_select=f"#{current_type}-{type_number}",
+            #         hx_target=f"#{current_type}-{type_number}",
+            #         hx_swap="outerHTML",
+            #         hx_select_oob="#stats_info",
+            #     )
+            # ),
             Td(
                 Form(
                     Hidden(name="filter_status", value=status),
@@ -2376,13 +2375,13 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                             Tr(
                                 Th(current_type.title()),
                                 *map(Th, details),
-                                Th(
-                                    CheckboxX(
-                                        cls="select_all",
-                                        x_model="selectAll",
-                                        _at_change="toggleAll()",
-                                    )
-                                ),
+                                # Th(
+                                #     CheckboxX(
+                                #         cls="select_all",
+                                #         x_model="selectAll",
+                                #         _at_change="toggleAll()",
+                                #     )
+                                # ),
                                 Th("Status"),
                                 Th(""),
                             )
