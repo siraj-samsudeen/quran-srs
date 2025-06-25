@@ -2341,23 +2341,12 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
     }
 
     details = type_details.get(current_type, ["", ""])
-    last_updated = sess.get("last_updated", {})
-    type_ = last_updated.get("type")
-    number = last_updated.get("type_number")
-
-    if type_ and number is not None:
-        locate = f"#{type_}-{number}"
-        url = f"/profile/{type_}{locate}"
-        resume = A("Resume ↩️", href=url, cls=ButtonT.text)
-    else:
-        resume = None
     return main_area(
         Div(
             progress_bar_with_stats,
             DividerLine(),
             DivFullySpaced(
                 filter_btns,
-                # resume,
             ),
             Div(
                 TabContainer(
