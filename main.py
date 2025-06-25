@@ -952,10 +952,17 @@ def index(auth):
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
     def get_count_of_mode(_mode_id, _revision_date):
-        return len(
-            revisions(
-                where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-            )
+        records = revisions(
+            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+        )
+        rev_ids = [str(r.id) for r in records]
+        count = len(records)
+
+        if count == 0:
+            return "-"
+
+        return A(
+            count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
         )
 
     def render_stat_rows(current_mode_id):
@@ -1125,7 +1132,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
             LEFT JOIN items on hafizs_items.item_id = items.id 
             WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
-            ORDER BY hafizs_items.mode_id DESC, hafizs_items.next_review ASC, hafizs_items.item_id ASC
+            ORDER BY hafizs_items.item_id ASC
         """
         ct = db.q(qry)
 
@@ -1156,14 +1163,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             current_rev_date = current_revision_data[0]
             current_rating = current_rev_date.rating
             rating_placeholder = [
-                A(
-                    render_rating(current_rating),
-                    href=f"/revision/edit/{current_rev_date.id}",
-                    cls=AT.classic,
+                rating_dropdown(
+                    default_mode=str(current_rating),
+                    is_label=False,
+                    cls="[&>div]:h-8 uk-form-sm w-28",
+                    hx_put=f"/revision/{current_rev_date.id}",
+                    hx_trigger="change",
+                    hx_swap="none",
+                    id=f"rev-{current_rev_date.id}",
                 ),
-                # This hidden value is need so that `checkbox_update_logic` function will work
-                # Which will lookup the and delete that particular revision data
-                Hidden(name="rating", value=current_rating, id=f"rating-{item_id}"),
             ]
         else:
             rating_placeholder = [None]
@@ -2087,6 +2095,11 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     return Redirect(
         f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
     )
+
+
+@app.put("/revision/{rev_id}")
+def update_revision_rating(rev_id: int, rating: int):
+    revisions.update({"rating": rating}, rev_id)
 
 
 # Bulk add
