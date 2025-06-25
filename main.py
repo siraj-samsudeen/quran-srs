@@ -2108,14 +2108,24 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             Td(details[0]),
             Td(details[1]),
             Td(
-                # This hidden input is to send the id to the backend even if it is unchecked
-                Hidden(name=f"{current_type}-{type_number}", value="0"),
-                CheckboxX(
-                    name=f"{current_type}-{type_number}",
-                    value="1",
-                    cls="profile_rows",  # Alpine js reference
-                    _at_click="handleCheckboxClick($event)",
-                ),
+                Form(
+                    # This hidden input is to send the id to the backend even if it is unchecked
+                    Hidden(name=f"{current_type}-{type_number}", value="0"),
+                    Hidden(
+                        name=f"existing_status-{current_type}-{type_number}",
+                        value=existing_status,
+                    ),
+                    CheckboxX(
+                        name=f"{current_type}-{type_number}",
+                        value="1",
+                        cls="profile_rows",  # Alpine js reference
+                        _at_click="handleCheckboxClick($event)",
+                    ),
+                    hx_post=f"/update_checkbox/{current_type}/{type_number}",
+                    hx_vals={"from_type": "checkbox"},
+                    hx_trigger="click",
+                    onClick="return false",
+                )
             ),
             # Td(render_checkbox),
             Td(
@@ -2543,6 +2553,25 @@ def resolve_update_data(current_item, selected_status):
     if selected_status == "newly_memorized":
         return {"status": selected_status, "mode_id": 2}
     return {"status": selected_status, "mode_id": 1}
+
+
+##
+@app.post("/update_checkbox/{current_type}/{type_number}")
+async def update_status(current_type: str, type_number: int, req: Request, auth):
+    form_data = await req.form()
+    existing_status = form_data.get(f"existing_status-{current_type}-{type_number}")
+    if existing_status == "memorized":
+        set_status = None
+    elif existing_status == "not_memorized":
+        set_status = "memorized"
+    else:
+        set_status = existing_status
+    current_record = hafizs_items(
+        where=f"page_number = {type_number} and hafiz_id = {auth}"
+    )[0]
+    current_record.status = set_status
+    hafizs_items.update(current_record)
+    return Redirect(f"/profile/{current_type}/#{current_type}-{type_number}")
 
 
 @app.post("/update_status/{current_type}/{type_number}")
