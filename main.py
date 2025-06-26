@@ -3059,7 +3059,7 @@ def update_page_status(
             revisions.insert(
                 hafiz_id=auth,
                 item_id=item_id,
-                revision_date=current_time("%Y-%m-%d"),
+                revision_date=get_current_date(auth),
                 rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
@@ -3106,7 +3106,7 @@ async def update_page_status(
             revisions.insert(
                 hafiz_id=auth,
                 item_id=item_id,
-                revision_date=current_time("%Y-%m-%d"),
+                revision_date=get_current_date(auth),
                 rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
