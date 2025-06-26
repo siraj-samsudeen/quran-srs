@@ -1174,8 +1174,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review,
             hafizs_items.mode_id, items.page_id AS page_number, items.surah_id FROM hafizs_items
             LEFT JOIN items on hafizs_items.item_id = items.id 
+            LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id
             WHERE hafizs_items.mode_id = 2 AND hafizs_items.hafiz_id = {auth}
-            ORDER BY hafizs_items.item_id ASC
+            ORDER BY revisions.id ASC
         """
         display_ct = db.q(display_qry)
         recent_items = list(
@@ -3015,7 +3016,6 @@ async def update_status(
     current_type: str, type_number: int, filter_status: str, req: Request, auth
 ):
     form_data = await req.form()
-    print(filter_status)
     existing_status = filter_status
     ##
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
