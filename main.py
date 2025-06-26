@@ -6,6 +6,7 @@ import pandas as pd
 from io import BytesIO
 from collections import defaultdict
 import time
+from datetime import datetime
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -4119,13 +4120,23 @@ def new_memorization(auth, current_type: str):
     #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
     #     )
     # )
+
+    # Sort grouped items by earliest revision_date in each list of records
+    sorted_grouped_items = sorted(
+        grouped.items(),
+        key=lambda item: max(
+            datetime.strptime(rec["revision_date"], "%Y-%m-%d") for rec in item[1]
+        ),
+        reverse=True,
+    )
+
     newly_memorized_rows = [
         render_recently_memorized_row(
             type_number,
             records,
             auth=auth,
         )
-        for type_number, records in grouped.items()
+        for type_number, records in sorted_grouped_items
         if type_number is not None
     ]
     recent_newly_memorized_table = Div(
