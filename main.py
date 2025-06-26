@@ -1239,23 +1239,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             record_btn = render_new_memorization_checkbox(
                 auth=auth, item_id=item_id, **hx_attrs
             )
-        elif route == "watch_list":
-            record_btn = Form(
-                Hidden(name="date", value=current_date),
-                CheckboxX(
-                    name=f"is_checked",
-                    value="1",
-                    hx_post=f"/home/watch_list/add/{item_id}",
-                    hx_vals={"date": current_date},
-                    hx_include=f"#rating-{item_id}",
-                    hx_select=f"#watch_list_row-{item_id}",
-                    hx_select_oob="#stat-row-4",
-                    hx_target=f"#watch_list_row-{item_id}",
-                    hx_swap="outerHTML",
-                    checked=(len(current_revision_data) != 0),
-                ),
-                cls="",
-            )
         else:
             # hx_attrs = {}
             return None
