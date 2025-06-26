@@ -1150,6 +1150,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         )
 
+    def has_newly_memorized_for_today(item: dict) -> bool:
+        """Check if item has newly memorized record for the current_date."""
+        newly_memorized_record = revisions(
+            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
+        )
+        return len(newly_memorized_record) == 1
+
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
         ### This is for display next new_memorization page
@@ -1171,7 +1178,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         display_ct = db.q(display_qry)
         recent_items = list(
-            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i))
+            dict.fromkeys(
+                i["item_id"] for i in display_ct if has_newly_memorized_for_today(i)
+            )
         )
 
     else:
@@ -1186,7 +1195,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         # Route-specific condition builders
         route_conditions = {
             "recent_review": lambda item: (
-                is_review_due(item)
+                (is_review_due(item) and not has_newly_memorized_for_today(item))
                 or (is_reviewed_today(item) and has_recent_mode_id(item))
             ),
             "watch_list": lambda item: (
@@ -1383,8 +1392,8 @@ def mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
@@ -1428,8 +1437,8 @@ def bulk_mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
