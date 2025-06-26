@@ -1133,6 +1133,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         )
 
+    def has_newly_memorized_for_today(item: dict) -> bool:
+        """Check if item has newly memorized record for the current_date."""
+        newly_memorized_record = revisions(
+            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
+        )
+        return len(newly_memorized_record) == 1
+
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
         ### This is for display next new_memorization page
@@ -1169,7 +1176,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         # Route-specific condition builders
         route_conditions = {
             "recent_review": lambda item: (
-                is_review_due(item)
+                (is_review_due(item) and not has_newly_memorized_for_today(item))
                 or (is_reviewed_today(item) and has_recent_mode_id(item))
             ),
             "watch_list": lambda item: (
