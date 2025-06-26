@@ -1228,6 +1228,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 hx_target=f"#{row_id}",
                 hx_swap="outerHTML",
                 checked=(len(current_revision_data) != 0),
+                cls=f"{route}_ids",
+                _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
             )
         elif route == "new_memorization":
             hx_attrs = {
@@ -1237,7 +1239,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 "hx_select_oob": "#stat-row-2, #total_row",
             }
             record_btn = render_new_memorization_checkbox(
-                auth=auth, item_id=item_id, **hx_attrs
+                auth=auth,
+                item_id=item_id,
+                input_cls=f"{route}_ids",
+                _at_click="handleCheckboxClick($event)",
+                **hx_attrs,
             )
         else:
             # hx_attrs = {}
@@ -1320,12 +1326,27 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(
                     Th("Page", cls="min-w-24"),
                     Th("Surah", cls="min-w-24"),
-                    Th(""),
+                    Th(
+                        CheckboxX(
+                            cls="select_all",
+                            x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                            _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                        )
+                        if not route == "new_memorization"
+                        else ""
+                    ),
                     Th("Rating", cls="min-w-24"),
                 )
             ),
             Tbody(*body_rows),
             id=f"{route}_summary_table",
+            # defining the reactive data for for component to reference (alpine.js)
+            x_data=select_all_with_shift_click_for_summary_table(
+                class_name=f"{route}_ids"
+            ),
+            # initializing the updateSelectAll function to select the selectAll checkboxe.
+            # if all the below checkboxes are selected.
+            x_init="updateSelectAll()",
         ),
     )
 
