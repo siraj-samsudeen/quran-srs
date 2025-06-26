@@ -1161,7 +1161,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         display_ct = db.q(display_qry)
         recent_items = list(
-            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i))
+            dict.fromkeys(
+                i["item_id"] for i in display_ct if has_newly_memorized_for_today(i)
+            )
         )
 
     else:
@@ -1354,8 +1356,8 @@ def mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
@@ -1399,8 +1401,8 @@ def bulk_mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
