@@ -3060,7 +3060,7 @@ def update_page_status(
                 hafiz_id=auth,
                 item_id=item_id,
                 revision_date=current_time("%Y-%m-%d"),
-                rating=0,
+                rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
     referer = req.headers.get("referer", "/")
@@ -3107,7 +3107,7 @@ async def update_page_status(
                 hafiz_id=auth,
                 item_id=item_id,
                 revision_date=current_time("%Y-%m-%d"),
-                rating=0,
+                rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
 
