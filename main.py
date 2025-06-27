@@ -224,6 +224,47 @@ def mode_dropdown(default_mode=1, **kwargs):
     )
 
 
+def rating_radio(
+    default_rating: int = 1,
+    direction: str = "vertical",
+    is_label: bool = True,
+    id: str = "rating",
+    cls: str = None,
+):
+
+    def render_radio(o):
+        value, label = o
+        is_checked = True if int(value) == default_rating else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id=id,
+                    value=value,
+                    checked=is_checked,
+                    autofocus=is_checked,
+                    cls=cls,
+                ),
+                Span(label),
+                cls="space-x-2 p-1 border border-transparent has-[:checked]:border-blue-500",
+            ),
+            cls=f"{"inline-block" if direction == "horizontal" else None}",
+        )
+
+    options = map(render_radio, RATING_MAP.items())
+
+    if direction == "horizontal":
+        outer_cls = (FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4")
+    elif direction == "vertical":
+        outer_cls = "space-y-2 leading-8 sm:leading-6"
+
+    if is_label:
+        label = FormLabel("Rating")
+    else:
+        label = None
+
+    return Div(label, *options, cls=outer_cls)
+
+
 def rating_dropdown(default_mode="1", is_label=True, **kwargs):
     def mk_options(o):
         id, name = o
@@ -1874,18 +1915,6 @@ def toggle_input_fields(*args, show_id_fields=False):
 
 
 def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
-    def RadioLabel(o):
-        value, label = o
-        is_checked = True if value == "1" else False
-        return Div(
-            FormLabel(
-                Radio(
-                    id="rating", value=value, checked=is_checked, autofocus=is_checked
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-        )
 
     def _option(obj):
         return Option(
@@ -1925,11 +1954,7 @@ def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
             if type == "add"
             else Grid(*additional_fields, cols=2)
         ),
-        Div(
-            FormLabel("Rating"),
-            *map(RadioLabel, RATING_MAP.items()),
-            cls="space-y-2 leading-8 sm:leading-6 ",
-        ),
+        rating_radio(),
         Div(
             Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=backlink),
@@ -1996,15 +2021,6 @@ def bulk_edit_view(ids: str, auth):
     def _render_row(id):
         current_revision = revisions[id]
 
-        def _render_radio(o):
-            value, label = o
-
-            is_checked = True if int(value) == current_revision.rating else False
-            return FormLabel(
-                Radio(name=f"rating-{id}", value=value, checked=is_checked),
-                Span(label),
-                cls="space-x-2",
-            )
 
         item_details = items[current_revision.item_id]
         return Tr(
@@ -2025,10 +2041,7 @@ def bulk_edit_view(ids: str, auth):
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
             Td(
-                Div(
-                    *map(_render_radio, RATING_MAP.items()),
-                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
-                )
+                rating_radio(default_rating=current_revision.rating, direction="horizontal", id=f"rating-{id}")
             ),
         )
 
@@ -2267,20 +2280,6 @@ def get(
         if isinstance(current_item_id, str):
             return Tr(Td(P(current_item_id), colspan="5", cls="text-center"))
 
-        def _render_radio(o):
-            value, label = o
-            is_checked = True if value == "1" else False
-            return FormLabel(
-                Radio(
-                    id=f"rating-{current_item_id}",
-                    value=value,
-                    checked=is_checked,
-                    cls="toggleable-radio",
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-
         current_page_details = items[current_item_id]
         return Tr(
             Td(
@@ -2295,9 +2294,10 @@ def get(
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
-                Div(
-                    *map(_render_radio, RATING_MAP.items()),
-                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                rating_radio(
+                    direction="horizontal",
+                    id=f"rating-{current_item_id}",
+                    cls="toggleable-radio",
                 ),
                 cls="!pr-0",
             ),
@@ -3574,19 +3574,6 @@ def watch_list_form(item_id: int, min_date: str, _type: str, auth):
     page = items[item_id].page_id
     current_date = get_current_date(auth)
 
-    def RadioLabel(o):
-        value, label = o
-        is_checked = True if value == "1" else False
-        return Div(
-            FormLabel(
-                Radio(
-                    id="rating", value=value, checked=is_checked, autofocus=is_checked
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-        )
-
     return Container(
         H1(f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}"),
         Form(
@@ -3602,11 +3589,7 @@ def watch_list_form(item_id: int, min_date: str, _type: str, auth):
             Hidden(name="page_no", value=page),
             Hidden(name="mode_id", value=4),
             Hidden(name="item_id", value=item_id),
-            Div(
-                FormLabel("Rating"),
-                *map(RadioLabel, RATING_MAP.items()),
-                cls="space-y-2 leading-8 sm:leading-6 ",
-            ),
+            rating_radio(),
             Div(
                 Button("Save", cls=ButtonT.primary),
                 (
@@ -4287,18 +4270,6 @@ def filtered_table_for_new_memorization_modal(
 def create_new_memorization_revision_form(
     current_type: str, title: str, description: str, current_date: str
 ):
-    def RadioLabel(o):
-        value, label = o
-        is_checked = True if value == "1" else False
-        return Div(
-            FormLabel(
-                Radio(
-                    id="rating", value=value, checked=is_checked, autofocus=is_checked
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-        )
 
     return Div(
         Form(
@@ -4311,11 +4282,7 @@ def create_new_memorization_revision_form(
             Input(name="page_no", type="hidden"),
             Input(name="mode_id", type="hidden"),
             Input(name="item_id", type="hidden"),
-            Div(
-                FormLabel("Rating"),
-                *map(RadioLabel, RATING_MAP.items()),
-                cls="space-y-2 leading-8 sm:leading-6 ",
-            ),
+            rating_radio(),
             Div(
                 Button("Save", cls=ButtonT.primary),
                 # A(
@@ -4414,19 +4381,6 @@ def get(
 
     def _render_row(item_id):
 
-        def _render_radio(o):
-            value, label = o
-            is_checked = True if value == "1" else False
-            return FormLabel(
-                Radio(
-                    id=f"rating-{item_id}",
-                    value=value,
-                    checked=is_checked,
-                    cls="toggleable-radio",
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
 
         current_page_details = items[item_id]
         return Tr(
@@ -4443,9 +4397,10 @@ def get(
             Td(current_page_details.part),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
-                Div(
-                    *map(_render_radio, RATING_MAP.items()),
-                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                rating_radio(
+                    direction="horizontal",
+                    id=f"rating-{item_id}",
+                    cls="toggleable-radio",
                 )
             ),
         )
