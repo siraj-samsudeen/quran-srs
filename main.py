@@ -910,20 +910,23 @@ def index(auth):
     else:
         description = None
 
-    overall_table = Div(
-        H4(modes[1].name),
-        description,
-        Table(
-            Thead(
-                Tr(
-                    # Th("Plan Id"),
-                    Th("Next"),
-                    Th("Entry"),
-                )
+    overall_table = AccordionItem(
+        Span(modes[1].name),
+        Div(
+            description,
+            Table(
+                Thead(
+                    Tr(
+                        # Th("Plan Id"),
+                        Th("Next"),
+                        Th("Entry"),
+                    )
+                ),
+                Tbody(*map(render_overall_row, items_gaps_with_limit)),
             ),
-            Tbody(*map(render_overall_row, items_gaps_with_limit)),
+            cls="uk-overflow-auto",
         ),
-        cls="uk-overflow-auto",
+        open=True,
     )
 
     recent_review_table = make_summary_table(
@@ -1045,7 +1048,7 @@ def index(auth):
     )
 
     return main_area(
-        Div(stat_table, Divider(), *insert_between(tables, Divider())),
+        Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
         Div(modal),
         active="Home",
         auth=auth,
@@ -1207,6 +1210,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         recent_items = list(
             dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
         )
+    # This list is to close the accordian, if all the checkboxes are selected
+    is_all_selected = []
 
     def render_range_row(item_id: str):
         row_id = f"{route}_row-{item_id}"
@@ -1217,6 +1222,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
         if route in ["recent_review", "watch_list"]:
+            is_checked = len(current_revision_data) != 0
+            is_all_selected.append(is_checked)
+
             record_btn = CheckboxX(
                 name=f"is_checked",
                 value="1",
@@ -1227,7 +1235,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 hx_select_oob=f"#stat-row-{mode_id}, #total_row",
                 hx_target=f"#{row_id}",
                 hx_swap="outerHTML",
-                checked=(len(current_revision_data) != 0),
+                checked=is_checked,
                 cls=f"{route}_ids",
                 _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
             )
@@ -1311,43 +1319,53 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     if not body_rows:
         return None
 
-    return Div(
-        DivFullySpaced(
-            H4(modes[mode_id].name),
-            A(
-                "Record",
-                href=f"/{route}",
-                hx_boost="false",
-                cls=(AT.classic, TextPresets.bold_sm),
+    # This is to check whether to open or close the accordion
+    if (not all(is_all_selected)) or route == "new_memorization":
+        is_accordion_open = True
+    else:
+        is_accordion_open = False
+
+    return AccordionItem(
+        Span(modes[mode_id].name),
+        Div(
+            Div(
+                A(
+                    "Record",
+                    href=f"/{route}",
+                    hx_boost="false",
+                    cls=(AT.classic, TextPresets.bold_sm, "float-right"),
+                ),
+                cls="w-full",
+            ),
+            Table(
+                Thead(
+                    Tr(
+                        Th("Page", cls="min-w-24"),
+                        Th("Surah", cls="min-w-24"),
+                        Th(
+                            CheckboxX(
+                                cls="select_all",
+                                x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                                _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                            )
+                            if not route == "new_memorization"
+                            else ""
+                        ),
+                        Th("Rating", cls="min-w-24"),
+                    )
+                ),
+                Tbody(*body_rows),
+                id=f"{route}_summary_table",
+                # defining the reactive data for for component to reference (alpine.js)
+                x_data=select_all_with_shift_click_for_summary_table(
+                    class_name=f"{route}_ids"
+                ),
+                # initializing the updateSelectAll function to select the selectAll checkboxe.
+                # if all the below checkboxes are selected.
+                x_init="updateSelectAll()",
             ),
         ),
-        Table(
-            Thead(
-                Tr(
-                    Th("Page", cls="min-w-24"),
-                    Th("Surah", cls="min-w-24"),
-                    Th(
-                        CheckboxX(
-                            cls="select_all",
-                            x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                            _at_change="toggleAll()",  # based on that update the status of all the checkboxes
-                        )
-                        if not route == "new_memorization"
-                        else ""
-                    ),
-                    Th("Rating", cls="min-w-24"),
-                )
-            ),
-            Tbody(*body_rows),
-            id=f"{route}_summary_table",
-            # defining the reactive data for for component to reference (alpine.js)
-            x_data=select_all_with_shift_click_for_summary_table(
-                class_name=f"{route}_ids"
-            ),
-            # initializing the updateSelectAll function to select the selectAll checkboxe.
-            # if all the below checkboxes are selected.
-            x_init="updateSelectAll()",
-        ),
+        open=is_accordion_open,
     )
 
 
