@@ -1174,8 +1174,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
     def get_items_for_page(page_id):
         """Get items for a specific page."""
-        result = items(where=f"page_id = {page_id} AND active != 0")
-        return [i.id for i in result]
+        result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
+        return [i.item_id for i in result]
 
     def get_first_unmemorized_page_items(auth):
         """Get items for the first unmemorized page."""
