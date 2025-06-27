@@ -2401,6 +2401,7 @@ def get(
             action_buttons,
             action="/revision/bulk_add",
             method="POST",
+            onkeydown="if(event.key === 'Enter') event.preventDefault();"
         ),
         Script(src="/public/script.js"),
         active="Home",
