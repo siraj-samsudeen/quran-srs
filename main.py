@@ -1349,7 +1349,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         return None
 
     # This is to check whether to open or close the accordion
-    if (not all(is_all_selected)) or route == "new_memorization":
+    if not all(is_all_selected):
         is_accordion_open = True
     else:
         is_accordion_open = False
@@ -1377,8 +1377,6 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
                                 _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                             )
-                            if not route == "new_memorization"
-                            else ""
                         ),
                         Th("Rating", cls="min-w-24"),
                     )
@@ -2448,7 +2446,7 @@ def get(
             action_buttons,
             action="/revision/bulk_add",
             method="POST",
-            onkeydown="if(event.key === 'Enter') event.preventDefault();"
+            onkeydown="if(event.key === 'Enter') event.preventDefault();",
         ),
         Script(src="/public/script.js"),
         active="Home",
