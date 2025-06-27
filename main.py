@@ -4647,6 +4647,8 @@ def page_details_view(auth):
                 Th("Details"),
                 *map(Th, mode_name_list),
                 Th("Rating Summary"),
+                Th(""),
+                cls="sticky top-16 z-25 bg-white",
             )
         ),
         Tbody(*rows),
