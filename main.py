@@ -6,6 +6,7 @@ import pandas as pd
 from io import BytesIO
 from collections import defaultdict
 import time
+from datetime import datetime
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -1122,7 +1123,6 @@ def render_new_memorization_checkbox(
 
 def make_summary_table(mode_ids: list[str], route: str, auth: str):
     current_date = get_current_date(auth)
-    is_unmemorized = mode_ids == ["unmemorized"]
 
     if route == "new_memorization":
         mode_id = 2
@@ -1160,31 +1160,58 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
         return len(newly_memorized_record) == 1
 
-    if is_unmemorized:
-        last_mem_id = get_last_memorized_item_id(auth)
-        ### This is for display next new_memorization page
+    def get_today_memorized_page(auth, current_date):
+        """Get the page number of the last newly memorized item for today."""
         qry = f"""
-            SELECT items.id AS item_id, items.surah_id, items.page_id AS page_number, items.surah_name FROM items
+            SELECT items.page_id AS page_number
+            FROM revisions
+            JOIN items ON revisions.item_id = items.id
+            WHERE revisions.hafiz_id = {auth}
+            AND revisions.mode_id = 2
+            AND revisions.revision_date = '{current_date}'
+            ORDER BY revisions.revision_date DESC;
+        """
+        result = db.q(qry)
+        today_page_id = result[0]["page_number"] if result else None
+        return today_page_id
+
+    def get_items_for_page(page_id):
+        """Get items for a specific page."""
+        result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
+        return [i.item_id for i in result]
+
+    def get_first_unmemorized_page_items(auth):
+        """Get items for the first unmemorized page."""
+        last_mem_id = get_last_memorized_item_id(auth)
+        qry = f"""
+            SELECT items.id AS item_id, items.page_id AS page_number
+            FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id}
-            ORDER BY items.id ASC;
-        """
+            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id} 
+       """
         ct = db.q(qry)
-        newly_memorized_items = list(dict.fromkeys(i["item_id"] for i in ct if i))
-        ### This is for display previously updated newly_memorized pages
-        display_qry = f"""
-            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review,
-            hafizs_items.mode_id, items.page_id AS page_number, items.surah_id FROM hafizs_items
-            LEFT JOIN items on hafizs_items.item_id = items.id 
-            WHERE hafizs_items.mode_id = 2 AND hafizs_items.hafiz_id = {auth}
-            ORDER BY hafizs_items.item_id ASC
-        """
-        display_ct = db.q(display_qry)
-        recent_items = list(
-            dict.fromkeys(
-                i["item_id"] for i in display_ct if has_newly_memorized_for_today(i)
-            )
-        )
+        grouped = group_by_type(ct, "page")
+        if not grouped:
+            return []
+        first_page = next(iter(grouped))
+        unmemorized_items = [i["item_id"] for i in grouped[first_page] if i]
+        return unmemorized_items
+
+    def get_display_today_memorized_items():
+        """Get today's newly_memorized items."""
+        result = revisions(where=f"mode_id = 2 AND revision_date = '{current_date}'")
+        return [i.item_id for i in result]
+
+    is_unmemorized = mode_ids == ["unmemorized"]
+
+    if is_unmemorized:
+        today_page_id = get_today_memorized_page(auth, current_date)
+        if today_page_id:
+            unmemorized_items = get_items_for_page(today_page_id)
+        else:
+            # If no memorized items for today, get next closest unmemorized items to display
+            unmemorized_items = get_first_unmemorized_page_items(auth)
+        recent_newly_memorized_items = get_display_today_memorized_items()
 
     else:
         qry = f"""
@@ -1311,8 +1338,10 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
     if is_unmemorized:
-        body_rows = list(map(render_range_row, recent_items))
-        body_rows += list(map(render_range_row, newly_memorized_items[:1]))
+        new_memorization_items = sorted(
+            set(unmemorized_items + recent_newly_memorized_items)
+        )
+        body_rows = list(map(render_range_row, new_memorization_items))
     else:
         body_rows = list(map(render_range_row, recent_items))
 
@@ -3037,7 +3066,6 @@ async def update_status(
     current_type: str, type_number: int, filter_status: str, req: Request, auth
 ):
     form_data = await req.form()
-    print(filter_status)
     existing_status = filter_status
     ##
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
@@ -4142,13 +4170,23 @@ def new_memorization(auth, current_type: str):
     #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
     #     )
     # )
+
+    # Sort grouped items by earliest revision_date in each list of records
+    sorted_grouped_items = sorted(
+        grouped.items(),
+        key=lambda item: max(
+            datetime.strptime(rec["revision_date"], "%Y-%m-%d") for rec in item[1]
+        ),
+        reverse=True,
+    )
+
     newly_memorized_rows = [
         render_recently_memorized_row(
             type_number,
             records,
             auth=auth,
         )
-        for type_number, records in grouped.items()
+        for type_number, records in sorted_grouped_items
         if type_number is not None
     ]
     recent_newly_memorized_table = Div(
