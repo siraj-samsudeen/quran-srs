@@ -4173,7 +4173,7 @@ def new_memorization(auth, current_type: str):
     sorted_grouped_items = sorted(
         grouped.items(),
         key=lambda item: max(
-            datetime.strptime(rec["revision_date"], "%Y-%m-%d") for rec in item[1]
+            (datetime.strptime(rec["revision_date"], "%Y-%m-%d"), rec["revision_id"]) for rec in item[1] 
         ),
         reverse=True,
     )
