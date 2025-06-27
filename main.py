@@ -2048,7 +2048,6 @@ def bulk_edit_view(ids: str, auth):
     def _render_row(id):
         current_revision = revisions[id]
 
-
         item_details = items[current_revision.item_id]
         return Tr(
             Td(
@@ -2068,7 +2067,12 @@ def bulk_edit_view(ids: str, auth):
             Td(P(current_revision.mode_id)),
             Td(P(current_revision.plan_id)),
             Td(
-                rating_radio(default_rating=current_revision.rating, direction="horizontal", id=f"rating-{id}")
+                rating_radio(
+                    default_rating=current_revision.rating,
+                    direction="horizontal",
+                    is_label=False,
+                    id=f"rating-{id}",
+                )
             ),
         )
 
@@ -2323,6 +2327,7 @@ def get(
             Td(
                 rating_radio(
                     direction="horizontal",
+                    is_label=False,
                     id=f"rating-{current_item_id}",
                     cls="toggleable-radio",
                 ),
@@ -4156,7 +4161,8 @@ def new_memorization(auth, current_type: str):
     sorted_grouped_items = sorted(
         grouped.items(),
         key=lambda item: max(
-            (datetime.strptime(rec["revision_date"], "%Y-%m-%d"), rec["revision_id"]) for rec in item[1] 
+            (datetime.strptime(rec["revision_date"], "%Y-%m-%d"), rec["revision_id"])
+            for rec in item[1]
         ),
         reverse=True,
     )
@@ -4416,7 +4422,6 @@ def get(
         revision_date = get_current_date(auth)
 
     def _render_row(item_id):
-
 
         current_page_details = items[item_id]
         return Tr(
