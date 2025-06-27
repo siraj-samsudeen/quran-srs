@@ -1150,6 +1150,13 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             )
         )
 
+    def has_newly_memorized_for_today(item: dict) -> bool:
+        """Check if item has newly memorized record for the current_date."""
+        newly_memorized_record = revisions(
+            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
+        )
+        return len(newly_memorized_record) == 1
+
     if is_unmemorized:
         last_mem_id = get_last_memorized_item_id(auth)
         ### This is for display next new_memorization page
@@ -1171,7 +1178,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         """
         display_ct = db.q(display_qry)
         recent_items = list(
-            dict.fromkeys(i["item_id"] for i in display_ct if is_reviewed_today(i))
+            dict.fromkeys(
+                i["item_id"] for i in display_ct if has_newly_memorized_for_today(i)
+            )
         )
 
     else:
@@ -1186,7 +1195,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         # Route-specific condition builders
         route_conditions = {
             "recent_review": lambda item: (
-                is_review_due(item)
+                (is_review_due(item) and not has_newly_memorized_for_today(item))
                 or (is_reviewed_today(item) and has_recent_mode_id(item))
             ),
             "watch_list": lambda item: (
@@ -1219,6 +1228,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 hx_target=f"#{row_id}",
                 hx_swap="outerHTML",
                 checked=(len(current_revision_data) != 0),
+                cls=f"{route}_ids",
+                _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
             )
         elif route == "new_memorization":
             hx_attrs = {
@@ -1228,24 +1239,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 "hx_select_oob": "#stat-row-2, #total_row",
             }
             record_btn = render_new_memorization_checkbox(
-                auth=auth, item_id=item_id, **hx_attrs
-            )
-        elif route == "watch_list":
-            record_btn = Form(
-                Hidden(name="date", value=current_date),
-                CheckboxX(
-                    name=f"is_checked",
-                    value="1",
-                    hx_post=f"/home/watch_list/add/{item_id}",
-                    hx_vals={"date": current_date},
-                    hx_include=f"#rating-{item_id}",
-                    hx_select=f"#watch_list_row-{item_id}",
-                    hx_select_oob="#stat-row-4",
-                    hx_target=f"#watch_list_row-{item_id}",
-                    hx_swap="outerHTML",
-                    checked=(len(current_revision_data) != 0),
-                ),
-                cls="",
+                auth=auth,
+                item_id=item_id,
+                input_cls=f"{route}_ids",
+                _at_click="handleCheckboxClick($event)",
+                **hx_attrs,
             )
         else:
             # hx_attrs = {}
@@ -1328,12 +1326,27 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Tr(
                     Th("Page", cls="min-w-24"),
                     Th("Surah", cls="min-w-24"),
-                    Th(""),
+                    Th(
+                        CheckboxX(
+                            cls="select_all",
+                            x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                            _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                        )
+                        if not route == "new_memorization"
+                        else ""
+                    ),
                     Th("Rating", cls="min-w-24"),
                 )
             ),
             Tbody(*body_rows),
             id=f"{route}_summary_table",
+            # defining the reactive data for for component to reference (alpine.js)
+            x_data=select_all_with_shift_click_for_summary_table(
+                class_name=f"{route}_ids"
+            ),
+            # initializing the updateSelectAll function to select the selectAll checkboxe.
+            # if all the below checkboxes are selected.
+            x_init="updateSelectAll()",
         ),
     )
 
@@ -1383,8 +1396,8 @@ def mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
@@ -1428,8 +1441,8 @@ def bulk_mark_as_new_memorized(
             {
                 "status": "newly_memorized",
                 "mode_id": 2,
-                "last_review": current_date,
-                "next_review": add_days_to_date(current_date, 1),
+                # "last_review": current_date,
+                # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
@@ -2388,6 +2401,7 @@ def get(
             action_buttons,
             action="/revision/bulk_add",
             method="POST",
+            onkeydown="if(event.key === 'Enter') event.preventDefault();"
         ),
         Script(src="/public/script.js"),
         active="Home",
@@ -3059,8 +3073,8 @@ def update_page_status(
             revisions.insert(
                 hafiz_id=auth,
                 item_id=item_id,
-                revision_date=current_time("%Y-%m-%d"),
-                rating=0,
+                revision_date=get_current_date(auth),
+                rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
     referer = req.headers.get("referer", "/")
@@ -3106,8 +3120,8 @@ async def update_page_status(
             revisions.insert(
                 hafiz_id=auth,
                 item_id=item_id,
-                revision_date=current_time("%Y-%m-%d"),
-                rating=0,
+                revision_date=get_current_date(auth),
+                rating=DEFAULT_RATINGS.get("new_memorization"),
                 mode_id=2,
             )
 

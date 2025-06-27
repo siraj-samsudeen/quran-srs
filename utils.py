@@ -38,6 +38,50 @@ def find_next_greater(arr, target):
     return None
 
 
+def select_all_with_shift_click_for_summary_table(class_name):
+    template = """
+        {
+        selectAll: false,
+        updateSelectAll() {
+            const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+        },
+        toggleAll() {
+          $el.querySelectorAll('.CLASS_NAME_PLACEHOLDER').forEach(cb =>  {
+            cb.checked = this.selectAll;
+            // Trigger change event for each checkbox
+            const event = new Event('change', {
+                bubbles: true, 
+                cancelable: true
+            });
+            cb.dispatchEvent(event);
+        });
+        },
+        handleCheckboxClick(e) {
+            // Handle shift+click selection
+            if (e.shiftKey) {
+                const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
+                const currentCheckboxIndex = checkboxes.indexOf(e.target);
+                
+                // loop through the checkboxes backwards untll we find one that is checked
+                for (let i = currentCheckboxIndex; i >= 0; i--) {
+                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
+                    checkboxes[i].checked = true;
+                     // Trigger change event for each modified checkbox
+                    const event = new Event('change', {
+                        bubbles: true, 
+                        cancelable: true
+                    });
+                    checkboxes[i].dispatchEvent(event);
+                }
+            }
+            this.updateSelectAll();
+        },
+        }
+    """
+    return template.replace("CLASS_NAME_PLACEHOLDER", class_name)
+
+
 def select_all_checkbox_x_data(class_name, is_select_all="true"):
     template = """
         { 
