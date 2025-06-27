@@ -1248,9 +1248,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({mode_filter});"
         )
 
+        is_checked = len(current_revision_data) != 0
+        is_all_selected.append(is_checked)
         if route in ["recent_review", "watch_list"]:
-            is_checked = len(current_revision_data) != 0
-            is_all_selected.append(is_checked)
 
             record_btn = CheckboxX(
                 name=f"is_checked",
