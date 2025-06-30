@@ -221,6 +221,22 @@ def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
 
+def render_type_description(list, _type=""):
+    first_description = list[0]
+    last_description = list[-1]
+
+    if _type == "Surah":
+        _type = ""
+        first_description = surahs[first_description].name
+        last_description = surahs[last_description].name
+
+    if len(list) == 1:
+        return f"{_type} {first_description}"
+    return (
+        f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
+    )
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -2567,22 +2583,9 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         _pages = sorted([r["page_number"] for r in records])
         _juzs = sorted({r["juz_number"] for r in records})
 
-        def render_range(list, _type=""):
-            first_description = list[0]
-            last_description = list[-1]
-
-            if _type == "Surah":
-                _type = ""
-                first_description = surahs[first_description].name
-                last_description = surahs[last_description].name
-
-            if len(list) == 1:
-                return f"{_type} {first_description}"
-            return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
-
-        surah_range = render_range(_surahs, "Surah")
-        page_range = render_range(_pages, "Page")
-        juz_range = render_range(_juzs, "Juz")
+        surah_range = render_type_description(_surahs, "Surah")
+        page_range = render_type_description(_pages, "Page")
+        juz_range = render_type_description(_juzs, "Juz")
 
         if current_type == "juz":
             details = [surah_range, page_range]
@@ -4004,64 +4007,6 @@ def format_output(groups: list):
     return formatted
 
 
-def render_recently_memorized_row(type_number: str, records: list, auth):
-    _surahs = sorted({r["surah_id"] for r in records})
-    _juzs = sorted({r["juz_number"] for r in records})
-
-    def render_range(list, _type=""):
-        first_description = list[0]
-        last_description = list[-1]
-
-        if _type == "Surah":
-            _type = ""
-            first_description = surahs[first_description].name
-            last_description = surahs[last_description].name
-
-        if len(list) == 1:
-            return f"{_type} {first_description}"
-        return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
-
-    title = f"Page {records[0]['page_number']}"
-    details = f"Juz {render_range(_juzs)} | {render_range(_surahs, 'Surah')}"
-    revision_date = records[0]["revision_date"]
-
-    next_page_item_id, display_next = (0, "")
-    if type_number:
-        next_page_item_id, display_next = get_closest_unmemorized_item_id(
-            auth, type_number
-        )
-    checkbox = render_new_memorization_checkbox(auth=auth, item_id=type_number)
-    render_attrs = {
-        "hx_select": f"#recently_memorized_table",
-        "hx_target": f"#recently_memorized_table",
-        "hx_swap": "outerHTML",
-        "hx_select_oob": "#new_memorization_table",
-    }
-    return Tr(
-        Td(title),
-        Td(details),
-        Td(date_to_human_readable(revision_date)),
-        Td(
-            render_new_memorization_checkbox(
-                auth=auth,
-                item_id=next_page_item_id,
-                label_text=display_next,
-                **render_attrs,
-            )
-            if next_page_item_id
-            else checkbox
-        ),
-        Td(
-            A(
-                "Delete",
-                hx_delete=f"/markas/new_memorization/{type_number}",
-                hx_confirm="Are you sure? This page might be available in other modes.",
-            ),
-            cls=AT.muted,
-        ),
-    )
-
-
 @app.delete("/markas/new_memorization/{item_id}")
 def delete(auth, request, item_id: str):
     qry = f"item_id = {item_id} AND mode_id = 2;"
@@ -4141,6 +4086,50 @@ def new_memorization(auth, current_type: str):
         ),
         reverse=True,
     )
+
+    def render_recently_memorized_row(item_id: str, records: list, auth):
+        _surahs = sorted({r["surah_id"] for r in records})
+        _juzs = sorted({r["juz_number"] for r in records})
+
+        title = f"Page {records[0]['page_number']}"
+        details = f"Juz {render_type_description(_juzs)} | {render_type_description(_surahs, 'Surah')}"
+        revision_date = records[0]["revision_date"]
+
+        next_page_item_id, display_next = (0, "")
+        if item_id:
+            next_page_item_id, display_next = get_closest_unmemorized_item_id(
+                auth, item_id
+            )
+        checkbox = render_new_memorization_checkbox(auth=auth, item_id=item_id)
+        render_attrs = {
+            "hx_select": f"#recently_memorized_table",
+            "hx_target": f"#recently_memorized_table",
+            "hx_swap": "outerHTML",
+            "hx_select_oob": "#new_memorization_table",
+        }
+        return Tr(
+            Td(title),
+            Td(details),
+            Td(date_to_human_readable(revision_date)),
+            Td(
+                render_new_memorization_checkbox(
+                    auth=auth,
+                    item_id=next_page_item_id,
+                    label_text=display_next,
+                    **render_attrs,
+                )
+                if next_page_item_id
+                else checkbox
+            ),
+            Td(
+                A(
+                    "Delete",
+                    hx_delete=f"/markas/new_memorization/{item_id}",
+                    hx_confirm="Are you sure? This page might be available in other modes.",
+                ),
+                cls=AT.muted,
+            ),
+        )
 
     newly_memorized_rows = [
         render_recently_memorized_row(
@@ -4228,14 +4217,6 @@ def filtered_table_for_new_memorization_modal(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            # Td(
-            #     A(
-            #         f"Set as Newly Memorized",
-            #         hx_post=f"/markas/new_memorization/{record['id']}",
-            #         cls=(AT.classic),
-            #     ),
-            #     cls="text-right",
-            # ),
         )
 
     table = Div(
