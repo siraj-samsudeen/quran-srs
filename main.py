@@ -183,6 +183,17 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
+def get_page_description(item_id):
+    item_description = items[item_id].description
+    if not item_description:
+        return Span(
+            Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+            " - ",
+            Span(get_surah_name(item_id=item_id)),
+        )
+    return Span(item_description)
+
+
 def get_last_item_id():
     return items(where="active = 1", order_by="id DESC")[0].id
 
@@ -875,19 +886,13 @@ def index(auth):
         # So we are handling them here by setting the upper limit based on the items
         upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-        def render_page(item_id):
-            return Span(
-                Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-                f" - {get_surah_name(item_id=item_id)}",
-            )
-
         next_item_id = find_next_item_id(last_added_item_id)
 
         if next_item_id is None:
             next_page = "No further page"
             action_buttons = None
         else:
-            next_page = render_page(next_item_id)
+            next_page = get_page_description(next_item_id)
             action_buttons = DivLAligned(
                 Button(
                     "Bulk",
@@ -1274,6 +1279,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
+    show_progress = mode_id in (3, 4)
 
     def render_range_row(item_id: str):
         row_id = f"{route}_row-{item_id}"
@@ -1358,10 +1364,17 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
-
+        page_title = get_page_description(item_id)
+        # Include progress in title for daily and weekly reps only
+        if show_progress:
+            revs = revisions(
+                where=f"item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}"
+            )
+            progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
-            Td(get_page_number(item_id)),
-            Td(get_surah_name(item_id=item_id)),
+            Td(page_title),
+            Td(progress) if show_progress else None,
+            # Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
             Td(
                 Div(
@@ -1405,7 +1418,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
-                        Th("Surah", cls="min-w-24"),
+                        Th("Day") if show_progress else None,
+                        # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
                                 cls="select_all",
@@ -1681,8 +1695,11 @@ def get_column_and_its_type(table):
 async def update_record(table: str, record_id: int, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
-    # remove the key if the value is empty
-    current_data = {key: value for key, value in current_data.items() if value != ""}
+    # replace the value to none in order to set it as unset if the value is empty
+    current_data = {
+        key: (value if value != "" else None) for key, value in current_data.items()
+    }
+
     tables[table].update(current_data, record_id)
 
     return Redirect(f"/tables/{table}")
