@@ -186,12 +186,12 @@ def get_page_number(item_id):
 def get_page_description(item_id):
     item_description = items[item_id].description
     if not item_description:
-        return P(
+        return Span(
             Span(get_page_number(item_id), cls=TextPresets.bold_sm),
             " - ",
             Span(get_surah_name(item_id=item_id)),
         )
-    return P(item_description)
+    return Span(item_description)
 
 
 def get_last_item_id():
@@ -1279,6 +1279,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
+    show_progress = mode_id in (3, 4)
 
     def render_range_row(item_id: str):
         row_id = f"{route}_row-{item_id}"
@@ -1363,9 +1364,16 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
-
+        page_title = get_page_description(item_id)
+        # Include progress in title for daily and weekly reps only
+        if show_progress:
+            revs = revisions(
+                where=f"item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}"
+            )
+            progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
-            Td(get_page_description(item_id)),
+            Td(page_title),
+            Td(progress) if show_progress else None,
             # Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
             Td(
@@ -1410,6 +1418,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
+                        Th("Day") if show_progress else None,
                         # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
