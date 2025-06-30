@@ -238,13 +238,7 @@ def rating_radio(
         is_checked = True if int(value) == default_rating else False
         return Div(
             FormLabel(
-                Radio(
-                    id=id,
-                    value=value,
-                    checked=is_checked,
-                    autofocus=is_checked,
-                    cls=cls,
-                ),
+                Radio(id=id, value=value, checked=is_checked, cls=cls),
                 Span(label),
                 cls="space-x-2 p-1 border border-transparent has-[:checked]:border-blue-500",
             ),
