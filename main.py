@@ -3806,29 +3806,30 @@ def get_last_memorized_item_id(auth):
 
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     not_memorized = filter_query_records(auth)
-    not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
+    grouped_by_item_id = group_by_type(not_memorized, "id")
+    not_memorized_item_ids = list(grouped_by_item_id.keys())
 
-    def get_continue_page(not_memorized_item_ids, last_newly_memorized_item_id):
+    def get_next_item_id(not_memorized_item_ids, last_newly_memorized_item_id):
         sorted_item_ids = sorted(not_memorized_item_ids)
         for item_id in sorted_item_ids:
             if item_id > last_newly_memorized_item_id:
                 return item_id
         return None
 
-    continue_page = get_continue_page(
+    # next_item_id represent the next closest unmemorized item_id
+    next_item_id = get_next_item_id(
         not_memorized_item_ids, last_newly_memorized_item_id
     )
-    next = group_by_type(not_memorized, "id")[continue_page]
+    next = grouped_by_item_id[next_item_id]
     if len(next) == 0:
         display_next = "No more pages"
-        continue_page = 0
+        next_item_id = 0
     else:
         next_pg = next[0]["page_number"]
         next_surah = next[0]["surah_name"]
         display_next = f"Page {next_pg} - {next_surah}"
-        # display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
-    return continue_page, display_next
+    return next_item_id, display_next
 
 
 def render_row_based_on_type(
@@ -4092,7 +4093,7 @@ def new_memorization(auth, current_type: str):
         _juzs = sorted({r["juz_number"] for r in records})
 
         title = f"Page {records[0]['page_number']}"
-        details = f"Juz {render_type_description(_juzs)} | {render_type_description(_surahs, 'Surah')}"
+        details = f"{render_type_description(_juzs, "Juz")} | {render_type_description(_surahs, 'Surah')}"
         revision_date = records[0]["revision_date"]
 
         next_page_item_id, display_next = (0, "")
