@@ -1279,6 +1279,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
+    show_progress = mode_id in (3, 4)
 
     def render_range_row(item_id: str):
         row_id = f"{route}_row-{item_id}"
@@ -1365,14 +1366,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
         page_title = get_page_description(item_id)
         # Include progress in title for daily and weekly reps only
-        if mode_id in (3, 4):
+        if show_progress:
             revs = revisions(
                 where=f"item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}"
             )
-            progress = f"{len(revs)}/7"
-            page_title = P(page_title,  Span(f" - {progress}"))
+            progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
             Td(page_title),
+            Td(progress) if show_progress else None,
             # Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
             Td(
@@ -1417,6 +1418,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
+                        Th("Day") if show_progress else None,
                         # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
