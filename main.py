@@ -4107,49 +4107,13 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = f"""revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC LIMIT 10;"""
+    where_query = f"""
+    revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 
+    ORDER BY revisions.revision_date DESC, revisions.id DESC 
+    LIMIT 10;
+    """
     newly_memorized = filter_query_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "item_id")
-    grouped_list = list(grouped.items())
-
-    if grouped_list:
-        flat = flatten_input(grouped_list)
-        consecutive_groups = group_consecutive_by_date(flat)
-
-        def group_latest_sort_key(group):
-            latest = max(group, key=lambda x: (x["revision_date"], x["revision_id"]))
-            return (latest["revision_date"], latest["revision_id"])
-
-        consecutive_groups_sorted = sorted(
-            consecutive_groups, key=group_latest_sort_key, reverse=True
-        )
-    else:
-        consecutive_groups_sorted = []
-
-    def render_memorized_row(group, auth):
-        if not group:
-            return None
-        formatted = format_output([group])
-        first_page = group[0]["page_number"]
-        title_range, details_range, revision_date = formatted[first_page]
-        return render_row_based_on_type(
-            first_page,
-            group,
-            "page",
-            # row_link=False,
-            continue_new_memorization=True,
-            auth=auth,
-            title_range=title_range,
-            details_range=details_range,
-            rev_date=revision_date,
-        )
-
-    # newly_memorized_rows = list(
-    #     filter(
-    #         None,
-    #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
-    #     )
-    # )
 
     # Sort grouped items by earliest revision_date in each list of records
     sorted_grouped_items = sorted(
