@@ -3820,15 +3820,14 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     next_item_id = get_next_item_id(
         not_memorized_item_ids, last_newly_memorized_item_id
     )
-    next = grouped_by_item_id[next_item_id]
-    if len(next) == 0:
+    if next_item_id is None:
         display_next = "No more pages"
-        next_item_id = 0
     else:
-        next_pg = next[0]["page_number"]
-        next_surah = next[0]["surah_name"]
-        display_next = f"Page {next_pg} - {next_surah}"
-
+        next = grouped_by_item_id[next_item_id]
+        if next:
+            next_pg = next[0]["page_number"]
+            next_surah = next[0]["surah_name"]
+            display_next = f"Page {next_pg} - {next_surah}"
     return next_item_id, display_next
 
 
@@ -4096,12 +4095,10 @@ def new_memorization(auth, current_type: str):
         details = f"{render_type_description(_juzs, "Juz")} | {render_type_description(_surahs, 'Surah')}"
         revision_date = records[0]["revision_date"]
 
-        next_page_item_id, display_next = (0, "")
         if item_id:
             next_page_item_id, display_next = get_closest_unmemorized_item_id(
                 auth, item_id
             )
-        checkbox = render_new_memorization_checkbox(auth=auth, item_id=item_id)
         render_attrs = {
             "hx_select": f"#recently_memorized_table",
             "hx_target": f"#recently_memorized_table",
@@ -4119,8 +4116,8 @@ def new_memorization(auth, current_type: str):
                     label_text=display_next,
                     **render_attrs,
                 )
-                if next_page_item_id
-                else checkbox
+                if not next_page_item_id is None
+                else display_next
             ),
             Td(
                 A(
