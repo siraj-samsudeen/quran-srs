@@ -183,6 +183,17 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
+def get_page_description(item_id):
+    item_description = items[item_id].description
+    if not item_description:
+        return P(
+            Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+            " - ",
+            Span(get_surah_name(item_id=item_id)),
+        )
+    return P(item_description)
+
+
 def get_last_item_id():
     return items(where="active = 1", order_by="id DESC")[0].id
 
@@ -875,19 +886,13 @@ def index(auth):
         # So we are handling them here by setting the upper limit based on the items
         upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-        def render_page(item_id):
-            return Span(
-                Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-                f" - {get_surah_name(item_id=item_id)}",
-            )
-
         next_item_id = find_next_item_id(last_added_item_id)
 
         if next_item_id is None:
             next_page = "No further page"
             action_buttons = None
         else:
-            next_page = render_page(next_item_id)
+            next_page = get_page_description(next_item_id)
             action_buttons = DivLAligned(
                 Button(
                     "Bulk",
@@ -1360,8 +1365,8 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
 
         return Tr(
-            Td(get_page_number(item_id)),
-            Td(get_surah_name(item_id=item_id)),
+            Td(get_page_description(item_id)),
+            # Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
             Td(
                 Div(
@@ -1405,7 +1410,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
-                        Th("Surah", cls="min-w-24"),
+                        # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
                                 cls="select_all",
