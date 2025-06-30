@@ -1358,9 +1358,16 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
-
+        page_title = get_page_number(item_id)
+        # Include progress in title for daily and weekly reps only
+        if mode_id in (3, 4):
+            revs = revisions(
+                where=f"item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}"
+            )
+            progress = f"{len(revs)}/7"
+            page_title = f"{page_title} - {progress}"
         return Tr(
-            Td(get_page_number(item_id)),
+            Td(page_title),
             Td(get_surah_name(item_id=item_id)),
             Td(record_btn),
             Td(
