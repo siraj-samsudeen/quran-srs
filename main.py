@@ -186,12 +186,11 @@ def get_page_number(item_id):
 def get_page_description(item_id):
     item_description = items[item_id].description
     if not item_description:
-        return Span(
+        item_description = (
             Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-            " - ",
-            Span(get_surah_name(item_id=item_id)),
+            Span(" - ", get_surah_name(item_id=item_id)),
         )
-    return Span(item_description)
+    return A(Span(item_description), href=f"/tables/items/{item_id}/edit")
 
 
 def get_last_item_id():
@@ -1665,7 +1664,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int, auth):
+def edit_record_view(table: str, record_id: int, auth, req):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -1675,8 +1674,11 @@ def edit_record_view(table: str, record_id: int, auth):
         current_data.completed = str(current_data.completed)
 
     column_with_types = get_column_and_its_type(table)
+    # The redirect_link is when we edit the description from the different page it should go back to that page
     form = create_dynamic_input_form(
-        column_with_types, hx_put=f"/tables/{table}/{record_id}"
+        column_with_types,
+        hx_put=f"/tables/{table}/{record_id}",
+        hx_vals={"redirect_link": req.headers.get("referer", f"/tables/{table}")},
     )
 
     return tables_main_area(
@@ -1692,17 +1694,19 @@ def get_column_and_its_type(table):
 
 
 @app.put("/tables/{table}/{record_id}")
-async def update_record(table: str, record_id: int, req: Request):
+async def update_record(table: str, record_id: int, redirect_link: str, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
     # replace the value to none in order to set it as unset if the value is empty
     current_data = {
-        key: (value if value != "" else None) for key, value in current_data.items()
+        key: (value if value != "" else None)
+        for key, value in current_data.items()
+        if key != "redirect_link"
     }
 
     tables[table].update(current_data, record_id)
 
-    return Redirect(f"/tables/{table}")
+    return Redirect(redirect_link)
 
 
 @app.delete("/tables/{table}/{record_id}")
