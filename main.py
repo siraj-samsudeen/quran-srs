@@ -3262,17 +3262,6 @@ def recent_review_view(auth):
         start=(earliest_date or current_date), end=current_date, freq="D"
     )[::-1]
 
-    def get_item_details(item_id):
-        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.id = {item_id};"""
-        item_details = db.q(qry)
-        if item_details:
-            item_details = item_details[0]
-        else:
-            item_details = None
-        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
-
     def render_row(o):
         item_id, mode_id = o["item_id"], o["mode_id"]
 
@@ -3323,7 +3312,7 @@ def recent_review_view(auth):
         revision_count = get_mode_count(item_id, 3)
 
         return Tr(
-            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
@@ -3430,17 +3419,6 @@ def watch_list_view(auth):
         order_by="mode_id DESC, next_review ASC, item_id ASC",
     )
 
-    def get_item_details(item_id):
-        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.id = {item_id};"""
-        item_details = db.q(qry)
-        if item_details:
-            item_details = item_details[0]
-        else:
-            item_details = None
-        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
-
     def graduate_btn_watch_list(
         item_id, is_graduated=False, is_disabled=False, **kwargs
     ):
@@ -3525,7 +3503,7 @@ def watch_list_view(auth):
             due_day_message = "-"
 
         return Tr(
-            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
