@@ -506,10 +506,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                 item_id = [
                     r["item_id"] for r in revisions_data if r["page_id"] == page
                 ][0]
-                return Span(
-                    Span(page, cls=TextPresets.bold_sm),
-                    f" - {get_surah_name(item_id=item_id)}",
-                )
+                return get_page_description(item_id=item_id, is_link=False)
 
             # This function will return the list of rev_id based on max and min page for bulk_edit url
             def get_ids_for_page_range(data, min_page, max_page=None):
