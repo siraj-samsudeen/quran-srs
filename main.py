@@ -615,11 +615,6 @@ def datewise_summary_table(show=None, hafiz_id=None):
 def render_hafiz_card(hafizs_user, auth):
     is_current_hafizs_user = auth != hafizs_user.hafiz_id
     return Card(
-        (
-            Subtitle("last 3 revision")(
-                datewise_summary_table(show=3, hafiz_id=hafizs_user.hafiz_id)
-            ),
-        ),
         header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
         footer=Button(
             "Switch hafiz" if is_current_hafizs_user else "Go to home",
