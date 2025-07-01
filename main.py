@@ -745,9 +745,12 @@ def hafiz_selection(sess):
         cls="w-[300px]",
     )
     return main_area(
-        H5("Select Hafiz"),
-        Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
-        Div(hafiz_form),
+        Div(
+            H5("Select Hafiz"),
+            Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+            Div(hafiz_form),
+            cls="space-y-4",
+        ),
         auth=auth,
     )
 
