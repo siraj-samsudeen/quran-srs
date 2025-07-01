@@ -2062,8 +2062,8 @@ def bulk_edit_view(ids: str, auth):
 
     def _render_row(id):
         current_revision = revisions[id]
-
-        item_details = items[current_revision.item_id]
+        current_item_id = current_revision.item_id
+        item_details = items[current_item_id]
         return Tr(
             Td(
                 CheckboxX(
@@ -2074,9 +2074,10 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(item_details.surah_name)),
-            Td(P(item_details.page_id)),
-            Td(P(item_details.part)),
+            Td(get_page_description(current_item_id)),
+            # Td(P(item_details.page_id)),
+            # Td(P(item_details.surah_name)),
+            # Td(P(item_details.part)),
             Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
@@ -2101,9 +2102,9 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Surah"),
                 Th("Page"),
-                Th("Part"),
+                # Th("Surah"),
+                # Th("Part"),
                 Th("Start"),
                 Th("Date"),
                 Th("Mode"),
@@ -2336,8 +2337,7 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(get_page_number(current_item_id))),
-            Td(current_page_details.part),
+            Td(get_page_description(current_item_id)),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 rating_radio(
@@ -2359,7 +2359,6 @@ def get(
                     )
                 ),
                 Th("Page"),
-                Th("Part"),
                 Th("Start"),
                 Th("Rating"),
             )
