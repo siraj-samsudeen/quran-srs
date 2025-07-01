@@ -190,7 +190,9 @@ def get_page_description(item_id):
             Span(get_page_number(item_id), cls=TextPresets.bold_sm),
             Span(" - ", get_surah_name(item_id=item_id)),
         )
-    return A(Span(item_description), href=f"/tables/items/{item_id}/edit")
+    return A(
+        Span(item_description), href=f"/tables/items/{item_id}/edit", cls=AT.classic
+    )
 
 
 def get_last_item_id():
