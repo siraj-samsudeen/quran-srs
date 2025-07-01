@@ -1416,7 +1416,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
-                        Th("Day") if show_progress else None,
+                        Th("Reps") if show_progress else None,
                         # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
