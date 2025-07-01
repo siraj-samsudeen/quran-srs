@@ -186,12 +186,11 @@ def get_page_number(item_id):
 def get_page_description(item_id):
     item_description = items[item_id].description
     if not item_description:
-        return Span(
+        item_description = (
             Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-            " - ",
-            Span(get_surah_name(item_id=item_id)),
+            Span(" - ", get_surah_name(item_id=item_id)),
         )
-    return Span(item_description)
+    return A(Span(item_description), href=f"/tables/items/{item_id}/edit")
 
 
 def get_last_item_id():
@@ -1665,7 +1664,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int, auth):
+def edit_record_view(table: str, record_id: int, auth, req):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -1675,8 +1674,11 @@ def edit_record_view(table: str, record_id: int, auth):
         current_data.completed = str(current_data.completed)
 
     column_with_types = get_column_and_its_type(table)
+    # The redirect_link is when we edit the description from the different page it should go back to that page
     form = create_dynamic_input_form(
-        column_with_types, hx_put=f"/tables/{table}/{record_id}"
+        column_with_types,
+        hx_put=f"/tables/{table}/{record_id}",
+        hx_vals={"redirect_link": req.headers.get("referer", f"/tables/{table}")},
     )
 
     return tables_main_area(
@@ -1692,17 +1694,19 @@ def get_column_and_its_type(table):
 
 
 @app.put("/tables/{table}/{record_id}")
-async def update_record(table: str, record_id: int, req: Request):
+async def update_record(table: str, record_id: int, redirect_link: str, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
     # replace the value to none in order to set it as unset if the value is empty
     current_data = {
-        key: (value if value != "" else None) for key, value in current_data.items()
+        key: (value if value != "" else None)
+        for key, value in current_data.items()
+        if key != "redirect_link"
     }
 
     tables[table].update(current_data, record_id)
 
-    return Redirect(f"/tables/{table}")
+    return Redirect(redirect_link)
 
 
 @app.delete("/tables/{table}/{record_id}")
@@ -2058,8 +2062,8 @@ def bulk_edit_view(ids: str, auth):
 
     def _render_row(id):
         current_revision = revisions[id]
-
-        item_details = items[current_revision.item_id]
+        current_item_id = current_revision.item_id
+        item_details = items[current_item_id]
         return Tr(
             Td(
                 CheckboxX(
@@ -2070,9 +2074,10 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(item_details.surah_name)),
-            Td(P(item_details.page_id)),
-            Td(P(item_details.part)),
+            Td(get_page_description(current_item_id)),
+            # Td(P(item_details.page_id)),
+            # Td(P(item_details.surah_name)),
+            # Td(P(item_details.part)),
             Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
@@ -2097,9 +2102,9 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Surah"),
                 Th("Page"),
-                Th("Part"),
+                # Th("Surah"),
+                # Th("Part"),
                 Th("Start"),
                 Th("Date"),
                 Th("Mode"),
@@ -2332,8 +2337,7 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(get_page_number(current_item_id))),
-            Td(current_page_details.part),
+            Td(get_page_description(current_item_id)),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 rating_radio(
@@ -2355,7 +2359,6 @@ def get(
                     )
                 ),
                 Th("Page"),
-                Th("Part"),
                 Th("Start"),
                 Th("Rating"),
             )
