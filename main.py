@@ -183,15 +183,22 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
-def get_page_description(item_id):
+def get_page_description(
+    item_id, is_link: bool = True, is_bold: bool = True, custom_text=""
+):
     item_description = items[item_id].description
     if not item_description:
-        return Span(
-            Span(get_page_number(item_id), cls=TextPresets.bold_sm),
-            " - ",
-            Span(get_surah_name(item_id=item_id)),
+        item_description = (
+            Span(get_page_number(item_id), cls=TextPresets.bold_sm if is_bold else ""),
+            Span(" - ", get_surah_name(item_id=item_id)),
+            Span(custom_text) if custom_text else "",
         )
-    return Span(item_description)
+
+    if not is_link:
+        return Span(item_description)
+    return A(
+        Span(item_description), href=f"/tables/items/{item_id}/edit", cls=AT.classic
+    )
 
 
 def get_last_item_id():
@@ -502,10 +509,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                 item_id = [
                     r["item_id"] for r in revisions_data if r["page_id"] == page
                 ][0]
-                return Span(
-                    Span(page, cls=TextPresets.bold_sm),
-                    f" - {get_surah_name(item_id=item_id)}",
-                )
+                return get_page_description(item_id=item_id, is_link=False)
 
             # This function will return the list of rev_id based on max and min page for bulk_edit url
             def get_ids_for_page_range(data, min_page, max_page=None):
@@ -615,11 +619,6 @@ def datewise_summary_table(show=None, hafiz_id=None):
 def render_hafiz_card(hafizs_user, auth):
     is_current_hafizs_user = auth != hafizs_user.hafiz_id
     return Card(
-        (
-            Subtitle("last 3 revision")(
-                datewise_summary_table(show=3, hafiz_id=hafizs_user.hafiz_id)
-            ),
-        ),
         header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
         footer=Button(
             "Switch hafiz" if is_current_hafizs_user else "Go to home",
@@ -750,9 +749,12 @@ def hafiz_selection(sess):
         cls="w-[300px]",
     )
     return main_area(
-        H5("Select Hafiz"),
-        Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
-        Div(hafiz_form),
+        Div(
+            H5("Select Hafiz"),
+            Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+            Div(hafiz_form),
+            cls="space-y-4",
+        ),
         auth=auth,
     )
 
@@ -1418,7 +1420,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
-                        Th("Day") if show_progress else None,
+                        Th("Reps") if show_progress else None,
                         # Th("Surah", cls="min-w-24"),
                         Th(
                             CheckboxX(
@@ -1665,7 +1667,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int, auth):
+def edit_record_view(table: str, record_id: int, auth, req):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -1675,8 +1677,11 @@ def edit_record_view(table: str, record_id: int, auth):
         current_data.completed = str(current_data.completed)
 
     column_with_types = get_column_and_its_type(table)
+    # The redirect_link is when we edit the description from the different page it should go back to that page
     form = create_dynamic_input_form(
-        column_with_types, hx_put=f"/tables/{table}/{record_id}"
+        column_with_types,
+        hx_put=f"/tables/{table}/{record_id}",
+        hx_vals={"redirect_link": req.headers.get("referer", f"/tables/{table}")},
     )
 
     return tables_main_area(
@@ -1692,17 +1697,19 @@ def get_column_and_its_type(table):
 
 
 @app.put("/tables/{table}/{record_id}")
-async def update_record(table: str, record_id: int, req: Request):
+async def update_record(table: str, record_id: int, redirect_link: str, req: Request):
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
     # replace the value to none in order to set it as unset if the value is empty
     current_data = {
-        key: (value if value != "" else None) for key, value in current_data.items()
+        key: (value if value != "" else None)
+        for key, value in current_data.items()
+        if key != "redirect_link"
     }
 
     tables[table].update(current_data, record_id)
 
-    return Redirect(f"/tables/{table}")
+    return Redirect(redirect_link)
 
 
 @app.delete("/tables/{table}/{record_id}")
@@ -2058,8 +2065,8 @@ def bulk_edit_view(ids: str, auth):
 
     def _render_row(id):
         current_revision = revisions[id]
-
-        item_details = items[current_revision.item_id]
+        current_item_id = current_revision.item_id
+        item_details = items[current_item_id]
         return Tr(
             Td(
                 CheckboxX(
@@ -2070,9 +2077,10 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(P(item_details.surah_name)),
-            Td(P(item_details.page_id)),
-            Td(P(item_details.part)),
+            Td(get_page_description(current_item_id)),
+            # Td(P(item_details.page_id)),
+            # Td(P(item_details.surah_name)),
+            # Td(P(item_details.part)),
             Td(P(item_details.start_text)),
             Td(P(current_revision.revision_date)),
             Td(P(current_revision.mode_id)),
@@ -2097,9 +2105,9 @@ def bulk_edit_view(ids: str, auth):
                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                     )
                 ),
-                Th("Surah"),
                 Th("Page"),
-                Th("Part"),
+                # Th("Surah"),
+                # Th("Part"),
                 Th("Start"),
                 Th("Date"),
                 Th("Mode"),
@@ -2211,7 +2219,9 @@ def get(
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+            get_page_description(
+                item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
+            ),
             fill_form(
                 create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
                 {
@@ -2332,8 +2342,7 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(get_page_number(current_item_id))),
-            Td(current_page_details.part),
+            Td(get_page_description(current_item_id)),
             Td(P(current_page_details.start_text, cls=(TextT.xl))),
             Td(
                 rating_radio(
@@ -2355,7 +2364,6 @@ def get(
                     )
                 ),
                 Th("Page"),
-                Th("Part"),
                 Th("Start"),
                 Th("Rating"),
             )
@@ -3257,17 +3265,6 @@ def recent_review_view(auth):
         start=(earliest_date or current_date), end=current_date, freq="D"
     )[::-1]
 
-    def get_item_details(item_id):
-        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.id = {item_id};"""
-        item_details = db.q(qry)
-        if item_details:
-            item_details = item_details[0]
-        else:
-            item_details = None
-        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
-
     def render_row(o):
         item_id, mode_id = o["item_id"], o["mode_id"]
 
@@ -3318,7 +3315,7 @@ def recent_review_view(auth):
         revision_count = get_mode_count(item_id, 3)
 
         return Tr(
-            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
@@ -3425,17 +3422,6 @@ def watch_list_view(auth):
         order_by="mode_id DESC, next_review ASC, item_id ASC",
     )
 
-    def get_item_details(item_id):
-        qry = f"""SELECT pages.page_number, items.surah_name FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.id = {item_id};"""
-        item_details = db.q(qry)
-        if item_details:
-            item_details = item_details[0]
-        else:
-            item_details = None
-        return f"{item_details["page_number"]} - {item_details["surah_name"]}"
-
     def graduate_btn_watch_list(
         item_id, is_graduated=False, is_disabled=False, **kwargs
     ):
@@ -3520,7 +3506,7 @@ def watch_list_view(auth):
             due_day_message = "-"
 
         return Tr(
-            Td(get_item_details(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
             Td(
                 revision_count,
                 cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
@@ -3820,9 +3806,7 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
         display_next = "No more pages"
         continue_page = 0
     else:
-        next_pg = next[0]["page_number"]
-        next_surah = next[0]["surah_name"]
-        display_next = f"Page {next_pg} - {next_surah}"
+        display_next = get_page_description(next[0]["item_id"], is_link=False)
         # display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
     return continue_page, display_next
@@ -4005,24 +3989,6 @@ def format_output(groups: list):
 
 
 def render_recently_memorized_row(type_number: str, records: list, auth):
-    _surahs = sorted({r["surah_id"] for r in records})
-    _juzs = sorted({r["juz_number"] for r in records})
-
-    def render_range(list, _type=""):
-        first_description = list[0]
-        last_description = list[-1]
-
-        if _type == "Surah":
-            _type = ""
-            first_description = surahs[first_description].name
-            last_description = surahs[last_description].name
-
-        if len(list) == 1:
-            return f"{_type} {first_description}"
-        return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
-
-    title = f"Page {records[0]['page_number']}"
-    details = f"Juz {render_range(_juzs)} | {render_range(_surahs, 'Surah')}"
     revision_date = records[0]["revision_date"]
 
     next_page_item_id, display_next = (0, "")
@@ -4038,8 +4004,7 @@ def render_recently_memorized_row(type_number: str, records: list, auth):
         "hx_select_oob": "#new_memorization_table",
     }
     return Tr(
-        Td(title),
-        Td(details),
+        Td(get_page_description(records[0]["item_id"])),
         Td(date_to_human_readable(revision_date)),
         Td(
             render_new_memorization_checkbox(
@@ -4192,7 +4157,6 @@ def new_memorization(auth, current_type: str):
             Thead(
                 Tr(
                     Th("Name"),
-                    Th("Range / Details"),
                     Th("Revision Date"),
                     Th("Set As Newly Memorized"),
                     Th("Action"),
@@ -4610,12 +4574,8 @@ def page_details_view(auth):
     def render_row_based_on_type(
         records: list,
         row_link: bool = True,
-        data_for=None,
     ):
         r = records[0]
-
-        title = f"Page {r['page_number']}"
-        details = f"Juz {r['juz_number']} | {surahs[r['surah_id']].name}"
 
         get_page = f"/page_details/{r['id']}"  # item_id
 
@@ -4626,36 +4586,33 @@ def page_details_view(auth):
                 "hx_replace_url": "true",
                 "hx_push_url": "true",
             }
-            if data_for == "page_details"
+            if row_link
             else {}
         )
         rating_summary = r["rating_summary"]
 
         return Tr(
-            Td(title),
-            Td(details),
-            *map(lambda id: Td(r[str(id)]), mode_id_list),
-            Td(rating_summary),
+            Td(get_page_description(r["id"])),
+            *map(lambda id: Td(r[str(id)], **hx_attrs), mode_id_list),
+            Td(rating_summary, **hx_attrs),
             Td(
                 A(
                     "See Details ➡️",
-                    href=get_page,
+                    **hx_attrs,
                     cls=AT.classic,
                 ),
                 cls="text-right",
             ),
-            **hx_attrs if row_link else {},
         )
 
     rows = [
-        render_row_based_on_type(records, data_for="page_details")
+        render_row_based_on_type(records)
         for type_number, records in list(grouped.items())
     ]
     table = Table(
         Thead(
             Tr(
                 Th("Page"),
-                Th("Details"),
                 *map(Th, mode_name_list),
                 Th("Rating Summary"),
                 Th(""),
@@ -4698,8 +4655,6 @@ def display_page_level_details(auth, item_id: int):
     ###### Title and Juz
     meta_query = f"""SELECT 
     items.id AS item_id,
-    items.surah_name,
-    pages.page_number,
     pages.juz_number,
     hafizs_items.mode_id
     FROM items
@@ -4708,9 +4663,7 @@ def display_page_level_details(auth, item_id: int):
     WHERE items.id = {item_id};"""
     meta = db.q(meta_query)
     if len(meta) != 0:
-        surah_name = meta[0]["surah_name"]
-        page_number = meta[0]["page_number"]
-        title = f"Surah {surah_name}, Page {page_number}"
+        page_description = get_page_description(item_id, is_bold=False)
         juz = f"Juz {meta[0]['juz_number']}"
     else:
         Redirect("/page_details")
@@ -4886,7 +4839,7 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 DivFullySpaced(
                     prev_pg,
-                    H1(title, cls="uk-text-center"),
+                    H1(page_description, cls="uk-text-center"),
                     next_pg,
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
