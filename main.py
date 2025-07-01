@@ -183,12 +183,15 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
-def get_page_description(item_id, is_link: bool = True, is_bold: bool = True):
+def get_page_description(
+    item_id, is_link: bool = True, is_bold: bool = True, custom_text=""
+):
     item_description = items[item_id].description
     if not item_description:
         item_description = (
             Span(get_page_number(item_id), cls=TextPresets.bold_sm if is_bold else ""),
             Span(" - ", get_surah_name(item_id=item_id)),
+            Span(custom_text) if custom_text else "",
         )
 
     if not is_link:
@@ -2218,7 +2221,9 @@ def get(
 
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+            get_page_description(
+                item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
+            ),
             fill_form(
                 create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
                 {
