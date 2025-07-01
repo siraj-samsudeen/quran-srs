@@ -183,11 +183,11 @@ def get_page_number(item_id):
     return pages[page_id].page_number
 
 
-def get_page_description(item_id, is_link: bool = True):
+def get_page_description(item_id, is_link: bool = True, is_bold: bool = True):
     item_description = items[item_id].description
     if not item_description:
         item_description = (
-            Span(get_page_number(item_id), cls=TextPresets.bold_sm),
+            Span(get_page_number(item_id), cls=TextPresets.bold_sm if is_bold else ""),
             Span(" - ", get_surah_name(item_id=item_id)),
         )
 
@@ -4574,12 +4574,8 @@ def page_details_view(auth):
     def render_row_based_on_type(
         records: list,
         row_link: bool = True,
-        data_for=None,
     ):
         r = records[0]
-
-        title = f"Page {r['page_number']}"
-        details = f"Juz {r['juz_number']} | {surahs[r['surah_id']].name}"
 
         get_page = f"/page_details/{r['id']}"  # item_id
 
@@ -4590,36 +4586,33 @@ def page_details_view(auth):
                 "hx_replace_url": "true",
                 "hx_push_url": "true",
             }
-            if data_for == "page_details"
+            if row_link
             else {}
         )
         rating_summary = r["rating_summary"]
 
         return Tr(
-            Td(title),
-            Td(details),
-            *map(lambda id: Td(r[str(id)]), mode_id_list),
-            Td(rating_summary),
+            Td(get_page_description(r["id"])),
+            *map(lambda id: Td(r[str(id)], **hx_attrs), mode_id_list),
+            Td(rating_summary, **hx_attrs),
             Td(
                 A(
                     "See Details ➡️",
-                    href=get_page,
+                    **hx_attrs,
                     cls=AT.classic,
                 ),
                 cls="text-right",
             ),
-            **hx_attrs if row_link else {},
         )
 
     rows = [
-        render_row_based_on_type(records, data_for="page_details")
+        render_row_based_on_type(records)
         for type_number, records in list(grouped.items())
     ]
     table = Table(
         Thead(
             Tr(
                 Th("Page"),
-                Th("Details"),
                 *map(Th, mode_name_list),
                 Th("Rating Summary"),
                 Th(""),
@@ -4662,8 +4655,6 @@ def display_page_level_details(auth, item_id: int):
     ###### Title and Juz
     meta_query = f"""SELECT 
     items.id AS item_id,
-    items.surah_name,
-    pages.page_number,
     pages.juz_number,
     hafizs_items.mode_id
     FROM items
@@ -4672,9 +4663,7 @@ def display_page_level_details(auth, item_id: int):
     WHERE items.id = {item_id};"""
     meta = db.q(meta_query)
     if len(meta) != 0:
-        surah_name = meta[0]["surah_name"]
-        page_number = meta[0]["page_number"]
-        title = f"Surah {surah_name}, Page {page_number}"
+        page_description = get_page_description(item_id, is_bold=False)
         juz = f"Juz {meta[0]['juz_number']}"
     else:
         Redirect("/page_details")
@@ -4850,7 +4839,7 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 DivFullySpaced(
                     prev_pg,
-                    H1(title, cls="uk-text-center"),
+                    H1(page_description, cls="uk-text-center"),
                     next_pg,
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
