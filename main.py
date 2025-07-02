@@ -4631,9 +4631,14 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
-    rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
-    if not rev_data:
+    # # Prevent editing description for inactive items
+    is_active_item = bool(items(where=f"id = {item_id} and active != 0"))
+    if not is_active_item:
         return Redirect("/page_details")
+
+    # Avoid showing nav buttons (to go closest revisoned page) when there are no revisions for a page
+    rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
+    is_show_nav_btn = bool(rev_data)
 
     def _render_row(data, columns):
         tds = []
@@ -4675,26 +4680,31 @@ def display_page_level_details(auth, item_id: int):
     LIMIT 1;
     """
     first_revision = db.q(first_revision_query)
-    first_memorized_date = (
-        first_revision[0]["revision_date"]
-        if first_revision
-        else Redirect("/page_details")
-    )
-    first_memorized_mode_id = (
-        first_revision[0]["mode_id"] if first_revision else Redirect("/page_details")
-    )
-    first_memorized_mode_name, description = make_mode_title_for_table(
-        first_memorized_mode_id
-    )
-    memorization_summary = Div(
-        H2("Summary"),
-        P(
-            "This page was added on: ",
-            Span(Strong(date_to_human_readable(first_memorized_date))),
-            " under ",
-            Span(Strong(first_memorized_mode_name)),
-        ),
-    )
+    if first_revision:
+        first_memorized_date = (
+            first_revision[0]["revision_date"]
+            if first_revision
+            else Redirect("/page_details")
+        )
+        first_memorized_mode_id = (
+            first_revision[0]["mode_id"]
+            if first_revision
+            else Redirect("/page_details")
+        )
+        first_memorized_mode_name, description = make_mode_title_for_table(
+            first_memorized_mode_id
+        )
+        memorization_summary = Div(
+            H2("Summary"),
+            P(
+                "This page was added on: ",
+                Span(Strong(date_to_human_readable(first_memorized_date))),
+                " under ",
+                Span(Strong(first_memorized_mode_name)),
+            ),
+        )
+    else:
+        memorization_summary = ""
 
     ########### Summary Table
     def build_revision_summary_query(mode_ids, row_alias):
@@ -4721,6 +4731,7 @@ def display_page_level_details(auth, item_id: int):
         mode_ids=(1, 2, 3, 4), row_alias="s_no"
     )
     summary_data = db.q(summary_table_query)
+    is_summary_data = True if len(summary_data) != 0 else False
     summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
     summary_table = Div(
         Table(
@@ -4822,13 +4833,14 @@ def display_page_level_details(auth, item_id: int):
         return prev_id, next_id
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
+    # Show nav arrows if there is a previous/next items and that is revisioned page
     prev_pg = A(
-        "⬅️" if prev_id else "",
+        "⬅️" if prev_id and is_show_nav_btn else "",
         href=f"/page_details/{prev_id}" if prev_id is not None else "#",
         cls="uk-button uk-button-default",
     )
     next_pg = A(
-        "➡️" if next_id else "",
+        "➡️" if next_id and is_show_nav_btn else "",
         href=f"/page_details/{next_id}" if next_id is not None else "#",
         cls="uk-button uk-button-default",
     )
@@ -4877,7 +4889,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H2("Summary Table"), summary_table),
+                Div(H2("Summary Table"), summary_table) if is_summary_data else None,
                 *mode_sections,
                 cls="space-y-6",
             ),
@@ -4890,7 +4902,9 @@ def display_page_level_details(auth, item_id: int):
 @app.get("/page_description/edit/{item_id}")
 def page_description_edit_form(item_id: int):
     item_description = items[item_id].description
-    placeholder = f"{get_page_number(item_id=item_id)} - {get_surah_name(item_id=item_id)}"
+    placeholder = (
+        f"{get_page_number(item_id=item_id)} - {get_surah_name(item_id=item_id)}"
+    )
     form = Form(
         DivVStacked(
             Input(
@@ -4899,7 +4913,7 @@ def page_description_edit_form(item_id: int):
                 value=item_description,
                 id="description",
                 placeholder=placeholder,
-                autocomplete="off"
+                autocomplete="off",
             ),
             Div(
                 Button(
@@ -4918,7 +4932,7 @@ def page_description_edit_form(item_id: int):
                     hx_select="#page-details-header",
                     cls=(ButtonT.default, ButtonT.xs),
                 ),
-                cls=("w-full", FlexT.block, FlexT.around)
+                cls=("w-full", FlexT.block, FlexT.around),
             ),
         )
     )
