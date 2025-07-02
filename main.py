@@ -184,7 +184,11 @@ def get_page_number(item_id):
 
 
 def get_page_description(
-    item_id, is_link: bool = True, is_bold: bool = True, custom_text=""
+    item_id,
+    link: str = None,
+    is_link: bool = True,
+    is_bold: bool = True,
+    custom_text="",
 ):
     item_description = items[item_id].description
     if not item_description:
@@ -197,7 +201,9 @@ def get_page_description(
     if not is_link:
         return Span(item_description)
     return A(
-        Span(item_description), href=f"/tables/items/{item_id}/edit", cls=AT.classic
+        Span(item_description),
+        href=(f"/page_details/{item_id}" if not link else link),
+        cls=AT.classic,
     )
 
 
@@ -4592,17 +4598,17 @@ def page_details_view(auth):
         rating_summary = r["rating_summary"]
 
         return Tr(
-            Td(get_page_description(r["id"])),
-            *map(lambda id: Td(r[str(id)], **hx_attrs), mode_id_list),
-            Td(rating_summary, **hx_attrs),
+            Td(get_page_description(item_id=r["id"], link="#")),
+            *map(lambda id: Td(r[str(id)]), mode_id_list),
+            Td(rating_summary),
             Td(
                 A(
                     "See Details ➡️",
-                    **hx_attrs,
                     cls=AT.classic,
                 ),
                 cls="text-right",
             ),
+            **hx_attrs,
         )
 
     rows = [
