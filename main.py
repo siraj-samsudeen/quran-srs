@@ -4691,7 +4691,7 @@ def display_page_level_details(auth, item_id: int):
     )
 
     ########### Summary Table
-    def build_revision_summary_query(item_id, auth, mode_id, row_alias):
+    def build_revision_summary_query(mode_ids, row_alias):
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -4707,12 +4707,12 @@ def display_page_level_details(auth, item_id: int):
             END AS interval
             FROM revisions
             JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_id}
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_ids}
             ORDER BY revision_date ASC;
         """
 
     summary_table_query = build_revision_summary_query(
-        item_id, auth, (1, 2, 3, 4), "s_no"
+        mode_ids=(1, 2, 3, 4), row_alias="s_no"
     )
     summary_data = db.q(summary_table_query)
     summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
@@ -4725,7 +4725,7 @@ def display_page_level_details(auth, item_id: int):
     )
 
     ########### Revision Tables
-    def build_revision_query(item_id, auth, mode_id, row_alias):
+    def build_revision_query(mode_id, row_alias):
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -4744,7 +4744,7 @@ def display_page_level_details(auth, item_id: int):
         """
 
     ########### Sequence Table
-    sequence_query = build_revision_query(item_id, auth, 1, "s_no")
+    sequence_query = build_revision_query(1, "s_no")
     sequence_data = db.q(sequence_query)
     is_sequence_view = True if len(sequence_data) != 0 else False
     sequence_cols = ["s_no", "revision_date", "rating", "interval"]
@@ -4756,7 +4756,7 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### New Memorization Table
-    new_memorization_query = build_revision_query(item_id, auth, 2, "s_no")
+    new_memorization_query = build_revision_query(2, "s_no")
     new_memorization = db.q(new_memorization_query)
     is_new_memorization_view = True if len(new_memorization) != 0 else False
     new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
@@ -4772,7 +4772,7 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Recent Review Table
-    recent_review_query = build_revision_query(item_id, auth, 3, "s_no")
+    recent_review_query = build_revision_query(3, "s_no")
     recent_review = db.q(recent_review_query)
     is_recent_review_view = True if len(recent_review) != 0 else False
     recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
@@ -4784,7 +4784,7 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
     ########### Watch List Table
-    watch_list_query = build_revision_query(item_id, auth, 4, "s_no")
+    watch_list_query = build_revision_query(4, "s_no")
     watch_list_data = db.q(watch_list_query)
     is_watch_list_view = True if len(watch_list_data) != 0 else False
     watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
