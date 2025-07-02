@@ -1180,55 +1180,60 @@ def render_new_memorization_checkbox(
 def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: str):
     current_date = get_current_date(auth)
 
-    def get_today_memorized_page(auth, current_date):
+    def get_last_memorized_item_id():
+        """Get the last newly_memorized `item_id` for the hafiz."""
+        result = revisions(
+            where=f"hafiz_id = {auth} AND mode_id = 2",
+            order_by="revision_date DESC, id DESC",
+            limit=1,
+        )
+        return result[0]["item_id"] if result else 0
+
+    def get_last_newly_memorized_page_for_today():
         """Get the page number of the last newly memorized item for today."""
         qry = f"""
-            SELECT items.page_id AS page_number
-            FROM revisions
-            JOIN items ON revisions.item_id = items.id
-            WHERE revisions.hafiz_id = {auth}
-            AND revisions.mode_id = 2
-            AND revisions.revision_date = '{current_date}'
-            ORDER BY revisions.revision_date DESC;
+            SELECT items.page_id AS page_number FROM revisions
+            JOIN items ON revisions.item_id = items.id 
+            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = 2 AND revisions.revision_date = '{current_date}'
+            ORDER BY revisions.id DESC;
         """
         result = db.q(qry)
-        today_page_id = result[0]["page_number"] if result else None
-        return today_page_id
+        return result[0]["page_number"] if result else None
 
-    def get_items_for_page(page_id):
-        """Get items for a specific page."""
+    def get_not_memorized_item_ids(page_id):
+        """Get not memorized item for a given page."""
         result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
         return [i.item_id for i in result]
 
-    def get_first_unmemorized_page_items(auth):
-        """Get items for the first unmemorized page."""
-        last_mem_id = get_last_memorized_item_id(auth)
+    def get_next_unmemorized_page_items(item_id):
+        """Get the next closest unmemorized item_ids based on the last newly memorized `item_id`"""
         qry = f"""
-            SELECT items.id AS item_id, items.page_id AS page_number
-            FROM items
+            SELECT items.id AS item_id, items.page_id AS page_number FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id} 
+            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {item_id}
        """
         ct = db.q(qry)
         grouped = group_by_type(ct, "page")
         if not grouped:
             return []
         first_page = next(iter(grouped))
-        unmemorized_items = [i["item_id"] for i in grouped[first_page] if i]
-        return unmemorized_items
+        return [i["item_id"] for i in grouped[first_page] if i]
 
-    def get_display_today_memorized_items():
+    def get_today_memorized_item_ids():
         """Get today's newly_memorized items."""
         result = revisions(where=f"mode_id = 2 AND revision_date = '{current_date}'")
         return [i.item_id for i in result]
 
-    today_page_id = get_today_memorized_page(auth, current_date)
+    today_page_id = get_last_newly_memorized_page_for_today()
     if today_page_id:
-        unmemorized_items = get_items_for_page(today_page_id)
+        unmemorized_items = get_not_memorized_item_ids(today_page_id)
     else:
-        # If no memorized items for today, get next closest unmemorized items to display
-        unmemorized_items = get_first_unmemorized_page_items(auth)
-    recent_newly_memorized_items = get_display_today_memorized_items()
+        # If there are no newly memorized items for today, get the closest unmemorized items to display
+        last_newly_memorized_item_id = get_last_memorized_item_id()
+        unmemorized_items = get_next_unmemorized_page_items(
+            last_newly_memorized_item_id
+        )
+    recent_newly_memorized_items = get_today_memorized_item_ids()
 
     new_memorization_items = sorted(
         set(unmemorized_items + recent_newly_memorized_items)
@@ -3757,18 +3762,6 @@ def group_by_type(data, current_type, feild=None):
         )
     sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
     return sorted_grouped
-
-
-def get_last_memorized_item_id(auth):
-    qry = f"""
-        SELECT item_id
-        FROM revisions
-        WHERE hafiz_id = {auth} AND mode_id = 2
-        ORDER BY revision_date DESC, id DESC
-        LIMIT 1
-    """
-    result = db.q(qry)
-    return result[0]["item_id"] if result else 0
 
 
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
