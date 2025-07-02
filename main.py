@@ -4669,7 +4669,7 @@ def display_page_level_details(auth, item_id: int):
     WHERE items.id = {item_id};"""
     meta = db.q(meta_query)
     if len(meta) != 0:
-        page_description = get_page_description(item_id, is_bold=False)
+        page_description = get_page_description(item_id, is_bold=False, is_link=False)
         juz = f"Juz {meta[0]['juz_number']}"
     else:
         Redirect("/page_details")
@@ -4845,7 +4845,18 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 DivFullySpaced(
                     prev_pg,
-                    H1(page_description, cls="uk-text-center"),
+                    Div(
+                        DivVStacked(
+                            H1(page_description, cls="uk-text-center"),
+                            Button(
+                                "Edit description",
+                                hx_get=f"/page_description/edit/{item_id}",
+                                hx_target="closest div",
+                                cls=(ButtonT.default, ButtonT.xs),
+                            ),
+                        ),
+                        id="page-details-header",
+                    ),
                     next_pg,
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
@@ -4880,6 +4891,45 @@ def display_page_level_details(auth, item_id: int):
         active="Page Details",
         auth=auth,
     )
+
+
+@app.get("/page_description/edit/{item_id}")
+def page_description_edit_form(item_id: int):
+    item_description = items[item_id].description
+    placeholder = f"{get_page_number(item_id=item_id)} - {get_surah_name(item_id=item_id)}"
+    form = Form(
+        DivVStacked(
+            Input(
+                type="text",
+                name="description",
+                value=item_description,
+                id="description",
+                placeholder=placeholder,
+                autocomplete="off"
+            ),
+            Div(
+                Button(
+                    "Submit",
+                    hx_put=f"/tables/items/{item_id}",
+                    hx_vals={"redirect_link": f"/page_details/{item_id}"},
+                    hx_target="#page-details-header",
+                    hx_select="#page-details-header",
+                    cls=("bg-green-600 text-white", ButtonT.xs),
+                ),
+                Button(
+                    "Cancel",
+                    type="button",
+                    hx_get=f"/page_details/{item_id}",
+                    hx_target="#page-details-header",
+                    hx_select="#page-details-header",
+                    cls=(ButtonT.default, ButtonT.xs),
+                ),
+                cls=("w-full", FlexT.block, FlexT.around)
+            ),
+        )
+    )
+
+    return form
 
 
 serve()
