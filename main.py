@@ -4528,6 +4528,18 @@ async def post(
     return Redirect(referer or f"/new_memorization/{current_type}")
 
 
+def get_ordered_mode_name_and_id():
+    mode_name_list = [mode.name for mode in modes()]
+    mode_id_list = [mode.id for mode in modes()]
+    # to display the mode names in the correct order
+    mode_id_list, mode_name_list = zip(
+        *sorted(
+            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
+        )
+    )
+    return mode_id_list, mode_name_list
+
+
 @app.get("/page_details")
 def page_details_view(auth):
     display_pages_query = f"""SELECT 
@@ -4548,26 +4560,7 @@ def page_details_view(auth):
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
 
-    def get_all_mode_names():
-        mode_rows = db.q("SELECT * FROM modes;")
-        mode_list = [
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "description": row["description"],
-            }
-            for row in mode_rows
-        ]
-        return mode_list
-
-    mode_name_list = [mode["name"] for mode in get_all_mode_names()]
-    mode_id_list = [mode["id"] for mode in get_all_mode_names()]
-    # to display the mode names in the correct order
-    mode_id_list, mode_name_list = zip(
-        *sorted(
-            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
-        )
-    )
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
     hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
@@ -4753,7 +4746,7 @@ def display_page_level_details(auth, item_id: int):
     ########### Sequence Table
     sequence_query = build_revision_query(item_id, auth, 1, "s_no")
     sequence_data = db.q(sequence_query)
-    sequence_data_display = True if len(sequence_data) != 0 else False
+    is_sequence_view = True if len(sequence_data) != 0 else False
     sequence_cols = ["s_no", "revision_date", "rating", "interval"]
     sequence_table = Div(
         Table(
@@ -4765,7 +4758,7 @@ def display_page_level_details(auth, item_id: int):
     ########### New Memorization Table
     new_memorization_query = build_revision_query(item_id, auth, 2, "s_no")
     new_memorization = db.q(new_memorization_query)
-    new_memorization_display = True if len(new_memorization) != 0 else False
+    is_new_memorization_view = True if len(new_memorization) != 0 else False
     new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
     new_memorization_table = Div(
         Table(
@@ -4781,7 +4774,7 @@ def display_page_level_details(auth, item_id: int):
     ########### Recent Review Table
     recent_review_query = build_revision_query(item_id, auth, 3, "s_no")
     recent_review = db.q(recent_review_query)
-    recent_review_display = True if len(recent_review) != 0 else False
+    is_recent_review_view = True if len(recent_review) != 0 else False
     recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
     recent_review_table = Div(
         Table(
@@ -4793,7 +4786,7 @@ def display_page_level_details(auth, item_id: int):
     ########### Watch List Table
     watch_list_query = build_revision_query(item_id, auth, 4, "s_no")
     watch_list_data = db.q(watch_list_query)
-    watch_list_display = True if len(watch_list_data) != 0 else False
+    is_watch_list_view = True if len(watch_list_data) != 0 else False
     watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
     watch_list_table = Div(
         Table(
@@ -4834,6 +4827,26 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-button uk-button-default",
     )
 
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
+    # Map mode_id to their corresponding table
+    mode_data_map = {
+        1: (is_sequence_view, sequence_table),
+        2: (is_new_memorization_view, new_memorization_table),
+        3: (is_recent_review_view, recent_review_table),
+        4: (is_watch_list_view, watch_list_table),
+    }
+    mode_sections = []
+    for mode_id in mode_id_list:
+        # Get the display mode name and table for this mode
+        mode_data = mode_data_map.get(mode_id)
+        if not mode_data:  # If no data for this mode, skip it
+            continue
+        is_display, table = mode_data
+        if not is_display:  # If display is not truely, skip it
+            continue
+        # Add the section for this mode
+        mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
+
     return main_area(
         Div(
             Div(
@@ -4848,26 +4861,7 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 memorization_summary,
                 Div(H2("Summary Table"), summary_table),
-                (
-                    Div(make_mode_title_for_table(1), sequence_table)
-                    if sequence_data_display
-                    else None
-                ),
-                (
-                    Div(make_mode_title_for_table(2), new_memorization_table)
-                    if new_memorization_display
-                    else None
-                ),
-                (
-                    Div(make_mode_title_for_table(3), recent_review_table)
-                    if recent_review_display
-                    else None
-                ),
-                (
-                    Div(make_mode_title_for_table(4), watch_list_table)
-                    if watch_list_display
-                    else None
-                ),
+                *mode_sections,
                 cls="space-y-6",
             ),
         ),
