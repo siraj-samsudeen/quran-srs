@@ -1673,7 +1673,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 
 @app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int, auth, req):
+def edit_record_view(table: str, record_id: int, auth):
     current_table = tables[table]
     current_data = current_table[record_id]
 
@@ -1687,7 +1687,9 @@ def edit_record_view(table: str, record_id: int, auth, req):
     form = create_dynamic_input_form(
         column_with_types,
         hx_put=f"/tables/{table}/{record_id}",
-        hx_vals={"redirect_link": req.headers.get("referer", f"/tables/{table}")},
+        hx_target="body",
+        hx_push_url="true",
+        hx_vals={"redirect_link": f"/tables/{table}"},
     )
 
     return tables_main_area(
@@ -1715,7 +1717,7 @@ async def update_record(table: str, record_id: int, redirect_link: str, req: Req
 
     tables[table].update(current_data, record_id)
 
-    return Redirect(redirect_link)
+    return RedirectResponse(redirect_link, status_code=303)
 
 
 @app.delete("/tables/{table}/{record_id}")
@@ -4865,6 +4867,38 @@ def display_page_level_details(auth, item_id: int):
         # Add the section for this mode
         mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
+    item_details = items[item_id]
+    description = item_details.description
+    start_text = item_details.start_text
+
+    edit_description = DivVStacked(
+        Table(
+            Tr(
+                Td("Description: "),
+                Td(description, id="description"),
+            ),
+            Tr(
+                Td("Start Text: "),
+                Td(start_text, id="start_text"),
+            ),
+            Tr(
+                Td(
+                    Div(
+                        Button(
+                            "Edit",
+                            hx_get=f"/page_description/edit/{item_id}",
+                            cls=(ButtonT.default, ButtonT.xs),
+                        ),
+                        id="btns",
+                    ),
+                    colspan="2",
+                ),
+                cls="text-center",
+            ),
+            cls="max-w-xs",
+            id="item_description_table",
+        ),
+    )
     return main_area(
         Div(
             Div(
@@ -4873,18 +4907,13 @@ def display_page_level_details(auth, item_id: int):
                     Div(
                         DivVStacked(
                             H1(page_description, cls="uk-text-center"),
-                            Button(
-                                "Edit description",
-                                hx_get=f"/page_description/edit/{item_id}",
-                                hx_target="closest div",
-                                cls=(ButtonT.default, ButtonT.xs),
-                            ),
                         ),
                         id="page-details-header",
                     ),
                     next_pg,
                 ),
                 Subtitle(Strong(juz), cls="uk-text-center"),
+                edit_description,
                 cls="space-y-8",
             ),
             Div(
@@ -4901,43 +4930,54 @@ def display_page_level_details(auth, item_id: int):
 
 @app.get("/page_description/edit/{item_id}")
 def page_description_edit_form(item_id: int):
-    item_description = items[item_id].description
-    placeholder = (
-        f"{get_page_number(item_id=item_id)} - {get_surah_name(item_id=item_id)}"
+    item_details = items[item_id]
+    description = item_details.description
+    start_text = item_details.start_text
+    description_field = (
+        LabelInput(
+            "Description: ",
+            name="description",
+            value=description,
+            id="description",
+            hx_swap_oob="true",
+            placeholder=description,
+        ),
     )
-    form = Form(
-        DivVStacked(
-            Input(
-                type="text",
-                name="description",
-                value=item_description,
-                id="description",
-                placeholder=placeholder,
-                autocomplete="off",
-            ),
-            Div(
-                Button(
-                    "Submit",
-                    hx_put=f"/tables/items/{item_id}",
-                    hx_vals={"redirect_link": f"/page_details/{item_id}"},
-                    hx_target="#page-details-header",
-                    hx_select="#page-details-header",
-                    cls=("bg-green-600 text-white", ButtonT.xs),
-                ),
-                Button(
-                    "Cancel",
-                    type="button",
-                    hx_get=f"/page_details/{item_id}",
-                    hx_target="#page-details-header",
-                    hx_select="#page-details-header",
-                    cls=(ButtonT.default, ButtonT.xs),
-                ),
-                cls=("w-full", FlexT.block, FlexT.around),
-            ),
-        )
+    start_text_field = (
+        LabelInput(
+            "Start Text: ",
+            name="start_text",
+            value=start_text,
+            id="start_text",
+            hx_swap_oob="true",
+            placeholder=start_text,
+        ),
+    )
+    buttons = Div(
+        Button(
+            "Update",
+            hx_put=f"/tables/items/{item_id}",
+            hx_vals={"redirect_link": f"/page_details/{item_id}"},
+            hx_target="#item_description_table",
+            hx_select="#item_description_table",
+            hx_select_oob="#page-details-header",
+            hx_include="#description, #start_text",
+            cls=(ButtonT.default, ButtonT.xs),
+        ),
+        Button(
+            "Cancel",
+            type="button",
+            hx_get=f"/page_details/{item_id}",
+            hx_target="#item_description_table",
+            hx_select="#item_description_table",
+            cls=(ButtonT.default, ButtonT.xs),
+        ),
+        cls="space-x-4",
+        hx_swap_oob="true",
+        id="btns",
     )
 
-    return form
+    return description_field, start_text_field, buttons
 
 
 serve()
