@@ -1393,11 +1393,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
     body_rows = list(map(render_range_row, item_ids))
-    total_body_count = len(body_rows)
-    completed_body_count = len(
+    unique_page_count = len(set(map(get_page_number, item_ids)))
+    completed_page_count = get_page_count(
         revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
     )
-    summary_count = f"{completed_body_count}/{total_body_count}"
+    summary_count = f"{completed_page_count}/{unique_page_count}"
     if not body_rows:
         return None
     return AccordionItem(
