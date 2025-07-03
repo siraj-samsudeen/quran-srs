@@ -3777,10 +3777,10 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     if next_item_id is None:
         display_next = "No more pages"
     else:
-        display_next = get_page_description(next[0]["item_id"], is_link=False)
+        display_next = get_page_description(next_item_id, is_link=False)
         # display_next = (Span(Strong(next_pg)), " - ", next_surah)
 
-    return continue_page, display_next
+    return next_item_id, display_next
 
 
 def render_row_based_on_type(
@@ -4047,7 +4047,6 @@ def new_memorization(auth, current_type: str):
             next_page_item_id, display_next = get_closest_unmemorized_item_id(
                 auth, type_number
             )
-        checkbox = render_new_memorization_checkbox(auth=auth, item_id=type_number)
         render_attrs = {
             "hx_select": f"#recently_memorized_table",
             "hx_target": f"#recently_memorized_table",
@@ -4065,7 +4064,7 @@ def new_memorization(auth, current_type: str):
                     **render_attrs,
                 )
                 if next_page_item_id
-                else checkbox
+                else display_next
             ),
             Td(
                 A(
