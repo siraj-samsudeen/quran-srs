@@ -1378,6 +1378,10 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 ######## New Summary Table ########
 
 
+def get_start_text(item_id):
+    return items(where=f"id ={item_id} and active = 1")[0].start_text
+
+
 def render_summary_table(auth, route, mode_ids, item_ids):
     mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4}
     mode_id = mode_id_mapping[route]
@@ -1446,6 +1450,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
             Td(get_page_description(item_id)),
+            Td(get_start_text(item_id)),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
             Td(Div(rating_dropdown_input, cls="max-w-28")),
@@ -1476,6 +1481,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
+                        Th("Start Text", cls="min-w-24"),
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
