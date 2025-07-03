@@ -234,6 +234,22 @@ def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
 
+def render_type_description(list, _type=""):
+    first_description = list[0]
+    last_description = list[-1]
+
+    if _type == "Surah":
+        _type = ""
+        first_description = surahs[first_description].name
+        last_description = surahs[last_description].name
+
+    if len(list) == 1:
+        return f"{_type} {first_description}"
+    return (
+        f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
+    )
+
+
 def mode_dropdown(default_mode=1, **kwargs):
     def mk_options(mode):
         id, name = mode.id, mode.name
@@ -984,8 +1000,8 @@ def index(auth):
 
     watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
 
-    new_memorization_table = make_summary_table(
-        mode_ids=["unmemorized"], route="new_memorization", auth=auth
+    new_memorization_table = make_new_memorization_summary_table(
+        mode_ids=["2"], route="new_memorization", auth=auth
     )
     modal = ModalContainer(
         ModalDialog(
@@ -1169,17 +1185,77 @@ def render_new_memorization_checkbox(
     return check_form
 
 
-def make_summary_table(mode_ids: list[str], route: str, auth: str):
+def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: str):
     current_date = get_current_date(auth)
 
-    if route == "new_memorization":
-        mode_id = 2
-    elif route == "recent_review":
-        mode_id = 3
-    elif route == "watch_list":
-        mode_id = 4
+    def get_last_memorized_item_id():
+        """Get the last newly_memorized `item_id` for the hafiz."""
+        result = revisions(
+            where=f"hafiz_id = {auth} AND mode_id = 2",
+            order_by="revision_date DESC, id DESC",
+            limit=1,
+        )
+        return result[0].item_id if result else 0
+
+    def get_last_newly_memorized_page_for_today():
+        """Get the page number of the last newly memorized item for today."""
+        qry = f"""
+            SELECT items.page_id AS page_number FROM revisions
+            JOIN items ON revisions.item_id = items.id 
+            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = 2 AND revisions.revision_date = '{current_date}'
+            ORDER BY revisions.id DESC;
+        """
+        result = db.q(qry)
+        return result[0]["page_number"] if result else None
+
+    def get_not_memorized_item_ids(page_id):
+        """Get not memorized item for a given page."""
+        result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
+        return [i.item_id for i in result]
+
+    def get_next_unmemorized_page_items(item_id):
+        """Get the next closest unmemorized item_ids based on the last newly memorized `item_id`"""
+        qry = f"""
+            SELECT items.id AS item_id, items.page_id AS page_number FROM items
+            LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {item_id}
+       """
+        ct = db.q(qry)
+        grouped = group_by_type(ct, "page")
+        if not grouped:
+            return []
+        first_page = next(iter(grouped))
+        return [i["item_id"] for i in grouped[first_page] if i]
+
+    def get_today_memorized_item_ids():
+        """Get today's newly_memorized items."""
+        result = revisions(where=f"mode_id = 2 AND revision_date = '{current_date}'")
+        return [i.item_id for i in result]
+
+    today_page_id = get_last_newly_memorized_page_for_today()
+    if today_page_id:
+        unmemorized_items = get_not_memorized_item_ids(today_page_id)
     else:
-        mode_id = 1
+        # If there are no newly memorized items for today, get the closest unmemorized items to display
+        last_newly_memorized_item_id = get_last_memorized_item_id()
+        unmemorized_items = get_next_unmemorized_page_items(
+            last_newly_memorized_item_id
+        )
+    recent_newly_memorized_items = get_today_memorized_item_ids()
+
+    new_memorization_items = sorted(
+        set(unmemorized_items + recent_newly_memorized_items)
+    )
+    return render_summary_table(
+        route=route,
+        auth=auth,
+        mode_ids=mode_ids,
+        item_ids=new_memorization_items,
+    )
+
+
+def make_summary_table(mode_ids: list[str], route: str, auth: str):
+    current_date = get_current_date(auth)
 
     def is_review_due(item: dict) -> bool:
         """Check if item is due for review today or overdue."""
@@ -1208,156 +1284,89 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         )
         return len(newly_memorized_record) == 1
 
-    def get_today_memorized_page(auth, current_date):
-        """Get the page number of the last newly memorized item for today."""
-        qry = f"""
-            SELECT items.page_id AS page_number
-            FROM revisions
-            JOIN items ON revisions.item_id = items.id
-            WHERE revisions.hafiz_id = {auth}
-            AND revisions.mode_id = 2
-            AND revisions.revision_date = '{current_date}'
-            ORDER BY revisions.revision_date DESC;
-        """
-        result = db.q(qry)
-        today_page_id = result[0]["page_number"] if result else None
-        return today_page_id
+    qry = f"""
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
+        LEFT JOIN items on hafizs_items.item_id = items.id 
+        WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
+        ORDER BY hafizs_items.item_id ASC
+    """
+    ct = db.q(qry)
 
-    def get_items_for_page(page_id):
-        """Get items for a specific page."""
-        result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
-        return [i.item_id for i in result]
+    # Route-specific condition builders
+    route_conditions = {
+        "recent_review": lambda item: (
+            (is_review_due(item) and not has_newly_memorized_for_today(item))
+            or (is_reviewed_today(item) and has_recent_mode_id(item))
+        ),
+        "watch_list": lambda item: (
+            is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+        ),
+    }
 
-    def get_first_unmemorized_page_items(auth):
-        """Get items for the first unmemorized page."""
-        last_mem_id = get_last_memorized_item_id(auth)
-        qry = f"""
-            SELECT items.id AS item_id, items.page_id AS page_number
-            FROM items
-            LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {last_mem_id} 
-       """
-        ct = db.q(qry)
-        grouped = group_by_type(ct, "page")
-        if not grouped:
-            return []
-        first_page = next(iter(grouped))
-        unmemorized_items = [i["item_id"] for i in grouped[first_page] if i]
-        return unmemorized_items
+    recent_items = list(
+        dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
+    )
 
-    def get_display_today_memorized_items():
-        """Get today's newly_memorized items."""
-        result = revisions(where=f"mode_id = 2 AND revision_date = '{current_date}'")
-        return [i.item_id for i in result]
+    return render_summary_table(
+        route=route,
+        auth=auth,
+        mode_ids=mode_ids,
+        item_ids=recent_items,
+    )
 
-    is_unmemorized = mode_ids == ["unmemorized"]
 
-    if is_unmemorized:
-        today_page_id = get_today_memorized_page(auth, current_date)
-        if today_page_id:
-            unmemorized_items = get_items_for_page(today_page_id)
-        else:
-            # If no memorized items for today, get next closest unmemorized items to display
-            unmemorized_items = get_first_unmemorized_page_items(auth)
-        recent_newly_memorized_items = get_display_today_memorized_items()
+######## New Summary Table ########
 
-    else:
-        qry = f"""
-            SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
-            LEFT JOIN items on hafizs_items.item_id = items.id 
-            WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
-            ORDER BY hafizs_items.item_id ASC
-        """
-        ct = db.q(qry)
 
-        # Route-specific condition builders
-        route_conditions = {
-            "recent_review": lambda item: (
-                (is_review_due(item) and not has_newly_memorized_for_today(item))
-                or (is_reviewed_today(item) and has_recent_mode_id(item))
-            ),
-            "watch_list": lambda item: (
-                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
-            ),
-            "default": lambda item: is_review_due(item) or is_reviewed_today(item),
-        }
-
-        recent_items = list(
-            dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
-        )
+def render_summary_table(auth, route, mode_ids, item_ids):
+    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4}
+    mode_id = mode_id_mapping[route]
+    is_newly_memorized = mode_id == 2
+    current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
-    show_progress = mode_id in (3, 4)
 
     def render_range_row(item_id: str):
-        row_id = f"{route}_row-{item_id}"
-        mode_filter = "2" if route == "new_memorization" else ", ".join(mode_ids)
-
+        row_id = f"{route}-row-{item_id}"
         current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({mode_filter});"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
         )
 
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
-        if route in ["recent_review", "watch_list"]:
+        checkbox_hx_attrs = {
+            "hx_post": (
+                f"/markas/new_memorization/{item_id}"
+                if is_newly_memorized
+                else f"/home/add/{item_id}"
+            ),
+            "hx_select": f"#{row_id}",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
+            "hx_target": f"#{row_id}",
+            "hx_swap": "outerHTML",
+        }
 
-            record_btn = CheckboxX(
-                name=f"is_checked",
-                value="1",
-                hx_post=f"/home/add/{item_id}",
-                hx_vals={"date": current_date, "mode_id": mode_id},
-                hx_include=f"#rev-{item_id}",
-                hx_select=f"#{row_id}",
-                hx_select_oob=f"#stat-row-{mode_id}, #total_row",
-                hx_target=f"#{row_id}",
-                hx_swap="outerHTML",
-                checked=is_checked,
-                cls=f"{route}_ids",
-                _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
-            )
-        elif route == "new_memorization":
-            hx_attrs = {
-                "hx_select": "#new_memorization_summary_table",
-                "hx_target": "#new_memorization_summary_table",
-                "hx_swap": "outerHTML",
-                "hx_select_oob": "#stat-row-2, #total_row",
-            }
-            record_btn = render_new_memorization_checkbox(
-                auth=auth,
-                item_id=item_id,
-                input_cls=f"{route}_ids",
-                _at_click="handleCheckboxClick($event)",
-                **hx_attrs,
-            )
-        else:
-            # hx_attrs = {}
-            return None
+        record_btn = CheckboxX(
+            name=f"is_checked",
+            value="1",
+            **checkbox_hx_attrs,
+            hx_vals={"date": current_date, "mode_id": mode_id},
+            hx_include=f"#rev-{item_id}",
+            checked=is_checked,
+            cls=f"{route}_ids",
+            _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
+        )
 
         if current_revision_data:
-            current_rev_date = current_revision_data[0]
-
-            default_rating = current_rev_date.rating
-            rev_id = current_rev_date.id
+            current_rev_data = current_revision_data[0]
+            default_rating = current_rev_data.rating
             change_rating_hx_attrs = {
-                "hx_put": f"/revision/{rev_id}",
+                "hx_put": f"/revision/{current_rev_data.id}",
                 "hx_swap": "none",
             }
         else:
             default_rating = 1
-            rev_id = None
-            if route == "new_memorization":
-                change_rating_hx_attrs = hx_attrs
-                change_rating_hx_attrs["hx_post"] = (
-                    f"/markas/new_memorization/{item_id}"
-                )
-            else:
-                change_rating_hx_attrs = {
-                    "hx_post": f"/home/add/{item_id}",
-                    "hx_select": f"#{row_id}",
-                    "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
-                    "hx_target": f"#{row_id}",
-                    "hx_swap": "outerHTML",
-                }
+            change_rating_hx_attrs = checkbox_hx_attrs
             change_rating_hx_attrs["hx_vals"] = {
                 "date": current_date,
                 "mode_id": mode_id,
@@ -1372,44 +1381,21 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
-        page_title = get_page_description(item_id)
-        # Include progress in title for daily and weekly reps only
-        if show_progress:
-            revs = revisions(
-                where=f"item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}"
-            )
-            progress = P(Strong(len(revs)), Span("/7"))
+
+        revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
+        progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
-            Td(page_title),
-            Td(progress) if show_progress else None,
-            # Td(get_surah_name(item_id=item_id)),
+            Td(get_page_description(item_id)),
+            Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
-            Td(
-                Div(
-                    rating_dropdown_input,
-                    cls="max-w-28",
-                )
-            ),
+            Td(Div(rating_dropdown_input, cls="max-w-28")),
             id=row_id,
         )
 
-    if is_unmemorized:
-        new_memorization_items = sorted(
-            set(unmemorized_items + recent_newly_memorized_items)
-        )
-        body_rows = list(map(render_range_row, new_memorization_items))
-    else:
-        body_rows = list(map(render_range_row, recent_items))
+    body_rows = list(map(render_range_row, item_ids))
 
     if not body_rows:
         return None
-
-    # This is to check whether to open or close the accordion
-    if not all(is_all_selected):
-        is_accordion_open = True
-    else:
-        is_accordion_open = False
-
     return AccordionItem(
         Span(modes[mode_id].name),
         Div(
@@ -1426,8 +1412,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
-                        Th("Reps") if show_progress else None,
-                        # Th("Surah", cls="min-w-24"),
+                        Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
                                 cls="select_all",
@@ -1449,8 +1434,11 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
                 x_init="updateSelectAll()",
             ),
         ),
-        open=is_accordion_open,
+        open=(not all(is_all_selected)),
     )
+
+
+######## END ########
 
 
 # This route is responsible for adding and deleting record for the recent_review and watch_list
@@ -2583,22 +2571,9 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         _pages = sorted([r["page_number"] for r in records])
         _juzs = sorted({r["juz_number"] for r in records})
 
-        def render_range(list, _type=""):
-            first_description = list[0]
-            last_description = list[-1]
-
-            if _type == "Surah":
-                _type = ""
-                first_description = surahs[first_description].name
-                last_description = surahs[last_description].name
-
-            if len(list) == 1:
-                return f"{_type} {first_description}"
-            return f"{_type}{"" if _type == "" else "s"} {first_description} – {last_description}"
-
-        surah_range = render_range(_surahs, "Surah")
-        page_range = render_range(_pages, "Page")
-        juz_range = render_range(_juzs, "Juz")
+        surah_range = render_type_description(_surahs, "Surah")
+        page_range = render_type_description(_pages, "Page")
+        juz_range = render_type_description(_juzs, "Juz")
 
         if current_type == "juz":
             details = [surah_range, page_range]
@@ -3748,7 +3723,7 @@ def theme():
     return ThemePicker()
 
 
-def filter_query_records(auth, custom_where=None):
+def get_not_memorized_records(auth, custom_where=None):
     default = "hafizs_items.status IS NULL AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
@@ -3783,36 +3758,24 @@ def group_by_type(data, current_type, feild=None):
     return sorted_grouped
 
 
-def get_last_memorized_item_id(auth):
-    qry = f"""
-        SELECT item_id
-        FROM revisions
-        WHERE hafiz_id = {auth} AND mode_id = 2
-        ORDER BY revision_date DESC, id DESC
-        LIMIT 1
-    """
-    result = db.q(qry)
-    return result[0]["item_id"] if result else 0
-
-
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
-    not_memorized = filter_query_records(auth)
-    not_memorized_item_ids = list(group_by_type(not_memorized, "id").keys())
+    not_memorized = get_not_memorized_records(auth)
+    grouped_by_item_id = group_by_type(not_memorized, "id")
+    not_memorized_item_ids = list(grouped_by_item_id.keys())
 
-    def get_continue_page(not_memorized_item_ids, last_newly_memorized_item_id):
+    def get_next_item_id(not_memorized_item_ids, last_newly_memorized_item_id):
         sorted_item_ids = sorted(not_memorized_item_ids)
         for item_id in sorted_item_ids:
             if item_id > last_newly_memorized_item_id:
                 return item_id
         return None
 
-    continue_page = get_continue_page(
+    # next_item_id represent the next closest unmemorized item_id
+    next_item_id = get_next_item_id(
         not_memorized_item_ids, last_newly_memorized_item_id
     )
-    next = group_by_type(not_memorized, "id")[continue_page]
-    if len(next) == 0:
+    if next_item_id is None:
         display_next = "No more pages"
-        continue_page = 0
     else:
         display_next = get_page_description(next[0]["item_id"], is_link=False)
         # display_next = (Span(Strong(next_pg)), " - ", next_surah)
@@ -3996,45 +3959,6 @@ def format_output(groups: list):
     return formatted
 
 
-def render_recently_memorized_row(type_number: str, records: list, auth):
-    revision_date = records[0]["revision_date"]
-
-    next_page_item_id, display_next = (0, "")
-    if type_number:
-        next_page_item_id, display_next = get_closest_unmemorized_item_id(
-            auth, type_number
-        )
-    checkbox = render_new_memorization_checkbox(auth=auth, item_id=type_number)
-    render_attrs = {
-        "hx_select": f"#recently_memorized_table",
-        "hx_target": f"#recently_memorized_table",
-        "hx_swap": "outerHTML",
-        "hx_select_oob": "#new_memorization_table",
-    }
-    return Tr(
-        Td(get_page_description(records[0]["item_id"])),
-        Td(date_to_human_readable(revision_date)),
-        Td(
-            render_new_memorization_checkbox(
-                auth=auth,
-                item_id=next_page_item_id,
-                label_text=display_next,
-                **render_attrs,
-            )
-            if next_page_item_id
-            else checkbox
-        ),
-        Td(
-            A(
-                "Delete",
-                hx_delete=f"/markas/new_memorization/{type_number}",
-                hx_confirm="Are you sure? This page might be available in other modes.",
-            ),
-            cls=AT.muted,
-        ),
-    )
-
-
 @app.delete("/markas/new_memorization/{item_id}")
 def delete(auth, request, item_id: str):
     qry = f"item_id = {item_id} AND mode_id = 2;"
@@ -4053,8 +3977,8 @@ def delete(auth, request, item_id: str):
 @app.get("/new_memorization/{current_type}")
 def new_memorization(auth, current_type: str):
     if not current_type:
-        current_type = "juz"
-    ct = filter_query_records(auth)
+        current_type = "surah"
+    ct = get_not_memorized_records(auth)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
         render_row_based_on_type(
@@ -4097,49 +4021,13 @@ def new_memorization(auth, current_type: str):
         id="modal",
     )
 
-    where_query = f"""revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 ORDER BY revisions.revision_date DESC, revisions.id DESC LIMIT 10;"""
-    newly_memorized = filter_query_records(auth, where_query)
+    where_query = f"""
+    revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 
+    ORDER BY revisions.revision_date DESC, revisions.id DESC 
+    LIMIT 10;
+    """
+    newly_memorized = get_not_memorized_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "item_id")
-    grouped_list = list(grouped.items())
-
-    if grouped_list:
-        flat = flatten_input(grouped_list)
-        consecutive_groups = group_consecutive_by_date(flat)
-
-        def group_latest_sort_key(group):
-            latest = max(group, key=lambda x: (x["revision_date"], x["revision_id"]))
-            return (latest["revision_date"], latest["revision_id"])
-
-        consecutive_groups_sorted = sorted(
-            consecutive_groups, key=group_latest_sort_key, reverse=True
-        )
-    else:
-        consecutive_groups_sorted = []
-
-    def render_memorized_row(group, auth):
-        if not group:
-            return None
-        formatted = format_output([group])
-        first_page = group[0]["page_number"]
-        title_range, details_range, revision_date = formatted[first_page]
-        return render_row_based_on_type(
-            first_page,
-            group,
-            "page",
-            # row_link=False,
-            continue_new_memorization=True,
-            auth=auth,
-            title_range=title_range,
-            details_range=details_range,
-            rev_date=revision_date,
-        )
-
-    # newly_memorized_rows = list(
-    #     filter(
-    #         None,
-    #         [render_memorized_row(group, auth) for group in consecutive_groups_sorted],
-    #     )
-    # )
 
     # Sort grouped items by earliest revision_date in each list of records
     sorted_grouped_items = sorted(
@@ -4150,6 +4038,44 @@ def new_memorization(auth, current_type: str):
         ),
         reverse=True,
     )
+
+    def render_recently_memorized_row(type_number: str, records: list, auth):
+        revision_date = records[0]["revision_date"]
+
+        next_page_item_id, display_next = (0, "")
+        if type_number:
+            next_page_item_id, display_next = get_closest_unmemorized_item_id(
+                auth, type_number
+            )
+        checkbox = render_new_memorization_checkbox(auth=auth, item_id=type_number)
+        render_attrs = {
+            "hx_select": f"#recently_memorized_table",
+            "hx_target": f"#recently_memorized_table",
+            "hx_swap": "outerHTML",
+            "hx_select_oob": "#new_memorization_table",
+        }
+        return Tr(
+            Td(get_page_description(records[0]["item_id"])),
+            Td(date_to_human_readable(revision_date)),
+            Td(
+                render_new_memorization_checkbox(
+                    auth=auth,
+                    item_id=next_page_item_id,
+                    label_text=display_next,
+                    **render_attrs,
+                )
+                if next_page_item_id
+                else checkbox
+            ),
+            Td(
+                A(
+                    "Delete",
+                    hx_delete=f"/markas/new_memorization/{type_number}",
+                    hx_confirm="Are you sure? This page might be available in other modes.",
+                ),
+                cls=AT.muted,
+            ),
+        )
 
     newly_memorized_rows = [
         render_recently_memorized_row(
@@ -4236,14 +4162,6 @@ def filtered_table_for_new_memorization_modal(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            # Td(
-            #     A(
-            #         f"Set as Newly Memorized",
-            #         hx_post=f"/markas/new_memorization/{record['id']}",
-            #         cls=(AT.classic),
-            #     ),
-            #     cls="text-right",
-            # ),
         )
 
     table = Div(
@@ -4292,6 +4210,7 @@ def filtered_table_for_new_memorization_modal(
     )
 
 
+# FIXME: Check whether this function is used or not
 def create_new_memorization_revision_form(
     current_type: str, title: str, description: str, current_date: str
 ):
@@ -4336,6 +4255,7 @@ def create_new_memorization_revision_form(
     )
 
 
+# FIXME: Check whether this route is used or not
 @rt("/new_memorization/add/{current_type}")
 def get(
     auth,
@@ -4368,6 +4288,7 @@ def get(
     )
 
 
+# FIXME: Check whether this route is used or not
 @rt("/new_memorization/add/{current_type}")
 def post(
     request, current_type: str, page_no: int, item_id: int, revision_details: Revision
@@ -4387,150 +4308,6 @@ def post(
         hafizs_items_id,
     )
     revisions.insert(revision_details)
-    referer = request.headers.get("referer")
-    # return Redirect(f"/new_memorization/{current_type}")
-    return Redirect(referer or f"/new_memorization/{current_type}")
-
-
-@app.get("/new_memorization/bulk_add/{current_type}")
-def get(
-    auth,
-    item_ids: list[int],
-    current_type: str = "juz",
-    # is_part is to determine whether it came from single entry page or not
-    is_part: bool = False,
-    revision_date: str = None,
-):
-    if revision_date is None:
-        revision_date = get_current_date(auth)
-
-    def _render_row(item_id):
-
-        current_page_details = items[item_id]
-        return Tr(
-            Td(
-                CheckboxX(
-                    name="ids",
-                    value=item_id,
-                    cls="revision_ids",
-                    _at_click="handleCheckboxClick($event)",
-                )
-            ),
-            Td(current_page_details.surah_name),
-            Td(P(current_page_details.page_id)),
-            Td(current_page_details.part),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
-            Td(
-                rating_radio(
-                    direction="horizontal",
-                    id=f"rating-{item_id}",
-                    cls="toggleable-radio",
-                )
-            ),
-        )
-
-    table = Table(
-        Thead(
-            Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
-                    )
-                ),
-                Th("Surah"),
-                Th("Page"),
-                Th("Part"),
-                Th("Start"),
-                Th("Rating"),
-            )
-        ),
-        Tbody(*map(_render_row, item_ids)),
-        x_data=select_all_checkbox_x_data(
-            class_name="revision_ids",
-            is_select_all="true" if len(item_ids) != 0 else "false",
-        ),
-        x_init="toggleAll()",
-    )
-
-    action_buttons = Div(
-        Button(
-            "Save",
-            cls=ButtonT.primary,
-        ),
-        # A(
-        #     Button("Cancel", type="button", cls=ButtonT.secondary),
-        #     href=f"/new_memorization/{current_type}",
-        # ),
-        Button("Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"),
-        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
-    )
-    start_description = f"{get_surah_name(item_id=item_ids[0])}"
-    end_description = (
-        f" => {items[item_ids[-1]].page_id} - {get_surah_name(item_id=item_ids[-1])}"
-    )
-    description = f"{items[item_ids[0]].page_id} - {start_description}"
-    return Titled(
-        (description if len(item_ids) == 1 else description + f"{end_description}"),
-        Form(
-            Hidden(name="mode_id", value=2),
-            Hidden(name="plan_id", value=None),
-            LabelInput(
-                "Revision Date",
-                name="revision_date",
-                type="date",
-                value=revision_date,
-            ),
-            Div(table, cls="uk-overflow-auto"),
-            action_buttons,
-            action=f"/new_memorization/bulk_add/{current_type}",
-            method="POST",
-        ),
-        Script(src="/public/script.js"),
-        active="Revision",
-        auth=auth,
-    )
-
-
-@rt("/new_memorization/bulk_add/{current_type}")
-async def post(
-    request,
-    revision_date: str,
-    mode_id: int,
-    plan_id: int,
-    current_type: str,
-    auth,
-    req,
-):
-    plan_id = None
-    form_data = await req.form()
-    item_ids = form_data.getlist("ids")
-    parsed_data = []
-    for name, value in form_data.items():
-        if name.startswith("rating-"):
-            item_id = name.split("-")[1]
-            if item_id in item_ids:
-                try:
-                    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
-                except IndexError:
-                    hafizs_items.insert(
-                        Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
-                    )
-                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update(
-                    {"status": "newly_memorized", "mode_id": mode_id}, hafizs_items_id
-                )
-                parsed_data.append(
-                    Revision(
-                        item_id=int(item_id),
-                        rating=int(value),
-                        hafiz_id=auth,
-                        revision_date=revision_date,
-                        mode_id=mode_id,
-                        plan_id=plan_id,
-                    )
-                )
-
-    revisions.insert_all(parsed_data)
     referer = request.headers.get("referer")
     # return Redirect(f"/new_memorization/{current_type}")
     return Redirect(referer or f"/new_memorization/{current_type}")
