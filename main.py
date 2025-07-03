@@ -37,6 +37,7 @@ tables = db.t
     items,
     mushafs,
     hafizs_items,
+    srs_booster_pack,
 ) = (
     tables.revisions,
     tables.hafizs,
@@ -49,6 +50,7 @@ tables = db.t
     tables.items,
     tables.mushafs,
     tables.hafizs_items,
+    tables.srs_booster_pack,
 )
 (
     Revision,
@@ -62,6 +64,7 @@ tables = db.t
     Surah,
     Mushaf,
     Hafiz_Items,
+    Srs_Booster_Pack,
 ) = (
     revisions.dataclass(),
     hafizs.dataclass(),
@@ -74,6 +77,7 @@ tables = db.t
     surahs.dataclass(),
     mushafs.dataclass(),
     hafizs_items.dataclass(),
+    srs_booster_pack.dataclass(),
 )
 
 
@@ -4771,7 +4775,7 @@ def srs_detailed_page_view(auth):
     qry = f"""
     SELECT hafizs_items.mode_id, hafizs_items.item_id, COUNT(revisions.rating) AS bad_count from hafizs_items
     LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND revisions.mode_id <> 5 
-    WHERE hafizs_items.hafiz_id = {auth} AND revisions.rating = -1 
+    WHERE hafizs_items.hafiz_id = {auth} AND revisions.rating = -1 AND hafizs_items.mode_id <> 5
     GROUP BY hafizs_items.mode_id, hafizs_items.item_id 
     ORDER BY COUNT(revisions.rating) DESC, hafizs_items.item_id ASC;
     """
@@ -4781,7 +4785,12 @@ def srs_detailed_page_view(auth):
     def render_srs_eligible_rows(record: dict):
         page_description = get_page_description(record["item_id"])
         current_mode = get_mode_name(record["mode_id"])
-        start_srs_link = A("Start SRS", cls=AT.classic)
+        start_srs_link = A(
+            "Start SRS",
+            hx_get=f"/start-srs/{record["item_id"]}",
+            hx_target="body",
+            cls=AT.classic,
+        )
         return Tr(
             Td(page_description),
             Td(current_mode),
@@ -4793,7 +4802,7 @@ def srs_detailed_page_view(auth):
         Thead(
             Tr(
                 Td("Page"),
-                Td("Current_mode"),
+                Td("Current Mode"),
                 Td("Bad Rating Count"),
                 Td(""),
             )
@@ -4804,6 +4813,31 @@ def srs_detailed_page_view(auth):
     return main_area(
         Div(H1(get_mode_name(5)), srs_eligible_table), auth=auth, active="SRS"
     )
+
+
+# This funciton is need when we add a new record on the srs mode
+def get_srs_next_interval(pack_id: int, current_interval: int):
+    # Get the next interval from the booster pack
+    booster_pack_details = srs_booster_pack[pack_id]
+    booster_pack_intervals = booster_pack_details.interval_days.split(",")
+    booster_pack_intervals = list(map(int, booster_pack_intervals))
+    return find_next_greater(booster_pack_intervals, current_interval)
+
+
+@app.get("/start-srs/{item_id}")
+def start_srs(item_id: int):
+    srs_booster_id = srs_booster_pack(where="is_system_default = 1")[0].id
+
+    # Change the current mode_id for the item_id to 5(srs)
+    # TODO: What about the status?
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        current_hafiz_items = current_hafiz_items[0]
+        current_hafiz_items.srs_booster_pack_id = srs_booster_id
+        current_hafiz_items.mode_id = 5
+        hafizs_items.update(current_hafiz_items)
+
+    return RedirectResponse("/srs")
 
 
 serve()
