@@ -1341,7 +1341,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -1393,11 +1393,15 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
     body_rows = list(map(render_range_row, item_ids))
-
+    total_body_count = len(body_rows)
+    completed_body_count = len(
+        revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
+    )
+    summary_count = f"{completed_body_count}/{total_body_count}"
     if not body_rows:
         return None
     return AccordionItem(
-        Span(modes[mode_id].name),
+        Span(f"{modes[mode_id].name} - {summary_count}", id=f"{route}-header"),
         Div(
             Div(
                 A(
