@@ -221,10 +221,16 @@ def get_mode_count(item_id, mode_id):
     return len(mode_records)
 
 
-def get_page_count(records: list[Revision]) -> float:
+def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
     total_count = 0
-    for record in records:
-        page_no = items[record.item_id].page_id
+    # Get items to process
+    if item_ids:
+        process_items = item_ids
+    else:
+        process_items = [record.item_id for record in records]
+    # Calculate page count
+    for item_id in process_items:
+        page_no = items[item_id].page_id
         total_parts = items(where=f"page_id = {page_no} and active = 1")
         total_count += 1 / len(total_parts)
     return format_number(total_count)
@@ -1102,19 +1108,20 @@ def index(auth):
     recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
-    todays_recent_review_count = get_unique_page_count(recent_review_items)
+
+    todays_recent_review_count = get_page_count(item_ids=recent_review_items)
 
     watch_list_table, watch_list_items = make_summary_table(
         mode_ids=["4"], route="watch_list", auth=auth
     )
-    todays_watch_list_count = get_unique_page_count(watch_list_items)
+    todays_watch_list_count = get_page_count(item_ids=watch_list_items)
 
     new_memorization_table, new_memorization_items = (
         make_new_memorization_summary_table(
             mode_ids=["2"], route="new_memorization", auth=auth
         )
     )
-    todays_new_memorization_count = get_unique_page_count(new_memorization_items)
+    todays_new_memorization_count = get_page_count(item_ids=new_memorization_items)
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1458,7 +1465,8 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
     body_rows = list(map(render_range_row, item_ids))
-    unique_page_count = len(set(map(get_page_number, item_ids)))
+    # unique_page_count = len(set(map(get_page_number, item_ids)))
+    unique_page_count = get_page_count(item_ids=item_ids)
     completed_page_count = get_page_count(
         revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
     )
