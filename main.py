@@ -1187,7 +1187,7 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
-        return result[0]["item_id"] if result else 0
+        return result[0].item_id if result else 0
 
     def get_last_newly_memorized_page_for_today():
         """Get the page number of the last newly memorized item for today."""
@@ -3729,7 +3729,7 @@ def theme():
     return ThemePicker()
 
 
-def filter_query_records(auth, custom_where=None):
+def get_not_memorized_records(auth, custom_where=None):
     default = "hafizs_items.status IS NULL AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
@@ -3765,7 +3765,7 @@ def group_by_type(data, current_type, feild=None):
 
 
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
-    not_memorized = filter_query_records(auth)
+    not_memorized = get_not_memorized_records(auth)
     grouped_by_item_id = group_by_type(not_memorized, "id")
     not_memorized_item_ids = list(grouped_by_item_id.keys())
 
@@ -3985,8 +3985,8 @@ def delete(auth, request, item_id: str):
 @app.get("/new_memorization/{current_type}")
 def new_memorization(auth, current_type: str):
     if not current_type:
-        current_type = "juz"
-    ct = filter_query_records(auth)
+        current_type = "surah"
+    ct = get_not_memorized_records(auth)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
         render_row_based_on_type(
@@ -4034,7 +4034,7 @@ def new_memorization(auth, current_type: str):
     ORDER BY revisions.revision_date DESC, revisions.id DESC 
     LIMIT 10;
     """
-    newly_memorized = filter_query_records(auth, where_query)
+    newly_memorized = get_not_memorized_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "item_id")
 
     # Sort grouped items by earliest revision_date in each list of records
@@ -4223,6 +4223,7 @@ def filtered_table_for_new_memorization_modal(
     )
 
 
+# FIXME: Check whether this function is used or not
 def create_new_memorization_revision_form(
     current_type: str, title: str, description: str, current_date: str
 ):
@@ -4267,6 +4268,7 @@ def create_new_memorization_revision_form(
     )
 
 
+# FIXME: Check whether this route is used or not
 @rt("/new_memorization/add/{current_type}")
 def get(
     auth,
@@ -4299,6 +4301,7 @@ def get(
     )
 
 
+# FIXME: Check whether this route is used or not
 @rt("/new_memorization/add/{current_type}")
 def post(
     request, current_type: str, page_no: int, item_id: int, revision_details: Revision
@@ -4318,150 +4321,6 @@ def post(
         hafizs_items_id,
     )
     revisions.insert(revision_details)
-    referer = request.headers.get("referer")
-    # return Redirect(f"/new_memorization/{current_type}")
-    return Redirect(referer or f"/new_memorization/{current_type}")
-
-
-@app.get("/new_memorization/bulk_add/{current_type}")
-def get(
-    auth,
-    item_ids: list[int],
-    current_type: str = "juz",
-    # is_part is to determine whether it came from single entry page or not
-    is_part: bool = False,
-    revision_date: str = None,
-):
-    if revision_date is None:
-        revision_date = get_current_date(auth)
-
-    def _render_row(item_id):
-
-        current_page_details = items[item_id]
-        return Tr(
-            Td(
-                CheckboxX(
-                    name="ids",
-                    value=item_id,
-                    cls="revision_ids",
-                    _at_click="handleCheckboxClick($event)",
-                )
-            ),
-            Td(current_page_details.surah_name),
-            Td(P(current_page_details.page_id)),
-            Td(current_page_details.part),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
-            Td(
-                rating_radio(
-                    direction="horizontal",
-                    id=f"rating-{item_id}",
-                    cls="toggleable-radio",
-                )
-            ),
-        )
-
-    table = Table(
-        Thead(
-            Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
-                    )
-                ),
-                Th("Surah"),
-                Th("Page"),
-                Th("Part"),
-                Th("Start"),
-                Th("Rating"),
-            )
-        ),
-        Tbody(*map(_render_row, item_ids)),
-        x_data=select_all_checkbox_x_data(
-            class_name="revision_ids",
-            is_select_all="true" if len(item_ids) != 0 else "false",
-        ),
-        x_init="toggleAll()",
-    )
-
-    action_buttons = Div(
-        Button(
-            "Save",
-            cls=ButtonT.primary,
-        ),
-        # A(
-        #     Button("Cancel", type="button", cls=ButtonT.secondary),
-        #     href=f"/new_memorization/{current_type}",
-        # ),
-        Button("Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"),
-        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
-    )
-    start_description = f"{get_surah_name(item_id=item_ids[0])}"
-    end_description = (
-        f" => {items[item_ids[-1]].page_id} - {get_surah_name(item_id=item_ids[-1])}"
-    )
-    description = f"{items[item_ids[0]].page_id} - {start_description}"
-    return Titled(
-        (description if len(item_ids) == 1 else description + f"{end_description}"),
-        Form(
-            Hidden(name="mode_id", value=2),
-            Hidden(name="plan_id", value=None),
-            LabelInput(
-                "Revision Date",
-                name="revision_date",
-                type="date",
-                value=revision_date,
-            ),
-            Div(table, cls="uk-overflow-auto"),
-            action_buttons,
-            action=f"/new_memorization/bulk_add/{current_type}",
-            method="POST",
-        ),
-        Script(src="/public/script.js"),
-        active="Revision",
-        auth=auth,
-    )
-
-
-@rt("/new_memorization/bulk_add/{current_type}")
-async def post(
-    request,
-    revision_date: str,
-    mode_id: int,
-    plan_id: int,
-    current_type: str,
-    auth,
-    req,
-):
-    plan_id = None
-    form_data = await req.form()
-    item_ids = form_data.getlist("ids")
-    parsed_data = []
-    for name, value in form_data.items():
-        if name.startswith("rating-"):
-            item_id = name.split("-")[1]
-            if item_id in item_ids:
-                try:
-                    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
-                except IndexError:
-                    hafizs_items.insert(
-                        Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
-                    )
-                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update(
-                    {"status": "newly_memorized", "mode_id": mode_id}, hafizs_items_id
-                )
-                parsed_data.append(
-                    Revision(
-                        item_id=int(item_id),
-                        rating=int(value),
-                        hafiz_id=auth,
-                        revision_date=revision_date,
-                        mode_id=mode_id,
-                        plan_id=plan_id,
-                    )
-                )
-
-    revisions.insert_all(parsed_data)
     referer = request.headers.get("referer")
     # return Redirect(f"/new_memorization/{current_type}")
     return Redirect(referer or f"/new_memorization/{current_type}")
