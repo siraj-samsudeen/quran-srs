@@ -230,6 +230,10 @@ def get_page_count(records: list[Revision]) -> float:
     return format_number(total_count)
 
 
+def get_unique_page_count(recent_review_items):
+    return len(set(map(get_page_number, recent_review_items)))
+
+
 def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
@@ -874,7 +878,11 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 
 def render_stats_summary_table(
-    auth, recent_review_items, watch_list_items, new_memorization_items
+    auth,
+    recent_review_counts,
+    watch_list_counts,
+    new_memorization_counts,
+    monthly_counts,
 ):
     current_date = get_current_date(auth)
     today = current_date
@@ -912,17 +920,16 @@ def render_stats_summary_table(
         )
 
     def render_stat_rows(current_mode_id):
-        items_map = {
-            1: "",
-            2: new_memorization_items,
-            3: recent_review_items,
-            4: watch_list_items,
+        count_map = {
+            1: monthly_counts,
+            2: new_memorization_counts,
+            3: recent_review_counts,
+            4: watch_list_counts,
         }
-        item_ids = items_map[current_mode_id]
-        unique_page_count = len(set(map(get_page_number, item_ids)))
+        todays_page_count = count_map[current_mode_id]
         return Tr(
             Td(
-                f"{modes[current_mode_id].name} - {render_count(current_mode_id, today, is_link=False)}/{unique_page_count}"
+                f"{modes[current_mode_id].name} - {render_count(current_mode_id, today, is_link=False)}/{todays_page_count}"
             ),
             Td(render_count(current_mode_id, today)),
             Td(render_count(current_mode_id, yesterday)),
@@ -1068,9 +1075,11 @@ def index(auth):
     memorized_len = len(
         hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
     )
-    todays_monthly_reps_count = round(memorized_len / 30)
-    todays_completed_count = 0  # TODO: get the counts
-    todays_count = f"{todays_completed_count}/{todays_monthly_reps_count}"
+    todays_monthly_count = round(memorized_len / 30)
+    todays_completed_count = get_page_count(
+        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    )
+    todays_count = f"{todays_completed_count}/{todays_monthly_count}"
 
     overall_table = AccordionItem(
         Span(f"{modes[1].name} - {todays_count}"),
@@ -1094,16 +1103,19 @@ def index(auth):
     recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
+    todays_recent_review_count = get_unique_page_count(recent_review_items)
 
     watch_list_table, watch_list_items = make_summary_table(
         mode_ids=["4"], route="watch_list", auth=auth
     )
+    todays_watch_list_count = get_unique_page_count(watch_list_items)
 
     new_memorization_table, new_memorization_items = (
         make_new_memorization_summary_table(
             mode_ids=["2"], route="new_memorization", auth=auth
         )
     )
+    todays_new_memorization_count = get_unique_page_count(new_memorization_items)
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1140,7 +1152,11 @@ def index(auth):
     tables = [_table for _table in tables if _table is not None]
 
     stat_table = render_stats_summary_table(
-        auth, recent_review_items, watch_list_items, new_memorization_items
+        auth,
+        todays_recent_review_count,
+        todays_watch_list_count,
+        todays_new_memorization_count,
+        todays_monthly_count,
     )
 
     return main_area(
