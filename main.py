@@ -873,6 +873,87 @@ def tables_main_area(*args, active_table=None, auth=None):
     )
 
 
+def render_stats_summary_table(auth):
+    current_date = get_current_date(auth)
+    today = current_date
+    yesterday = sub_days_to_date(today, 1)
+    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
+    yesterday_total_count = get_page_count(
+        revisions(where=f"revision_date = '{yesterday}'")
+    )
+    current_date_description = P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
+    )
+    # exlcuded the srs mode
+    mode_ids = [mode.id for mode in modes()][:-1]
+    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
+
+    def render_count(_mode_id, _revision_date, is_link=True):
+        records = revisions(
+            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+        )
+        rev_ids = [str(r.id) for r in records]
+        count = get_page_count(records)
+
+        if count == 0:
+            return "-"
+
+        return (
+            A(
+                count,
+                href=f"/revision/bulk_edit?ids={",".join(rev_ids)}",
+                cls=AT.classic,
+            )
+            if is_link
+            else count
+        )
+
+    def render_stat_rows(current_mode_id):
+        return Tr(
+            Td(
+                f"{modes[current_mode_id].name}"
+            ),
+            Td(render_count(current_mode_id, today)),
+            Td(render_count(current_mode_id, yesterday)),
+            id=f"stat-row-{current_mode_id}",
+        )
+
+    return Div(
+        DivLAligned(
+            current_date_description,
+            Button(
+                "Close Date",
+                hx_get="/close_date",
+                target_id="current_date_description",
+                hx_confirm="Are you sure?",
+                cls=(ButtonT.default, "px-2 py-3 h-0"),
+            ),
+        ),
+        Table(
+            Thead(
+                Tr(
+                    Th("Modes"),
+                    Th("Today"),
+                    Th("Yesterday"),
+                )
+            ),
+            Tbody(
+                *map(render_stat_rows, sorted_mode_ids),
+            ),
+            Tfoot(
+                Tr(
+                    Td("Total"),
+                    Td(today_total_count),
+                    Td(yesterday_total_count),
+                    cls="[&>*]:font-bold",
+                    id="total_row",
+                ),
+            ),
+        ),
+    )
+
+
 @rt
 def index(auth):
     current_date = get_current_date(auth)
@@ -1038,79 +1119,7 @@ def index(auth):
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
 
-    ############### stat table ################
-
-    # exlcuded the srs mode
-    mode_ids = [mode.id for mode in modes()][:-1]
-    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
-
-    def render_count(_mode_id, _revision_date):
-        records = revisions(
-            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-        )
-        rev_ids = [str(r.id) for r in records]
-        count = get_page_count(records)
-
-        if count == 0:
-            return "-"
-
-        return A(
-            count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
-        )
-
-    today = current_date
-    yesterday = sub_days_to_date(today, 1)
-    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
-    yesterday_total_count = get_page_count(
-        revisions(where=f"revision_date = '{yesterday}'")
-    )
-
-    def render_stat_rows(current_mode_id):
-        return Tr(
-            Td(modes[current_mode_id].name),
-            Td(render_count(current_mode_id, today)),
-            Td(render_count(current_mode_id, yesterday)),
-            id=f"stat-row-{current_mode_id}",
-        )
-
-    current_date_description = P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), id="current_date_description"),
-    )
-
-    stat_table = Div(
-        DivLAligned(
-            current_date_description,
-            Button(
-                "Close Date",
-                hx_get="/close_date",
-                target_id="current_date_description",
-                hx_confirm="Are you sure?",
-                cls=(ButtonT.default, "px-2 py-3 h-0"),
-            ),
-        ),
-        Table(
-            Thead(
-                Tr(
-                    Th("Modes"),
-                    Th("Today"),
-                    Th("Yesterday"),
-                )
-            ),
-            Tbody(
-                *map(render_stat_rows, sorted_mode_ids),
-            ),
-            Tfoot(
-                Tr(
-                    Td("Total"),
-                    Td(today_total_count),
-                    Td(yesterday_total_count),
-                    cls="[&>*]:font-bold",
-                    id="total_row",
-                ),
-            ),
-        ),
-    )
+    stat_table = render_stats_summary_table(auth)
 
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
