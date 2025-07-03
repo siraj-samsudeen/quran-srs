@@ -930,7 +930,7 @@ def render_stats_summary_table(
         todays_page_count = count_map[current_mode_id]
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
-            Td(render_count(current_mode_id, today), f"/{todays_page_count}"),
+            Td(render_count(current_mode_id, today), f" / {todays_page_count}"),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
@@ -960,7 +960,7 @@ def render_stats_summary_table(
             Tfoot(
                 Tr(
                     Td("Total"),
-                    Td(today_total_count, f"/{total_today_page_count_for_all}"),
+                    Td(today_total_count, f" / {total_today_page_count_for_all}"),
                     Td(yesterday_total_count),
                     cls="[&>*]:font-bold",
                     id="total_row",
@@ -1078,7 +1078,7 @@ def index(auth):
     todays_completed_count = get_page_count(
         revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
     )
-    todays_monthly_count_f = f"{todays_completed_count}/{todays_monthly_count}"
+    todays_monthly_count_f = f"{todays_completed_count} / {todays_monthly_count}"
 
     overall_table = AccordionItem(
         Span(f"{modes[1].name} - {todays_monthly_count_f}"),
@@ -1462,7 +1462,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     completed_page_count = get_page_count(
         revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
     )
-    summary_count = f"{completed_page_count}/{unique_page_count}"
+    summary_count = f"{completed_page_count} / {unique_page_count}"
     if not body_rows:
         return None
     return AccordionItem(
