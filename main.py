@@ -883,6 +883,7 @@ def render_stats_summary_table(
     watch_list_counts,
     new_memorization_counts,
     monthly_counts,
+    total_today_page_count_for_all,
 ):
     current_date = get_current_date(auth)
     today = current_date
@@ -906,8 +907,8 @@ def render_stats_summary_table(
         rev_ids = [str(r.id) for r in records]
         count = get_page_count(records)
 
-        if count == 0:
-            return "-"
+        if count == 0 and is_link:
+            return "0"
 
         return (
             A(
@@ -928,10 +929,8 @@ def render_stats_summary_table(
         }
         todays_page_count = count_map[current_mode_id]
         return Tr(
-            Td(
-                f"{modes[current_mode_id].name} - {render_count(current_mode_id, today, is_link=False)}/{todays_page_count}"
-            ),
-            Td(render_count(current_mode_id, today)),
+            Td(f"{modes[current_mode_id].name}"),
+            Td(render_count(current_mode_id, today), f"/{todays_page_count}"),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
@@ -961,7 +960,7 @@ def render_stats_summary_table(
             Tfoot(
                 Tr(
                     Td("Total"),
-                    Td(today_total_count),
+                    Td(today_total_count, f"/{total_today_page_count_for_all}"),
                     Td(yesterday_total_count),
                     cls="[&>*]:font-bold",
                     id="total_row",
@@ -1079,10 +1078,10 @@ def index(auth):
     todays_completed_count = get_page_count(
         revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
     )
-    todays_count = f"{todays_completed_count}/{todays_monthly_count}"
+    todays_monthly_count_f = f"{todays_completed_count}/{todays_monthly_count}"
 
     overall_table = AccordionItem(
-        Span(f"{modes[1].name} - {todays_count}"),
+        Span(f"{modes[1].name} - {todays_monthly_count_f}"),
         Div(
             description,
             Table(
@@ -1150,13 +1149,21 @@ def index(auth):
     tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
-
+    total_today_page_count_for_all = (
+        todays_recent_review_count
+        + todays_watch_list_count
+        + todays_new_memorization_count
+        + todays_monthly_count
+    )
+    print(total_today_page_count_for_all)
+    # FIXME: need to pass argument as keyword argument
     stat_table = render_stats_summary_table(
         auth,
         todays_recent_review_count,
         todays_watch_list_count,
         todays_new_memorization_count,
         todays_monthly_count,
+        total_today_page_count_for_all,
     )
 
     return main_area(
