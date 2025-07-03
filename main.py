@@ -4991,7 +4991,43 @@ def page_description_edit_form(item_id: int):
 
 @app.get("/srs")
 def srs_detailed_page_view(auth):
-    return main_area(H1(get_mode_name(5)), auth=auth, active="SRS")
+    # Get the items which have bad ratings across all the modes
+    qry = f"""
+    SELECT hafizs_items.mode_id, hafizs_items.item_id, COUNT(revisions.rating) AS bad_count from hafizs_items
+    LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND revisions.mode_id <> 5 
+    WHERE hafizs_items.hafiz_id = {auth} AND revisions.rating = -1 
+    GROUP BY hafizs_items.mode_id, hafizs_items.item_id 
+    ORDER BY COUNT(revisions.rating) DESC, hafizs_items.item_id ASC;
+    """
+    items_with_bad_ratings = db.q(qry)
+
+    # This table is responsible for showing the eligible pages for SRS
+    def render_srs_eligible_rows(record: dict):
+        page_description = get_page_description(record["item_id"])
+        current_mode = get_mode_name(record["mode_id"])
+        start_srs_link = A("Start SRS", cls=AT.classic)
+        return Tr(
+            Td(page_description),
+            Td(current_mode),
+            Td(record["bad_count"]),
+            Td(start_srs_link),
+        )
+
+    srs_eligible_table = Table(
+        Thead(
+            Tr(
+                Td("Page"),
+                Td("Current_mode"),
+                Td("Bad Rating Count"),
+                Td(""),
+            )
+        ),
+        Tbody(*map(render_srs_eligible_rows, items_with_bad_ratings)),
+    )
+
+    return main_area(
+        Div(H1(get_mode_name(5)), srs_eligible_table), auth=auth, active="SRS"
+    )
 
 
 serve()
