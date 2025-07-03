@@ -230,6 +230,10 @@ def get_page_count(records: list[Revision]) -> float:
     return format_number(total_count)
 
 
+def get_unique_page_count(recent_review_items):
+    return len(set(map(get_page_number, recent_review_items)))
+
+
 def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
@@ -873,6 +877,99 @@ def tables_main_area(*args, active_table=None, auth=None):
     )
 
 
+def render_stats_summary_table(
+    auth,
+    recent_review_counts,
+    watch_list_counts,
+    new_memorization_counts,
+    monthly_counts,
+    total_today_page_count_for_all,
+):
+    current_date = get_current_date(auth)
+    today = current_date
+    yesterday = sub_days_to_date(today, 1)
+    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
+    yesterday_total_count = get_page_count(
+        revisions(where=f"revision_date = '{yesterday}'")
+    )
+    current_date_description = P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
+    )
+    # exlcuded the srs mode
+    mode_ids = [mode.id for mode in modes()][:-1]
+    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
+
+    def render_count(_mode_id, _revision_date, is_link=True):
+        records = revisions(
+            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
+        )
+        rev_ids = [str(r.id) for r in records]
+        count = get_page_count(records)
+
+        if count == 0 and is_link:
+            return "0"
+
+        return (
+            A(
+                count,
+                href=f"/revision/bulk_edit?ids={",".join(rev_ids)}",
+                cls=AT.classic,
+            )
+            if is_link
+            else count
+        )
+
+    def render_stat_rows(current_mode_id):
+        count_map = {
+            1: monthly_counts,
+            2: new_memorization_counts,
+            3: recent_review_counts,
+            4: watch_list_counts,
+        }
+        todays_page_count = count_map[current_mode_id]
+        return Tr(
+            Td(f"{modes[current_mode_id].name}"),
+            Td(render_count(current_mode_id, today), f" / {todays_page_count}"),
+            Td(render_count(current_mode_id, yesterday)),
+            id=f"stat-row-{current_mode_id}",
+        )
+
+    return Div(
+        DivLAligned(
+            current_date_description,
+            Button(
+                "Close Date",
+                hx_get="/close_date",
+                target_id="current_date_description",
+                hx_confirm="Are you sure?",
+                cls=(ButtonT.default, "px-2 py-3 h-0"),
+            ),
+        ),
+        Table(
+            Thead(
+                Tr(
+                    Th("Modes"),
+                    Th("Today"),
+                    Th("Yesterday"),
+                )
+            ),
+            Tbody(
+                *map(render_stat_rows, sorted_mode_ids),
+            ),
+            Tfoot(
+                Tr(
+                    Td("Total"),
+                    Td(today_total_count, f" / {total_today_page_count_for_all}"),
+                    Td(yesterday_total_count),
+                    cls="[&>*]:font-bold",
+                    id="total_row",
+                ),
+            ),
+        ),
+    )
+
+
 @rt
 def index(auth):
     current_date = get_current_date(auth)
@@ -974,9 +1071,17 @@ def index(auth):
             description = None
     else:
         description = None
+    memorized_len = len(
+        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+    )
+    todays_monthly_count = round(memorized_len / 30)
+    todays_completed_count = get_page_count(
+        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    )
+    todays_monthly_count_f = f"{todays_completed_count} / {todays_monthly_count}"
 
     overall_table = AccordionItem(
-        Span(modes[1].name),
+        Span(f"{modes[1].name} - {todays_monthly_count_f}"),
         Div(
             description,
             Table(
@@ -994,15 +1099,22 @@ def index(auth):
         open=True,
     )
 
-    recent_review_table = make_summary_table(
+    recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
+    todays_recent_review_count = get_unique_page_count(recent_review_items)
 
-    watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
-
-    new_memorization_table = make_new_memorization_summary_table(
-        mode_ids=["2"], route="new_memorization", auth=auth
+    watch_list_table, watch_list_items = make_summary_table(
+        mode_ids=["4"], route="watch_list", auth=auth
     )
+    todays_watch_list_count = get_unique_page_count(watch_list_items)
+
+    new_memorization_table, new_memorization_items = (
+        make_new_memorization_summary_table(
+            mode_ids=["2"], route="new_memorization", auth=auth
+        )
+    )
+    todays_new_memorization_count = get_unique_page_count(new_memorization_items)
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1037,79 +1149,21 @@ def index(auth):
     tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
-
-    ############### stat table ################
-
-    # exlcuded the srs mode
-    mode_ids = [mode.id for mode in modes()][:-1]
-    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
-
-    def render_count(_mode_id, _revision_date):
-        records = revisions(
-            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-        )
-        rev_ids = [str(r.id) for r in records]
-        count = get_page_count(records)
-
-        if count == 0:
-            return "-"
-
-        return A(
-            count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
-        )
-
-    today = current_date
-    yesterday = sub_days_to_date(today, 1)
-    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
-    yesterday_total_count = get_page_count(
-        revisions(where=f"revision_date = '{yesterday}'")
+    total_today_page_count_for_all = (
+        todays_recent_review_count
+        + todays_watch_list_count
+        + todays_new_memorization_count
+        + todays_monthly_count
     )
-
-    def render_stat_rows(current_mode_id):
-        return Tr(
-            Td(modes[current_mode_id].name),
-            Td(render_count(current_mode_id, today)),
-            Td(render_count(current_mode_id, yesterday)),
-            id=f"stat-row-{current_mode_id}",
-        )
-
-    current_date_description = P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), id="current_date_description"),
-    )
-
-    stat_table = Div(
-        DivLAligned(
-            current_date_description,
-            Button(
-                "Close Date",
-                hx_get="/close_date",
-                target_id="current_date_description",
-                hx_confirm="Are you sure?",
-                cls=(ButtonT.default, "px-2 py-3 h-0"),
-            ),
-        ),
-        Table(
-            Thead(
-                Tr(
-                    Th("Modes"),
-                    Th("Today"),
-                    Th("Yesterday"),
-                )
-            ),
-            Tbody(
-                *map(render_stat_rows, sorted_mode_ids),
-            ),
-            Tfoot(
-                Tr(
-                    Td("Total"),
-                    Td(today_total_count),
-                    Td(yesterday_total_count),
-                    cls="[&>*]:font-bold",
-                    id="total_row",
-                ),
-            ),
-        ),
+    print(total_today_page_count_for_all)
+    # FIXME: need to pass argument as keyword argument
+    stat_table = render_stats_summary_table(
+        auth,
+        todays_recent_review_count,
+        todays_watch_list_count,
+        todays_new_memorization_count,
+        todays_monthly_count,
+        total_today_page_count_for_all,
     )
 
     return main_area(
@@ -1246,11 +1300,14 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     new_memorization_items = sorted(
         set(unmemorized_items + recent_newly_memorized_items)
     )
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=new_memorization_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=new_memorization_items,
+        ),
+        new_memorization_items,
     )
 
 
@@ -1307,15 +1364,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
 
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=recent_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=recent_items,
+        ),
+        recent_items,
     )
 
 
 ######## New Summary Table ########
+
+
+def get_start_text(item_id):
+    return items(where=f"id ={item_id} and active = 1")[0].start_text
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
@@ -1341,7 +1405,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -1386,6 +1450,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         progress = P(Strong(len(revs)), Span("/7"))
         return Tr(
             Td(get_page_description(item_id)),
+            Td(get_start_text(item_id)),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
             Td(Div(rating_dropdown_input, cls="max-w-28")),
@@ -1393,11 +1458,15 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
     body_rows = list(map(render_range_row, item_ids))
-
+    unique_page_count = len(set(map(get_page_number, item_ids)))
+    completed_page_count = get_page_count(
+        revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
+    )
+    summary_count = f"{completed_page_count} / {unique_page_count}"
     if not body_rows:
         return None
     return AccordionItem(
-        Span(modes[mode_id].name),
+        Span(f"{modes[mode_id].name} - {summary_count}", id=f"{route}-header"),
         Div(
             Div(
                 A(
@@ -1412,6 +1481,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
+                        Th("Start Text", cls="min-w-24"),
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
