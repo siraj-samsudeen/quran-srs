@@ -812,6 +812,11 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
+                A(
+                    "SRS",
+                    href="/srs",
+                    cls=is_active("SRS"),
+                ),
                 # A(
                 #     "New Memorization",
                 #     href="/new_memorization/juz",
@@ -4754,6 +4759,11 @@ def page_description_edit_form(item_id: int):
     )
 
     return description_field, start_text_field, buttons
+
+
+@app.get("/srs")
+def srs_detailed_page_view(auth):
+    return main_area(H1("SRS"), auth=auth, active="SRS")
 
 
 serve()
