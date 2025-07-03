@@ -160,6 +160,10 @@ def get_column_headers(table):
     return columns
 
 
+def get_mode_name(mode_id: int):
+    return modes[mode_id].name
+
+
 def get_juz_name(page_id=None, item_id=None):
     if item_id:
         qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
@@ -4763,7 +4767,7 @@ def page_description_edit_form(item_id: int):
 
 @app.get("/srs")
 def srs_detailed_page_view(auth):
-    return main_area(H1("SRS"), auth=auth, active="SRS")
+    return main_area(H1(get_mode_name(5)), auth=auth, active="SRS")
 
 
 serve()
