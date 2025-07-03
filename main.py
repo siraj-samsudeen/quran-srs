@@ -4798,20 +4798,80 @@ def srs_detailed_page_view(auth):
             Td(start_srs_link),
         )
 
-    srs_eligible_table = Table(
-        Thead(
-            Tr(
-                Td("Page"),
-                Td("Current Mode"),
-                Td("Bad Rating Count"),
-                Td(""),
-            )
+    srs_eligible_table = Div(
+        H4("Eligible Pages"),
+        Div(
+            Table(
+                Thead(
+                    Tr(
+                        Td("Page"),
+                        Td("Current Mode"),
+                        Td("Bad Rating Count"),
+                        Td(""),
+                    ),
+                    cls="sticky z-50 top-0 bg-white",
+                ),
+                Tbody(*map(render_srs_eligible_rows, items_with_bad_ratings)),
+            ),
+            cls="space-y-2 uk-overflow-auto h-[35vh]",
         ),
-        Tbody(*map(render_srs_eligible_rows, items_with_bad_ratings)),
+    )
+    ################### END ###################
+
+    current_srs_items = [i.item_id for i in hafizs_items(where=f"mode_id = 5")]
+
+    # This table shows the current srs pages for the user
+    def render_current_srs_rows(item_id):
+        hafiz_items_data = hafizs_items(where=f"item_id = {item_id}")
+        if hafiz_items_data:
+            hafiz_items_data = hafiz_items_data[0]
+            last_interval = hafiz_items_data.last_interval
+            next_interval = hafiz_items_data.next_interval
+        else:
+            # This block mostly never run unless we don't have items details in the hafizs_items table
+            last_interval = None
+            next_interval = None
+
+        return Tr(
+            Td(get_page_description(item_id)),
+            Td(Switch()),
+            Td(last_interval if last_interval else "-"),
+            Td(next_interval if next_interval else "-"),
+            Td(CheckboxX()),
+            Td(
+                rating_dropdown(
+                    is_label=False,
+                    cls="[&>div]:h-8 uk-form-sm w-28",
+                    id=f"rev-{item_id}",
+                )
+            ),
+        )
+
+    current_srs_table = Div(
+        H4("SRS Pages"),
+        Div(
+            Table(
+                Thead(
+                    Tr(
+                        Td("Page"),
+                        Td("Graduate"),
+                        Td("Last Interval"),
+                        Td("Next Interval"),
+                        Td(""),
+                        Td("Rating"),
+                    ),
+                    cls="sticky z-50 top-0 bg-white",
+                ),
+                Tbody(*map(render_current_srs_rows, current_srs_items)),
+            ),
+            cls="space-y-2 uk-overflow-auto h-[35vh]",
+        ),
     )
 
     return main_area(
-        Div(H1(get_mode_name(5)), srs_eligible_table), auth=auth, active="SRS"
+        Div(H1(get_mode_name(5)), srs_eligible_table, Divider(), current_srs_table),
+        auth=auth,
+        active="SRS",
     )
 
 
