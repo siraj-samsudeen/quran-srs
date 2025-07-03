@@ -911,9 +911,7 @@ def render_stats_summary_table(auth):
 
     def render_stat_rows(current_mode_id):
         return Tr(
-            Td(
-                f"{modes[current_mode_id].name}"
-            ),
+            Td(f"{modes[current_mode_id].name}"),
             Td(render_count(current_mode_id, today)),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
@@ -1055,9 +1053,15 @@ def index(auth):
             description = None
     else:
         description = None
+    memorized_len = len(
+        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+    )
+    todays_monthly_reps_count = round(memorized_len / 30)
+    todays_completed_count = 0  # TODO: get the counts
+    todays_count = f"{todays_completed_count}/{todays_monthly_reps_count}"
 
     overall_table = AccordionItem(
-        Span(modes[1].name),
+        Span(f"{modes[1].name} - {todays_count}"),
         Div(
             description,
             Table(
