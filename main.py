@@ -873,7 +873,9 @@ def tables_main_area(*args, active_table=None, auth=None):
     )
 
 
-def render_stats_summary_table(auth):
+def render_stats_summary_table(
+    auth, recent_review_items, watch_list_items, new_memorization_items
+):
     current_date = get_current_date(auth)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
@@ -910,8 +912,18 @@ def render_stats_summary_table(auth):
         )
 
     def render_stat_rows(current_mode_id):
+        items_map = {
+            1: "",
+            2: new_memorization_items,
+            3: recent_review_items,
+            4: watch_list_items,
+        }
+        item_ids = items_map[current_mode_id]
+        unique_page_count = len(set(map(get_page_number, item_ids)))
         return Tr(
-            Td(f"{modes[current_mode_id].name}"),
+            Td(
+                f"{modes[current_mode_id].name} - {render_count(current_mode_id, today, is_link=False)}/{unique_page_count}"
+            ),
             Td(render_count(current_mode_id, today)),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
@@ -1079,14 +1091,18 @@ def index(auth):
         open=True,
     )
 
-    recent_review_table = make_summary_table(
+    recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
 
-    watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
+    watch_list_table, watch_list_items = make_summary_table(
+        mode_ids=["4"], route="watch_list", auth=auth
+    )
 
-    new_memorization_table = make_new_memorization_summary_table(
-        mode_ids=["2"], route="new_memorization", auth=auth
+    new_memorization_table, new_memorization_items = (
+        make_new_memorization_summary_table(
+            mode_ids=["2"], route="new_memorization", auth=auth
+        )
     )
     modal = ModalContainer(
         ModalDialog(
@@ -1123,7 +1139,9 @@ def index(auth):
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
 
-    stat_table = render_stats_summary_table(auth)
+    stat_table = render_stats_summary_table(
+        auth, recent_review_items, watch_list_items, new_memorization_items
+    )
 
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
@@ -1259,11 +1277,14 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     new_memorization_items = sorted(
         set(unmemorized_items + recent_newly_memorized_items)
     )
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=new_memorization_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=new_memorization_items,
+        ),
+        new_memorization_items,
     )
 
 
@@ -1320,11 +1341,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
 
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=recent_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=recent_items,
+        ),
+        recent_items,
     )
 
 
