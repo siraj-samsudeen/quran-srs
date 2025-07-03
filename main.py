@@ -1739,10 +1739,10 @@ async def create_new_record(table: str, req: Request):
 
 @app.get("/tables/{table}/export")
 def export_specific_table(table: str):
-    df = pd.DataFrame(tables[table]())
+    df = pd.DataFrame(tables[table](), columns=get_column_and_its_type(table).keys())
 
     csv_buffer = BytesIO()
-    df.to_csv(csv_buffer, index=False)
+    df.to_csv(csv_buffer, index=False, header=True)
     csv_buffer.seek(0)
 
     file_name = f"{table}.csv"
