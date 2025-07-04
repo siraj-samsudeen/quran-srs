@@ -107,6 +107,59 @@ app, rt = fast_app(
 )
 
 
+# Alogirthm to populate the good and bad streak with last_review
+def populate_streak(item_id: int = None):
+    """
+    Populate the good and bad streak with the last_review date, for all the items in the hafizs_items
+
+    only if the item_id is not given or else it will update it for the specific item
+    """
+
+    def get_item_id_streaks(item_id: int):
+        items_rev_data = revisions(
+            where=f"item_id = {item_id}", order_by="revision_date ASC"
+        )
+        good_streak = 0
+        bad_streak = 0
+        last_review_date = ""
+
+        for rev in items_rev_data:
+            current_rating = rev.rating
+            if current_rating == -1:
+                bad_streak += 1
+                good_streak = 0
+            elif current_rating == 1:
+                good_streak += 1
+                bad_streak = 0
+            else:
+                good_streak = 0
+                bad_streak = 0
+            last_review_date = rev.revision_date
+
+        return good_streak, bad_streak, last_review_date
+
+    # Update the streak for a specific items if item_id is givien
+    if item_id is not None:
+        current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+        if current_hafiz_items:
+            current_hafiz_items = current_hafiz_items[0]
+            (
+                current_hafiz_items.good_streak,
+                current_hafiz_items.bad_streak,
+                current_hafiz_items.last_review,
+            ) = get_item_id_streaks(item_id)
+
+            hafizs_items.update(current_hafiz_items)
+        return None
+
+    # Update the streak for all the items in the hafizs_items
+    for h_item in hafizs_items():
+        h_item.good_streak, h_item.bad_streak, h_item.last_review = get_item_id_streaks(
+            h_item.item_id
+        )
+        hafizs_items.update(h_item)
+
+
 def get_item_id(page_number: int, not_memorized_only: bool = False):
     """
     This function will lookup the page_number in the `hafizs_items` table
@@ -4769,6 +4822,7 @@ def page_description_edit_form(item_id: int):
     return description_field, start_text_field, buttons
 
 
+######################### SRS Pages #########################
 @app.get("/srs")
 def srs_detailed_page_view(auth):
     # Get the items which have bad ratings across all the modes
