@@ -883,14 +883,7 @@ def tables_main_area(*args, active_table=None, auth=None):
     )
 
 
-def render_stats_summary_table(
-    auth,
-    recent_review_target_count,
-    watch_list_target_count,
-    new_memorization_target_count,
-    monthly_target_count,
-    overall_target_count,
-):
+def render_stats_summary_table(auth, target_counts):
     current_date = get_current_date(auth)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
@@ -929,20 +922,17 @@ def render_stats_summary_table(
         )
 
     def render_stat_rows(current_mode_id):
-        count_map = {
-            1: monthly_target_count,
-            2: new_memorization_target_count,
-            3: recent_review_target_count,
-            4: watch_list_target_count,
-        }
-        target_count = count_map[current_mode_id]
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
-            Td(render_count(current_mode_id, today), f" / {target_count}"),
+            Td(
+                render_count(current_mode_id, today),
+                f" / {target_counts[current_mode_id]}",
+            ),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
 
+    overall_target_count = sum(target_counts.values())
     return Div(
         DivLAligned(
             current_date_description,
@@ -1166,16 +1156,15 @@ def index(auth):
         + new_memorization_target
         + monthly_review_target
     )
+    target_counts = {
+        1: monthly_review_target,
+        2: new_memorization_target,
+        3: recent_review_target,
+        4: watch_list_target,
+    }
     print(overall_page_count)
     # FIXME: need to pass argument as keyword argument
-    stat_table = render_stats_summary_table(
-        auth=auth,
-        recent_review_target_count=recent_review_target,
-        watch_list_target_count=watch_list_target,
-        new_memorization_target_count=new_memorization_target,
-        monthly_target_count=monthly_review_target,
-        overall_target_count=overall_page_count,
-    )
+    stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
 
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
