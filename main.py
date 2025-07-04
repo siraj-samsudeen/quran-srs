@@ -1476,19 +1476,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
 
         revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
         progress = P(Strong(len(revs)), Span("/7"))
-        # FIXME: Test Style
-        test_style = ""
-        if route == "new_memorization":
-            test_style = TextT.lg
-        elif route == "recent_review":
-            test_style = TextT.xl
-        elif route == "watch_list":
-            test_style = TextT.bold
         return Tr(
             Td(get_page_description(item_id)),
             Td(
                 get_start_text(item_id),
-                cls=test_style,
+                cls=TextT.lg,
             ),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
@@ -2450,7 +2442,7 @@ def get(
                 )
             ),
             Td(get_page_description(current_item_id)),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 rating_radio(
                     direction="horizontal",
@@ -4766,7 +4758,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Tr(
                 Td("Start Text: "),
-                Td(start_text, id="start_text"),
+                Td(start_text, id="start_text", cls=TextT.lg),
             ),
             Tr(
                 Td(
@@ -4838,6 +4830,7 @@ def page_description_edit_form(item_id: int):
             id="start_text",
             hx_swap_oob="true",
             placeholder=start_text,
+            cls=TextT.lg,
         ),
     )
     buttons = Div(
