@@ -2180,17 +2180,18 @@ def bulk_edit_view(ids: str, auth):
             # Td(P(item_details.page_id)),
             # Td(P(item_details.surah_name)),
             # Td(P(item_details.part)),
-            Td(P(item_details.start_text)),
-            Td(P(current_revision.revision_date)),
-            Td(P(current_revision.mode_id)),
-            Td(P(current_revision.plan_id)),
+            Td(P(item_details.start_text, cls=TextT.lg)),
+            # Td(P(current_revision.revision_date)),
+            # Td(P(current_revision.mode_id)),
+            # Td(P(current_revision.plan_id)),
             Td(
                 rating_radio(
                     default_rating=current_revision.rating,
                     direction="horizontal",
                     is_label=False,
                     id=f"rating-{id}",
-                )
+                ),
+                cls="min-w-32",
             ),
         )
 
@@ -2208,9 +2209,9 @@ def bulk_edit_view(ids: str, auth):
                 # Th("Surah"),
                 # Th("Part"),
                 Th("Start"),
-                Th("Date"),
-                Th("Mode"),
-                Th("Plan ID"),
+                # Th("Date"),
+                # Th("Mode"),
+                # Th("Plan ID"),
                 Th("Rating"),
             )
         ),
@@ -2450,7 +2451,7 @@ def get(
                     id=f"rating-{current_item_id}",
                     cls="toggleable-radio",
                 ),
-                cls="!pr-0",
+                cls="!pr-0 min-w-32",
             ),
         )
 
