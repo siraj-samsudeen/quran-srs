@@ -240,6 +240,36 @@ def get_unique_page_count(recent_review_items):
     return len(set(map(get_page_number, recent_review_items)))
 
 
+def get_revision_data(mode_id: str, revision_date: str):
+    """Returns the revision count and revision ID for a specific date and mode ID."""
+    records = revisions(
+        where=f"mode_id = '{mode_id}' AND revision_date = '{revision_date}'"
+    )
+    rev_ids = ",".join(str(r.id) for r in records)
+    count = get_page_count(records)
+    return count, rev_ids
+
+
+def create_count_link(count: int, rev_ids: str):
+    if not rev_ids:
+        return count
+    return A(
+        count,
+        href=f"/revision/bulk_edit?ids={rev_ids}",
+        cls=AT.classic,
+    )
+
+
+def render_progress_display(current_count: int, target_count: int, rev_ids: str = ""):
+    base_link = create_count_link(current_count, rev_ids)
+    if current_count == target_count:
+        return (base_link, " ✔️")
+    elif current_count > target_count:
+        return (base_link, f" / {target_count}", " ✔️")
+    else:
+        return (base_link, f" / {target_count}")
+
+
 def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
@@ -901,34 +931,30 @@ def render_stats_summary_table(auth, target_counts):
     mode_ids = [mode.id for mode in modes()][:-1]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
-    def render_count(_mode_id, _revision_date, is_link=True):
-        records = revisions(
-            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-        )
-        rev_ids = [str(r.id) for r in records]
-        count = get_page_count(records)
+    def render_count(mode_id, revision_date, is_link=True):
+        count, item_ids = get_revision_data(mode_id, revision_date)
 
         if count == 0 and is_link:
-            return "0"
+            return 0, ""
 
-        return (
-            A(
-                count,
-                href=f"/revision/bulk_edit?ids={",".join(rev_ids)}",
-                cls=AT.classic,
-            )
-            if is_link
-            else count
-        )
+        if is_link:
+            return create_count_link(count, item_ids)
+        else:
+            return count, item_ids
 
     def render_stat_rows(current_mode_id):
+        today_count, today_item_ids = render_count(
+            current_mode_id, today, is_link=False
+        )
+        today_target = target_counts[current_mode_id]
+        progress_display = render_progress_display(
+            today_count, today_target, today_item_ids
+        )
+        yesterday_display = render_count(current_mode_id, yesterday, is_link=True)
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
-            Td(
-                render_count(current_mode_id, today),
-                f" / {target_counts[current_mode_id]}",
-            ),
-            Td(render_count(current_mode_id, yesterday)),
+            Td(progress_display),
+            Td(yesterday_display),
             id=f"stat-row-{current_mode_id}",
         )
 
@@ -958,7 +984,11 @@ def render_stats_summary_table(auth, target_counts):
             Tfoot(
                 Tr(
                     Td("Total"),
-                    Td(today_completed_count, f" / {overall_target_count}"),
+                    Td(
+                        render_progress_display(
+                            today_completed_count, overall_target_count
+                        )
+                    ),
                     Td(yesterday_completed_count),
                     cls="[&>*]:font-bold",
                     id="total_row",
