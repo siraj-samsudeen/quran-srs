@@ -2549,11 +2549,11 @@ def get(
 async def post(
     revision_date: str,
     plan_id: int,
-    length: int,
     is_part: bool,
     max_item_id: int,
     auth,
     req,
+    length: int = 5,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
