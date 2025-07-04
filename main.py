@@ -1476,12 +1476,21 @@ def render_summary_table(auth, route, mode_ids, item_ids):
 
         revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
         progress = P(Strong(len(revs)), Span("/7"))
+        # FIXME: Test Style
+        test_style = ""
+        if route == "new_memorization":
+            test_style = TextT.lg
+        elif route == "recent_review":
+            test_style = TextT.bold
+        elif route == "watch_list":
+            test_style = TextT.xl
         return Tr(
             Td(get_page_description(item_id)),
             Td(get_start_text(item_id)),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
             Td(Div(rating_dropdown_input, cls="max-w-28")),
+            cls=test_style,
             id=row_id,
         )
 
@@ -1494,6 +1503,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
+    print("is_selected:", is_all_selected)
     return AccordionItem(
         Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
         Div(
