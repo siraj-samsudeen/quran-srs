@@ -1106,12 +1106,12 @@ def index(auth):
     monthly_reviews_completed_today = get_page_count(
         revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
     )
-    monthly_progress_display = (
-        f"{monthly_reviews_completed_today} / {monthly_review_target}"
+    monthly_progress_display = render_progress_display(
+        monthly_reviews_completed_today, monthly_review_target
     )
 
     overall_table = AccordionItem(
-        Span(f"{modes[1].name} - {monthly_progress_display }"),
+        Span(f"{modes[1].name} - ", monthly_progress_display),
         Div(
             description,
             Table(
@@ -1490,7 +1490,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     if not body_rows:
         return None
     return AccordionItem(
-        Span(f"{modes[mode_id].name} - ", (summary_count), id=f"{route}-header"),
+        Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
         Div(
             Div(
                 A(
