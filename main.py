@@ -113,6 +113,11 @@ def populate_streak(item_id: int = None):
     Populate the good and bad streak with the last_review date, for all the items in the hafizs_items
 
     only if the item_id is not given or else it will update it for the specific item
+
+    ## Streak algorithm:
+    - if rating is `Good`: reset the bad_streak and add one to the exsisting good_streak
+    - if rating is `Ok`: reset the bad and good streak
+    - if rating is `Bad`: reset the good_streak and add one to the exsisting bad_streak
     """
 
     def get_item_id_streaks(item_id: int):
