@@ -1481,16 +1481,18 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         if route == "new_memorization":
             test_style = TextT.lg
         elif route == "recent_review":
-            test_style = TextT.bold
-        elif route == "watch_list":
             test_style = TextT.xl
+        elif route == "watch_list":
+            test_style = TextT.bold
         return Tr(
             Td(get_page_description(item_id)),
-            Td(get_start_text(item_id)),
+            Td(
+                get_start_text(item_id),
+                cls=test_style,
+            ),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
             Td(Div(rating_dropdown_input, cls="max-w-28")),
-            cls=test_style,
             id=row_id,
         )
 
