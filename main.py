@@ -1180,19 +1180,12 @@ def index(auth):
     tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
-    overall_page_count = (
-        recent_review_target
-        + watch_list_target
-        + new_memorization_target
-        + monthly_review_target
-    )
     target_counts = {
         1: monthly_review_target,
         2: new_memorization_target,
         3: recent_review_target,
         4: watch_list_target,
     }
-    print(overall_page_count)
     # FIXME: need to pass argument as keyword argument
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
 
