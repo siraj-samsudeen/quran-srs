@@ -4830,7 +4830,8 @@ def page_description_edit_form(item_id: int):
 ######################### SRS Pages #########################
 @app.get("/srs")
 def srs_detailed_page_view(auth):
-    # Get the items which have more than one bad streak
+    # Populate the streaks for all the items before displaying the eligible pages
+    populate_streak()
     bad_streak_items = hafizs_items(where="bad_streak > 0")
 
     # This table is responsible for showing the eligible pages for SRS
