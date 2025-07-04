@@ -4830,9 +4830,10 @@ def page_description_edit_form(item_id: int):
 ######################### SRS Pages #########################
 @app.get("/srs")
 def srs_detailed_page_view(auth):
+    current_date = get_current_date(auth)
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
-    bad_streak_items = hafizs_items(where="bad_streak > 0")
+    bad_streak_items = hafizs_items(where="bad_streak > 0 and mode_id <> 5")
 
     # This table is responsible for showing the eligible pages for SRS
     def render_srs_eligible_rows(record: Hafiz_Items):
@@ -4893,10 +4894,34 @@ def srs_detailed_page_view(auth):
         else:
             # This block mostly never run unless we don't have items details in the hafizs_items table
             next_review = None
-
+        is_due = calculate_days_difference(next_review, current_date) >= 0
         return Tr(
             Td(get_page_description(item_id)),
             Td(next_review),
+            *(
+                (Td(), Td())
+                if not is_due
+                else (
+                    Td(
+                        Div(
+                            rating_dropdown(
+                                default_rating=None,
+                                is_label=False,
+                                cls="[&>div]:h-8 uk-form-sm w-28",
+                            ),
+                            cls="max-w-28",
+                        )
+                    ),
+                    Td(
+                        Button(
+                            "Record",
+                            hx_post=f"srs/{item_id}",
+                            hx_include="closest tr",
+                            hx_swap="none",
+                        )
+                    ),
+                )
+            ),
         )
 
     current_srs_table = Div(
@@ -4904,7 +4929,12 @@ def srs_detailed_page_view(auth):
         Div(
             Table(
                 Thead(
-                    Tr(Td("Page"), Td("Next Review")),
+                    Tr(
+                        Td("Page"),
+                        Td("Next Review"),
+                        Td("Rating"),
+                        Td(""),
+                    ),
                     cls="sticky z-50 top-0 bg-white",
                 ),
                 Tbody(*map(render_current_srs_rows, current_srs_items)),
@@ -4927,6 +4957,11 @@ def get_srs_next_interval(pack_id: int, current_interval: int):
     booster_pack_intervals = booster_pack_details.interval_days.split(",")
     booster_pack_intervals = list(map(int, booster_pack_intervals))
     return find_next_greater(booster_pack_intervals, current_interval)
+
+
+@app.post("/srs/{item_id}")
+def add_srs_records(item_id: int, rating: int):
+    pass
 
 
 @app.get("/start-srs/{item_id}")
