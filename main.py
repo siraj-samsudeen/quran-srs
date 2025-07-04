@@ -4889,26 +4889,14 @@ def srs_detailed_page_view(auth):
         hafiz_items_data = hafizs_items(where=f"item_id = {item_id}")
         if hafiz_items_data:
             hafiz_items_data = hafiz_items_data[0]
-            last_interval = hafiz_items_data.last_interval
-            next_interval = hafiz_items_data.next_interval
+            next_review = hafiz_items_data.next_review
         else:
             # This block mostly never run unless we don't have items details in the hafizs_items table
-            last_interval = None
-            next_interval = None
+            next_review = None
 
         return Tr(
             Td(get_page_description(item_id)),
-            Td(Switch()),
-            Td(last_interval if last_interval else "-"),
-            Td(next_interval if next_interval else "-"),
-            Td(CheckboxX()),
-            Td(
-                rating_dropdown(
-                    is_label=False,
-                    cls="[&>div]:h-8 uk-form-sm w-28",
-                    id=f"rev-{item_id}",
-                )
-            ),
+            Td(next_review),
         )
 
     current_srs_table = Div(
@@ -4916,14 +4904,7 @@ def srs_detailed_page_view(auth):
         Div(
             Table(
                 Thead(
-                    Tr(
-                        Td("Page"),
-                        Td("Graduate"),
-                        Td("Last Interval"),
-                        Td("Next Interval"),
-                        Td(""),
-                        Td("Rating"),
-                    ),
+                    Tr(Td("Page"), Td("Next Review")),
                     cls="sticky z-50 top-0 bg-white",
                 ),
                 Tbody(*map(render_current_srs_rows, current_srs_items)),
@@ -4949,8 +4930,13 @@ def get_srs_next_interval(pack_id: int, current_interval: int):
 
 
 @app.get("/start-srs/{item_id}")
-def start_srs(item_id: int):
-    srs_booster_id = srs_booster_pack(where="is_system_default = 1")[0].id
+def start_srs(item_id: int, auth):
+    current_date = get_current_date(auth)
+    # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
+    booster_pack_details = srs_booster_pack[1]
+    srs_booster_id = booster_pack_details.id
+    next_interval = booster_pack_details.min_interval
+    next_review_date = add_days_to_date(current_date, next_interval)
 
     # Change the current mode_id for the item_id to 5(srs)
     # TODO: What about the status?
@@ -4959,6 +4945,7 @@ def start_srs(item_id: int):
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
+        current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
 
     return RedirectResponse("/srs")
