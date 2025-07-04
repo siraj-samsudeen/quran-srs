@@ -931,11 +931,14 @@ def render_stats_summary_table(auth, target_counts):
     mode_ids = [mode.id for mode in modes()][:-1]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
-    def render_count(mode_id, revision_date, is_link=True):
+    def render_count(mode_id, revision_date, is_link=True, show_dash_for_zero=False):
         count, item_ids = get_revision_data(mode_id, revision_date)
 
-        if count == 0 and is_link:
-            return 0, ""
+        if count == 0:
+            if show_dash_for_zero:
+                return "-", ""
+            else:
+                return 0, ""
 
         if is_link:
             return create_count_link(count, item_ids)
@@ -950,7 +953,9 @@ def render_stats_summary_table(auth, target_counts):
         progress_display = render_progress_display(
             today_count, today_target, today_item_ids
         )
-        yesterday_display = render_count(current_mode_id, yesterday, is_link=True)
+        yesterday_display = render_count(
+            current_mode_id, yesterday, is_link=True, show_dash_for_zero=True
+        )
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
             Td(progress_display),
