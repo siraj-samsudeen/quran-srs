@@ -885,17 +885,19 @@ def tables_main_area(*args, active_table=None, auth=None):
 
 def render_stats_summary_table(
     auth,
-    recent_review_counts,
-    watch_list_counts,
-    new_memorization_counts,
-    monthly_counts,
-    total_today_page_count_for_all,
+    recent_review_target_count,
+    watch_list_target_count,
+    new_memorization_target_count,
+    monthly_target_count,
+    overall_target_count,
 ):
     current_date = get_current_date(auth)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
-    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
-    yesterday_total_count = get_page_count(
+    today_completed_count = get_page_count(
+        revisions(where=f"revision_date = '{today}'")
+    )
+    yesterday_completed_count = get_page_count(
         revisions(where=f"revision_date = '{yesterday}'")
     )
     current_date_description = P(
@@ -928,15 +930,15 @@ def render_stats_summary_table(
 
     def render_stat_rows(current_mode_id):
         count_map = {
-            1: monthly_counts,
-            2: new_memorization_counts,
-            3: recent_review_counts,
-            4: watch_list_counts,
+            1: monthly_target_count,
+            2: new_memorization_target_count,
+            3: recent_review_target_count,
+            4: watch_list_target_count,
         }
-        todays_page_count = count_map[current_mode_id]
+        target_count = count_map[current_mode_id]
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
-            Td(render_count(current_mode_id, today), f" / {todays_page_count}"),
+            Td(render_count(current_mode_id, today), f" / {target_count}"),
             Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
@@ -966,8 +968,8 @@ def render_stats_summary_table(
             Tfoot(
                 Tr(
                     Td("Total"),
-                    Td(today_total_count, f" / {total_today_page_count_for_all}"),
-                    Td(yesterday_total_count),
+                    Td(today_completed_count, f" / {overall_target_count}"),
+                    Td(yesterday_completed_count),
                     cls="[&>*]:font-bold",
                     id="total_row",
                 ),
@@ -1080,14 +1082,16 @@ def index(auth):
     memorized_len = len(
         hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
     )
-    todays_monthly_count = round(memorized_len / 30)
-    todays_completed_count = get_page_count(
+    monthly_review_target = round(memorized_len / 30)
+    monthly_reviews_completed_today = get_page_count(
         revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
     )
-    todays_monthly_count_f = f"{todays_completed_count} / {todays_monthly_count}"
+    monthly_progress_display = (
+        f"{monthly_reviews_completed_today} / {monthly_review_target}"
+    )
 
     overall_table = AccordionItem(
-        Span(f"{modes[1].name} - {todays_monthly_count_f}"),
+        Span(f"{modes[1].name} - {monthly_progress_display }"),
         Div(
             description,
             Table(
@@ -1109,19 +1113,19 @@ def index(auth):
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
 
-    todays_recent_review_count = get_page_count(item_ids=recent_review_items)
+    recent_review_target = get_page_count(item_ids=recent_review_items)
 
     watch_list_table, watch_list_items = make_summary_table(
         mode_ids=["4"], route="watch_list", auth=auth
     )
-    todays_watch_list_count = get_page_count(item_ids=watch_list_items)
+    watch_list_target = get_page_count(item_ids=watch_list_items)
 
     new_memorization_table, new_memorization_items = (
         make_new_memorization_summary_table(
             mode_ids=["2"], route="new_memorization", auth=auth
         )
     )
-    todays_new_memorization_count = get_page_count(item_ids=new_memorization_items)
+    new_memorization_target = get_page_count(item_ids=new_memorization_items)
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1156,21 +1160,21 @@ def index(auth):
     tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
-    total_today_page_count_for_all = (
-        todays_recent_review_count
-        + todays_watch_list_count
-        + todays_new_memorization_count
-        + todays_monthly_count
+    overall_page_count = (
+        recent_review_target
+        + watch_list_target
+        + new_memorization_target
+        + monthly_review_target
     )
-    print(total_today_page_count_for_all)
+    print(overall_page_count)
     # FIXME: need to pass argument as keyword argument
     stat_table = render_stats_summary_table(
-        auth,
-        todays_recent_review_count,
-        todays_watch_list_count,
-        todays_new_memorization_count,
-        todays_monthly_count,
-        total_today_page_count_for_all,
+        auth=auth,
+        recent_review_target_count=recent_review_target,
+        watch_list_target_count=watch_list_target,
+        new_memorization_target_count=new_memorization_target,
+        monthly_target_count=monthly_review_target,
+        overall_target_count=overall_page_count,
     )
 
     return main_area(
