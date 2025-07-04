@@ -1074,6 +1074,10 @@ def index(auth):
     new_memorization_table = make_new_memorization_summary_table(
         mode_ids=["2"], route="new_memorization", auth=auth
     )
+
+    srs_table = make_summary_table(
+        mode_ids=["5"], route="srs", auth=auth
+    )
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1097,6 +1101,8 @@ def index(auth):
         modes[2].name: new_memorization_table,
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
+        modes[5].name: srs_table,
+
         # datewise_summary_table(hafiz_id=auth),
     }
 
@@ -1372,6 +1378,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         "watch_list": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
+        "srs": lambda item: (
+            is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+        ),
     }
 
     recent_items = list(
@@ -1390,7 +1399,7 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
-    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4}
+    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4, "srs": 5}
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     current_date = get_current_date(auth)
@@ -4833,7 +4842,7 @@ def srs_detailed_page_view(auth):
     current_date = get_current_date(auth)
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
-    bad_streak_items = hafizs_items(where="bad_streak > 0 and mode_id <> 5")
+    bad_streak_items = hafizs_items(where="bad_streak > 0 and mode_id <> 5", order_by="last_review DESC")
 
     # This table is responsible for showing the eligible pages for SRS
     def render_srs_eligible_rows(record: Hafiz_Items):
