@@ -4830,30 +4830,31 @@ def page_description_edit_form(item_id: int):
 ######################### SRS Pages #########################
 @app.get("/srs")
 def srs_detailed_page_view(auth):
-    # Get the items which have bad ratings across all the modes
-    qry = f"""
-    SELECT hafizs_items.mode_id, hafizs_items.item_id, COUNT(revisions.rating) AS bad_count from hafizs_items
-    LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND revisions.mode_id <> 5 
-    WHERE hafizs_items.hafiz_id = {auth} AND revisions.rating = -1 AND hafizs_items.mode_id <> 5
-    GROUP BY hafizs_items.mode_id, hafizs_items.item_id 
-    ORDER BY COUNT(revisions.rating) DESC, hafizs_items.item_id ASC;
-    """
-    items_with_bad_ratings = db.q(qry)
+    # Get the items which have more than one bad streak
+    bad_streak_items = hafizs_items(where="bad_streak > 0")
 
     # This table is responsible for showing the eligible pages for SRS
-    def render_srs_eligible_rows(record: dict):
-        page_description = get_page_description(record["item_id"])
-        current_mode = get_mode_name(record["mode_id"])
+    def render_srs_eligible_rows(record: Hafiz_Items):
+        current_item_id = record.item_id
+        page_description = get_page_description(current_item_id)
         start_srs_link = A(
             "Start SRS",
-            hx_get=f"/start-srs/{record["item_id"]}",
+            hx_get=f"/start-srs/{current_item_id}",
             hx_target="body",
             cls=AT.classic,
         )
+
+        current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
+        total_count = len(current_items_rev_date)
+        bad_count = len([r for r in current_items_rev_date if r.rating == -1])
+        bad_percent = format_number((bad_count / total_count) * 100)
         return Tr(
             Td(page_description),
-            Td(current_mode),
-            Td(record["bad_count"]),
+            Td(record.bad_streak),
+            Td(record.last_review),
+            Td(f"{bad_percent}%"),
+            Td(total_count),
+            Td(bad_count),
             Td(start_srs_link),
         )
 
@@ -4864,13 +4865,16 @@ def srs_detailed_page_view(auth):
                 Thead(
                     Tr(
                         Td("Page"),
-                        Td("Current Mode"),
-                        Td("Bad Rating Count"),
+                        Td("Bad Streak"),
+                        Td("Last review date"),
+                        Td("Bad %"),
+                        Td("Total Count"),
+                        Td("Bad Count"),
                         Td(""),
                     ),
                     cls="sticky z-50 top-0 bg-white",
                 ),
-                Tbody(*map(render_srs_eligible_rows, items_with_bad_ratings)),
+                Tbody(*map(render_srs_eligible_rows, bad_streak_items)),
             ),
             cls="space-y-2 uk-overflow-auto h-[35vh]",
         ),
