@@ -344,9 +344,9 @@ def rating_dropdown(default_mode="1", is_label=True, **kwargs):
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == default_mode
-        return Option(name, value=id, selected=is_selected(id))
+        return fh.Option(name, value=id, selected=is_selected(id))
 
-    return LabelSelect(
+    return fh.Select(
         map(mk_options, RATING_MAP.items()),
         label=("Rating" if is_label else None),
         name="rating",
@@ -1484,7 +1484,12 @@ def render_summary_table(auth, route, mode_ids, item_ids):
             ),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
-            Td(Div(rating_dropdown_input, cls="max-w-28")),
+            Td(
+                Div(
+                    rating_dropdown_input,
+                    cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+                )
+            ),
             id=row_id,
         )
 
@@ -1497,7 +1502,6 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
-    print("is_selected:", is_all_selected)
     return AccordionItem(
         Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
         Div(
@@ -2180,17 +2184,18 @@ def bulk_edit_view(ids: str, auth):
             # Td(P(item_details.page_id)),
             # Td(P(item_details.surah_name)),
             # Td(P(item_details.part)),
-            Td(P(item_details.start_text)),
-            Td(P(current_revision.revision_date)),
-            Td(P(current_revision.mode_id)),
-            Td(P(current_revision.plan_id)),
+            Td(P(item_details.start_text, cls=TextT.lg)),
+            # Td(P(current_revision.revision_date)),
+            # Td(P(current_revision.mode_id)),
+            # Td(P(current_revision.plan_id)),
             Td(
                 rating_radio(
                     default_rating=current_revision.rating,
                     direction="horizontal",
                     is_label=False,
                     id=f"rating-{id}",
-                )
+                ),
+                cls="min-w-32",
             ),
         )
 
@@ -2208,9 +2213,9 @@ def bulk_edit_view(ids: str, auth):
                 # Th("Surah"),
                 # Th("Part"),
                 Th("Start"),
-                Th("Date"),
-                Th("Mode"),
-                Th("Plan ID"),
+                # Th("Date"),
+                # Th("Mode"),
+                # Th("Plan ID"),
                 Th("Rating"),
             )
         ),
@@ -2450,7 +2455,7 @@ def get(
                     id=f"rating-{current_item_id}",
                     cls="toggleable-radio",
                 ),
-                cls="!pr-0",
+                cls="!pr-0 min-w-32",
             ),
         )
 
