@@ -226,8 +226,10 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     # Get items to process
     if item_ids:
         process_items = item_ids
-    else:
+    elif records:
         process_items = [record.item_id for record in records]
+    else:
+        return format_number(total_count)
     # Calculate page count
     for item_id in process_items:
         page_no = items[item_id].page_id
