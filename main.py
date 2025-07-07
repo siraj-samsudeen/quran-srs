@@ -526,8 +526,9 @@ def update_review_dates(item_id: int, mode_id: int):
         hafizs_items.update(current_hafiz_item)
 
 
-def get_srs_interval_list(pack_id: int):
-    booster_pack_details = srs_booster_pack[pack_id]
+def get_srs_interval_list(item_id: int):
+    current_hafiz_item = get_hafizs_items(item_id)
+    booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
     max_interval = booster_pack_details.max_interval
     booster_pack_intervals = booster_pack_details.interval_days.split(",")
     booster_pack_intervals = list(map(int, booster_pack_intervals))
@@ -569,7 +570,7 @@ def get_interval_based_on_rating(item_id: int, rating: int):
 
     current_hafiz_item = get_hafizs_items(item_id)
     current_next_interval = current_hafiz_item.next_interval
-    intervals = get_srs_interval_list(current_hafiz_item.srs_booster_pack_id)
+    intervals = get_srs_interval_list(item_id)
     rating_intervals = get_interval_triplet(current_next_interval, intervals)
     return rating_intervals[rating + 1]
 
@@ -1603,7 +1604,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
         revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
-        progress = P(Strong(len(revs)), Span("/7"))
+        if mode_id == 5:
+            rep_denominator = len(get_srs_interval_list(item_id))
+        else:
+            rep_denominator = 7
+        progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
         return Tr(
             Td(get_page_description(item_id)),
             Td(progress) if not is_newly_memorized else None,
