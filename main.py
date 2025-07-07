@@ -208,6 +208,14 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
     return sorted(item_ids)
 
 
+def get_hafizs_items(item_id):
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        return current_hafiz_items[0]
+    else:
+        return ValueError(f"No hafizs_items found for item_id {item_id}")
+
+
 def get_current_date(auth) -> str:
     current_hafiz = hafizs[auth]
     current_date = current_hafiz.current_date
@@ -525,12 +533,12 @@ def get_srs_interval_list(pack_id: int):
 #     return find_next_greater(booster_pack_intervals, next_interval)
 
 
-def get_interval_based_on_rating(hafizs_items_id: int, rating: int):
+def get_interval_based_on_rating(item_id: int, rating: int):
     """
     Calculates the next interval for an SRS (Spaced Repetition System) item based on the user's rating.
 
     Args:
-        hafizs_items_id (int): The ID of the Hafiz's item being reviewed.
+        item_id (int): The ID of the Item's being reviewed.
         rating (int): The rating given to the item (0: Bad, 1: Ok, 2: Good).
 
     Returns:
@@ -544,7 +552,7 @@ def get_interval_based_on_rating(hafizs_items_id: int, rating: int):
             - Good rating: moves to a longer interval
     """
 
-    current_hafiz_item = hafizs_items[hafizs_items_id]
+    current_hafiz_item = get_hafizs_items(item_id)
     current_next_interval = current_hafiz_item.next_interval
     intervals = get_srs_interval_list(current_hafiz_item.srs_booster_pack_id)
     rating_intervals = get_interval_triplet(current_next_interval, intervals)
@@ -556,28 +564,25 @@ def update_hafiz_items_on_add_for_srs(
     item_id: int, mode_id: int, current_date: str, rating: int
 ):
     latest_revision_date = get_lastest_date(item_id, mode_id)
-    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    next_interval = get_interval_based_on_rating(item_id, rating)
 
-    if current_hafiz_item:
-        current_hafiz_item = current_hafiz_item[0]
-        next_interval = get_interval_based_on_rating(current_hafiz_item.id, rating)
-        if latest_revision_date:
-            current_hafiz_item.last_interval = calculate_days_difference(
-                current_hafiz_item.last_review, current_date
-            )
-            current_hafiz_item.next_interval = next_interval
-            # To update the status of hafizs_items table if it is newly memorized
-            current_hafiz_item.last_review = latest_revision_date
-            current_hafiz_item.next_review = add_days_to_date(
-                latest_revision_date, next_interval
-            )
-        else:
-            # FIXME: after writing function for editing and deleting remove this else block
-            # This else bolck will run only if we deleted the only record for that mode and try to update the hafizs_items
-            pass
+    if latest_revision_date:
+        current_hafiz_item = get_hafizs_items(item_id)
+        current_hafiz_item.last_interval = calculate_days_difference(
+            current_hafiz_item.last_review, current_date
+        )
+        current_hafiz_item.next_interval = next_interval
+        # To update the status of hafizs_items table if it is newly memorized
+        current_hafiz_item.last_review = latest_revision_date
+        current_hafiz_item.next_review = add_days_to_date(
+            latest_revision_date, next_interval
+        )
+    else:
+        # FIXME: after writing function for editing and deleting remove this else block
+        # This else bolck will run only if we deleted the only record for that mode and try to update the hafizs_items
+        pass
 
-        hafizs_items.update(current_hafiz_item)
-
+    hafizs_items.update(current_hafiz_item)
     # Update the good and bad streak of the item_id
     populate_streak(item_id=item_id)
 
@@ -2419,9 +2424,24 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     )
 
 
+# BUG: On srs mode if the rating changes from `Good` to `ok` or `bad` the next_interval is same why????
+# The problem is reside in the get_interval_based_on_rating()
 @app.put("/revision/{rev_id}")
 def update_revision_rating(rev_id: int, rating: int):
     revisions.update({"rating": rating}, rev_id)
+
+    current_revision = revisions[rev_id]
+    if current_revision.mode_id == 5:
+        item_id = current_revision.item_id
+        next_interval = get_interval_based_on_rating(item_id, rating)
+
+        current_hafiz_item = get_hafizs_items(item_id)
+        current_hafiz_item.next_interval = next_interval
+        current_hafiz_item.next_review = add_days_to_date(
+            current_revision.revision_date, next_interval
+        )
+        hafizs_items.update(current_hafiz_item)
+        populate_streak(item_id=item_id)
 
 
 # Bulk add
