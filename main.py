@@ -374,14 +374,14 @@ def rating_radio(
     return Div(label, *options, cls=outer_cls)
 
 
-def rating_dropdown(default_mode="1", is_label=True, **kwargs):
+def rating_dropdown(default_mode="1", is_label=True, rating_dict=RATING_MAP, **kwargs):
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == default_mode
-        return Option(name, value=id, selected=is_selected(id))
+        return fh.Option(name, value=id, selected=is_selected(id))
 
-    return LabelSelect(
-        map(mk_options, RATING_MAP.items()),
+    return fh.Select(
+        map(mk_options, rating_dict.items()),
         label=("Rating" if is_label else None),
         name="rating",
         select_kwargs={"name": "rating"},
@@ -1583,9 +1583,19 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 "is_checked": True,
             }
 
+        # This is to show the interval for srs based on the rating
+        if mode_id == 5:
+            custom_rating_dict = {
+                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1)}",
+                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0)}",
+                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1)}",
+            }
+        else:
+            custom_rating_dict = RATING_MAP
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
             is_label=False,
+            rating_dict=custom_rating_dict,
             cls="[&>div]:h-8 uk-form-sm w-28",
             id=f"rev-{item_id}",
             hx_trigger="change",
