@@ -558,6 +558,9 @@ def update_hafiz_items_on_add_for_srs(
 
         hafizs_items.update(current_hafiz_item)
 
+    # Update the good and bad streak of the item_id
+    populate_streak(item_id=item_id)
+
 
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
