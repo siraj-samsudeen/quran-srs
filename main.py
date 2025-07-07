@@ -263,8 +263,12 @@ def create_count_link(count: int, rev_ids: str):
 
 
 def render_progress_display(current_count: int, target_count: int, rev_ids: str = ""):
+    target_count = format_number(target_count)
+    current_count = format_number(current_count)
     base_link = create_count_link(current_count, rev_ids)
-    if current_count == target_count:
+    if current_count == 0 and target_count == 0:
+        return "-"
+    elif current_count == target_count:
         return (base_link, " ✔️")
     elif current_count > target_count:
         return (base_link, f" / {target_count}", " ✔️")
