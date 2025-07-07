@@ -464,6 +464,8 @@ def get_lastest_date(item_id: int, mode_id: int):
         mode_ids = ("2", "3")
     elif mode_id == 4:
         mode_ids = ("3", "4")
+    elif mode_id == 5:
+        mode_ids = "5"
     else:
         return None
 
@@ -501,6 +503,52 @@ def update_review_dates(item_id: int, mode_id: int):
         hafizs_items.update(current_hafiz_item)
 
 
+def get_srs_interval_list(pack_id: int):
+    booster_pack_details = srs_booster_pack[pack_id]
+    booster_pack_intervals = booster_pack_details.interval_days.split(",")
+    return list(map(int, booster_pack_intervals))
+
+
+# This funciton is need when we add a new record on the srs mode
+def get_srs_next_interval(item_id: int):
+    current_hafiz_items_details = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items_details:
+        current_hafiz_items_details = current_hafiz_items_details[0]
+        pack_id = current_hafiz_items_details.srs_booster_pack_id
+        next_interval = current_hafiz_items_details.next_interval
+    else:
+        return None
+    # Get the next interval from the booster pack
+    booster_pack_intervals = get_srs_interval_list(pack_id)
+    return find_next_greater(booster_pack_intervals, next_interval)
+
+
+# TODO: This function is only responsible for when creating new record on the srs
+def update_hafiz_items_on_add_for_srs(item_id: int, mode_id: int, current_date: str):
+    next_interval = get_srs_next_interval(item_id)
+    latest_revision_date = get_lastest_date(item_id, mode_id)
+
+    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_item:
+        current_hafiz_item = current_hafiz_item[0]
+        if latest_revision_date:
+            current_hafiz_item.last_interval = calculate_days_difference(
+                current_hafiz_item.last_review, current_date
+            )
+            current_hafiz_item.next_interval = next_interval
+            # To update the status of hafizs_items table if it is newly memorized
+            current_hafiz_item.last_review = latest_revision_date
+            current_hafiz_item.next_review = add_days_to_date(
+                latest_revision_date, next_interval
+            )
+        else:
+            # FIXME: after writing function for editing and deleting remove this else block
+            # This else bolck will run only if we deleted the only record for that mode and try to update the hafizs_items
+            pass
+
+        hafizs_items.update(current_hafiz_item)
+
+
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
     revisions_data = revisions(where=qry)
@@ -514,7 +562,10 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
     # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
-    update_review_dates(item_id, mode_id)
+    if mode_id == 5:
+        update_hafiz_items_on_add_for_srs(item_id, mode_id, date)
+    else:
+        update_review_dates(item_id, mode_id, date)
 
 
 def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
@@ -1075,9 +1126,7 @@ def index(auth):
         mode_ids=["2"], route="new_memorization", auth=auth
     )
 
-    srs_table = make_summary_table(
-        mode_ids=["5"], route="srs", auth=auth
-    )
+    srs_table = make_summary_table(mode_ids=["5"], route="srs", auth=auth)
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1102,7 +1151,6 @@ def index(auth):
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
         modes[5].name: srs_table,
-
         # datewise_summary_table(hafiz_id=auth),
     }
 
@@ -1399,7 +1447,12 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
-    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4, "srs": 5}
+    mode_id_mapping = {
+        "new_memorization": 2,
+        "recent_review": 3,
+        "watch_list": 4,
+        "srs": 5,
+    }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     current_date = get_current_date(auth)
@@ -4842,7 +4895,9 @@ def srs_detailed_page_view(auth):
     current_date = get_current_date(auth)
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
-    bad_streak_items = hafizs_items(where="bad_streak > 0 and mode_id <> 5", order_by="last_review DESC")
+    bad_streak_items = hafizs_items(
+        where="bad_streak > 0 and mode_id <> 5", order_by="last_review DESC"
+    )
 
     # This table is responsible for showing the eligible pages for SRS
     def render_srs_eligible_rows(record: Hafiz_Items):
@@ -4926,15 +4981,6 @@ def srs_detailed_page_view(auth):
     )
 
 
-# This funciton is need when we add a new record on the srs mode
-def get_srs_next_interval(pack_id: int, current_interval: int):
-    # Get the next interval from the booster pack
-    booster_pack_details = srs_booster_pack[pack_id]
-    booster_pack_intervals = booster_pack_details.interval_days.split(",")
-    booster_pack_intervals = list(map(int, booster_pack_intervals))
-    return find_next_greater(booster_pack_intervals, current_interval)
-
-
 @app.get("/start-srs/{item_id}")
 def start_srs(item_id: int, auth):
     current_date = get_current_date(auth)
@@ -4951,6 +4997,7 @@ def start_srs(item_id: int, auth):
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
+        current_hafiz_items.next_interval = next_interval
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
 

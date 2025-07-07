@@ -192,7 +192,7 @@ def is_first_date_greater(
     except ValueError as e:
         raise ValueError(f"Invalid date format. Error: {str(e)}")
 
-
+#TODO: this function is duplixcation of the `calculate_days_difference``
 def day_diff(date1, date2):
     """
     Returns the difference in days between two dates (YYYY-MM-DD).
