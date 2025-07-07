@@ -559,17 +559,23 @@ def get_interval_based_on_rating(item_id: int, rating: int):
     return rating_intervals[rating + 1]
 
 
-# TODO: This function is only responsible for when creating new record on the srs
-def update_hafiz_items_on_add_for_srs(
-    item_id: int, mode_id: int, current_date: str, rating: int
+# This function is responsible for creating and deleting records on the srs
+def update_hafiz_items_for_srs(
+    item_id: int, mode_id: int, current_date: str, rating: int, is_checked: bool
 ):
     latest_revision_date = get_lastest_date(item_id, mode_id)
-    next_interval = get_interval_based_on_rating(item_id, rating)
+    current_hafiz_item = get_hafizs_items(item_id)
 
     if latest_revision_date:
-        current_hafiz_item = get_hafizs_items(item_id)
+        # In here the `is_checked` is used to check if the item is deleted or created
+        next_interval = (
+            get_interval_based_on_rating(item_id, rating)
+            if is_checked
+            else current_hafiz_item.last_interval
+        )
         current_hafiz_item.last_interval = calculate_days_difference(
-            current_hafiz_item.last_review, current_date
+            (current_hafiz_item.last_review if is_checked else latest_revision_date),
+            current_date,
         )
         current_hafiz_item.next_interval = next_interval
         # To update the status of hafizs_items table if it is newly memorized
@@ -578,9 +584,13 @@ def update_hafiz_items_on_add_for_srs(
             latest_revision_date, next_interval
         )
     else:
-        # FIXME: after writing function for editing and deleting remove this else block
-        # This else bolck will run only if we deleted the only record for that mode and try to update the hafizs_items
-        pass
+        # This else bolck will run only if we deleted the only record for that mode
+        if mode_id == 5:
+            current_hafiz_item.next_review = None
+            current_hafiz_item.next_interval = srs_booster_pack[
+                current_hafiz_item.srs_booster_pack_id
+            ].min_interval
+            current_hafiz_item.last_interval = None
 
     hafizs_items.update(current_hafiz_item)
     # Update the good and bad streak of the item_id
@@ -601,7 +611,13 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
         revisions.delete(revisions_data[0].id)
     # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
     if mode_id == 5:
-        update_hafiz_items_on_add_for_srs(item_id, mode_id, date, rating)
+        update_hafiz_items_for_srs(
+            item_id=item_id,
+            mode_id=mode_id,
+            current_date=date,
+            rating=rating,
+            is_checked=is_checked,
+        )
     else:
         update_review_dates(item_id, mode_id, date)
 
