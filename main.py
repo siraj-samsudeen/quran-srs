@@ -404,6 +404,21 @@ def status_dropdown(current_status):
     )
 
 
+def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
+    def render_options(val):
+        return fh.Option(
+            val,
+            value=standardize_column(val),
+            selected=(standardize_column(val) == standardize_column(default_val)),
+        )
+
+    return fh.Select(
+        map(render_options, vals),
+        name=name,
+        **kwargs,
+    )
+
+
 def action_buttons():
     # Enable and Disable the button based on the checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
@@ -4971,17 +4986,49 @@ def page_description_edit_form(item_id: int):
 
 ######################### SRS Pages #########################
 @app.get("/srs")
-def srs_detailed_page_view(auth):
-    current_date = get_current_date(auth)
+def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"):
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
+
+    # This table is responsible for showing the eligible pages for SRS
+
+    columns = [
+        "Page",
+        "Bad Streak",
+        "Last review date",
+        "Bad %",
+        "Total Count",
+        "Bad Count",
+    ]
+
     bad_streak_items = hafizs_items(
         where="bad_streak > 0 and mode_id <> 5", order_by="last_review DESC"
     )
-
-    # This table is responsible for showing the eligible pages for SRS
-    def render_srs_eligible_rows(record: Hafiz_Items):
+    eligible_records = []
+    for record in bad_streak_items:
         current_item_id = record.item_id
+        current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
+        total_count = len(current_items_rev_date)
+        bad_count = len([r for r in current_items_rev_date if r.rating == -1])
+        bad_percent = format_number((bad_count / total_count) * 100)
+
+        eligible_records.append(
+            {
+                "page": current_item_id,
+                "bad_streak": record.bad_streak,
+                "last_review_date": record.last_review,
+                "bad_%": bad_percent,
+                "total_count": total_count,
+                "bad_count": bad_count,
+            }
+        )
+    # sorted the records based on the sort_col and sort_type from the input
+    eligible_records = sorted(
+        eligible_records, key=lambda x: x[sort_col], reverse=(sort_type == "desc")
+    )
+
+    def render_srs_eligible_rows(record: dict):
+        current_item_id = record["page"]
         page_description = get_page_description(current_item_id)
         start_srs_link = A(
             "Start SRS",
@@ -4989,41 +5036,46 @@ def srs_detailed_page_view(auth):
             hx_target="body",
             cls=AT.classic,
         )
-
-        current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
-        total_count = len(current_items_rev_date)
-        bad_count = len([r for r in current_items_rev_date if r.rating == -1])
-        bad_percent = format_number((bad_count / total_count) * 100)
         return Tr(
             Td(page_description),
-            Td(record.bad_streak),
-            Td(record.last_review),
-            Td(f"{bad_percent}%"),
-            Td(total_count),
-            Td(bad_count),
+            Td(record["bad_streak"]),
+            Td(record["last_review_date"]),
+            Td(f"{record["bad_%"]}%"),
+            Td(record["total_count"]),
+            Td(record["bad_count"]),
             Td(start_srs_link),
         )
 
+    sort_fields = Form(
+        P("Sort Options: ", cls=TextPresets.bold_lg),
+        custom_select(name="sort_col", vals=columns, default_val=sort_col),
+        custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
+        cls=("w-full gap-2", FlexT.block, FlexT.middle),
+        hx_get="/srs",
+        hx_target="#srs_eligible_table",
+        hx_select="#srs_eligible_table",
+        hx_swap="outerHTML",
+        hx_trigger="change",
+        hx_push_url="true",
+    )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
+        sort_fields,
         Div(
             Table(
                 Thead(
                     Tr(
-                        Td("Page"),
-                        Td("Bad Streak"),
-                        Td("Last review date"),
-                        Td("Bad %"),
-                        Td("Total Count"),
-                        Td("Bad Count"),
+                        *map(Td, columns),
                         Td(""),
                     ),
                     cls="sticky z-50 top-0 bg-white",
                 ),
-                Tbody(*map(render_srs_eligible_rows, bad_streak_items)),
+                Tbody(*map(render_srs_eligible_rows, eligible_records)),
             ),
             cls="space-y-2 uk-overflow-auto h-[35vh]",
+            id="srs_eligible_table",
         ),
+        cls="space-y-2",
     )
     ################### END ###################
 
