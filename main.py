@@ -5148,4 +5148,25 @@ def start_srs(item_id: int, auth):
     return RedirectResponse("/srs")
 
 
+@app.get("/change_current_date")
+def change_current_date(auth):
+    current_date = get_current_date(auth)
+    label_input = LabelInput(
+        label="Current date",
+        id="current_date",
+        type="date",
+        value=current_date,
+        hx_post="/change_current_date",
+        hx_target="body",
+        hx_trigger="change",
+    )
+    return main_area(label_input, auth=auth)
+
+@app.post("/change_current_date")
+def update_current_date(auth, current_date:str):
+    current_hafiz = hafizs[auth]
+    current_hafiz.current_date = current_date
+    hafizs.update(current_hafiz)
+    return RedirectResponse("/change_current_date", status_code=303)
+
 serve()
