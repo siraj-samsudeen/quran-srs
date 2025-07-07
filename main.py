@@ -505,32 +505,42 @@ def update_review_dates(item_id: int, mode_id: int):
 
 def get_srs_interval_list(pack_id: int):
     booster_pack_details = srs_booster_pack[pack_id]
+    max_interval = booster_pack_details.max_interval
     booster_pack_intervals = booster_pack_details.interval_days.split(",")
-    return list(map(int, booster_pack_intervals))
+    booster_pack_intervals = list(map(int, booster_pack_intervals))
+    return [interval for interval in booster_pack_intervals if interval < max_interval]
 
 
 # This funciton is need when we add a new record on the srs mode
-def get_srs_next_interval(item_id: int):
-    current_hafiz_items_details = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_items_details:
-        current_hafiz_items_details = current_hafiz_items_details[0]
-        pack_id = current_hafiz_items_details.srs_booster_pack_id
-        next_interval = current_hafiz_items_details.next_interval
-    else:
-        return None
-    # Get the next interval from the booster pack
-    booster_pack_intervals = get_srs_interval_list(pack_id)
-    return find_next_greater(booster_pack_intervals, next_interval)
+# def get_srs_next_interval(item_id: int):
+#     current_hafiz_items_details = hafizs_items(where=f"item_id = {item_id}")
+#     if current_hafiz_items_details:
+#         current_hafiz_items_details = current_hafiz_items_details[0]
+#         pack_id = current_hafiz_items_details.srs_booster_pack_id
+#         next_interval = current_hafiz_items_details.next_interval
+#     else:
+#         return None
+#     # Get the next interval from the booster pack
+#     booster_pack_intervals = get_srs_interval_list(pack_id)
+#     return find_next_greater(booster_pack_intervals, next_interval)
 
 
 # TODO: This function is only responsible for when creating new record on the srs
-def update_hafiz_items_on_add_for_srs(item_id: int, mode_id: int, current_date: str):
-    next_interval = get_srs_next_interval(item_id)
+def update_hafiz_items_on_add_for_srs(
+    item_id: int, mode_id: int, current_date: str, rating: int
+):
     latest_revision_date = get_lastest_date(item_id, mode_id)
-
     current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_item:
         current_hafiz_item = current_hafiz_item[0]
+
+        # Based on the current_next_interval and the rating, we are predicting the next interval
+        # if the rating is `Good` -> take next interval, `Ok` -> take current_next_interval ,`Bad` -> take previous interval
+        current_next_interval = current_hafiz_item.next_interval
+        intervals = get_srs_interval_list(current_hafiz_item.srs_booster_pack_id)
+        rating_intervals = get_interval_triplet(current_next_interval, intervals)
+        next_interval = rating_intervals[rating + 1]
+
         if latest_revision_date:
             current_hafiz_item.last_interval = calculate_days_difference(
                 current_hafiz_item.last_review, current_date
@@ -563,7 +573,7 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
         revisions.delete(revisions_data[0].id)
     # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
     if mode_id == 5:
-        update_hafiz_items_on_add_for_srs(item_id, mode_id, date)
+        update_hafiz_items_on_add_for_srs(item_id, mode_id, date, rating)
     else:
         update_review_dates(item_id, mode_id, date)
 
