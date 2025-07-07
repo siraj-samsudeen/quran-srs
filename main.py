@@ -602,14 +602,21 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     revisions_data = revisions(where=qry)
 
     if not revisions_data and is_checked:
-        revisions.insert(
-            Revision(
-                revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
-            )
+        rev_data = Revision(
+            revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
         )
+        if mode_id == 5:
+            # Update the additional three columns if it is srs mode
+            hafiz_items_data = get_hafizs_items(item_id)
+            rev_data.planned_interval = hafiz_items_data.next_interval
+            rev_data.actual_interval = calculate_days_difference(
+                hafiz_items_data.last_review, date
+            )
+            rev_data.next_interval = get_interval_based_on_rating(item_id, rating)
+
+        revisions.insert(rev_data)
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
-    # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
     if mode_id == 5:
         update_hafiz_items_for_srs(
             item_id=item_id,
@@ -619,6 +626,7 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
             is_checked=is_checked,
         )
     else:
+        # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
         update_review_dates(item_id, mode_id, date)
 
 
@@ -2450,6 +2458,9 @@ def update_revision_rating(rev_id: int, rating: int):
     if current_revision.mode_id == 5:
         item_id = current_revision.item_id
         next_interval = get_interval_based_on_rating(item_id, rating)
+
+        # Update the next_interval, as it is the only column which is based on the rating
+        revisions.update({"next_interval": rating}, next_interval)
 
         current_hafiz_item = get_hafizs_items(item_id)
         current_hafiz_item.next_interval = next_interval
