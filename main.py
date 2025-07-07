@@ -525,22 +525,42 @@ def get_srs_interval_list(pack_id: int):
 #     return find_next_greater(booster_pack_intervals, next_interval)
 
 
+def get_interval_based_on_rating(hafizs_items_id: int, rating: int):
+    """
+    Calculates the next interval for an SRS (Spaced Repetition System) item based on the user's rating.
+
+    Args:
+        hafizs_items_id (int): The ID of the Hafiz's item being reviewed.
+        rating (int): The rating given to the item (0: Bad, 1: Ok, 2: Good).
+
+    Returns:
+        int: The next recommended review interval based on the current interval and rating.
+
+    Notes:
+        - Uses the current next interval and the item's booster pack intervals
+        - Adjusts the interval based on the rating:
+            - Bad rating: moves to a shorter interval
+            - Ok rating: maintains the current interval
+            - Good rating: moves to a longer interval
+    """
+
+    current_hafiz_item = hafizs_items[hafizs_items_id]
+    current_next_interval = current_hafiz_item.next_interval
+    intervals = get_srs_interval_list(current_hafiz_item.srs_booster_pack_id)
+    rating_intervals = get_interval_triplet(current_next_interval, intervals)
+    return rating_intervals[rating + 1]
+
+
 # TODO: This function is only responsible for when creating new record on the srs
 def update_hafiz_items_on_add_for_srs(
     item_id: int, mode_id: int, current_date: str, rating: int
 ):
     latest_revision_date = get_lastest_date(item_id, mode_id)
     current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
+
     if current_hafiz_item:
         current_hafiz_item = current_hafiz_item[0]
-
-        # Based on the current_next_interval and the rating, we are predicting the next interval
-        # if the rating is `Good` -> take next interval, `Ok` -> take current_next_interval ,`Bad` -> take previous interval
-        current_next_interval = current_hafiz_item.next_interval
-        intervals = get_srs_interval_list(current_hafiz_item.srs_booster_pack_id)
-        rating_intervals = get_interval_triplet(current_next_interval, intervals)
-        next_interval = rating_intervals[rating + 1]
-
+        next_interval = get_interval_based_on_rating(current_hafiz_item.id, rating)
         if latest_revision_date:
             current_hafiz_item.last_interval = calculate_days_difference(
                 current_hafiz_item.last_review, current_date
