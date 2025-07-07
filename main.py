@@ -1024,7 +1024,7 @@ def render_stats_summary_table(auth, target_counts):
 
 
 @rt
-def index(auth):
+def index(auth, sess, monthly_extra_rows: int = None):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
     # Sequential revision table
@@ -1130,15 +1130,39 @@ def index(auth):
     monthly_progress_display = render_progress_display(
         monthly_reviews_completed_today, monthly_review_target
     )
+    sess_extra_value = sess.get("monthly_extra_display")
+    sess_extra_date = sess["monthly_extra_display"]["current_date"]
+
+    if sess_extra_value is not None and sess_extra_date == current_date:
+        if monthly_extra_rows == 0:
+            del sess["monthly_extra_display"]
+        elif monthly_extra_rows is None:
+            monthly_extra_rows = 0 + sess["monthly_extra_display"]["extra"]
+        else:
+            monthly_extra_rows += sess["monthly_extra_display"]["extra"]
+
+    sess["monthly_extra_display"] = {
+        "auth": auth,
+        "extra": monthly_extra_rows,
+        "current_date": current_date,
+    }
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
         mode_ids=["1"],
         route="monthly_cycle",
         auth=auth,
         start_from=items_gaps_with_limit,
+        extra_rows=monthly_extra_rows,
     )
     overall_table = AccordionItem(
         Span(f"{modes[1].name} - ", monthly_progress_display),
         monthly_cycle_table,
+        DivHStacked(
+            Button("+1", hx_get="/?monthly_extra_rows=1", hx_target="body"),
+            Button("+3", hx_get="/?monthly_extra_rows=3", hx_target="body"),
+            Button("+5", hx_get="/?monthly_extra_rows=5", hx_target="body"),
+            # Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
+            cls=(FlexT.center, "gap-2"),
+        ),
         Div(
             description,
             Table(
@@ -1361,7 +1385,9 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     )
 
 
-def make_summary_table(mode_ids: list[str], route: str, auth: str, start_from=None):
+def make_summary_table(
+    mode_ids: list[str], route: str, auth: str, start_from=None, extra_rows=0
+):
     current_date = get_current_date(auth)
 
     def is_review_due(item: dict) -> bool:
@@ -1385,6 +1411,14 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str, start_from=No
         return bool(
             revisions(
                 where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
+            )
+        )
+
+    def has_revisions_today(item: dict) -> bool:
+        """Check if item has revisions for current mode."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
             )
         )
 
@@ -1432,8 +1466,20 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str, start_from=No
     if start_from:
         last_added_item_id, upper_limit_ = start_from[0]
         target, _progress = get_monthly_target_and_progress(auth)
+        target = target + extra_rows if extra_rows else target
         next_item_id = find_next_item_id(last_added_item_id)
         recent_items = get_items_from_number(recent_items, next_item_id, target)
+        display_conditions = {
+            "monthly_cycle": lambda item: (
+                has_monthly_cycle_mode_id(item)
+                and has_revisions_today(item)
+                and item["item_id"] not in recent_items
+            )
+        }
+        today_revisioned_items = list(
+            dict.fromkeys(i["item_id"] for i in ct if display_conditions[route](i))
+        )
+        recent_items = recent_items + today_revisioned_items
 
     return (
         render_summary_table(
