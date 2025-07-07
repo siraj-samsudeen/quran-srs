@@ -5050,6 +5050,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
         P("Sort Options: ", cls=TextPresets.bold_lg),
         custom_select(name="sort_col", vals=columns, default_val=sort_col),
         custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
+        Span("Applying the sort...", cls="htmx-indicator"),
         cls=("w-full gap-2", FlexT.block, FlexT.middle),
         hx_get="/srs",
         hx_target="#srs_eligible_table",
@@ -5057,6 +5058,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
         hx_swap="outerHTML",
         hx_trigger="change",
         hx_push_url="true",
+        hx_indicator=".htmx-indicator",
     )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
