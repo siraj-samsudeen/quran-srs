@@ -238,6 +238,20 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
+def get_monthly_target_and_progress(auth):
+    """This function will return the monthly target and the progress of the monthly review"""
+    current_date = get_current_date(auth)
+    memorized_len = len(
+        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+    )
+    monthly_review_target = round(memorized_len / 30)
+    monthly_reviews_completed_today = get_page_count(
+        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    )
+
+    return monthly_review_target, monthly_reviews_completed_today
+
+
 def get_unique_page_count(recent_review_items):
     return len(set(map(get_page_number, recent_review_items)))
 
@@ -1110,19 +1124,21 @@ def index(auth):
             description = None
     else:
         description = None
-    memorized_len = len(
-        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
-    )
-    monthly_review_target = round(memorized_len / 30)
-    monthly_reviews_completed_today = get_page_count(
-        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    monthly_review_target, monthly_reviews_completed_today = (
+        get_monthly_target_and_progress(auth)
     )
     monthly_progress_display = render_progress_display(
         monthly_reviews_completed_today, monthly_review_target
     )
-
+    monthly_cycle_table, monthly_cycle_items = make_summary_table(
+        mode_ids=["1"],
+        route="monthly_cycle",
+        auth=auth,
+        start_from=items_gaps_with_limit,
+    )
     overall_table = AccordionItem(
         Span(f"{modes[1].name} - ", monthly_progress_display),
+        monthly_cycle_table,
         Div(
             description,
             Table(
@@ -1345,7 +1361,7 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     )
 
 
-def make_summary_table(mode_ids: list[str], route: str, auth: str):
+def make_summary_table(mode_ids: list[str], route: str, auth: str, start_from=None):
     current_date = get_current_date(auth)
 
     def is_review_due(item: dict) -> bool:
@@ -1359,6 +1375,10 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     def has_recent_mode_id(item: dict) -> bool:
         """Check if item has the recent_review mode ID."""
         return item["mode_id"] == 3
+
+    def has_monthly_cycle_mode_id(item: dict) -> bool:
+        """Check if item has the monthly_cycle mode ID."""
+        return item["mode_id"] == 1
 
     def has_revisions(item: dict) -> bool:
         """Check if item has revisions for current mode."""
@@ -1374,6 +1394,15 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
         )
         return len(newly_memorized_record) == 1
+
+    def get_items_from_number(numbers, start_number, no_of_next_items):
+        """Get items from a list starting from a specific number."""
+        try:
+            start_idx = numbers.index(start_number)
+            end_idx = min(start_idx + no_of_next_items, len(numbers))
+            return numbers[start_idx:end_idx]
+        except ValueError:
+            return []
 
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
@@ -1392,11 +1421,19 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         "watch_list": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
+        "monthly_cycle": lambda item: (
+            has_monthly_cycle_mode_id(item) and has_revisions(item)
+        ),
     }
 
     recent_items = list(
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
+    if start_from:
+        last_added_item_id, upper_limit_ = start_from[0]
+        target, _progress = get_monthly_target_and_progress(auth)
+        next_item_id = find_next_item_id(last_added_item_id)
+        recent_items = get_items_from_number(recent_items, next_item_id, target)
 
     return (
         render_summary_table(
@@ -1417,7 +1454,13 @@ def get_start_text(item_id):
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
-    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4}
+    is_accordion = route != "monthly_cycle"
+    mode_id_mapping = {
+        "new_memorization": 2,
+        "recent_review": 3,
+        "watch_list": 4,
+        "monthly_cycle": 1,
+    }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     current_date = get_current_date(auth)
@@ -1508,8 +1551,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
-    return AccordionItem(
-        Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
+    render_output = (
         Div(
             Div(
                 A(
@@ -1547,7 +1589,15 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 x_init="updateSelectAll()",
             ),
         ),
-        open=(not all(is_all_selected)),
+    )
+    return (
+        AccordionItem(
+            Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
+            render_output,
+            open=(not all(is_all_selected)),
+        )
+        if is_accordion
+        else render_output
     )
 
 
