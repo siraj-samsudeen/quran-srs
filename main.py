@@ -1327,7 +1327,6 @@ def index(auth):
                 "Close Date",
                 hx_get="/close_date",
                 target_id="current_date_description",
-                hx_confirm="Are you sure?",
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
         ),
