@@ -495,17 +495,34 @@ def update_review_dates(item_id: int, mode_id: int):
         hafizs_items.update(current_hafiz_item)
 
 
-def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
-    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
+def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
+    conditions = [
+        f"revision_date = '{date}'",
+        f"item_id = {item_id}",
+        f"mode_id = {mode_id}",
+    ]
+
+    if plan_id is not None:
+        conditions.append(f"plan_id = {plan_id}")
+
+    qry = " AND ".join(conditions)
     revisions_data = revisions(where=qry)
 
     if not revisions_data and is_checked:
-        revisions.insert(
-            Revision(
-                revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
-            )
-        )
+        # Create new revision
+        revision_data = {
+            "revision_date": date,
+            "item_id": item_id,
+            "mode_id": mode_id,
+            "rating": rating,
+        }
+        if plan_id is not None:
+            revision_data["plan_id"] = plan_id
+
+        revisions.insert(Revision(**revision_data))
+
     elif revisions_data and not is_checked:
+        # Delete existing revision
         revisions.delete(revisions_data[0].id)
     # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
     update_review_dates(item_id, mode_id)
@@ -1152,6 +1169,7 @@ def index(auth, sess, monthly_extra_rows: int = None):
         auth=auth,
         start_from=items_gaps_with_limit,
         extra_rows=monthly_extra_rows,
+        plan_id=plan_id,
     )
     monthly_cycle_extra_count = (
         get_page_count(item_ids=monthly_cycle_items) - monthly_review_target
@@ -1398,7 +1416,12 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
 
 
 def make_summary_table(
-    mode_ids: list[str], route: str, auth: str, start_from=None, extra_rows=0
+    mode_ids: list[str],
+    route: str,
+    auth: str,
+    start_from=None,
+    extra_rows=0,
+    plan_id=None,
 ):
     current_date = get_current_date(auth)
 
@@ -1474,6 +1497,7 @@ def make_summary_table(
             auth=auth,
             mode_ids=mode_ids,
             item_ids=recent_items,
+            plan_id=plan_id,
         ),
         recent_items,
     )
@@ -1531,7 +1555,7 @@ def get_start_text(item_id):
     return items(where=f"id ={item_id} and active = 1")[0].start_text
 
 
-def render_summary_table(auth, route, mode_ids, item_ids):
+def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_accordion = route != "monthly_cycle"
     mode_id_mapping = {
         "new_memorization": 2,
@@ -1541,16 +1565,17 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
+    is_monthly_review = mode_id == 1
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
 
     def render_range_row(item_id: str):
         row_id = f"{route}-row-{item_id}"
+        plan_condition = f"AND plan_id = {plan_id}" if is_monthly_review else ""
         current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)}) {plan_condition}"
         )
-
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
         checkbox_hx_attrs = {
@@ -1564,12 +1589,14 @@ def render_summary_table(auth, route, mode_ids, item_ids):
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
-
+        vals_dict = {"date": current_date, "mode_id": mode_id}
+        if is_monthly_review:
+            vals_dict["plan_id"] = plan_id
         record_btn = CheckboxX(
             name=f"is_checked",
             value="1",
             **checkbox_hx_attrs,
-            hx_vals={"date": current_date, "mode_id": mode_id},
+            hx_vals=vals_dict,
             hx_include=f"#rev-{item_id}",
             checked=is_checked,
             cls=f"{route}_ids",
@@ -1591,6 +1618,8 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 "mode_id": mode_id,
                 "is_checked": True,
             }
+            if is_monthly_review:
+                change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
@@ -1609,7 +1638,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 get_start_text(item_id),
                 cls=TextT.lg,
             ),
-            Td(progress) if not is_newly_memorized else None,
+            Td(progress) if not (is_newly_memorized or is_monthly_review) else None,
             Td(record_btn),
             Td(
                 Div(
@@ -1645,7 +1674,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                     Tr(
                         Th("Page", cls="min-w-24"),
                         Th("Start Text", cls="min-w-24"),
-                        Th("Reps") if not is_newly_memorized else None,
+                        (
+                            Th("Reps")
+                            if not (is_newly_memorized or is_monthly_review)
+                            else None
+                        ),
                         Th(
                             CheckboxX(
                                 cls="select_all",
@@ -1686,7 +1719,12 @@ def render_summary_table(auth, route, mode_ids, item_ids):
 # and update the review dates for that item_id
 @app.post("/home/add/{item_id}")
 def update_status_from_index(
-    date: str, item_id: str, mode_id: int, rating: int, is_checked: bool = False
+    date: str,
+    item_id: str,
+    mode_id: int,
+    rating: int,
+    is_checked: bool = False,
+    plan_id: int = None,
 ):
     checkbox_update_logic(
         mode_id=mode_id,
@@ -1694,6 +1732,7 @@ def update_status_from_index(
         item_id=item_id,
         date=date,
         is_checked=is_checked,
+        plan_id=plan_id,
     )
     return RedirectResponse("/", status_code=303)
 
