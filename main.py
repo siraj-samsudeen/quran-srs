@@ -1486,11 +1486,9 @@ def make_summary_table(
     recent_items = list(
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
-    if start_from:
+    if route == "monthly_cycle":
         recent_items = get_monthly_review_item_ids(
-            route=route,
             auth=auth,
-            start_from=start_from,
             extra_rows=extra_rows,
             ct=ct,
             recent_items=recent_items,
@@ -1509,9 +1507,7 @@ def make_summary_table(
     )
 
 
-def get_monthly_review_item_ids(
-    route, auth, start_from, extra_rows, ct, recent_items, current_plan_id
-):
+def get_monthly_review_item_ids(auth, extra_rows, ct, recent_items, current_plan_id):
     current_date = get_current_date(auth)
 
     def has_revisions_today(item: dict) -> bool:
@@ -1548,10 +1544,10 @@ def get_monthly_review_item_ids(
         order_by="revision_date DESC, id DESC",
         limit=1,
     )[0].item_id
-    target, _progress = get_monthly_target_and_progress(auth)
-    target = target + extra_rows if extra_rows else target
+    default_no_pages = 5
+    no_of_pages = default_no_pages + extra_rows if extra_rows else default_no_pages
     next_item_id = find_next_item_id(last_added_item_id)
-    item_ids = get_items_from_item_ids(recent_items, next_item_id, target)
+    item_ids = get_items_from_item_ids(recent_items, next_item_id, no_of_pages)
     display_conditions = {
         "monthly_cycle": lambda item: (
             has_monthly_cycle_mode_id(item)
@@ -1560,7 +1556,9 @@ def get_monthly_review_item_ids(
         )
     }
     today_revisioned_items = list(
-        dict.fromkeys(i["item_id"] for i in ct if display_conditions[route](i))
+        dict.fromkeys(
+            i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
+        )
     )
     recent_items = item_ids + today_revisioned_items
     return recent_items
