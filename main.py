@@ -1538,7 +1538,11 @@ def get_monthly_review_item_ids(
             where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
         )
     ]
-    last_added_item_id, upper_limit_ = start_from[0]
+    last_added_item_id = revisions(
+        where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
+        order_by="revision_date DESC, id DESC",
+        limit=1,
+    )[0].item_id
     target, _progress = get_monthly_target_and_progress(auth)
     target = target + extra_rows if extra_rows else target
     next_item_id = find_next_item_id(last_added_item_id)
