@@ -573,12 +573,13 @@ def get_interval_based_on_rating(
     current_hafiz_item = get_hafizs_items(item_id)
     # TODO: Later need to retrive the current_interval from the hafizs_items table as `planned_interval`
     if is_edit:
-        last_reviewed = revisions(
-            where=f"item_id = {item_id} AND mode_id = 5",
-            order_by="revision_date DESC",
-            limit=1,
-        )
-        current_interval = last_reviewed[0].planned_interval
+        # last_reviewed = revisions(
+        #     where=f"item_id = {item_id} AND mode_id = 5",
+        #     order_by="revision_date DESC",
+        #     limit=1,
+        # )
+        # current_interval = last_reviewed[0].planned_interval
+        current_interval = current_hafiz_item.planned_last_interval
     else:
         current_interval = current_hafiz_item.next_interval
 
@@ -613,6 +614,7 @@ def update_hafiz_items_for_srs(
             if is_checked
             else current_hafiz_item.last_interval
         )
+        current_hafiz_item.planned_last_interval = current_hafiz_item.next_interval
         current_hafiz_item.last_interval = calculate_days_difference(
             (current_hafiz_item.last_review if is_checked else latest_revision_date),
             current_date,
@@ -631,6 +633,7 @@ def update_hafiz_items_for_srs(
                 current_hafiz_item.srs_booster_pack_id
             ].start_interval
             current_hafiz_item.last_interval = None
+            current_hafiz_item.planned_last_interval = None
 
     hafizs_items.update(current_hafiz_item)
     # Update the good and bad streak of the item_id
@@ -696,6 +699,7 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "mode_id": 1,
         "last_review": last_review_date,
         "next_review": None,
+        "planned_last_interval": None,
         "last_interval": None,
         "next_interval": None,
         "srs_booster_pack_id": None,
