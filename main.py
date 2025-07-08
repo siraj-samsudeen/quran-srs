@@ -549,28 +549,28 @@ def get_srs_interval_list(item_id: int):
     return interval_list
 
 
-def get_interval_based_on_rating(item_id: int, rating: int, is_edit: bool = False):
+def get_interval_based_on_rating(
+    item_id: int, rating: int, is_edit: bool = False, is_dropdown: bool = False
+):
     """
-    Calculate the next review interval for an SRS item based on user rating.
-
-    Determines the appropriate review interval for a memorization item using
-    the Spaced Repetition System (SRS) methodology. Supports different rating
-    scenarios (bad, ok, good) and can handle both standard review and edit scenarios.
+    Calculate the next interval for an SRS (Spaced Repetition System) item based on user rating.
 
     Args:
-        item_id (int): Unique identifier for the memorization item.
-        rating (int): User's performance rating (0: Bad, 1: Ok, 2: Good).
-        is_edit (bool, optional): Flag to indicate if this is an edit scenario.
-                                   Defaults to False.
+        item_id (int): The unique identifier of the memorization item.
+        rating (int): The user's rating of the item's recall difficulty.
+        is_edit (bool, optional): Flag to indicate if the interval is being calculated during an edit. Defaults to False.
+        is_dropdown (bool, optional): Flag to determine if the interval is for dropdown display. Defaults to False.
 
     Returns:
-        int: Recommended next review interval based on current interval and rating.
+        int or str: The calculated next interval in days, or "Finished" if the item has been fully learned.
 
     Notes:
-        - Uses the current interval from hafizs_items or planned interval during edits
-        - Retrieves interval progression from the item's configured booster pack
-        - Adjusts interval based on user's performance rating
+        - Uses the current item's SRS booster pack to determine interval progression
+        - Handles different scenarios like editing and dropdown display
+        - Considers the current interval and user's rating to calculate the next interval
     """
+
+    current_hafiz_item = get_hafizs_items(item_id)
     # TODO: Later need to retrive the current_interval from the hafizs_items table as `planned_interval`
     if is_edit:
         last_reviewed = revisions(
@@ -580,14 +580,22 @@ def get_interval_based_on_rating(item_id: int, rating: int, is_edit: bool = Fals
         )
         current_interval = last_reviewed[0].planned_interval
     else:
-        current_hafiz_item = get_hafizs_items(item_id)
         current_interval = current_hafiz_item.next_interval
 
     intervals = get_srs_interval_list(item_id)
     rating_intervals = get_interval_triplet(
         current_interval=current_interval, interval_list=intervals
     )
-    return rating_intervals[rating + 1]
+    current_rating_interval = rating_intervals[rating + 1]
+
+    # This logic is to show the user that the item is finished after this record
+    if is_dropdown:
+        max_interval = srs_booster_pack[
+            current_hafiz_item.srs_booster_pack_id
+        ].max_interval
+        if current_rating_interval > max_interval:
+            return "Finished"
+    return current_rating_interval
 
 
 # This function is responsible for creating and deleting records on the srs
@@ -1621,9 +1629,9 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         # This is to show the interval for srs based on the rating
         if mode_id == 5:
             custom_rating_dict = {
-                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked)}",
-                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked)}",
-                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked)}",
+                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked,is_dropdown=True)}",
+                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked,is_dropdown=True)}",
+                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked,is_dropdown=True)}",
             }
         else:
             custom_rating_dict = RATING_MAP
