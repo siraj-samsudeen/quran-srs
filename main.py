@@ -607,6 +607,7 @@ def update_hafiz_items_for_srs(
 
     if latest_revision_date:
         # In here the `is_checked` is used to check if the item is deleted or created
+        # TODO: the last_interval is based on the actual_interval instead of the planned_interval
         next_interval = (
             get_interval_based_on_rating(item_id, rating)
             if is_checked
@@ -5043,7 +5044,9 @@ def page_description_edit_form(item_id: int):
 
 ######################### SRS Pages #########################
 @app.get("/srs")
-def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"):
+def srs_detailed_page_view(
+    auth, sort_col: str = "last_review_date", sort_type: str = "asc"
+):
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
 
@@ -5079,9 +5082,10 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
                 "bad_count": bad_count,
             }
         )
-    # sorted the records based on the sort_col and sort_type from the input
+    # sorted the records based on the sort_col and sort_type from the input, and then by page to group them
     eligible_records = sorted(
-        eligible_records, key=lambda x: x[sort_col], reverse=(sort_type == "desc")
+        eligible_records,
+        key=lambda x: (-x[sort_col] if sort_type == "desc" else x[sort_col], x["page"]),
     )
 
     def render_srs_eligible_rows(record: dict):
@@ -5141,7 +5145,12 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
     )
     ################### END ###################
 
-    current_srs_items = [i.item_id for i in hafizs_items(where=f"mode_id = 5", order_by="next_review DESC, item_id ASC")]
+    current_srs_items = [
+        i.item_id
+        for i in hafizs_items(
+            where=f"mode_id = 5", order_by="next_review DESC, item_id ASC"
+        )
+    ]
 
     # This table shows the current srs pages for the user
     def render_current_srs_rows(item_id):
@@ -5165,7 +5174,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
                 Tbody(*map(render_current_srs_rows, current_srs_items)),
             ),
             cls="space-y-2 uk-overflow-auto h-[35vh]",
-        id="current_srs_table",
+            id="current_srs_table",
         ),
     )
 
