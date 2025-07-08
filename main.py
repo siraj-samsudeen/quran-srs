@@ -5180,17 +5180,39 @@ def srs_detailed_page_view(
         if hafiz_items_data:
             hafiz_items_data = hafiz_items_data[0]
             next_review = hafiz_items_data.next_review
+            last_review = hafiz_items_data.last_review
+            planned_last_interval = hafiz_items_data.planned_last_interval
+            last_interval	= hafiz_items_data.last_interval
+            next_interval= hafiz_items_data.next_interval
         else:
             # This block mostly never run unless we don't have items details in the hafizs_items table
             next_review = None
-        return Tr(Td(get_page_description(item_id)), Td(next_review))
+            last_review = None
+            planned_last_interval = None
+            last_interval	= None
+            next_interval= None
+        return Tr(
+            Td(get_page_description(item_id)),
+            Td(last_review),
+            Td(next_review),
+            Td(planned_last_interval),
+            Td(last_interval),
+            Td(next_interval),
+        )
 
     current_srs_table = Div(
         H4("SRS Pages"),
         Div(
             Table(
                 Thead(
-                    Tr(Td("Page"), Td("Next Review")),
+                    Tr(
+                        Td("Page"),
+                        Td("Last Review"),
+                        Td("Next Review"),
+                        Td("Planned Last Interval"),
+                        Td("Last Interval"),
+                        Td("Next Interval"),
+                    ),
                     cls="sticky z-50 top-0 bg-white",
                 ),
                 Tbody(*map(render_current_srs_rows, current_srs_items)),
