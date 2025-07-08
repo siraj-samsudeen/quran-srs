@@ -1041,7 +1041,7 @@ def render_stats_summary_table(auth, target_counts):
 
 
 @rt
-def index(auth, sess, monthly_extra_rows: int = None):
+def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
     # Sequential revision table
@@ -1147,35 +1147,64 @@ def index(auth, sess, monthly_extra_rows: int = None):
     monthly_progress_display = render_progress_display(
         monthly_reviews_completed_today, monthly_review_target
     )
-    sess_extra_value = sess.get("monthly_extra_display")
-    sess_extra_date = sess["monthly_extra_display"]["current_date"]
+    # sess_extra_value = sess.get("monthly_extra_display")
+    # sess_extra_date = sess["monthly_extra_display"]["current_date"]
 
-    if sess_extra_value is None:
-        monthly_extra_rows = 0
-    elif sess_extra_value is not None and sess_extra_date == current_date:
-        extra_value = sess.get("monthly_extra_display", {}).get("extra", 0) or 0
+    # if sess_extra_value is None:
+    #     monthly_extra_rows = 0
+    # elif sess_extra_value is not None and sess_extra_date == current_date:
+    #     extra_value = sess.get("monthly_extra_display", {}).get("extra", 0) or 0
 
-        # if monthly_extra_rows is None and extra_value > 0:
-        #     monthly_extra_rows = 0 + extra_value
-        if monthly_extra_rows is None:
-            monthly_extra_rows = 0
-        else:
-            monthly_extra_rows += extra_value
+    #     # if monthly_extra_rows is None and extra_value > 0:
+    #     #     monthly_extra_rows = 0 + extra_value
+    #     if monthly_extra_rows is None:
+    #         monthly_extra_rows = 0
+    #     else:
+    #         monthly_extra_rows += extra_value
 
-    sess["monthly_extra_display"] = {
-        "auth": auth,
-        "extra": monthly_extra_rows,
-        "current_date": current_date,
-    }
+    # sess["monthly_extra_display"] = {
+    #     "auth": auth,
+    #     "extra": monthly_extra_rows,
+    #     "current_date": current_date,
+    # }
+
+    DEFAULT_FULL_CYCLE_DISPLAY_COUNT = 5
+
+    def get_extra_page_display_count(sess, auth, current_date):
+        """Get extra no_of_page display count for current user and date"""
+        sess_data = sess.get("full_cycle_display_count_details", {})
+        # Check if session data is valid for current user and date
+        if (
+            sess_data.get("auth") == auth
+            and sess_data.get("current_date") == current_date
+        ):
+            return sess_data.get("extra_no_of_pages", 0)
+        # Return 0 for new user/date
+        return 0
+
+    def update_extra_page_display_count():
+        """Update extra page count in session and return new_extra count"""
+        current_extra = get_extra_page_display_count(sess, auth, current_date)
+        new_extra = current_extra + (full_cycle_display_count or 0)
+
+        sess["full_cycle_display_count_details"] = {
+            "auth": auth,
+            "extra_no_of_pages": new_extra,
+            "current_date": current_date,
+        }
+        return new_extra
+
+    total_display_count = (
+        DEFAULT_FULL_CYCLE_DISPLAY_COUNT + update_extra_page_display_count()
+    )
+
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
         mode_ids=["1"],
         route="monthly_cycle",
         auth=auth,
-        start_from=items_gaps_with_limit,
-        extra_rows=monthly_extra_rows,
+        total_display_count=total_display_count,
         plan_id=plan_id,
     )
-    print(len(monthly_cycle_items))
     monthly_cycle_extra_count = (
         get_page_count(item_ids=monthly_cycle_items) - monthly_review_target
     )
@@ -1192,10 +1221,10 @@ def index(auth, sess, monthly_extra_rows: int = None):
         ),
         monthly_cycle_table,
         DivHStacked(
-            Button("+1", hx_get="/?monthly_extra_rows=1", hx_target="body"),
-            Button("+3", hx_get="/?monthly_extra_rows=3", hx_target="body"),
-            Button("+5", hx_get="/?monthly_extra_rows=5", hx_target="body"),
-            # Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
+            Button("+1", hx_get="/?full_cycle_display_count=1", hx_target="body"),
+            Button("+3", hx_get="/?full_cycle_display_count=3", hx_target="body"),
+            Button("+5", hx_get="/?full_cycle_display_count=5", hx_target="body"),
+            # Button("Clear", hx_get="/?full_cycle_display_count=0", hx_target="body"),
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
@@ -1424,8 +1453,7 @@ def make_summary_table(
     mode_ids: list[str],
     route: str,
     auth: str,
-    start_from=None,
-    extra_rows=0,
+    total_display_count=0,
     plan_id=None,
 ):
     current_date = get_current_date(auth)
@@ -1489,7 +1517,7 @@ def make_summary_table(
     if route == "monthly_cycle":
         recent_items = get_monthly_review_item_ids(
             auth=auth,
-            extra_rows=extra_rows,
+            total_display_count=total_display_count,
             ct=ct,
             recent_items=recent_items,
             current_plan_id=plan_id,
@@ -1507,16 +1535,10 @@ def make_summary_table(
     )
 
 
-def get_monthly_review_item_ids(auth, extra_rows, ct, recent_items, current_plan_id):
+def get_monthly_review_item_ids(
+    auth, total_display_count, ct, recent_items, current_plan_id
+):
     current_date = get_current_date(auth)
-
-    def has_revisions_today(item: dict) -> bool:
-        """Check if item has revisions for current mode."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
-            )
-        )
 
     def get_items_from_item_ids(item_ids, start_item_id, no_of_next_items):
         """Get items from a list starting from a specific number."""
@@ -1526,10 +1548,6 @@ def get_monthly_review_item_ids(auth, extra_rows, ct, recent_items, current_plan
             return item_ids[start_idx:end_idx]
         except ValueError:
             return []
-
-    def has_monthly_cycle_mode_id(item: dict) -> bool:
-        """Check if item has the monthly_cycle mode ID."""
-        return item["mode_id"] == 1
 
     # eliminate items that are already revisioned in the current plan_id
     recent_items = [
@@ -1544,24 +1562,9 @@ def get_monthly_review_item_ids(auth, extra_rows, ct, recent_items, current_plan
         order_by="revision_date DESC, id DESC",
         limit=1,
     )[0].item_id
-    default_no_pages = 5
-    no_of_pages = default_no_pages + extra_rows if extra_rows else default_no_pages
     next_item_id = find_next_item_id(last_added_item_id)
-    item_ids = get_items_from_item_ids(recent_items, next_item_id, no_of_pages)
-    display_conditions = {
-        "monthly_cycle": lambda item: (
-            has_monthly_cycle_mode_id(item)
-            and has_revisions_today(item)
-            and item["item_id"] not in item_ids
-        )
-    }
-    today_revisioned_items = list(
-        dict.fromkeys(
-            i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
-        )
-    )
-    recent_items = item_ids + today_revisioned_items
-    return recent_items
+    item_ids = get_items_from_item_ids(recent_items, next_item_id, total_display_count)
+    return item_ids
 
 
 ######## New Summary Table ########
