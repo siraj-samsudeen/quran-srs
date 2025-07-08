@@ -5082,10 +5082,10 @@ def srs_detailed_page_view(
                 "bad_count": bad_count,
             }
         )
-    # sorted the records based on the sort_col and sort_type from the input, and then by page to group them
+    # sorted the records based on the sort_col and sort_type from the input, and after page sort to group them on main sort
+    eligible_records = sorted(eligible_records, key=lambda x: x["page"])
     eligible_records = sorted(
-        eligible_records,
-        key=lambda x: (-x[sort_col] if sort_type == "desc" else x[sort_col], x["page"]),
+        eligible_records, key=lambda x: x[sort_col], reverse=(sort_type == "desc")
     )
 
     def render_srs_eligible_rows(record: dict):
