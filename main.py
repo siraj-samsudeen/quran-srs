@@ -1540,6 +1540,14 @@ def get_monthly_review_item_ids(
 ):
     current_date = get_current_date(auth)
 
+    def has_revisions_today(item: dict) -> bool:
+        """Check if item has revisions for current mode."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
+            )
+        )
+
     def get_items_from_item_ids(item_ids, start_item_id, no_of_next_items):
         """Get items from a list starting from a specific number."""
         try:
@@ -1548,6 +1556,10 @@ def get_monthly_review_item_ids(
             return item_ids[start_idx:end_idx]
         except ValueError:
             return []
+
+    def has_monthly_cycle_mode_id(item: dict) -> bool:
+        """Check if item has the monthly_cycle mode ID."""
+        return item["mode_id"] == 1
 
     # eliminate items that are already revisioned in the current plan_id
     recent_items = [
@@ -1564,7 +1576,21 @@ def get_monthly_review_item_ids(
     )[0].item_id
     next_item_id = find_next_item_id(last_added_item_id)
     item_ids = get_items_from_item_ids(recent_items, next_item_id, total_display_count)
-    return item_ids
+    display_conditions = {
+        "monthly_cycle": lambda item: (
+            has_monthly_cycle_mode_id(item)
+            and has_revisions_today(item)
+            and item["item_id"] not in item_ids
+        )
+    }
+    today_revisioned_items = list(
+        dict.fromkeys(
+            i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
+        )
+    )
+    # recent_items=item_ids + today_revisioned_items
+    recent_items = item_ids
+    return recent_items
 
 
 ######## New Summary Table ########
