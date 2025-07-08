@@ -5048,7 +5048,10 @@ def page_description_edit_form(item_id: int):
 ######################### SRS Pages #########################
 @app.get("/srs")
 def srs_detailed_page_view(
-    auth, sort_col: str = "last_review_date", sort_type: str = "asc"
+    auth,
+    sort_col: str = "last_review_date",
+    sort_type: str = "asc",
+    is_bad_steak: bool = False,
 ):
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
@@ -5063,9 +5066,10 @@ def srs_detailed_page_view(
         "Total Count",
         "Bad Count",
     ]
-
+    # based on the is_bad_steak we are filtering only the bad_streak items
     bad_streak_items = hafizs_items(
-        where="bad_streak > 0 and mode_id <> 5", order_by="last_review DESC"
+        where=f"mode_id <> 5 {"AND bad_streak > 0" if is_bad_steak else ""}",
+        order_by="last_review DESC",
     )
     eligible_records = []
     for record in bad_streak_items:
@@ -5073,8 +5077,11 @@ def srs_detailed_page_view(
         current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
         total_count = len(current_items_rev_date)
         bad_count = len([r for r in current_items_rev_date if r.rating == -1])
-        bad_percent = format_number((bad_count / total_count) * 100)
-
+        try:
+            bad_percent = format_number((bad_count / total_count) * 100)
+        except ZeroDivisionError:
+            # if there is no record then this will run
+            bad_percent = "-"
         eligible_records.append(
             {
                 "page": current_item_id,
@@ -5102,11 +5109,16 @@ def srs_detailed_page_view(
             hx_select_oob="#current_srs_table",
             cls=AT.classic,
         )
+        bad_percentage = (
+            f"{record["bad_%"]}%"
+            if isinstance(record["bad_%"], int)
+            else record["bad_%"]
+        )
         return Tr(
             Td(page_description),
             Td(record["bad_streak"]),
             Td(record["last_review_date"]),
-            Td(f"{record["bad_%"]}%"),
+            Td(bad_percentage),
             Td(record["total_count"]),
             Td(record["bad_count"]),
             Td(start_srs_link),
@@ -5117,8 +5129,15 @@ def srs_detailed_page_view(
         P("Sort Options: ", cls=TextPresets.bold_lg),
         custom_select(name="sort_col", vals=columns, default_val=sort_col),
         custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
+        LabelSwitch(
+            label="Bad Steak",
+            id="is_bad_steak",
+            cls=(FlexT.block, FlexT.center, "gap-2"),
+            lbl_cls="leading-none md:leading-6",
+            checked=is_bad_steak,
+        ),
         Span("Applying the sort...", cls="htmx-indicator"),
-        cls=("w-full gap-2", FlexT.block, FlexT.middle),
+        cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
         hx_get="/srs",
         hx_target="#srs_eligible_table",
         hx_select="#srs_eligible_table",
