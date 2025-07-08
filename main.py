@@ -5082,7 +5082,9 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
         start_srs_link = A(
             "Start SRS",
             hx_get=f"/start-srs/{current_item_id}",
-            hx_target="body",
+            hx_target=f"#srs_eligible_row_{current_item_id}",
+            hx_select=f"#srs_eligible_row_{current_item_id}",
+            hx_select_oob="#current_srs_table",
             cls=AT.classic,
         )
         return Tr(
@@ -5093,6 +5095,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
             Td(record["total_count"]),
             Td(record["bad_count"]),
             Td(start_srs_link),
+            id=f"srs_eligible_row_{current_item_id}",
         )
 
     sort_fields = Form(
@@ -5130,7 +5133,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
     )
     ################### END ###################
 
-    current_srs_items = [i.item_id for i in hafizs_items(where=f"mode_id = 5")]
+    current_srs_items = [i.item_id for i in hafizs_items(where=f"mode_id = 5", order_by="next_review DESC, item_id ASC")]
 
     # This table shows the current srs pages for the user
     def render_current_srs_rows(item_id):
@@ -5154,6 +5157,7 @@ def srs_detailed_page_view(auth, sort_col: str = "page", sort_type: str = "desc"
                 Tbody(*map(render_current_srs_rows, current_srs_items)),
             ),
             cls="space-y-2 uk-overflow-auto h-[35vh]",
+        id="current_srs_table",
         ),
     )
 
