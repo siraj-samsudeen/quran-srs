@@ -1172,7 +1172,7 @@ def index(auth, sess, monthly_extra_rows: int = None):
             Button("+1", hx_get="/?monthly_extra_rows=1", hx_target="body"),
             Button("+3", hx_get="/?monthly_extra_rows=3", hx_target="body"),
             Button("+5", hx_get="/?monthly_extra_rows=5", hx_target="body"),
-            Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
+            # Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
@@ -1426,29 +1426,12 @@ def make_summary_table(
             )
         )
 
-    def has_revisions_today(item: dict) -> bool:
-        """Check if item has revisions for current mode."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
-            )
-        )
-
     def has_newly_memorized_for_today(item: dict) -> bool:
         """Check if item has newly memorized record for the current_date."""
         newly_memorized_record = revisions(
             where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
         )
         return len(newly_memorized_record) == 1
-
-    def get_items_from_number(numbers, start_number, no_of_next_items):
-        """Get items from a list starting from a specific number."""
-        try:
-            start_idx = numbers.index(start_number)
-            end_idx = min(start_idx + no_of_next_items, len(numbers))
-            return numbers[start_idx:end_idx]
-        except ValueError:
-            return []
 
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
@@ -1476,22 +1459,14 @@ def make_summary_table(
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
     if start_from:
-        last_added_item_id, upper_limit_ = start_from[0]
-        target, _progress = get_monthly_target_and_progress(auth)
-        target = target + extra_rows if extra_rows else target
-        next_item_id = find_next_item_id(last_added_item_id)
-        recent_items = get_items_from_number(recent_items, next_item_id, target)
-        display_conditions = {
-            "monthly_cycle": lambda item: (
-                has_monthly_cycle_mode_id(item)
-                and has_revisions_today(item)
-                and item["item_id"] not in recent_items
-            )
-        }
-        today_revisioned_items = list(
-            dict.fromkeys(i["item_id"] for i in ct if display_conditions[route](i))
+        recent_items = render_monthly_review_records(
+            route=route,
+            auth=auth,
+            start_from=start_from,
+            extra_rows=extra_rows,
+            ct=ct,
+            recent_items=recent_items,
         )
-        recent_items = recent_items + today_revisioned_items
 
     return (
         render_summary_table(
@@ -1502,6 +1477,51 @@ def make_summary_table(
         ),
         recent_items,
     )
+
+
+def render_monthly_review_records(
+    route, auth, start_from, extra_rows, ct, recent_items
+):
+    current_date = get_current_date(auth)
+
+    def has_revisions_today(item: dict) -> bool:
+        """Check if item has revisions for current mode."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
+            )
+        )
+
+    def get_items_from_number(numbers, start_number, no_of_next_items):
+        """Get items from a list starting from a specific number."""
+        try:
+            start_idx = numbers.index(start_number)
+            end_idx = min(start_idx + no_of_next_items, len(numbers))
+            return numbers[start_idx:end_idx]
+        except ValueError:
+            return []
+
+    def has_monthly_cycle_mode_id(item: dict) -> bool:
+        """Check if item has the monthly_cycle mode ID."""
+        return item["mode_id"] == 1
+
+    last_added_item_id, upper_limit_ = start_from[0]
+    target, _progress = get_monthly_target_and_progress(auth)
+    target = target + extra_rows if extra_rows else target
+    next_item_id = find_next_item_id(last_added_item_id)
+    recent_items = get_items_from_number(recent_items, next_item_id, target)
+    display_conditions = {
+        "monthly_cycle": lambda item: (
+            has_monthly_cycle_mode_id(item)
+            and has_revisions_today(item)
+            and item["item_id"] not in recent_items
+        )
+    }
+    today_revisioned_items = list(
+        dict.fromkeys(i["item_id"] for i in ct if display_conditions[route](i))
+    )
+    recent_items = recent_items + today_revisioned_items
+    return recent_items
 
 
 ######## New Summary Table ########
