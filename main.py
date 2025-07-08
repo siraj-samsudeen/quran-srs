@@ -549,29 +549,44 @@ def get_srs_interval_list(item_id: int):
     return interval_list
 
 
-def get_interval_based_on_rating(item_id: int, rating: int):
+def get_interval_based_on_rating(item_id: int, rating: int, is_edit: bool = False):
     """
-    Calculates the next interval for an SRS (Spaced Repetition System) item based on the user's rating.
+    Calculate the next review interval for an SRS item based on user rating.
+
+    Determines the appropriate review interval for a memorization item using
+    the Spaced Repetition System (SRS) methodology. Supports different rating
+    scenarios (bad, ok, good) and can handle both standard review and edit scenarios.
 
     Args:
-        item_id (int): The ID of the Item's being reviewed.
-        rating (int): The rating given to the item (0: Bad, 1: Ok, 2: Good).
+        item_id (int): Unique identifier for the memorization item.
+        rating (int): User's performance rating (0: Bad, 1: Ok, 2: Good).
+        is_edit (bool, optional): Flag to indicate if this is an edit scenario.
+                                   Defaults to False.
 
     Returns:
-        int: The next recommended review interval based on the current interval and rating.
+        int: Recommended next review interval based on current interval and rating.
 
     Notes:
-        - Uses the current next interval and the item's booster pack intervals
-        - Adjusts the interval based on the rating:
-            - Bad rating: moves to a shorter interval
-            - Ok rating: maintains the current interval
-            - Good rating: moves to a longer interval
+        - Uses the current interval from hafizs_items or planned interval during edits
+        - Retrieves interval progression from the item's configured booster pack
+        - Adjusts interval based on user's performance rating
     """
+    # TODO: Later need to retrive the current_interval from the hafizs_items table as `planned_interval`
+    if is_edit:
+        last_reviewed = revisions(
+            where=f"item_id = {item_id} AND mode_id = 5",
+            order_by="revision_date DESC",
+            limit=1,
+        )
+        current_interval = last_reviewed[0].planned_interval
+    else:
+        current_hafiz_item = get_hafizs_items(item_id)
+        current_interval = current_hafiz_item.next_interval
 
-    current_hafiz_item = get_hafizs_items(item_id)
-    current_next_interval = current_hafiz_item.next_interval
     intervals = get_srs_interval_list(item_id)
-    rating_intervals = get_interval_triplet(current_next_interval, intervals)
+    rating_intervals = get_interval_triplet(
+        current_interval=current_interval, interval_list=intervals
+    )
     return rating_intervals[rating + 1]
 
 
@@ -1606,9 +1621,9 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         # This is to show the interval for srs based on the rating
         if mode_id == 5:
             custom_rating_dict = {
-                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1)}",
-                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0)}",
-                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1)}",
+                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked)}",
+                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked)}",
+                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked)}",
             }
         else:
             custom_rating_dict = RATING_MAP
@@ -2506,10 +2521,10 @@ def update_revision_rating(rev_id: int, rating: int):
     current_revision = revisions[rev_id]
     if current_revision.mode_id == 5:
         item_id = current_revision.item_id
-        next_interval = get_interval_based_on_rating(item_id, rating)
+        next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
 
         # Update the next_interval, as it is the only column which is based on the rating
-        revisions.update({"next_interval": rating}, next_interval)
+        revisions.update({"next_interval": next_interval}, rev_id)
 
         current_hafiz_item = get_hafizs_items(item_id)
         current_hafiz_item.next_interval = next_interval
