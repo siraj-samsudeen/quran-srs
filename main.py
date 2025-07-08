@@ -529,18 +529,18 @@ def update_review_dates(item_id: int, mode_id: int):
 def get_srs_interval_list(item_id: int):
     current_hafiz_item = get_hafizs_items(item_id)
     booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
-    max_interval = booster_pack_details.max_interval
+    end_interval = booster_pack_details.end_interval
 
     booster_pack_intervals = booster_pack_details.interval_days.split(",")
     booster_pack_intervals = list(map(int, booster_pack_intervals))
 
-    # Filter numbers less than max_interval
+    # Filter numbers less than end_interval
     interval_list = [
-        interval for interval in booster_pack_intervals if interval < max_interval
+        interval for interval in booster_pack_intervals if interval < end_interval
     ]
-    # Add the first interval >= max_interval for graduation logic
+    # Add the first interval >= end_interval for graduation logic
     first_greater = next(
-        (interval for interval in booster_pack_intervals if interval >= max_interval),
+        (interval for interval in booster_pack_intervals if interval >= end_interval),
         None,
     )
     if first_greater is not None:
@@ -590,10 +590,10 @@ def get_interval_based_on_rating(
 
     # This logic is to show the user that the item is finished after this record
     if is_dropdown:
-        max_interval = srs_booster_pack[
+        end_interval = srs_booster_pack[
             current_hafiz_item.srs_booster_pack_id
-        ].max_interval
-        if current_rating_interval > max_interval:
+        ].end_interval
+        if current_rating_interval > end_interval:
             return "Finished"
     return current_rating_interval
 
@@ -629,7 +629,7 @@ def update_hafiz_items_for_srs(
             current_hafiz_item.next_review = None
             current_hafiz_item.next_interval = srs_booster_pack[
                 current_hafiz_item.srs_booster_pack_id
-            ].min_interval
+            ].start_interval
             current_hafiz_item.last_interval = None
 
     hafizs_items.update(current_hafiz_item)
@@ -1370,11 +1370,11 @@ def change_the_current_date(auth):
         # if the count is greater than 6 which is not in srs mode then it will graduate that item to next level
         if get_mode_count(rev.item_id, rev.mode_id) > 6 and rev.mode_id != 5:
             graduate_the_item_id(rev.item_id, rev.mode_id, auth)
-        # if the next_interval is greater than the max_interval(srs_booster_pack table) then it will graduate that item to monthly cycle
+        # if the next_interval is greater than the end_interval(srs_booster_pack table) then it will graduate that item to monthly cycle
         elif rev.mode_id == 5:
             hafiz_items_details = get_hafizs_items(rev.item_id)
             pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
-            if hafiz_items_details.next_interval > pack_details.max_interval:
+            if hafiz_items_details.next_interval > pack_details.end_interval:
                 graduate_the_item_id(rev.item_id, rev.mode_id, auth)
 
     # This will update the hafiz current date
@@ -5191,7 +5191,7 @@ def start_srs(item_id: int, auth):
     # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
     booster_pack_details = srs_booster_pack[1]
     srs_booster_id = booster_pack_details.id
-    next_interval = booster_pack_details.min_interval
+    next_interval = booster_pack_details.start_interval
     next_review_date = add_days_to_date(current_date, next_interval)
 
     # Change the current mode_id for the item_id to 5(srs)
