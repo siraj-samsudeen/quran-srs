@@ -1137,7 +1137,7 @@ def index(auth, sess, monthly_extra_rows: int = None):
         if monthly_extra_rows == 0:
             del sess["monthly_extra_display"]
         elif monthly_extra_rows is None:
-            monthly_extra_rows = 0 + sess["monthly_extra_display"]["extra"]
+            monthly_extra_rows = 0
         else:
             monthly_extra_rows += sess["monthly_extra_display"]["extra"]
 
