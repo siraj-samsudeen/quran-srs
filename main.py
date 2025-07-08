@@ -1175,6 +1175,7 @@ def index(auth, sess, monthly_extra_rows: int = None):
         extra_rows=monthly_extra_rows,
         plan_id=plan_id,
     )
+    print(len(monthly_cycle_items))
     monthly_cycle_extra_count = (
         get_page_count(item_ids=monthly_cycle_items) - monthly_review_target
     )
@@ -1521,12 +1522,12 @@ def get_monthly_review_item_ids(
             )
         )
 
-    def get_items_from_number(numbers, start_number, no_of_next_items):
+    def get_items_from_item_ids(item_ids, start_item_id, no_of_next_items):
         """Get items from a list starting from a specific number."""
         try:
-            start_idx = numbers.index(start_number)
-            end_idx = min(start_idx + no_of_next_items, len(numbers))
-            return numbers[start_idx:end_idx]
+            start_idx = item_ids.index(start_item_id)
+            end_idx = min(start_idx + no_of_next_items, len(item_ids))
+            return item_ids[start_idx:end_idx]
         except ValueError:
             return []
 
@@ -1550,7 +1551,7 @@ def get_monthly_review_item_ids(
     target, _progress = get_monthly_target_and_progress(auth)
     target = target + extra_rows if extra_rows else target
     next_item_id = find_next_item_id(last_added_item_id)
-    item_ids = get_items_from_number(recent_items, next_item_id, target)
+    item_ids = get_items_from_item_ids(recent_items, next_item_id, target)
     display_conditions = {
         "monthly_cycle": lambda item: (
             has_monthly_cycle_mode_id(item)
