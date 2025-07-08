@@ -530,23 +530,23 @@ def get_srs_interval_list(item_id: int):
     current_hafiz_item = get_hafizs_items(item_id)
     booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
     max_interval = booster_pack_details.max_interval
+
     booster_pack_intervals = booster_pack_details.interval_days.split(",")
     booster_pack_intervals = list(map(int, booster_pack_intervals))
-    return [interval for interval in booster_pack_intervals if interval < max_interval]
 
+    # Filter numbers less than max_interval
+    interval_list = [
+        interval for interval in booster_pack_intervals if interval < max_interval
+    ]
+    # Add the first interval >= max_interval for graduation logic
+    first_greater = next(
+        (interval for interval in booster_pack_intervals if interval >= max_interval),
+        None,
+    )
+    if first_greater is not None:
+        interval_list.append(first_greater)
 
-# This funciton is need when we add a new record on the srs mode
-# def get_srs_next_interval(item_id: int):
-#     current_hafiz_items_details = hafizs_items(where=f"item_id = {item_id}")
-#     if current_hafiz_items_details:
-#         current_hafiz_items_details = current_hafiz_items_details[0]
-#         pack_id = current_hafiz_items_details.srs_booster_pack_id
-#         next_interval = current_hafiz_items_details.next_interval
-#     else:
-#         return None
-#     # Get the next interval from the booster pack
-#     booster_pack_intervals = get_srs_interval_list(pack_id)
-#     return find_next_greater(booster_pack_intervals, next_interval)
+    return interval_list
 
 
 def get_interval_based_on_rating(item_id: int, rating: int):
@@ -667,11 +667,22 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "next_review": None,
         "watch_list_graduation_date": get_current_date(auth),
     }
+    srs = {
+        "status": "memorized",
+        "mode_id": 1,
+        "last_review": last_review_date,
+        "next_review": None,
+        "last_interval": None,
+        "next_interval": None,
+        "srs_booster_pack_id": None,
+    }
 
     if mode_id == 3:
         data_to_update = watch_list if checked else recent_review
     elif mode_id == 4:
         data_to_update = memorized if checked else watch_list
+    elif mode_id == 5:
+        data_to_update = srs
     else:
         return None
 
@@ -1326,14 +1337,22 @@ def index(auth):
 @app.get("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
-    # This will retrive the revision records of the recent review and watch list for the current date as per the hafiz
+
+    # This will retrive the revision records of the recent review, watch list and SRS for the current date as per the hafiz
     revision_data = revisions(
-        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4)"
+        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4, 5)"
     )
     for rev in revision_data:
-        # if the count is greater than 6 then it will graduate that item to next level
-        if get_mode_count(rev.item_id, rev.mode_id) > 6:
+        # if the count is greater than 6 which is not in srs mode then it will graduate that item to next level
+        if get_mode_count(rev.item_id, rev.mode_id) > 6 and rev.mode_id != 5:
             graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+        # if the next_interval is greater than the max_interval(srs_booster_pack table) then it will graduate that item to monthly cycle
+        elif rev.mode_id == 5:
+            hafiz_items_details = get_hafizs_items(rev.item_id)
+            pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+            if hafiz_items_details.next_interval > pack_details.max_interval:
+                graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+
     # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
@@ -5167,11 +5186,13 @@ def change_current_date(auth):
     )
     return main_area(label_input, auth=auth)
 
+
 @app.post("/change_current_date")
-def update_current_date(auth, current_date:str):
+def update_current_date(auth, current_date: str):
     current_hafiz = hafizs[auth]
     current_hafiz.current_date = current_date
     hafizs.update(current_hafiz)
     return RedirectResponse("/change_current_date", status_code=303)
+
 
 serve()
