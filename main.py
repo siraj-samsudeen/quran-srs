@@ -1153,14 +1153,26 @@ def index(auth, sess, monthly_extra_rows: int = None):
         start_from=items_gaps_with_limit,
         extra_rows=monthly_extra_rows,
     )
+    monthly_cycle_extra_count = (
+        get_page_count(item_ids=monthly_cycle_items) - monthly_review_target
+    )
+    is_display_extra_header = monthly_cycle_extra_count > 0
+    extra_header = (
+        f" [+{(monthly_cycle_extra_count)} EXTRA]" if is_display_extra_header else ""
+    )
     overall_table = AccordionItem(
-        Span(f"{modes[1].name} - ", monthly_progress_display),
+        Span(
+            f"{modes[1].name} - ",
+            monthly_progress_display,
+            extra_header,
+            id=f"monthly_cycle-header",
+        ),
         monthly_cycle_table,
         DivHStacked(
             Button("+1", hx_get="/?monthly_extra_rows=1", hx_target="body"),
             Button("+3", hx_get="/?monthly_extra_rows=3", hx_target="body"),
             Button("+5", hx_get="/?monthly_extra_rows=5", hx_target="body"),
-            # Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
+            Button("Clear", hx_get="/?monthly_extra_rows=0", hx_target="body"),
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
