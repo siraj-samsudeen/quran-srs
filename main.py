@@ -1283,7 +1283,7 @@ def index(auth):
     ############### stat table ################
 
     # exlcuded the srs mode
-    mode_ids = [mode.id for mode in modes()][:-1]
+    mode_ids = [mode.id for mode in modes()]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
     def render_count(_mode_id, _revision_date):
