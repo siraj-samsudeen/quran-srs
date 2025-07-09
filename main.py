@@ -1559,22 +1559,29 @@ def get_monthly_review_item_ids(
         """Check if item has the monthly_cycle mode ID."""
         return item["mode_id"] == 1
 
-    # eliminate items that are already revisioned in the current plan_id
-    eligible_item_ids = [
-        i
-        for i in recent_items
-        if not revisions(
-            where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+    if current_plan_id is not None:
+        # eliminate items that are already revisioned in the current plan_id
+        eligible_item_ids = [
+            i
+            for i in recent_items
+            if not revisions(
+                where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+            )
+        ]
+        # TODO: handle the new user that not have any revision/plan_id
+        last_added_revision = revisions(
+            where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
+            order_by="revision_date DESC, id DESC",
+            limit=1,
         )
-    ]
-    # TODO: handle the new user that not have any revision/plan_id
-    last_added_item_id = revisions(
-        where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
-        order_by="revision_date DESC, id DESC",
-        limit=1,
-    )[0].item_id
+        last_added_item_id = (
+            last_added_revision[0].item_id if last_added_revision else 0
+        )
 
-    next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+    else:
+        eligible_item_ids = []
+        next_item_id = 0
 
     item_ids = get_next_item_range_from_item_id(
         eligible_item_ids, next_item_id, total_display_count
@@ -1711,11 +1718,15 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     render_output = (
         Div(
             Div(
-                A(
-                    "Record",
-                    href=f"/{route}",
-                    hx_boost="false",
-                    cls=(AT.classic, TextPresets.bold_sm, "float-right"),
+                (
+                    A(
+                        "Record",
+                        href=f"/{route}",
+                        hx_boost="false",
+                        cls=(AT.classic, TextPresets.bold_sm, "float-right"),
+                    )
+                    if route != "monthly_cycle"
+                    else None
                 ),
                 cls="w-full",
             ),
