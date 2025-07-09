@@ -680,7 +680,7 @@ def update_hafiz_items_for_srs(
     else:
         # This else bolck will run only if we deleted the only record for that mode
         if mode_id == 5:
-            #TODO: currently if we deleted the only record there is no way of retriving the next_review date
+            # TODO: currently if we deleted the only record there is no way of retriving the next_review date
             current_hafiz_item.next_review = None
             current_hafiz_item.next_interval = srs_booster_pack[
                 current_hafiz_item.srs_booster_pack_id
@@ -723,7 +723,7 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
         )
     else:
         # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
-        update_review_dates(item_id, mode_id, date)
+        update_review_dates(item_id, mode_id)
 
 
 def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
@@ -1222,7 +1222,6 @@ def render_stats_summary_table(auth, target_counts):
                 "Close Date",
                 hx_get="/close_date",
                 target_id="current_date_description",
-                hx_confirm="Are you sure?",
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
         ),
@@ -1810,7 +1809,10 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
-                                cls=("select_all", ("hidden" if mode_id == 5 else None)),
+                                cls=(
+                                    "select_all",
+                                    ("hidden" if mode_id == 5 else None),
+                                ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
                                 _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                             )
