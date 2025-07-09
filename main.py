@@ -5133,11 +5133,11 @@ def srs_detailed_page_view(
         LabelSwitch(
             label="Bad Steak",
             id="is_bad_steak",
-            cls=(FlexT.block, FlexT.center, "gap-2"),
+            cls=(FlexT.block, FlexT.center, FlexT.middle, "gap-2"),
             lbl_cls="leading-none md:leading-6",
             checked=is_bad_steak,
         ),
-        Span("Applying the sort...", cls="htmx-indicator"),
+        P("Applying the sort...", cls="htmx-indicator"),
         cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
         hx_get="/srs",
         hx_target="#srs_eligible_table",
