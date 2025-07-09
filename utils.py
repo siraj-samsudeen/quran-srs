@@ -193,6 +193,7 @@ def is_first_date_greater(
         raise ValueError(f"Invalid date format. Error: {str(e)}")
 
 
+# TODO: this function is duplixcation of the `calculate_days_difference``
 def day_diff(date1, date2):
     """
     Returns the difference in days between two dates (YYYY-MM-DD).
@@ -341,7 +342,9 @@ def set_zero_to_none(data):
 
 
 def format_number(num):
-    return int(num) if num.is_integer() else round(num, 1)
+    num = float(num)
+    rounded = round(num, 1)
+    return int(rounded) if rounded.is_integer() else rounded
 
 
 # This function is used to get the gaps in a list of numbers.
@@ -431,3 +434,34 @@ def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
         raise ValueError(
             f"Invalid date format. Expected format: {date_format}. Error: {e}"
         )
+
+
+# This function is only used for getting the intervals for the rating in srs mode
+def get_interval_triplet(current_interval, interval_list):
+    """
+    Returns a triplet [left_sibling, lookup_value, right_sibling] based on the current_interval
+    and interval_list.
+
+    Args:
+        current_interval: The lookup value (either < min value or present in the list)
+        interval_list: List of intervals (assumed to be sorted)
+
+    Returns:
+        List of three elements: [left_sibling, lookup_value, right_sibling]
+    """
+    if not interval_list:
+        return [current_interval, current_interval, current_interval]
+
+    # Case 1: current_interval < min value of the list
+    if current_interval < interval_list[0]:
+        return [current_interval, current_interval, interval_list[0]]
+
+    # Case 2: current_interval is present in the list
+    for i in range(len(interval_list)):
+        if current_interval == interval_list[i]:
+            left = interval_list[i - 1] if i > 0 else interval_list[i]
+            right = interval_list[i + 1] if i < len(interval_list) - 1 else "Finished"
+            return [left, interval_list[i], right]
+
+    # This shouldn't happen based on the given constraints
+    return [current_interval, current_interval, current_interval]
