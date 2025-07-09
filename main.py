@@ -5050,7 +5050,7 @@ def page_description_edit_form(item_id: int):
 def srs_detailed_page_view(
     auth,
     sort_col: str = "last_review_date",
-    sort_type: str = "asc",
+    sort_type: str = "desc",
     is_bad_steak: bool = False,
 ):
     current_date = get_current_date(auth)
