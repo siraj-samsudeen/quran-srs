@@ -1181,6 +1181,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             hx_select="#monthly_cycle_summary_table",
             hx_target="#monthly_cycle_summary_table",
             hx_swap="outerHTML",
+            hx_select_oob="#monthly_cycle-header",
         )
 
     total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
@@ -1205,6 +1206,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         Span(
             f"{modes[1].name} - ",
             monthly_progress_display,
+            extra_header,
             id=f"monthly_cycle-header",
         ),
         monthly_cycle_table,
