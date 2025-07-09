@@ -5053,6 +5053,7 @@ def srs_detailed_page_view(
     sort_type: str = "asc",
     is_bad_steak: bool = False,
 ):
+    current_date = get_current_date(auth)
     # Populate the streaks for all the items before displaying the eligible pages
     populate_streak()
 
@@ -5179,22 +5180,30 @@ def srs_detailed_page_view(
         hafiz_items_data = hafizs_items(where=f"item_id = {item_id}")
         if hafiz_items_data:
             hafiz_items_data = hafiz_items_data[0]
-            next_review = hafiz_items_data.next_review
             last_review = hafiz_items_data.last_review
+            next_review = hafiz_items_data.next_review
+            if next_review:
+                due = calculate_days_difference(next_review, current_date)
+                if due < 0:
+                    due = "-"
+            else:
+                due = None
             planned_last_interval = hafiz_items_data.planned_last_interval
-            last_interval	= hafiz_items_data.last_interval
-            next_interval= hafiz_items_data.next_interval
+            last_interval = hafiz_items_data.last_interval
+            next_interval = hafiz_items_data.next_interval
         else:
             # This block mostly never run unless we don't have items details in the hafizs_items table
-            next_review = None
             last_review = None
+            next_review = None
+            due = None
             planned_last_interval = None
-            last_interval	= None
-            next_interval= None
+            last_interval = None
+            next_interval = None
         return Tr(
             Td(get_page_description(item_id)),
             Td(last_review),
             Td(next_review),
+            Td(due),
             Td(planned_last_interval),
             Td(last_interval),
             Td(next_interval),
@@ -5209,6 +5218,7 @@ def srs_detailed_page_view(
                         Td("Page"),
                         Td("Last Review"),
                         Td("Next Review"),
+                        Td("Due"),
                         Td("Planned Last Interval"),
                         Td("Last Interval"),
                         Td("Next Interval"),
