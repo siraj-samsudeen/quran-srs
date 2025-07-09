@@ -1211,10 +1211,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         monthly_cycle_table,
         DivHStacked(
-            *[
-                create_count_button(count)
-                for count in range(1, DEFAULT_DISPLAY_COUNT + 1)
-            ],
+            *[create_count_button(count) for count in [1, 2, 3, 5]],
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
