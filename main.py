@@ -1506,9 +1506,7 @@ def make_summary_table(
         "watch_list": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
-        "monthly_cycle": lambda item: (
-            has_monthly_cycle_mode_id(item) and has_revisions(item)
-        ),
+        "monthly_cycle": lambda item: (has_monthly_cycle_mode_id(item)),
     }
 
     recent_items = list(
@@ -1569,6 +1567,7 @@ def get_monthly_review_item_ids(
             where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
         )
     ]
+    # TODO: handle the new user that not have any revision/plan_id
     last_added_item_id = revisions(
         where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
         order_by="revision_date DESC, id DESC",
@@ -1588,8 +1587,8 @@ def get_monthly_review_item_ids(
             i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
         )
     )
-    # recent_items=item_ids + today_revisioned_items
-    recent_items = item_ids
+    recent_items = item_ids + today_revisioned_items
+    # recent_items = item_ids
     return recent_items
 
 
