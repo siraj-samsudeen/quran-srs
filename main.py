@@ -295,13 +295,59 @@ def get_mode_count(item_id, mode_id):
     return len(mode_records)
 
 
-def get_page_count(records: list[Revision]) -> float:
+def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
     total_count = 0
-    for record in records:
-        page_no = items[record.item_id].page_id
+    # Get items to process
+    if item_ids:
+        process_items = item_ids
+    elif records:
+        process_items = [record.item_id for record in records]
+    else:
+        return format_number(total_count)
+    # Calculate page count
+    for item_id in process_items:
+        page_no = items[item_id].page_id
         total_parts = items(where=f"page_id = {page_no} and active = 1")
         total_count += 1 / len(total_parts)
     return format_number(total_count)
+
+
+def get_unique_page_count(recent_review_items):
+    return len(set(map(get_page_number, recent_review_items)))
+
+
+def get_revision_data(mode_id: str, revision_date: str):
+    """Returns the revision count and revision ID for a specific date and mode ID."""
+    records = revisions(
+        where=f"mode_id = '{mode_id}' AND revision_date = '{revision_date}'"
+    )
+    rev_ids = ",".join(str(r.id) for r in records)
+    count = get_page_count(records)
+    return count, rev_ids
+
+
+def create_count_link(count: int, rev_ids: str):
+    if not rev_ids:
+        return count
+    return A(
+        count,
+        href=f"/revision/bulk_edit?ids={rev_ids}",
+        cls=AT.classic,
+    )
+
+
+def render_progress_display(current_count: int, target_count: int, rev_ids: str = ""):
+    target_count = format_number(target_count)
+    current_count = format_number(current_count)
+    base_link = create_count_link(current_count, rev_ids)
+    if current_count == 0 and target_count == 0:
+        return "-"
+    elif current_count == target_count:
+        return (base_link, " ✔️")
+    elif current_count > target_count:
+        return (base_link, f" / {target_count}", " ✔️")
+    else:
+        return (base_link, f" / {target_count}")
 
 
 def render_rating(rating: int):
@@ -1119,6 +1165,95 @@ def tables_main_area(*args, active_table=None, auth=None):
     )
 
 
+def render_stats_summary_table(auth, target_counts):
+    current_date = get_current_date(auth)
+    today = current_date
+    yesterday = sub_days_to_date(today, 1)
+    today_completed_count = get_page_count(
+        revisions(where=f"revision_date = '{today}'")
+    )
+    yesterday_completed_count = get_page_count(
+        revisions(where=f"revision_date = '{yesterday}'")
+    )
+    current_date_description = P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
+    )
+    mode_ids = [mode.id for mode in modes()]
+    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
+
+    def render_count(mode_id, revision_date, is_link=True, show_dash_for_zero=False):
+        count, item_ids = get_revision_data(mode_id, revision_date)
+
+        if count == 0:
+            if show_dash_for_zero:
+                return "-", ""
+            else:
+                return 0, ""
+
+        if is_link:
+            return create_count_link(count, item_ids)
+        else:
+            return count, item_ids
+
+    def render_stat_rows(current_mode_id):
+        today_count, today_item_ids = render_count(
+            current_mode_id, today, is_link=False
+        )
+        today_target = target_counts[current_mode_id]
+        progress_display = render_progress_display(
+            today_count, today_target, today_item_ids
+        )
+        yesterday_display = render_count(
+            current_mode_id, yesterday, is_link=True, show_dash_for_zero=True
+        )
+        return Tr(
+            Td(f"{modes[current_mode_id].name}"),
+            Td(progress_display),
+            Td(yesterday_display),
+            id=f"stat-row-{current_mode_id}",
+        )
+
+    overall_target_count = sum(target_counts.values())
+    return Div(
+        DivLAligned(
+            current_date_description,
+            Button(
+                "Close Date",
+                hx_get="/close_date",
+                target_id="current_date_description",
+                hx_confirm="Are you sure?",
+                cls=(ButtonT.default, "px-2 py-3 h-0"),
+            ),
+        ),
+        Table(
+            Thead(
+                Tr(
+                    Th("Modes"),
+                    Th("Today"),
+                    Th("Yesterday"),
+                )
+            ),
+            Tbody(
+                *map(render_stat_rows, sorted_mode_ids),
+            ),
+            Tfoot(
+                Tr(
+                    Td("Total"),
+                    Td(
+                        render_progress_display(
+                            today_completed_count, overall_target_count
+                        )
+                    ),
+                    Td(yesterday_completed_count),
+                    cls="[&>*]:font-bold",
+                    id="total_row",
+                ),
+            ),
+        ),
+    )
+
+
 @rt
 def index(auth):
     current_date = get_current_date(auth)
@@ -1220,9 +1355,19 @@ def index(auth):
             description = None
     else:
         description = None
+    memorized_len = len(
+        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+    )
+    monthly_review_target = round(memorized_len / 30)
+    monthly_reviews_completed_today = get_page_count(
+        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    )
+    monthly_progress_display = render_progress_display(
+        monthly_reviews_completed_today, monthly_review_target
+    )
 
     overall_table = AccordionItem(
-        Span(modes[1].name),
+        Span(f"{modes[1].name} - ", monthly_progress_display),
         Div(
             description,
             Table(
@@ -1240,17 +1385,28 @@ def index(auth):
         open=True,
     )
 
-    recent_review_table = make_summary_table(
+    recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
     )
 
-    watch_list_table = make_summary_table(mode_ids=["4"], route="watch_list", auth=auth)
+    recent_review_target = get_page_count(item_ids=recent_review_items)
 
-    new_memorization_table = make_new_memorization_summary_table(
-        mode_ids=["2"], route="new_memorization", auth=auth
+    watch_list_table, watch_list_items = make_summary_table(
+        mode_ids=["4"], route="watch_list", auth=auth
     )
+    watch_list_target = get_page_count(item_ids=watch_list_items)
 
-    srs_table = make_summary_table(mode_ids=["5"], route="srs", auth=auth)
+    new_memorization_table, new_memorization_items = (
+        make_new_memorization_summary_table(
+            mode_ids=["2"], route="new_memorization", auth=auth
+        )
+    )
+    new_memorization_target = get_page_count(item_ids=new_memorization_items)
+
+    srs_table, srs_items = make_summary_table(mode_ids=["5"], route="srs", auth=auth)
+
+    srs_target = get_page_count(item_ids=srs_items)
+
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1286,79 +1442,15 @@ def index(auth):
     tables = tables_dict.values()
     # if the table is none then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
-
-    ############### stat table ################
-
-    # exlcuded the srs mode
-    mode_ids = [mode.id for mode in modes()]
-    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
-
-    def render_count(_mode_id, _revision_date):
-        records = revisions(
-            where=f"mode_id = '{_mode_id}' AND revision_date = '{_revision_date}'"
-        )
-        rev_ids = [str(r.id) for r in records]
-        count = get_page_count(records)
-
-        if count == 0:
-            return "-"
-
-        return A(
-            count, href=f"/revision/bulk_edit?ids={",".join(rev_ids)}", cls=AT.classic
-        )
-
-    today = current_date
-    yesterday = sub_days_to_date(today, 1)
-    today_total_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
-    yesterday_total_count = get_page_count(
-        revisions(where=f"revision_date = '{yesterday}'")
-    )
-
-    def render_stat_rows(current_mode_id):
-        return Tr(
-            Td(modes[current_mode_id].name),
-            Td(render_count(current_mode_id, today)),
-            Td(render_count(current_mode_id, yesterday)),
-            id=f"stat-row-{current_mode_id}",
-        )
-
-    current_date_description = P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), id="current_date_description"),
-    )
-
-    stat_table = Div(
-        DivLAligned(
-            current_date_description,
-            Button(
-                "Close Date",
-                hx_get="/close_date",
-                target_id="current_date_description",
-                cls=(ButtonT.default, "px-2 py-3 h-0"),
-            ),
-        ),
-        Table(
-            Thead(
-                Tr(
-                    Th("Modes"),
-                    Th("Today"),
-                    Th("Yesterday"),
-                )
-            ),
-            Tbody(
-                *map(render_stat_rows, sorted_mode_ids),
-            ),
-            Tfoot(
-                Tr(
-                    Td("Total"),
-                    Td(today_total_count),
-                    Td(yesterday_total_count),
-                    cls="[&>*]:font-bold",
-                    id="total_row",
-                ),
-            ),
-        ),
-    )
+    target_counts = {
+        1: monthly_review_target,
+        2: new_memorization_target,
+        3: recent_review_target,
+        4: watch_list_target,
+        5: srs_target,
+    }
+    # FIXME: need to pass argument as keyword argument
+    stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
 
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
@@ -1502,11 +1594,14 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     new_memorization_items = sorted(
         set(unmemorized_items + recent_newly_memorized_items)
     )
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=new_memorization_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=new_memorization_items,
+        ),
+        new_memorization_items,
     )
 
 
@@ -1566,15 +1661,22 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
 
-    return render_summary_table(
-        route=route,
-        auth=auth,
-        mode_ids=mode_ids,
-        item_ids=recent_items,
+    return (
+        render_summary_table(
+            route=route,
+            auth=auth,
+            mode_ids=mode_ids,
+            item_ids=recent_items,
+        ),
+        recent_items,
     )
 
 
 ######## New Summary Table ########
+
+
+def get_start_text(item_id):
+    return items(where=f"id ={item_id} and active = 1")[0].start_text
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
@@ -1605,7 +1707,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -1664,18 +1766,32 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
         return Tr(
             Td(get_page_description(item_id)),
+            Td(
+                get_start_text(item_id),
+                cls=TextT.lg,
+            ),
             Td(progress) if not is_newly_memorized else None,
             Td(record_btn),
-            Td(Div(rating_dropdown_input, cls="max-w-28")),
+            Td(
+                Div(
+                    rating_dropdown_input,
+                    cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+                )
+            ),
             id=row_id,
         )
 
     body_rows = list(map(render_range_row, item_ids))
-
+    # unique_page_count = len(set(map(get_page_number, item_ids)))
+    target_page_count = get_page_count(item_ids=item_ids)
+    progress_page_count = get_page_count(
+        revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
+    )
+    summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
     return AccordionItem(
-        Span(modes[mode_id].name),
+        Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
         Div(
             Div(
                 A(
@@ -1690,6 +1806,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 Thead(
                     Tr(
                         Th("Page", cls="min-w-24"),
+                        Th("Start Text", cls="min-w-24"),
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
@@ -2355,17 +2472,18 @@ def bulk_edit_view(ids: str, auth):
             # Td(P(item_details.page_id)),
             # Td(P(item_details.surah_name)),
             # Td(P(item_details.part)),
-            Td(P(item_details.start_text)),
-            Td(P(current_revision.revision_date)),
-            Td(P(current_revision.mode_id)),
-            Td(P(current_revision.plan_id)),
+            Td(P(item_details.start_text, cls=TextT.lg)),
+            # Td(P(current_revision.revision_date)),
+            # Td(P(current_revision.mode_id)),
+            # Td(P(current_revision.plan_id)),
             Td(
                 rating_radio(
                     default_rating=current_revision.rating,
                     direction="horizontal",
                     is_label=False,
                     id=f"rating-{id}",
-                )
+                ),
+                cls="min-w-32",
             ),
         )
 
@@ -2383,9 +2501,9 @@ def bulk_edit_view(ids: str, auth):
                 # Th("Surah"),
                 # Th("Part"),
                 Th("Start"),
-                Th("Date"),
-                Th("Mode"),
-                Th("Plan ID"),
+                # Th("Date"),
+                # Th("Mode"),
+                # Th("Plan ID"),
                 Th("Rating"),
             )
         ),
@@ -2633,7 +2751,7 @@ def get(
                 )
             ),
             Td(get_page_description(current_item_id)),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 rating_radio(
                     direction="horizontal",
@@ -2641,7 +2759,7 @@ def get(
                     id=f"rating-{current_item_id}",
                     cls="toggleable-radio",
                 ),
-                cls="!pr-0",
+                cls="!pr-0 min-w-32",
             ),
         )
 
@@ -4949,7 +5067,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Tr(
                 Td("Start Text: "),
-                Td(start_text, id="start_text"),
+                Td(start_text, id="start_text", cls=TextT.lg),
             ),
             Tr(
                 Td(
@@ -5021,6 +5139,7 @@ def page_description_edit_form(item_id: int):
             id="start_text",
             hx_swap_oob="true",
             placeholder=start_text,
+            cls=TextT.lg,
         ),
     )
     buttons = Div(
