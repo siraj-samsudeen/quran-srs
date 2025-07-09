@@ -1546,7 +1546,7 @@ def get_monthly_review_item_ids(
             )
         )
 
-    def get_items_from_item_ids(item_ids, start_item_id, no_of_next_items):
+    def get_next_item_range_from_item_id(item_ids, start_item_id, no_of_next_items):
         """Get items from a list starting from a specific number."""
         try:
             start_idx = item_ids.index(start_item_id)
@@ -1560,7 +1560,7 @@ def get_monthly_review_item_ids(
         return item["mode_id"] == 1
 
     # eliminate items that are already revisioned in the current plan_id
-    recent_items = [
+    eligible_item_ids = [
         i
         for i in recent_items
         if not revisions(
@@ -1573,8 +1573,14 @@ def get_monthly_review_item_ids(
         order_by="revision_date DESC, id DESC",
         limit=1,
     )[0].item_id
-    next_item_id = find_next_item_id(last_added_item_id)
-    item_ids = get_items_from_item_ids(recent_items, next_item_id, total_display_count)
+
+    next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+
+    item_ids = get_next_item_range_from_item_id(
+        eligible_item_ids, next_item_id, total_display_count
+    )
+
+    # take today revision data that are not in listing (item_ids)
     display_conditions = {
         "monthly_cycle": lambda item: (
             has_monthly_cycle_mode_id(item)
@@ -1587,8 +1593,8 @@ def get_monthly_review_item_ids(
             i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
         )
     )
-    recent_items = item_ids + today_revisioned_items
-    # recent_items = item_ids
+
+    recent_items = sorted(item_ids + today_revisioned_items)
     return recent_items
 
 
