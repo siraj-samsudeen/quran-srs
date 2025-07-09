@@ -1221,9 +1221,27 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         monthly_cycle_table,
         DivHStacked(
-            Button("+1", hx_get="/?full_cycle_display_count=1", hx_target="body"),
-            Button("+3", hx_get="/?full_cycle_display_count=3", hx_target="body"),
-            Button("+5", hx_get="/?full_cycle_display_count=5", hx_target="body"),
+            Button(
+                "+1",
+                hx_get="/?full_cycle_display_count=1",
+                hx_select="#monthly_cycle_summary_table",
+                hx_target="#monthly_cycle_summary_table",
+                hx_swap="outerHTML",
+            ),
+            Button(
+                "+3",
+                hx_get="/?full_cycle_display_count=3",
+                hx_select="#monthly_cycle_summary_table",
+                hx_target="#monthly_cycle_summary_table",
+                hx_swap="outerHTML",
+            ),
+            Button(
+                "+5",
+                hx_get="/?full_cycle_display_count=5",
+                hx_select="#monthly_cycle_summary_table",
+                hx_target="#monthly_cycle_summary_table",
+                hx_swap="outerHTML",
+            ),
             # Button("Clear", hx_get="/?full_cycle_display_count=0", hx_target="body"),
             cls=(FlexT.center, "gap-2"),
         ),
@@ -1238,6 +1256,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                     )
                 ),
                 Tbody(*map(render_overall_row, items_gaps_with_limit)),
+                id="monthly_cycle_link_table",
             ),
             cls="uk-overflow-auto",
         ),
@@ -1635,7 +1654,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
