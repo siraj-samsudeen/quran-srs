@@ -37,6 +37,7 @@ tables = db.t
     items,
     mushafs,
     hafizs_items,
+    srs_booster_pack,
 ) = (
     tables.revisions,
     tables.hafizs,
@@ -49,6 +50,7 @@ tables = db.t
     tables.items,
     tables.mushafs,
     tables.hafizs_items,
+    tables.srs_booster_pack,
 )
 (
     Revision,
@@ -62,6 +64,7 @@ tables = db.t
     Surah,
     Mushaf,
     Hafiz_Items,
+    Srs_Booster_Pack,
 ) = (
     revisions.dataclass(),
     hafizs.dataclass(),
@@ -74,6 +77,7 @@ tables = db.t
     surahs.dataclass(),
     mushafs.dataclass(),
     hafizs_items.dataclass(),
+    srs_booster_pack.dataclass(),
 )
 
 
@@ -101,6 +105,64 @@ app, rt = fast_app(
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
 )
+
+
+# Alogirthm to populate the good and bad streak with last_review
+def populate_streak(item_id: int = None):
+    """
+    Populate the good and bad streak with the last_review date, for all the items in the hafizs_items
+
+    only if the item_id is not given or else it will update it for the specific item
+
+    ## Streak algorithm:
+    - if rating is `Good`: reset the bad_streak and add one to the exsisting good_streak
+    - if rating is `Ok`: reset the bad and good streak
+    - if rating is `Bad`: reset the good_streak and add one to the exsisting bad_streak
+    """
+
+    def get_item_id_streaks(item_id: int):
+        items_rev_data = revisions(
+            where=f"item_id = {item_id}", order_by="revision_date ASC"
+        )
+        good_streak = 0
+        bad_streak = 0
+        last_review_date = ""
+
+        for rev in items_rev_data:
+            current_rating = rev.rating
+            if current_rating == -1:
+                bad_streak += 1
+                good_streak = 0
+            elif current_rating == 1:
+                good_streak += 1
+                bad_streak = 0
+            else:
+                good_streak = 0
+                bad_streak = 0
+            last_review_date = rev.revision_date
+
+        return good_streak, bad_streak, last_review_date
+
+    # Update the streak for a specific items if item_id is givien
+    if item_id is not None:
+        current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+        if current_hafiz_items:
+            current_hafiz_items = current_hafiz_items[0]
+            (
+                current_hafiz_items.good_streak,
+                current_hafiz_items.bad_streak,
+                current_hafiz_items.last_review,
+            ) = get_item_id_streaks(item_id)
+
+            hafizs_items.update(current_hafiz_items)
+        return None
+
+    # Update the streak for all the items in the hafizs_items
+    for h_item in hafizs_items():
+        h_item.good_streak, h_item.bad_streak, h_item.last_review = get_item_id_streaks(
+            h_item.item_id
+        )
+        hafizs_items.update(h_item)
 
 
 def get_item_id(page_number: int, not_memorized_only: bool = False):
@@ -146,6 +208,14 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
     return sorted(item_ids)
 
 
+def get_hafizs_items(item_id):
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        return current_hafiz_items[0]
+    else:
+        return ValueError(f"No hafizs_items found for item_id {item_id}")
+
+
 def get_current_date(auth) -> str:
     current_hafiz = hafizs[auth]
     current_date = current_hafiz.current_date
@@ -158,6 +228,10 @@ def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
     return columns
+
+
+def get_mode_name(mode_id: int):
+    return modes[mode_id].name
 
 
 def get_juz_name(page_id=None, item_id=None):
@@ -263,8 +337,12 @@ def create_count_link(count: int, rev_ids: str):
 
 
 def render_progress_display(current_count: int, target_count: int, rev_ids: str = ""):
+    target_count = format_number(target_count)
+    current_count = format_number(current_count)
     base_link = create_count_link(current_count, rev_ids)
-    if current_count == target_count:
+    if current_count == 0 and target_count == 0:
+        return "-"
+    elif current_count == target_count:
         return (base_link, " ✔️")
     elif current_count > target_count:
         return (base_link, f" / {target_count}", " ✔️")
@@ -274,6 +352,12 @@ def render_progress_display(current_count: int, target_count: int, rev_ids: str 
 
 def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
+
+
+def render_date(date: str):
+    if date:
+        date = date_to_human_readable(date)
+    return date
 
 
 def render_type_description(list, _type=""):
@@ -342,14 +426,14 @@ def rating_radio(
     return Div(label, *options, cls=outer_cls)
 
 
-def rating_dropdown(default_mode="1", is_label=True, **kwargs):
+def rating_dropdown(default_mode="1", is_label=True, rating_dict=RATING_MAP, **kwargs):
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == default_mode
         return fh.Option(name, value=id, selected=is_selected(id))
 
     return fh.Select(
-        map(mk_options, RATING_MAP.items()),
+        map(mk_options, rating_dict.items()),
         label=("Rating" if is_label else None),
         name="rating",
         select_kwargs={"name": "rating"},
@@ -369,6 +453,21 @@ def status_dropdown(current_status):
         map(render_options, STATUS_OPTIONS),
         name="selected_status",
         style="margin: 0px 12px 12px 0px !important;",
+    )
+
+
+def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
+    def render_options(val):
+        return fh.Option(
+            val,
+            value=standardize_column(val),
+            selected=(standardize_column(val) == standardize_column(default_val)),
+        )
+
+    return fh.Select(
+        map(render_options, vals),
+        name=name,
+        **kwargs,
     )
 
 
@@ -440,6 +539,8 @@ def get_lastest_date(item_id: int, mode_id: int):
         mode_ids = ("2", "3")
     elif mode_id == 4:
         mode_ids = ("3", "4")
+    elif mode_id == 5:
+        mode_ids = "5"
     else:
         return None
 
@@ -477,20 +578,152 @@ def update_review_dates(item_id: int, mode_id: int):
         hafizs_items.update(current_hafiz_item)
 
 
+def get_srs_interval_list(item_id: int):
+    current_hafiz_item = get_hafizs_items(item_id)
+    booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
+    end_interval = booster_pack_details.end_interval
+
+    booster_pack_intervals = booster_pack_details.interval_days.split(",")
+    booster_pack_intervals = list(map(int, booster_pack_intervals))
+
+    # Filter numbers less than end_interval
+    interval_list = [
+        interval for interval in booster_pack_intervals if interval < end_interval
+    ]
+    # Add the first interval >= end_interval for graduation logic
+    first_greater = next(
+        (interval for interval in booster_pack_intervals if interval >= end_interval),
+        None,
+    )
+    if first_greater is not None:
+        interval_list.append(first_greater)
+
+    return interval_list
+
+
+def get_interval_based_on_rating(
+    item_id: int, rating: int, is_edit: bool = False, is_dropdown: bool = False
+):
+    """
+    Calculate the next interval for an SRS (Spaced Repetition System) item based on user rating.
+
+    Args:
+        item_id (int): The unique identifier of the memorization item.
+        rating (int): The user's rating of the item's recall difficulty.
+        is_edit (bool, optional): Flag to indicate if the interval is being calculated during an edit. Defaults to False.
+        is_dropdown (bool, optional): Flag to determine if the interval is for dropdown display. Defaults to False.
+
+    Returns:
+        int or str: The calculated next interval in days, or "Finished" if the item has been fully learned.
+
+    Notes:
+        - Uses the current item's SRS booster pack to determine interval progression
+        - Handles different scenarios like editing and dropdown display
+        - Considers the current interval and user's rating to calculate the next interval
+    """
+
+    current_hafiz_item = get_hafizs_items(item_id)
+    # TODO: Later need to retrive the current_interval from the hafizs_items table as `planned_interval`
+    if is_edit:
+        # last_reviewed = revisions(
+        #     where=f"item_id = {item_id} AND mode_id = 5",
+        #     order_by="revision_date DESC",
+        #     limit=1,
+        # )
+        # current_interval = last_reviewed[0].planned_interval
+        current_interval = current_hafiz_item.planned_last_interval
+    else:
+        current_interval = current_hafiz_item.next_interval
+
+    intervals = get_srs_interval_list(item_id)
+    rating_intervals = get_interval_triplet(
+        current_interval=current_interval, interval_list=intervals
+    )
+    current_rating_interval = rating_intervals[rating + 1]
+
+    # This logic is to show the user that the item is finished after this record
+    if is_dropdown:
+        end_interval = srs_booster_pack[
+            current_hafiz_item.srs_booster_pack_id
+        ].end_interval
+        if current_rating_interval > end_interval:
+            return "Finished"
+    return current_rating_interval
+
+
+# This function is responsible for creating and deleting records on the srs
+def update_hafiz_items_for_srs(
+    item_id: int, mode_id: int, current_date: str, rating: int, is_checked: bool
+):
+    latest_revision_date = get_lastest_date(item_id, mode_id)
+    current_hafiz_item = get_hafizs_items(item_id)
+
+    if latest_revision_date:
+        # In here the `is_checked` is used to check if the item is deleted or created
+        # TODO: the last_interval is based on the actual_interval instead of the planned_interval
+        next_interval = (
+            get_interval_based_on_rating(item_id, rating)
+            if is_checked
+            else current_hafiz_item.last_interval
+        )
+        current_hafiz_item.planned_last_interval = current_hafiz_item.next_interval
+        current_hafiz_item.last_interval = calculate_days_difference(
+            (current_hafiz_item.last_review if is_checked else latest_revision_date),
+            current_date,
+        )
+        current_hafiz_item.next_interval = next_interval
+        # To update the status of hafizs_items table if it is newly memorized
+        current_hafiz_item.last_review = latest_revision_date
+        current_hafiz_item.next_review = add_days_to_date(
+            latest_revision_date, next_interval
+        )
+    else:
+        # This else bolck will run only if we deleted the only record for that mode
+        if mode_id == 5:
+            # TODO: currently if we deleted the only record there is no way of retriving the next_review date
+            current_hafiz_item.next_review = None
+            current_hafiz_item.next_interval = srs_booster_pack[
+                current_hafiz_item.srs_booster_pack_id
+            ].start_interval
+            current_hafiz_item.last_interval = None
+            current_hafiz_item.planned_last_interval = None
+
+    hafizs_items.update(current_hafiz_item)
+    # Update the good and bad streak of the item_id
+    populate_streak(item_id=item_id)
+
+
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
     qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
     revisions_data = revisions(where=qry)
 
     if not revisions_data and is_checked:
-        revisions.insert(
-            Revision(
-                revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
-            )
+        rev_data = Revision(
+            revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
         )
+        if mode_id == 5:
+            # Update the additional three columns if it is srs mode
+            hafiz_items_data = get_hafizs_items(item_id)
+            rev_data.planned_interval = hafiz_items_data.next_interval
+            rev_data.actual_interval = calculate_days_difference(
+                hafiz_items_data.last_review, date
+            )
+            rev_data.next_interval = get_interval_based_on_rating(item_id, rating)
+
+        revisions.insert(rev_data)
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
-    # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
-    update_review_dates(item_id, mode_id)
+    if mode_id == 5:
+        update_hafiz_items_for_srs(
+            item_id=item_id,
+            mode_id=mode_id,
+            current_date=date,
+            rating=rating,
+            is_checked=is_checked,
+        )
+    else:
+        # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
+        update_review_dates(item_id, mode_id)
 
 
 def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
@@ -514,11 +747,23 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "next_review": None,
         "watch_list_graduation_date": get_current_date(auth),
     }
+    srs = {
+        "status": "memorized",
+        "mode_id": 1,
+        "last_review": last_review_date,
+        "next_review": None,
+        "planned_last_interval": None,
+        "last_interval": None,
+        "next_interval": None,
+        "srs_booster_pack_id": None,
+    }
 
     if mode_id == 3:
         data_to_update = watch_list if checked else recent_review
     elif mode_id == 4:
         data_to_update = memorized if checked else watch_list
+    elif mode_id == 5:
+        data_to_update = srs
     else:
         return None
 
@@ -854,6 +1099,11 @@ def main_area(*args, active=None, auth=None):
                 A("Revision", href=revision, cls=is_active("Revision")),
                 A("Tables", href="/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
+                A(
+                    "SRS",
+                    href="/srs",
+                    cls=is_active("SRS"),
+                ),
                 # A(
                 #     "New Memorization",
                 #     href="/new_memorization/juz",
@@ -929,8 +1179,7 @@ def render_stats_summary_table(auth, target_counts):
         Span("System Date: ", cls=TextPresets.bold_lg),
         Span(date_to_human_readable(current_date), id="current_date_description"),
     )
-    # exlcuded the srs mode
-    mode_ids = [mode.id for mode in modes()][:-1]
+    mode_ids = [mode.id for mode in modes()]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
     def render_count(mode_id, revision_date, is_link=True, show_dash_for_zero=False):
@@ -973,7 +1222,6 @@ def render_stats_summary_table(auth, target_counts):
                 "Close Date",
                 hx_get="/close_date",
                 target_id="current_date_description",
-                hx_confirm="Are you sure?",
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
         ),
@@ -1153,6 +1401,11 @@ def index(auth):
         )
     )
     new_memorization_target = get_page_count(item_ids=new_memorization_items)
+
+    srs_table, srs_items = make_summary_table(mode_ids=["5"], route="srs", auth=auth)
+
+    srs_target = get_page_count(item_ids=srs_items)
+
     modal = ModalContainer(
         ModalDialog(
             ModalHeader(
@@ -1176,6 +1429,7 @@ def index(auth):
         modes[2].name: new_memorization_table,
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
+        modes[5].name: srs_table,
         # datewise_summary_table(hafiz_id=auth),
     }
 
@@ -1192,6 +1446,7 @@ def index(auth):
         2: new_memorization_target,
         3: recent_review_target,
         4: watch_list_target,
+        5: srs_target,
     }
     # FIXME: need to pass argument as keyword argument
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
@@ -1207,14 +1462,22 @@ def index(auth):
 @app.get("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
-    # This will retrive the revision records of the recent review and watch list for the current date as per the hafiz
+
+    # This will retrive the revision records of the recent review, watch list and SRS for the current date as per the hafiz
     revision_data = revisions(
-        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4)"
+        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4, 5)"
     )
     for rev in revision_data:
-        # if the count is greater than 6 then it will graduate that item to next level
-        if get_mode_count(rev.item_id, rev.mode_id) > 6:
+        # if the count is greater than 6 which is not in srs mode then it will graduate that item to next level
+        if get_mode_count(rev.item_id, rev.mode_id) > 6 and rev.mode_id != 5:
             graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+        # if the next_interval is greater than the end_interval(srs_booster_pack table) then it will graduate that item to monthly cycle
+        elif rev.mode_id == 5:
+            hafiz_items_details = get_hafizs_items(rev.item_id)
+            pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+            if hafiz_items_details.next_interval > pack_details.end_interval:
+                graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+
     # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
@@ -1388,6 +1651,9 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         "watch_list": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
+        "srs": lambda item: (
+            is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+        ),
     }
 
     recent_items = list(
@@ -1413,7 +1679,12 @@ def get_start_text(item_id):
 
 
 def render_summary_table(auth, route, mode_ids, item_ids):
-    mode_id_mapping = {"new_memorization": 2, "recent_review": 3, "watch_list": 4}
+    mode_id_mapping = {
+        "new_memorization": 2,
+        "recent_review": 3,
+        "watch_list": 4,
+        "srs": 5,
+    }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     current_date = get_current_date(auth)
@@ -1467,9 +1738,19 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 "is_checked": True,
             }
 
+        # This is to show the interval for srs based on the rating
+        if mode_id == 5:
+            custom_rating_dict = {
+                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked,is_dropdown=True)}",
+                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked,is_dropdown=True)}",
+                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked,is_dropdown=True)}",
+            }
+        else:
+            custom_rating_dict = RATING_MAP
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
             is_label=False,
+            rating_dict=custom_rating_dict,
             cls="[&>div]:h-8 uk-form-sm w-28",
             id=f"rev-{item_id}",
             hx_trigger="change",
@@ -1477,7 +1758,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
         )
 
         revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
-        progress = P(Strong(len(revs)), Span("/7"))
+        if mode_id == 5:
+            rep_denominator = len(get_srs_interval_list(item_id))
+        else:
+            rep_denominator = 7
+        progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
         return Tr(
             Td(get_page_description(item_id)),
             Td(
@@ -1524,7 +1809,10 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
-                                cls="select_all",
+                                cls=(
+                                    "select_all",
+                                    ("hidden" if mode_id == 5 else None),
+                                ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
                                 _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                             )
@@ -2367,6 +2655,22 @@ def post(revision_details: Revision, show_id_fields: bool = False):
 def update_revision_rating(rev_id: int, rating: int):
     revisions.update({"rating": rating}, rev_id)
 
+    current_revision = revisions[rev_id]
+    if current_revision.mode_id == 5:
+        item_id = current_revision.item_id
+        next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
+
+        # Update the next_interval, as it is the only column which is based on the rating
+        revisions.update({"next_interval": next_interval}, rev_id)
+
+        current_hafiz_item = get_hafizs_items(item_id)
+        current_hafiz_item.next_interval = next_interval
+        current_hafiz_item.next_review = add_days_to_date(
+            current_revision.revision_date, next_interval
+        )
+        hafizs_items.update(current_hafiz_item)
+        populate_streak(item_id=item_id)
+
 
 # Bulk add
 @app.get("/revision/bulk_add")
@@ -2588,11 +2892,11 @@ def get(
 async def post(
     revision_date: str,
     plan_id: int,
-    length: int,
     is_part: bool,
     max_item_id: int,
     auth,
     req,
+    length: int = 5,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
@@ -4865,6 +5169,261 @@ def page_description_edit_form(item_id: int):
     )
 
     return description_field, start_text_field, buttons
+
+
+######################### SRS Pages #########################
+@app.get("/srs")
+def srs_detailed_page_view(
+    auth,
+    sort_col: str = "last_review_date",
+    sort_type: str = "desc",
+    is_bad_steak: bool = False,
+):
+    current_date = get_current_date(auth)
+    # Populate the streaks for all the items before displaying the eligible pages
+    populate_streak()
+
+    # This table is responsible for showing the eligible pages for SRS
+
+    columns = [
+        "Page",
+        "Bad Streak",
+        "Last review date",
+        "Bad %",
+        "Total Count",
+        "Bad Count",
+    ]
+    # based on the is_bad_steak we are filtering only the bad_streak items
+    bad_streak_items = hafizs_items(
+        where=f"mode_id <> 5 AND status IS NOT NULL {"AND bad_streak > 0" if is_bad_steak else ""}",
+        order_by="last_review DESC",
+    )
+
+    # sorted the records based on the sort_col and sort_type from the input, and after page sort to group them on main sort
+    eligible_records = []
+    for record in bad_streak_items:
+        current_item_id = record.item_id
+        current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
+        total_count = len(current_items_rev_date)
+        bad_count = len([r for r in current_items_rev_date if r.rating == -1])
+        try:
+            bad_percent = format_number((bad_count / total_count) * 100)
+        except ZeroDivisionError:
+            # if there is no record then this will run
+            bad_percent = 0
+        eligible_records.append(
+            {
+                "page": current_item_id,
+                "bad_streak": record.bad_streak,
+                "last_review_date": record.last_review,
+                "bad_%": bad_percent,
+                "total_count": total_count,
+                "bad_count": bad_count,
+            }
+        )
+    eligible_records = sorted(eligible_records, key=lambda x: x["page"])
+    eligible_records = sorted(
+        eligible_records, key=lambda x: x[sort_col], reverse=(sort_type == "desc")
+    )
+
+    def render_srs_eligible_rows(record: dict):
+        current_item_id = record["page"]
+        page_description = get_page_description(current_item_id)
+        start_srs_link = A(
+            "Start SRS",
+            hx_get=f"/start-srs/{current_item_id}",
+            hx_target=f"#srs_eligible_row_{current_item_id}",
+            hx_select=f"#srs_eligible_row_{current_item_id}",
+            hx_select_oob="#current_srs_table",
+            cls=AT.classic,
+        )
+        bad_percentage = (
+            f"{record["bad_%"]}%"
+            if isinstance(record["bad_%"], int)
+            else record["bad_%"]
+        )
+        return Tr(
+            Td(page_description),
+            Td(record["bad_streak"]),
+            Td(render_date(record["last_review_date"])),
+            Td(bad_percentage),
+            Td(record["total_count"]),
+            Td(record["bad_count"]),
+            Td(start_srs_link),
+            id=f"srs_eligible_row_{current_item_id}",
+        )
+
+    sort_fields = Form(
+        P("Sort Options: ", cls=TextPresets.bold_lg),
+        custom_select(name="sort_col", vals=columns, default_val=sort_col),
+        custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
+        LabelSwitch(
+            label="Bad Steak",
+            id="is_bad_steak",
+            cls=(FlexT.block, FlexT.center, FlexT.middle, "gap-2"),
+            lbl_cls="leading-none md:leading-6",
+            checked=is_bad_steak,
+        ),
+        P("Applying the sort...", cls="htmx-indicator"),
+        cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
+        hx_get="/srs",
+        hx_target="#srs_eligible_table",
+        hx_select="#srs_eligible_table",
+        hx_swap="outerHTML",
+        hx_trigger="change",
+        hx_push_url="true",
+        hx_indicator=".htmx-indicator",
+    )
+    srs_eligible_table = Div(
+        H4("Eligible Pages"),
+        sort_fields,
+        Div(
+            Table(
+                Thead(
+                    Tr(
+                        *map(Td, columns),
+                        Td(""),
+                    ),
+                    cls="sticky z-50 top-0 bg-white",
+                ),
+                Tbody(*map(render_srs_eligible_rows, eligible_records)),
+            ),
+            cls="space-y-2 uk-overflow-auto h-[32vh]",
+            id="srs_eligible_table",
+        ),
+        cls="space-y-2",
+    )
+    ################### END ###################
+
+    current_srs_items = [
+        i.item_id
+        for i in hafizs_items(
+            where=f"mode_id = 5", order_by="next_review DESC, item_id ASC"
+        )
+    ]
+
+    # To sort the current srs records by due date
+    current_srs_records = []
+    for item_id in current_srs_items:
+        hafiz_items_data = hafizs_items(where=f"item_id = {item_id}")
+        if hafiz_items_data:
+            hafiz_items_data = hafiz_items_data[0]
+            last_review = hafiz_items_data.last_review
+            next_review = hafiz_items_data.next_review
+            if next_review:
+                due = calculate_days_difference(next_review, current_date)
+            else:
+                # this is to render the "-" if there is no next page
+                due = -1
+            planned_last_interval = hafiz_items_data.planned_last_interval
+            last_interval = hafiz_items_data.last_interval
+            next_interval = hafiz_items_data.next_interval
+
+            current_srs_records.append(
+                {
+                    "page": item_id,
+                    "last_review": last_review,
+                    "next_review": next_review,
+                    "due": due,
+                    "planned_last_interval": planned_last_interval,
+                    "last_interval": last_interval,
+                    "next_interval": next_interval,
+                }
+            )
+    current_srs_records = sorted(
+        current_srs_records, key=lambda x: x["due"], reverse=True
+    )
+
+    # This table shows the current srs pages for the user
+    def render_current_srs_rows(records: dict):
+        due = records["due"]
+        if due < 0:
+            due = "-"
+
+        return Tr(
+            Td(get_page_description(records["page"])),
+            Td(render_date(records["last_review"])),
+            Td(render_date(records["next_review"])),
+            Td(due),
+            Td(records["planned_last_interval"]),
+            Td(records["last_interval"]),
+            Td(records["next_interval"]),
+        )
+
+    current_srs_table = Div(
+        H4("SRS Pages"),
+        Div(
+            Table(
+                Thead(
+                    Tr(
+                        Td("Page"),
+                        Td("Last Review"),
+                        Td("Next Review"),
+                        Td("Due"),
+                        Td("Planned Last Interval"),
+                        Td("Last Interval"),
+                        Td("Next Interval"),
+                    ),
+                    cls="sticky z-50 top-0 bg-white",
+                ),
+                Tbody(*map(render_current_srs_rows, current_srs_records)),
+            ),
+            cls="space-y-2 uk-overflow-auto h-[32vh]",
+            id="current_srs_table",
+        ),
+    )
+
+    return main_area(
+        Div(H1(get_mode_name(5)), srs_eligible_table, Divider(), current_srs_table),
+        auth=auth,
+        active="SRS",
+    )
+
+
+@app.get("/start-srs/{item_id}")
+def start_srs(item_id: int, auth):
+    current_date = get_current_date(auth)
+    # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
+    booster_pack_details = srs_booster_pack[1]
+    srs_booster_id = booster_pack_details.id
+    next_interval = booster_pack_details.start_interval
+    next_review_date = add_days_to_date(current_date, next_interval)
+
+    # Change the current mode_id for the item_id to 5(srs)
+    # TODO: What about the status?
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        current_hafiz_items = current_hafiz_items[0]
+        current_hafiz_items.srs_booster_pack_id = srs_booster_id
+        current_hafiz_items.mode_id = 5
+        current_hafiz_items.next_interval = next_interval
+        current_hafiz_items.next_review = next_review_date
+        hafizs_items.update(current_hafiz_items)
+
+    return RedirectResponse("/srs")
+
+
+@app.get("/change_current_date")
+def change_current_date(auth):
+    current_date = get_current_date(auth)
+    label_input = LabelInput(
+        label="Current date",
+        id="current_date",
+        type="date",
+        value=current_date,
+        hx_post="/change_current_date",
+        hx_target="body",
+        hx_trigger="change",
+    )
+    return main_area(label_input, auth=auth)
+
+
+@app.post("/change_current_date")
+def update_current_date(auth, current_date: str):
+    current_hafiz = hafizs[auth]
+    current_hafiz.current_date = current_date
+    hafizs.update(current_hafiz)
+    return RedirectResponse("/change_current_date", status_code=303)
 
 
 serve()
