@@ -1185,6 +1185,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         total_display_count=total_display_count,
         plan_id=plan_id,
     )
+    # TODO: Remove before ship it into production
     monthly_cycle_extra_count = (
         get_page_count(item_ids=monthly_cycle_items) - monthly_review_target
     )
@@ -1192,11 +1193,11 @@ def index(auth, sess, full_cycle_display_count: int = None):
     extra_header = (
         f" [+{(monthly_cycle_extra_count)} EXTRA]" if is_display_extra_header else ""
     )
+    #
     overall_table = AccordionItem(
         Span(
             f"{modes[1].name} - ",
             monthly_progress_display,
-            extra_header,
             id=f"monthly_cycle-header",
         ),
         monthly_cycle_table,
