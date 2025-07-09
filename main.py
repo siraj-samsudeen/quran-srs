@@ -1147,26 +1147,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
     monthly_progress_display = render_progress_display(
         monthly_reviews_completed_today, monthly_review_target
     )
-    # sess_extra_value = sess.get("monthly_extra_display")
-    # sess_extra_date = sess["monthly_extra_display"]["current_date"]
-
-    # if sess_extra_value is None:
-    #     monthly_extra_rows = 0
-    # elif sess_extra_value is not None and sess_extra_date == current_date:
-    #     extra_value = sess.get("monthly_extra_display", {}).get("extra", 0) or 0
-
-    #     # if monthly_extra_rows is None and extra_value > 0:
-    #     #     monthly_extra_rows = 0 + extra_value
-    #     if monthly_extra_rows is None:
-    #         monthly_extra_rows = 0
-    #     else:
-    #         monthly_extra_rows += extra_value
-
-    # sess["monthly_extra_display"] = {
-    #     "auth": auth,
-    #     "extra": monthly_extra_rows,
-    #     "current_date": current_date,
-    # }
 
     DEFAULT_FULL_CYCLE_DISPLAY_COUNT = 5
 
