@@ -693,25 +693,45 @@ def update_hafiz_items_for_srs(
     populate_streak(item_id=item_id)
 
 
-def checkbox_update_logic(mode_id, rating, item_id, date, is_checked):
-    qry = f"revision_date = '{date}' AND item_id = {item_id} AND mode_id = {mode_id};"
+def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
+    conditions = [
+        f"revision_date = '{date}'",
+        f"item_id = {item_id}",
+        f"mode_id = {mode_id}",
+    ]
+
+    if plan_id is not None:
+        conditions.append(f"plan_id = {plan_id}")
+
+    qry = " AND ".join(conditions)
     revisions_data = revisions(where=qry)
 
     if not revisions_data and is_checked:
-        rev_data = Revision(
-            revision_date=date, item_id=item_id, mode_id=mode_id, rating=rating
-        )
+        # Create new revision
+        revision_data = {
+            "revision_date": date,
+            "item_id": item_id,
+            "mode_id": mode_id,
+            "rating": rating,
+        }
+        if plan_id is not None:
+            revision_data["plan_id"] = plan_id
+
         if mode_id == 5:
             # Update the additional three columns if it is srs mode
             hafiz_items_data = get_hafizs_items(item_id)
-            rev_data.planned_interval = hafiz_items_data.next_interval
-            rev_data.actual_interval = calculate_days_difference(
+            revision_data["planned_interval"] = hafiz_items_data.next_interval
+            revision_data["actual_interval"] = calculate_days_difference(
                 hafiz_items_data.last_review, date
             )
-            rev_data.next_interval = get_interval_based_on_rating(item_id, rating)
+            revision_data["next_interval"] = get_interval_based_on_rating(
+                item_id, rating
+            )
 
-        revisions.insert(rev_data)
+        revisions.insert(Revision(**revision_data))
+
     elif revisions_data and not is_checked:
+        # Delete existing revision
         revisions.delete(revisions_data[0].id)
     if mode_id == 5:
         update_hafiz_items_for_srs(
@@ -1254,7 +1274,7 @@ def render_stats_summary_table(auth, target_counts):
 
 
 @rt
-def index(auth):
+def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
     # Sequential revision table
@@ -1354,19 +1374,84 @@ def index(auth):
             description = None
     else:
         description = None
-    memorized_len = len(
-        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+
+    ############################ Monthly Cycle ################################
+
+    DEFAULT_DISPLAY_COUNT = 5
+
+    def get_monthly_target_and_progress():
+        """This function will return the monthly target and the progress of the monthly review"""
+        current_date = get_current_date(auth)
+        memorized_len = len(
+            hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+        )
+        monthly_review_target = round(memorized_len / 30)
+        monthly_reviews_completed_today = get_page_count(
+            revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+        )
+        return monthly_review_target, monthly_reviews_completed_today
+
+    def get_extra_page_display_count(sess, auth, current_date):
+        """Get extra no_of_page display count for current user and date"""
+        sess_data = sess.get("full_cycle_display_count_details", {})
+        # Check if session data is valid for current user and date
+        if (
+            sess_data.get("auth") == auth
+            and sess_data.get("current_date") == current_date
+        ):
+            return sess_data.get("extra_no_of_pages", 0)
+        # Return 0 for new user/date
+        return 0
+
+    def update_extra_page_display_count():
+        """Update extra page count in session and return new_extra count"""
+        current_extra = get_extra_page_display_count(sess, auth, current_date)
+        new_extra = current_extra + (full_cycle_display_count or 0)
+
+        sess["full_cycle_display_count_details"] = {
+            "auth": auth,
+            "extra_no_of_pages": new_extra,
+            "current_date": current_date,
+        }
+        return new_extra
+
+    def create_count_button(count):
+        return Button(
+            f"+{count}",
+            hx_get=f"/?full_cycle_display_count={count}",
+            hx_select="#monthly_cycle_summary_table",
+            hx_target="#monthly_cycle_summary_table",
+            hx_swap="outerHTML",
+        )
+
+    total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
+
+    monthly_cycle_table, monthly_cycle_items = make_summary_table(
+        mode_ids=["1"],
+        route="monthly_cycle",
+        auth=auth,
+        total_display_count=total_display_count,
+        plan_id=plan_id,
     )
-    monthly_review_target = round(memorized_len / 30)
-    monthly_reviews_completed_today = get_page_count(
-        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+    # Fetch monthly cycle progress
+    monthly_review_target, monthly_reviews_completed_today = (
+        get_monthly_target_and_progress()
     )
     monthly_progress_display = render_progress_display(
         monthly_reviews_completed_today, monthly_review_target
     )
-
+    # Display Monthly cycle accordion with its data
     overall_table = AccordionItem(
-        Span(f"{modes[1].name} - ", monthly_progress_display),
+        Span(
+            f"{modes[1].name} - ",
+            monthly_progress_display,
+            id=f"monthly_cycle-header",
+        ),
+        monthly_cycle_table,
+        DivHStacked(
+            *[create_count_button(count) for count in [1, 2, 3, 5]],
+            cls=(FlexT.center, "gap-2"),
+        ),
         Div(
             description,
             Table(
@@ -1378,11 +1463,13 @@ def index(auth):
                     )
                 ),
                 Tbody(*map(render_overall_row, items_gaps_with_limit)),
+                id="monthly_cycle_link_table",
             ),
             cls="uk-overflow-auto",
         ),
         open=True,
     )
+    ############################# END ################################
 
     recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
@@ -1604,7 +1691,13 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     )
 
 
-def make_summary_table(mode_ids: list[str], route: str, auth: str):
+def make_summary_table(
+    mode_ids: list[str],
+    route: str,
+    auth: str,
+    total_display_count=0,
+    plan_id=None,
+):
     current_date = get_current_date(auth)
 
     def is_review_due(item: dict) -> bool:
@@ -1618,6 +1711,10 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
     def has_recent_mode_id(item: dict) -> bool:
         """Check if item has the recent_review mode ID."""
         return item["mode_id"] == 3
+
+    def has_monthly_cycle_mode_id(item: dict) -> bool:
+        """Check if item has the monthly_cycle mode ID."""
+        return item["mode_id"] == 1
 
     def has_revisions(item: dict) -> bool:
         """Check if item has revisions for current mode."""
@@ -1654,11 +1751,20 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
         "srs": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
+        "monthly_cycle": lambda item: (has_monthly_cycle_mode_id(item)),
     }
 
     recent_items = list(
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
+    if route == "monthly_cycle":
+        recent_items = get_monthly_review_item_ids(
+            auth=auth,
+            total_display_count=total_display_count,
+            ct=ct,
+            recent_items=recent_items,
+            current_plan_id=plan_id,
+        )
 
     return (
         render_summary_table(
@@ -1666,9 +1772,82 @@ def make_summary_table(mode_ids: list[str], route: str, auth: str):
             auth=auth,
             mode_ids=mode_ids,
             item_ids=recent_items,
+            plan_id=plan_id,
         ),
         recent_items,
     )
+
+
+def get_monthly_review_item_ids(
+    auth, total_display_count, ct, recent_items, current_plan_id
+):
+    current_date = get_current_date(auth)
+
+    def has_revisions_today(item: dict) -> bool:
+        """Check if item has revisions for current mode."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
+            )
+        )
+
+    def get_next_item_range_from_item_id(item_ids, start_item_id, no_of_next_items):
+        """Get items from a list starting from a specific number."""
+        try:
+            start_idx = item_ids.index(start_item_id)
+            end_idx = min(start_idx + no_of_next_items, len(item_ids))
+            return item_ids[start_idx:end_idx]
+        except ValueError:
+            return []
+
+    def has_monthly_cycle_mode_id(item: dict) -> bool:
+        """Check if item has the monthly_cycle mode ID."""
+        return item["mode_id"] == 1
+
+    if current_plan_id is not None:
+        # eliminate items that are already revisioned in the current plan_id
+        eligible_item_ids = [
+            i
+            for i in recent_items
+            if not revisions(
+                where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+            )
+        ]
+        # TODO: handle the new user that not have any revision/plan_id
+        last_added_revision = revisions(
+            where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
+            order_by="revision_date DESC, id DESC",
+            limit=1,
+        )
+        last_added_item_id = (
+            last_added_revision[0].item_id if last_added_revision else 0
+        )
+
+        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+    else:
+        eligible_item_ids = []
+        next_item_id = 0
+
+    item_ids = get_next_item_range_from_item_id(
+        eligible_item_ids, next_item_id, total_display_count
+    )
+
+    # take today revision data that are not in listing (item_ids)
+    display_conditions = {
+        "monthly_cycle": lambda item: (
+            has_monthly_cycle_mode_id(item)
+            and has_revisions_today(item)
+            and item["item_id"] not in item_ids
+        )
+    }
+    today_revisioned_items = list(
+        dict.fromkeys(
+            i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
+        )
+    )
+
+    recent_items = sorted(item_ids + today_revisioned_items)
+    return recent_items
 
 
 ######## New Summary Table ########
@@ -1678,8 +1857,10 @@ def get_start_text(item_id):
     return items(where=f"id ={item_id} and active = 1")[0].start_text
 
 
-def render_summary_table(auth, route, mode_ids, item_ids):
+def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
+    is_accordion = route != "monthly_cycle"
     mode_id_mapping = {
+        "monthly_cycle": 1,
         "new_memorization": 2,
         "recent_review": 3,
         "watch_list": 4,
@@ -1687,16 +1868,17 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
+    is_monthly_review = mode_id == 1
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
 
     def render_range_row(item_id: str):
         row_id = f"{route}-row-{item_id}"
+        plan_condition = f"AND plan_id = {plan_id}" if is_monthly_review else ""
         current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)});"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)}) {plan_condition}"
         )
-
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
         checkbox_hx_attrs = {
@@ -1706,16 +1888,18 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
-
+        vals_dict = {"date": current_date, "mode_id": mode_id}
+        if is_monthly_review:
+            vals_dict["plan_id"] = plan_id
         record_btn = CheckboxX(
             name=f"is_checked",
             value="1",
             **checkbox_hx_attrs,
-            hx_vals={"date": current_date, "mode_id": mode_id},
+            hx_vals=vals_dict,
             hx_include=f"#rev-{item_id}",
             checked=is_checked,
             cls=f"{route}_ids",
@@ -1737,6 +1921,8 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 "mode_id": mode_id,
                 "is_checked": True,
             }
+            if is_monthly_review:
+                change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
         # This is to show the interval for srs based on the rating
         if mode_id == 5:
@@ -1769,7 +1955,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 get_start_text(item_id),
                 cls=TextT.lg,
             ),
-            Td(progress) if not is_newly_memorized else None,
+            Td(progress) if not (is_newly_memorized or is_monthly_review) else None,
             Td(record_btn),
             Td(
                 Div(
@@ -1789,15 +1975,18 @@ def render_summary_table(auth, route, mode_ids, item_ids):
     summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
-    return AccordionItem(
-        Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
+    render_output = (
         Div(
             Div(
-                A(
-                    "Record",
-                    href=f"/{route}",
-                    hx_boost="false",
-                    cls=(AT.classic, TextPresets.bold_sm, "float-right"),
+                (
+                    A(
+                        "Record",
+                        href=f"/{route}",
+                        hx_boost="false",
+                        cls=(AT.classic, TextPresets.bold_sm, "float-right"),
+                    )
+                    if route != "monthly_cycle"
+                    else None
                 ),
                 cls="w-full",
             ),
@@ -1806,7 +1995,11 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                     Tr(
                         Th("Page", cls="min-w-24"),
                         Th("Start Text", cls="min-w-24"),
-                        Th("Reps") if not is_newly_memorized else None,
+                        (
+                            Th("Reps")
+                            if not (is_newly_memorized or is_monthly_review)
+                            else None
+                        ),
                         Th(
                             CheckboxX(
                                 cls=(
@@ -1831,7 +2024,15 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                 x_init="updateSelectAll()",
             ),
         ),
-        open=(not all(is_all_selected)),
+    )
+    return (
+        AccordionItem(
+            Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
+            render_output,
+            open=(not all(is_all_selected)),
+        )
+        if is_accordion
+        else render_output
     )
 
 
@@ -1842,7 +2043,12 @@ def render_summary_table(auth, route, mode_ids, item_ids):
 # and update the review dates for that item_id
 @app.post("/home/add/{item_id}")
 def update_status_from_index(
-    date: str, item_id: str, mode_id: int, rating: int, is_checked: bool = False
+    date: str,
+    item_id: str,
+    mode_id: int,
+    rating: int,
+    is_checked: bool = False,
+    plan_id: int = None,
 ):
     checkbox_update_logic(
         mode_id=mode_id,
@@ -1850,6 +2056,7 @@ def update_status_from_index(
         item_id=item_id,
         date=date,
         is_checked=is_checked,
+        plan_id=plan_id,
     )
     return RedirectResponse("/", status_code=303)
 
