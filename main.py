@@ -238,20 +238,6 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
-def get_monthly_target_and_progress(auth):
-    """This function will return the monthly target and the progress of the monthly review"""
-    current_date = get_current_date(auth)
-    memorized_len = len(
-        hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
-    )
-    monthly_review_target = round(memorized_len / 30)
-    monthly_reviews_completed_today = get_page_count(
-        revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
-    )
-
-    return monthly_review_target, monthly_reviews_completed_today
-
-
 def get_unique_page_count(recent_review_items):
     return len(set(map(get_page_number, recent_review_items)))
 
@@ -1141,14 +1127,22 @@ def index(auth, sess, full_cycle_display_count: int = None):
             description = None
     else:
         description = None
-    monthly_review_target, monthly_reviews_completed_today = (
-        get_monthly_target_and_progress(auth)
-    )
-    monthly_progress_display = render_progress_display(
-        monthly_reviews_completed_today, monthly_review_target
-    )
+
+    ############################ Monthly Cycle ################################
 
     DEFAULT_DISPLAY_COUNT = 5
+
+    def get_monthly_target_and_progress():
+        """This function will return the monthly target and the progress of the monthly review"""
+        current_date = get_current_date(auth)
+        memorized_len = len(
+            hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+        )
+        monthly_review_target = round(memorized_len / 30)
+        monthly_reviews_completed_today = get_page_count(
+            revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
+        )
+        return monthly_review_target, monthly_reviews_completed_today
 
     def get_extra_page_display_count(sess, auth, current_date):
         """Get extra no_of_page display count for current user and date"""
@@ -1181,7 +1175,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             hx_select="#monthly_cycle_summary_table",
             hx_target="#monthly_cycle_summary_table",
             hx_swap="outerHTML",
-            # hx_select_oob="#monthly_cycle-header",
         )
 
     total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
@@ -1193,6 +1186,14 @@ def index(auth, sess, full_cycle_display_count: int = None):
         total_display_count=total_display_count,
         plan_id=plan_id,
     )
+    # Fetch monthly cycle progress
+    monthly_review_target, monthly_reviews_completed_today = (
+        get_monthly_target_and_progress()
+    )
+    monthly_progress_display = render_progress_display(
+        monthly_reviews_completed_today, monthly_review_target
+    )
+    # Display Monthly cycle accordion with its data
     overall_table = AccordionItem(
         Span(
             f"{modes[1].name} - ",
@@ -1221,6 +1222,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         open=True,
     )
+    ############################# END ################################
 
     recent_review_table, recent_review_items = make_summary_table(
         mode_ids=["2", "3"], route="recent_review", auth=auth
