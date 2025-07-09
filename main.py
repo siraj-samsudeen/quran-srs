@@ -5073,7 +5073,7 @@ def srs_detailed_page_view(
     ]
     # based on the is_bad_steak we are filtering only the bad_streak items
     bad_streak_items = hafizs_items(
-        where=f"mode_id <> 5 {"AND bad_streak > 0" if is_bad_steak else ""}",
+        where=f"mode_id <> 5 AND status IS NOT NULL {"AND bad_streak > 0" if is_bad_steak else ""}",
         order_by="last_review DESC",
     )
 
@@ -5190,7 +5190,7 @@ def srs_detailed_page_view(
             next_review = hafiz_items_data.next_review
             if next_review:
                 due = calculate_days_difference(next_review, current_date)
-            else: 
+            else:
                 # this is to render the "-" if there is no next page
                 due = -1
             planned_last_interval = hafiz_items_data.planned_last_interval
