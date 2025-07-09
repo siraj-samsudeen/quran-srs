@@ -5082,7 +5082,7 @@ def srs_detailed_page_view(
             bad_percent = format_number((bad_count / total_count) * 100)
         except ZeroDivisionError:
             # if there is no record then this will run
-            bad_percent = "-"
+            bad_percent = 0
         eligible_records.append(
             {
                 "page": current_item_id,
