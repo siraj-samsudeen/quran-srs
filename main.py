@@ -1148,7 +1148,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         monthly_reviews_completed_today, monthly_review_target
     )
 
-    DEFAULT_FULL_CYCLE_DISPLAY_COUNT = 5
+    DEFAULT_DISPLAY_COUNT = 5
 
     def get_extra_page_display_count(sess, auth, current_date):
         """Get extra no_of_page display count for current user and date"""
@@ -1174,9 +1174,16 @@ def index(auth, sess, full_cycle_display_count: int = None):
         }
         return new_extra
 
-    total_display_count = (
-        DEFAULT_FULL_CYCLE_DISPLAY_COUNT + update_extra_page_display_count()
-    )
+    def create_count_button(count):
+        return Button(
+            f"+{count}",
+            hx_get=f"/?full_cycle_display_count={count}",
+            hx_select="#monthly_cycle_summary_table",
+            hx_target="#monthly_cycle_summary_table",
+            hx_swap="outerHTML",
+        )
+
+    total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
 
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
         mode_ids=["1"],
@@ -1202,28 +1209,10 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         monthly_cycle_table,
         DivHStacked(
-            Button(
-                "+1",
-                hx_get="/?full_cycle_display_count=1",
-                hx_select="#monthly_cycle_summary_table",
-                hx_target="#monthly_cycle_summary_table",
-                hx_swap="outerHTML",
-            ),
-            Button(
-                "+3",
-                hx_get="/?full_cycle_display_count=3",
-                hx_select="#monthly_cycle_summary_table",
-                hx_target="#monthly_cycle_summary_table",
-                hx_swap="outerHTML",
-            ),
-            Button(
-                "+5",
-                hx_get="/?full_cycle_display_count=5",
-                hx_select="#monthly_cycle_summary_table",
-                hx_target="#monthly_cycle_summary_table",
-                hx_swap="outerHTML",
-            ),
-            # Button("Clear", hx_get="/?full_cycle_display_count=0", hx_target="body"),
+            *[
+                create_count_button(count)
+                for count in range(1, DEFAULT_DISPLAY_COUNT + 1)
+            ],
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
