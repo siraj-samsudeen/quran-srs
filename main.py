@@ -634,6 +634,7 @@ def update_hafiz_items_for_srs(
     else:
         # This else bolck will run only if we deleted the only record for that mode
         if mode_id == 5:
+            #TODO: currently if we deleted the only record there is no way of retriving the next_review date
             current_hafiz_item.next_review = None
             current_hafiz_item.next_interval = srs_booster_pack[
                 current_hafiz_item.srs_booster_pack_id
@@ -1692,7 +1693,7 @@ def render_summary_table(auth, route, mode_ids, item_ids):
                         Th("Reps") if not is_newly_memorized else None,
                         Th(
                             CheckboxX(
-                                cls="select_all",
+                                cls=("select_all", ("hidden" if mode_id == 5 else None)),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
                                 _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                             )
