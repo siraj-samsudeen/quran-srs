@@ -308,6 +308,12 @@ def render_rating(rating: int):
     return RATING_MAP.get(str(rating))
 
 
+def render_date(date: str):
+    if date:
+        date = date_to_human_readable(date)
+    return date
+
+
 def render_type_description(list, _type=""):
     first_description = list[0]
     last_description = list[-1]
@@ -2524,8 +2530,6 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     )
 
 
-# BUG: On srs mode if the rating changes from `Good` to `ok` or `bad` the next_interval is same why????
-# The problem is reside in the get_interval_based_on_rating()
 @app.put("/revision/{rev_id}")
 def update_revision_rating(rev_id: int, rating: int):
     revisions.update({"rating": rating}, rev_id)
@@ -5072,6 +5076,8 @@ def srs_detailed_page_view(
         where=f"mode_id <> 5 {"AND bad_streak > 0" if is_bad_steak else ""}",
         order_by="last_review DESC",
     )
+
+    # sorted the records based on the sort_col and sort_type from the input, and after page sort to group them on main sort
     eligible_records = []
     for record in bad_streak_items:
         current_item_id = record.item_id
@@ -5093,7 +5099,6 @@ def srs_detailed_page_view(
                 "bad_count": bad_count,
             }
         )
-    # sorted the records based on the sort_col and sort_type from the input, and after page sort to group them on main sort
     eligible_records = sorted(eligible_records, key=lambda x: x["page"])
     eligible_records = sorted(
         eligible_records, key=lambda x: x[sort_col], reverse=(sort_type == "desc")
@@ -5118,7 +5123,7 @@ def srs_detailed_page_view(
         return Tr(
             Td(page_description),
             Td(record["bad_streak"]),
-            Td(record["last_review_date"]),
+            Td(render_date(record["last_review_date"])),
             Td(bad_percentage),
             Td(record["total_count"]),
             Td(record["bad_count"]),
@@ -5161,7 +5166,7 @@ def srs_detailed_page_view(
                 ),
                 Tbody(*map(render_srs_eligible_rows, eligible_records)),
             ),
-            cls="space-y-2 uk-overflow-auto h-[35vh]",
+            cls="space-y-2 uk-overflow-auto h-[32vh]",
             id="srs_eligible_table",
         ),
         cls="space-y-2",
@@ -5175,8 +5180,9 @@ def srs_detailed_page_view(
         )
     ]
 
-    # This table shows the current srs pages for the user
-    def render_current_srs_rows(item_id):
+    # To sort the current srs records by due date
+    current_srs_records = []
+    for item_id in current_srs_items:
         hafiz_items_data = hafizs_items(where=f"item_id = {item_id}")
         if hafiz_items_data:
             hafiz_items_data = hafiz_items_data[0]
@@ -5184,29 +5190,42 @@ def srs_detailed_page_view(
             next_review = hafiz_items_data.next_review
             if next_review:
                 due = calculate_days_difference(next_review, current_date)
-                if due < 0:
-                    due = "-"
-            else:
-                due = None
+            else: 
+                # this is to render the "-" if there is no next page
+                due = -1
             planned_last_interval = hafiz_items_data.planned_last_interval
             last_interval = hafiz_items_data.last_interval
             next_interval = hafiz_items_data.next_interval
-        else:
-            # This block mostly never run unless we don't have items details in the hafizs_items table
-            last_review = None
-            next_review = None
-            due = None
-            planned_last_interval = None
-            last_interval = None
-            next_interval = None
+
+            current_srs_records.append(
+                {
+                    "page": item_id,
+                    "last_review": last_review,
+                    "next_review": next_review,
+                    "due": due,
+                    "planned_last_interval": planned_last_interval,
+                    "last_interval": last_interval,
+                    "next_interval": next_interval,
+                }
+            )
+    current_srs_records = sorted(
+        current_srs_records, key=lambda x: x["due"], reverse=True
+    )
+
+    # This table shows the current srs pages for the user
+    def render_current_srs_rows(records: dict):
+        due = records["due"]
+        if due < 0:
+            due = "-"
+
         return Tr(
-            Td(get_page_description(item_id)),
-            Td(last_review),
-            Td(next_review),
+            Td(get_page_description(records["page"])),
+            Td(render_date(records["last_review"])),
+            Td(render_date(records["next_review"])),
             Td(due),
-            Td(planned_last_interval),
-            Td(last_interval),
-            Td(next_interval),
+            Td(records["planned_last_interval"]),
+            Td(records["last_interval"]),
+            Td(records["next_interval"]),
         )
 
     current_srs_table = Div(
@@ -5225,9 +5244,9 @@ def srs_detailed_page_view(
                     ),
                     cls="sticky z-50 top-0 bg-white",
                 ),
-                Tbody(*map(render_current_srs_rows, current_srs_items)),
+                Tbody(*map(render_current_srs_rows, current_srs_records)),
             ),
-            cls="space-y-2 uk-overflow-auto h-[35vh]",
+            cls="space-y-2 uk-overflow-auto h-[32vh]",
             id="current_srs_table",
         ),
     )
