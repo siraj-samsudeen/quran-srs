@@ -252,6 +252,13 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
+def get_start_text(item_id):
+    try:
+        return items[item_id].start_text
+    except:
+        return "-"
+
+
 def get_page_number(item_id):
     page_id = items[item_id].page_id
     return pages[page_id].page_number
@@ -1851,10 +1858,6 @@ def get_monthly_review_item_ids(
 
 
 ######## New Summary Table ########
-
-
-def get_start_text(item_id):
-    return items(where=f"id ={item_id} and active = 1")[0].start_text
 
 
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
@@ -5384,7 +5387,7 @@ def srs_detailed_page_view(
     auth,
     sort_col: str = "last_review_date",
     sort_type: str = "desc",
-    is_bad_steak: bool = False,
+    is_bad_streak: bool = False,
 ):
     current_date = get_current_date(auth)
     # Populate the streaks for all the items before displaying the eligible pages
@@ -5394,15 +5397,16 @@ def srs_detailed_page_view(
 
     columns = [
         "Page",
+        "Start Text",
         "Bad Streak",
-        "Last review date",
+        "Last Review Date",
         "Bad %",
         "Total Count",
         "Bad Count",
     ]
     # based on the is_bad_steak we are filtering only the bad_streak items
     bad_streak_items = hafizs_items(
-        where=f"mode_id <> 5 AND status IS NOT NULL {"AND bad_streak > 0" if is_bad_steak else ""}",
+        where=f"mode_id <> 5 AND status IS NOT NULL {"AND bad_streak > 0" if is_bad_streak else ""}",
         order_by="last_review DESC",
     )
 
@@ -5421,6 +5425,7 @@ def srs_detailed_page_view(
         eligible_records.append(
             {
                 "page": current_item_id,
+                "start_text": get_start_text(current_item_id),
                 "bad_streak": record.bad_streak,
                 "last_review_date": record.last_review,
                 "bad_%": bad_percent,
@@ -5451,6 +5456,7 @@ def srs_detailed_page_view(
         )
         return Tr(
             Td(page_description),
+            Td(record["start_text"]),
             Td(record["bad_streak"]),
             Td(render_date(record["last_review_date"])),
             Td(bad_percentage),
@@ -5465,11 +5471,11 @@ def srs_detailed_page_view(
         custom_select(name="sort_col", vals=columns, default_val=sort_col),
         custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
         LabelSwitch(
-            label="Bad Steak",
-            id="is_bad_steak",
+            label="Bad Streak",
+            id="is_bad_streak",
             cls=(FlexT.block, FlexT.center, FlexT.middle, "gap-2"),
             lbl_cls="leading-none md:leading-6",
-            checked=is_bad_steak,
+            checked=is_bad_streak,
         ),
         P("Applying the sort...", cls="htmx-indicator"),
         cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
@@ -5529,6 +5535,7 @@ def srs_detailed_page_view(
             current_srs_records.append(
                 {
                     "page": item_id,
+                    "start_text": get_start_text(item_id),
                     "last_review": last_review,
                     "next_review": next_review,
                     "due": due,
@@ -5549,6 +5556,7 @@ def srs_detailed_page_view(
 
         return Tr(
             Td(get_page_description(records["page"])),
+            Td(records["start_text"]),
             Td(render_date(records["last_review"])),
             Td(render_date(records["next_review"])),
             Td(due),
@@ -5564,6 +5572,7 @@ def srs_detailed_page_view(
                 Thead(
                     Tr(
                         Td("Page"),
+                        Td("Start Text"),
                         Td("Last Review"),
                         Td("Next Review"),
                         Td("Due"),
