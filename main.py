@@ -5436,9 +5436,8 @@ def srs_detailed_page_view(
     eligible_records = []
     for record in bad_streak_items:
         current_item_id = record.item_id
-        current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
-        total_count = len(current_items_rev_date)
-        bad_count = len([r for r in current_items_rev_date if r.rating == -1])
+        total_count = record.count
+        bad_count = record.bad_count
         bad_percent = (
             format_number((bad_count / total_count) * 100) if total_count > 0 else 0
         )
@@ -5525,9 +5524,9 @@ def srs_detailed_page_view(
             id="srs_eligible_table",
         ),
         cls="space-y-2",
-    )
-    ################### END ###################
-
+    )    
+    
+    ############ current_srs_table ############
     current_srs_items = [
         i.item_id
         for i in hafizs_items(
