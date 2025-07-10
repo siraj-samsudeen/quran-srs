@@ -5687,20 +5687,14 @@ def settings_page(auth):
 
 
 @app.post("/settings")
-def update_setings(
-    auth, name: str, daily_capacity: int, current_date: str, display_count: int
-):
+def update_setings(auth, hafiz_data: Hafiz):
+    display_count = hafiz_data.display_count
     # Use existing value if display_count is invalid
     if not display_count or display_count < 0:
-        display_count = get_display_count(auth)
+        hafiz_data.display_count = get_display_count(auth)
 
     hafizs.update(
-        {
-            "name": name,
-            "daily_capacity": daily_capacity,
-            "current_date": current_date,
-            "display_count": display_count,
-        },
+        hafiz_data,
         hafizs[auth].id,
     )
     return RedirectResponse("/settings", status_code=303)
