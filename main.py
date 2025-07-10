@@ -224,6 +224,12 @@ def get_current_date(auth) -> str:
     return current_date
 
 
+def get_display_count(auth):
+    """It will return the display_count for the current hafiz"""
+    current_hafiz = hafizs[auth]
+    return current_hafiz.display_count
+
+
 def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
@@ -1377,8 +1383,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     ############################ Monthly Cycle ################################
 
-    DEFAULT_DISPLAY_COUNT = 5
-
     def get_monthly_target_and_progress():
         """This function will return the monthly target and the progress of the monthly review"""
         current_date = get_current_date(auth)
@@ -1424,7 +1428,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             hx_swap="outerHTML",
         )
 
-    total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
+    total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
         mode_ids=["1"],
@@ -2885,10 +2889,10 @@ def get(
     auth,
     item_id: int,
     # is_part is to determine whether it came from single entry page or not
+    length: int = 0,
     is_part: bool = False,
     plan_id: int = None,
     revision_date: str = None,
-    length: int = 5,
     max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
@@ -2896,9 +2900,9 @@ def get(
     if revision_date is None:
         revision_date = get_current_date(auth)
 
-    # This is to handle the empty `No of page`
-    if length < 1:
-        length = 5
+    # This is to handle the empty and negative value of `No of page`
+    if not length or length < 0:
+        length = get_display_count(auth)
 
     page = get_page_number(item_id)
 
@@ -3008,6 +3012,7 @@ def get(
         type="number",
         id="length_field",
         value=length,
+        min=1,
         hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
         hx_trigger="keyup delay:200ms changed",
         hx_select="#table-container",
@@ -3101,9 +3106,9 @@ async def post(
     plan_id: int,
     is_part: bool,
     max_item_id: int,
+    length: int,
     auth,
     req,
-    length: int = 5,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
