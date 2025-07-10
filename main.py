@@ -638,7 +638,7 @@ def get_interval_based_on_rating(
         #     limit=1,
         # )
         # current_interval = last_reviewed[0].planned_interval
-        current_interval = current_hafiz_item.planned_last_interval
+        current_interval = current_hafiz_item.planned_interval
     else:
         current_interval = current_hafiz_item.next_interval
 
@@ -667,14 +667,14 @@ def update_hafiz_items_for_srs(
 
     if latest_revision_date:
         # In here the `is_checked` is used to check if the item is deleted or created
-        # TODO: the last_interval is based on the actual_interval instead of the planned_interval
+        # TODO: the actual_interval is difference between last_review and current_date instead of the planned_interval
         next_interval = (
             get_interval_based_on_rating(item_id, rating)
             if is_checked
-            else current_hafiz_item.last_interval
+            else current_hafiz_item.actual_interval
         )
-        current_hafiz_item.planned_last_interval = current_hafiz_item.next_interval
-        current_hafiz_item.last_interval = calculate_days_difference(
+        current_hafiz_item.planned_interval = current_hafiz_item.next_interval
+        current_hafiz_item.actual_interval = calculate_days_difference(
             (current_hafiz_item.last_review if is_checked else latest_revision_date),
             current_date,
         )
@@ -692,8 +692,8 @@ def update_hafiz_items_for_srs(
             current_hafiz_item.next_interval = srs_booster_pack[
                 current_hafiz_item.srs_booster_pack_id
             ].start_interval
-            current_hafiz_item.last_interval = None
-            current_hafiz_item.planned_last_interval = None
+            current_hafiz_item.actual_interval = None
+            current_hafiz_item.planned_interval = None
 
     hafizs_items.update(current_hafiz_item)
     # Update the good and bad streak of the item_id
@@ -779,8 +779,8 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "mode_id": 1,
         "last_review": last_review_date,
         "next_review": None,
-        "planned_last_interval": None,
-        "last_interval": None,
+        "planned_interval": None,
+        "actual_interval": None,
         "next_interval": None,
         "srs_booster_pack_id": None,
     }
@@ -5528,8 +5528,8 @@ def srs_detailed_page_view(
             else:
                 # this is to render the "-" if there is no next page
                 due = -1
-            planned_last_interval = hafiz_items_data.planned_last_interval
-            last_interval = hafiz_items_data.last_interval
+            planned_interval = hafiz_items_data.planned_interval
+            actual_interval = hafiz_items_data.actual_interval
             next_interval = hafiz_items_data.next_interval
 
             current_srs_records.append(
@@ -5539,8 +5539,8 @@ def srs_detailed_page_view(
                     "last_review": last_review,
                     "next_review": next_review,
                     "due": due,
-                    "planned_last_interval": planned_last_interval,
-                    "last_interval": last_interval,
+                    "planned_interval": planned_interval,
+                    "actual_interval": actual_interval,
                     "next_interval": next_interval,
                 }
             )
@@ -5560,8 +5560,8 @@ def srs_detailed_page_view(
             Td(render_date(records["last_review"])),
             Td(render_date(records["next_review"])),
             Td(due),
-            Td(records["planned_last_interval"]),
-            Td(records["last_interval"]),
+            Td(records["planned_interval"]),
+            Td(records["actual_interval"]),
             Td(records["next_interval"]),
         )
 
@@ -5576,8 +5576,8 @@ def srs_detailed_page_view(
                         Td("Last Review"),
                         Td("Next Review"),
                         Td("Due"),
-                        Td("Planned Last Interval"),
-                        Td("Last Interval"),
+                        Td("Planned Interval"),
+                        Td("Actual Interval"),
                         Td("Next Interval"),
                     ),
                     cls="sticky z-50 top-0 bg-white",
