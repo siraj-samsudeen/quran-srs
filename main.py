@@ -107,62 +107,82 @@ app, rt = fast_app(
 )
 
 
-# Alogirthm to populate the good and bad streak with last_review
-def populate_streak(item_id: int = None):
+def populate_hafizs_items_stat_columns(item_id: int = None):
     """
-    Populate the good and bad streak with the last_review date, for all the items in the hafizs_items
+    Populate or update statistics columns for Hafiz items.
 
-    only if the item_id is not given or else it will update it for the specific item
+    This function calculates and updates various statistics for memorization items,
+    including good/bad streaks, review counts, and overall score. It can update
+    statistics for a specific item or all items in the hafizs_items table.
 
-    ## Streak algorithm:
-    - if rating is `Good`: reset the bad_streak and add one to the exsisting good_streak
-    - if rating is `Ok`: reset the bad and good streak
-    - if rating is `Bad`: reset the good_streak and add one to the exsisting bad_streak
+    Args:
+        item_id (int, optional): Specific item ID to update. If None, updates all items.
+
+    Returns:
+        None: Updates hafizs_items table directly with calculated statistics.
+
+    Internal method that computes review-related metrics like:
+    - Consecutive good/bad review streaks
+    - Total good and bad review counts
+    - Last review date
+    - Cumulative review score
     """
 
-    def get_item_id_streaks(item_id: int):
+    def get_item_id_summary(item_id: int):
         items_rev_data = revisions(
             where=f"item_id = {item_id}", order_by="revision_date ASC"
         )
         good_streak = 0
         bad_streak = 0
-        last_review_date = ""
+        last_review = ""
+        good_count = 0
+        bad_count = 0
+        score = 0
+        count = 0
 
         for rev in items_rev_data:
             current_rating = rev.rating
+
             if current_rating == -1:
+                bad_count += 1
+                # Update the streak
                 bad_streak += 1
                 good_streak = 0
             elif current_rating == 1:
+                good_count += 1
+                # Update the streak
                 good_streak += 1
                 bad_streak = 0
             else:
                 good_streak = 0
                 bad_streak = 0
-            last_review_date = rev.revision_date
 
-        return good_streak, bad_streak, last_review_date
+            score += current_rating
+            count += 1
+            last_review = rev.revision_date
+
+        return {
+            "good_streak": good_streak,
+            "bad_streak": bad_streak,
+            "last_review": last_review,
+            "good_count": good_count,
+            "bad_count": bad_count,
+            "score": score,
+            "count": count,
+        }
 
     # Update the streak for a specific items if item_id is givien
     if item_id is not None:
         current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
         if current_hafiz_items:
-            current_hafiz_items = current_hafiz_items[0]
-            (
-                current_hafiz_items.good_streak,
-                current_hafiz_items.bad_streak,
-                current_hafiz_items.last_review,
-            ) = get_item_id_streaks(item_id)
+            current_hafiz_items_id = current_hafiz_items[0].id
+            hafizs_items.update(get_item_id_summary(item_id), current_hafiz_items_id)
 
-            hafizs_items.update(current_hafiz_items)
         return None
 
     # Update the streak for all the items in the hafizs_items
     for h_item in hafizs_items():
-        h_item.good_streak, h_item.bad_streak, h_item.last_review = get_item_id_streaks(
-            h_item.item_id
-        )
-        hafizs_items.update(h_item)
+        hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
 def get_item_id(page_number: int, not_memorized_only: bool = False):
@@ -630,15 +650,15 @@ def get_interval_based_on_rating(
     """
 
     current_hafiz_item = get_hafizs_items(item_id)
-    # TODO: Later need to retrive the current_interval from the hafizs_items table as `planned_interval`
+    # TODO: Later need to retrive the current_interval from the hafizs_items table as `last_interval`
     if is_edit:
         # last_reviewed = revisions(
         #     where=f"item_id = {item_id} AND mode_id = 5",
         #     order_by="revision_date DESC",
         #     limit=1,
         # )
-        # current_interval = last_reviewed[0].planned_interval
-        current_interval = current_hafiz_item.planned_interval
+        # current_interval = last_reviewed[0].last_interval
+        current_interval = current_hafiz_item.last_interval
     else:
         current_interval = current_hafiz_item.next_interval
 
@@ -667,14 +687,14 @@ def update_hafiz_items_for_srs(
 
     if latest_revision_date:
         # In here the `is_checked` is used to check if the item is deleted or created
-        # TODO: the actual_interval is difference between last_review and current_date instead of the planned_interval
+        # TODO: the current_interval is difference between last_review and current_date instead of the last_interval
         next_interval = (
             get_interval_based_on_rating(item_id, rating)
             if is_checked
-            else current_hafiz_item.actual_interval
+            else current_hafiz_item.current_interval
         )
-        current_hafiz_item.planned_interval = current_hafiz_item.next_interval
-        current_hafiz_item.actual_interval = calculate_days_difference(
+        current_hafiz_item.last_interval = current_hafiz_item.next_interval
+        current_hafiz_item.current_interval = calculate_days_difference(
             (current_hafiz_item.last_review if is_checked else latest_revision_date),
             current_date,
         )
@@ -692,12 +712,12 @@ def update_hafiz_items_for_srs(
             current_hafiz_item.next_interval = srs_booster_pack[
                 current_hafiz_item.srs_booster_pack_id
             ].start_interval
-            current_hafiz_item.actual_interval = None
-            current_hafiz_item.planned_interval = None
+            current_hafiz_item.current_interval = None
+            current_hafiz_item.last_interval = None
 
     hafizs_items.update(current_hafiz_item)
-    # Update the good and bad streak of the item_id
-    populate_streak(item_id=item_id)
+    # Update the stat columns of the item_id
+    populate_hafizs_items_stat_columns(item_id=item_id)
 
 
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
@@ -727,8 +747,8 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
         if mode_id == 5:
             # Update the additional three columns if it is srs mode
             hafiz_items_data = get_hafizs_items(item_id)
-            revision_data["planned_interval"] = hafiz_items_data.next_interval
-            revision_data["actual_interval"] = calculate_days_difference(
+            revision_data["last_interval"] = hafiz_items_data.next_interval
+            revision_data["current_interval"] = calculate_days_difference(
                 hafiz_items_data.last_review, date
             )
             revision_data["next_interval"] = get_interval_based_on_rating(
@@ -779,8 +799,8 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "mode_id": 1,
         "last_review": last_review_date,
         "next_review": None,
-        "planned_interval": None,
-        "actual_interval": None,
+        "last_interval": None,
+        "current_interval": None,
         "next_interval": None,
         "srs_booster_pack_id": None,
     }
@@ -2879,7 +2899,7 @@ def update_revision_rating(rev_id: int, rating: int):
             current_revision.revision_date, next_interval
         )
         hafizs_items.update(current_hafiz_item)
-        populate_streak(item_id=item_id)
+        populate_hafizs_items_stat_columns(item_id=item_id)
 
 
 # Bulk add
@@ -5388,13 +5408,15 @@ def srs_detailed_page_view(
     sort_col: str = "last_review_date",
     sort_type: str = "desc",
     is_bad_streak: bool = False,
+    # Skip refreshing hafizs_items stats when starting SRS (prevents refresh on redirect)
+    is_populate: bool = True,
 ):
     current_date = get_current_date(auth)
-    # Populate the streaks for all the items before displaying the eligible pages
-    populate_streak()
+    if is_populate:
+        # Populate the stat values for all the items before displaying the eligible pages
+        populate_hafizs_items_stat_columns()
 
     # This table is responsible for showing the eligible pages for SRS
-
     columns = [
         "Page",
         "Start Text",
@@ -5417,11 +5439,9 @@ def srs_detailed_page_view(
         current_items_rev_date = revisions(where=f"item_id = {current_item_id}")
         total_count = len(current_items_rev_date)
         bad_count = len([r for r in current_items_rev_date if r.rating == -1])
-        try:
-            bad_percent = format_number((bad_count / total_count) * 100)
-        except ZeroDivisionError:
-            # if there is no record then this will run
-            bad_percent = 0
+        bad_percent = (
+            format_number((bad_count / total_count) * 100) if total_count > 0 else 0
+        )
         eligible_records.append(
             {
                 "page": current_item_id,
@@ -5528,8 +5548,8 @@ def srs_detailed_page_view(
             else:
                 # this is to render the "-" if there is no next page
                 due = -1
-            planned_interval = hafiz_items_data.planned_interval
-            actual_interval = hafiz_items_data.actual_interval
+            last_interval = hafiz_items_data.last_interval
+            current_interval = hafiz_items_data.current_interval
             next_interval = hafiz_items_data.next_interval
 
             current_srs_records.append(
@@ -5539,8 +5559,8 @@ def srs_detailed_page_view(
                     "last_review": last_review,
                     "next_review": next_review,
                     "due": due,
-                    "planned_interval": planned_interval,
-                    "actual_interval": actual_interval,
+                    "last_interval": last_interval,
+                    "current_interval": current_interval,
                     "next_interval": next_interval,
                 }
             )
@@ -5560,8 +5580,8 @@ def srs_detailed_page_view(
             Td(render_date(records["last_review"])),
             Td(render_date(records["next_review"])),
             Td(due),
-            Td(records["planned_interval"]),
-            Td(records["actual_interval"]),
+            Td(records["last_interval"]),
+            Td(records["current_interval"]),
             Td(records["next_interval"]),
         )
 
@@ -5576,8 +5596,8 @@ def srs_detailed_page_view(
                         Td("Last Review"),
                         Td("Next Review"),
                         Td("Due"),
-                        Td("Planned Interval"),
-                        Td("Actual Interval"),
+                        Td("Last Interval"),
+                        Td("Current Interval"),
                         Td("Next Interval"),
                     ),
                     cls="sticky z-50 top-0 bg-white",
@@ -5616,7 +5636,7 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
 
-    return RedirectResponse("/srs")
+    return RedirectResponse("/srs?is_populate=False")
 
 
 @app.get("/change_current_date")
