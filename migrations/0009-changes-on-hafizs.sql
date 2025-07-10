@@ -1,0 +1,1 @@
+ALTER TABLE hafizs ADD COLUMN display_count INTEGER DEFAULT 5;
