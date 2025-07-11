@@ -1234,7 +1234,13 @@ def render_stats_summary_table(auth, target_counts):
         today_count, today_item_ids = render_count(
             current_mode_id, today, is_link=False
         )
-        today_target = target_counts[current_mode_id]
+        # Try to get today's target count for particular mode_id
+        # If mode_id doesn't exist in target_counts dict, return 0
+        today_target = (
+            target_counts[current_mode_id]
+            if current_mode_id in target_counts.keys()
+            else 0
+        )
         progress_display = render_progress_display(
             today_count, today_target, today_item_ids
         )
