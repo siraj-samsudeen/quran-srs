@@ -5128,7 +5128,8 @@ def display_page_level_details(auth, item_id: int):
             memorization_summary = ""
 
     ########### Summary Table
-    def build_revision_summary_query(mode_ids, row_alias):
+    def build_revision_query(mode_ids, row_alias):
+        """It fetch the revision data for the current item_id with specified mode_ids"""
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -5144,65 +5145,38 @@ def display_page_level_details(auth, item_id: int):
             END AS interval
             FROM revisions
             JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN ({", ".join(map(str, mode_id_list))})
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN ({", ".join(map(str, mode_ids))})
             ORDER BY revision_date ASC;
         """
-
-    summary_table_query = build_revision_summary_query(
-        mode_ids=mode_id_list, row_alias="s_no"
-    )
-    summary_data = db.q(summary_table_query)
-    is_summary_data = True if len(summary_data) != 0 else False
-    summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
-    summary_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in summary_cols)),
-            Tbody(*[_render_row(row, summary_cols) for row in summary_data]),
-        ),
-        # cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
 
     ########################## Mode tables ###########################
-    def build_revision_query(mode_id, row_alias):
-        """Fetch data for a specific mode"""
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating,
-            CASE
-                WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
-                ELSE CAST(
-                    JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
-                    AS INTEGER
-                )
-            END AS interval
-            FROM revisions
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
-            ORDER BY revision_date ASC;
-        """
 
-    def create_mode_table(mode_id):
+    def create_mode_table(mode_ids, is_summary=False):
         """Create a table for a specific mode"""
-        query = build_revision_query(mode_id, "s_no")
+        query = build_revision_query(mode_ids, "s_no")
         data = db.q(query)
         has_data = len(data) > 0
         cols = ["s_no", "revision_date", "rating", "interval"]
+        cls = "uk-overflow-auto max-h-[30vh] p-4"
+        if is_summary:
+            cols.insert(3, "mode_name")
+            cls = ""
 
         table = Div(
             Table(
-                Thead(*map(lambda col: Th(col.replace("_", " ").title()), cols)),
+                Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
                 Tbody(*[_render_row(row, cols) for row in data]),
             ),
-            cls="uk-overflow-auto max-h-[30vh] p-4",
+            cls=cls,
         )
 
         return has_data, table
 
+    has_summary_data, summary_table = create_mode_table(mode_id_list, is_summary=True)
     ########### Generate tables for all modes dynamically ###########
     mode_data_map = {}
     for mode_id in mode_id_list:
-        has_data, table = create_mode_table(mode_id)
+        has_data, table = create_mode_table([mode_id])
         mode_data_map[mode_id] = (has_data, table)
 
     # Create mode sections dynamically
@@ -5290,7 +5264,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H2("Summary Table"), summary_table) if is_summary_data else None,
+                Div(H2("Summary Table"), summary_table) if has_summary_data else None,
                 *mode_sections,
                 cls="space-y-6",
             ),
