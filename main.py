@@ -5514,7 +5514,7 @@ def srs_detailed_page_view(
         hx_indicator=".htmx-indicator",
     )
     srs_start_btn = Button(
-        "Start SRS", type="button", hx_post="/start-srs", hx_target="body", cls=ButtonT.xs
+        "Start SRS", type="button", hx_post="/start-srs", hx_target="body", cls=(ButtonT.xs, ButtonT.primary)
     )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
