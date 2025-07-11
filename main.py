@@ -5068,23 +5068,19 @@ def display_page_level_details(auth, item_id: int):
         return Tr(*tds)
 
     def make_mode_title_for_table(mode_id):
-        mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
-        mode_name, mode_description = mode_details["name"], mode_details["description"]
+        mode_details = modes(where=f"id = {mode_id}")
+        if mode_details:
+            mode_details = mode_details[0]
+            mode_name, mode_description = (mode_details.name, mode_details.description)
+        else:
+            mode_name, mode_description = ("", "")
         return H2(mode_name, Subtitle(mode_description))
 
     ###### Title and Juz
-    meta_query = f"""SELECT 
-    items.id AS item_id,
-    pages.juz_number,
-    hafizs_items.mode_id
-    FROM items
-    LEFT JOIN pages ON items.page_id = pages.id
-    LEFT JOIN hafizs_items ON hafizs_items.item_id = items.id AND hafizs_items.hafiz_id = {auth}
-    WHERE items.id = {item_id};"""
-    meta = db.q(meta_query)
-    if len(meta) != 0:
+    is_item_exist = items(where=f"id = {item_id}")
+    if is_item_exist:
         page_description = get_page_description(item_id, is_bold=False, is_link=False)
-        juz = f"Juz {meta[0]['juz_number']}"
+        juz = f"Juz {get_juz_name(item_id=item_id)}"
     else:
         Redirect("/page_details")
 
@@ -5093,24 +5089,21 @@ def display_page_level_details(auth, item_id: int):
         # If no modes exist, skip first revision logic
         memorization_summary = ""
     else:
-        first_revision_query = f""" SELECT 
-        revision_date, mode_id
-        FROM revisions
-        WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN ({", ".join(map(str, mode_id_list))})
-        ORDER BY revision_date ASC
-        LIMIT 1;
-        """
-        first_revision = db.q(first_revision_query)
-        if first_revision:
+        first_revision_data = revisions(
+            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_id IN ({', '.join(map(str, mode_id_list))})",
+            order_by="revision_date ASC",
+            limit=1,
+        )
+
+        if first_revision_data:
+            first_revision = first_revision_data[0]
             first_memorized_date = (
-                first_revision[0]["revision_date"]
+                first_revision.revision_date
                 if first_revision
                 else Redirect("/page_details")
             )
             first_memorized_mode_id = (
-                first_revision[0]["mode_id"]
-                if first_revision
-                else Redirect("/page_details")
+                first_revision.mode_id if first_revision else Redirect("/page_details")
             )
             first_memorized_mode_name, description = make_mode_title_for_table(
                 first_memorized_mode_id
@@ -5127,7 +5120,7 @@ def display_page_level_details(auth, item_id: int):
         else:
             memorization_summary = ""
 
-    ########### Dsiplay Tables
+    ########### Display Tables
 
     def build_revision_query(mode_ids, row_alias):
         """It fetch the revision data for the current item_id with specified mode_ids"""
