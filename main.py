@@ -5473,15 +5473,22 @@ def srs_detailed_page_view(
             if isinstance(record["bad_%"], int)
             else record["bad_%"]
         )
+        checkbox = CheckboxX(
+            name=f"item_ids",
+            value=current_item_id,
+            cls="srs_eligible_table",
+            _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
+        )
         return Tr(
             Td(page_description),
             Td(record["start_text"]),
+            Td(checkbox),
+            Td(start_srs_link),
             Td(record["bad_streak"]),
             Td(render_date(record["last_review_date"])),
             Td(bad_percentage),
             Td(record["total_count"]),
             Td(record["bad_count"]),
-            Td(start_srs_link),
             id=f"srs_eligible_row_{current_item_id}",
         )
 
@@ -5503,29 +5510,50 @@ def srs_detailed_page_view(
         hx_select="#srs_eligible_table",
         hx_swap="outerHTML",
         hx_trigger="change",
-        hx_push_url="true",
+        hx_replace_url="true",
         hx_indicator=".htmx-indicator",
+    )
+    srs_start_btn = Button(
+        "Start SRS", type="button", hx_post="/start-srs", hx_target="body", cls=ButtonT.xs
     )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
         sort_fields,
-        Div(
-            Table(
-                Thead(
-                    Tr(
-                        *map(Td, columns),
-                        Td(""),
+        Form(
+            Div(
+                Table(
+                    Thead(
+                        Tr(
+                            *map(Td, columns[:2]),
+                            Td(
+                                CheckboxX(
+                                    cls=("select_all"),
+                                    x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                                    _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                                )
+                            ),
+                            Td(""),
+                            *map(Td, columns[2:]),
+                        ),
+                        cls="sticky z-50 top-0 bg-white",
                     ),
-                    cls="sticky z-50 top-0 bg-white",
+                    Tbody(*map(render_srs_eligible_rows, eligible_records)),
+                    # defining the reactive data for for component to reference (alpine.js)
+                    x_data=select_all_with_shift_click_for_summary_table(
+                        class_name="srs_eligible_table"
+                    ),
+                    # initializing the updateSelectAll function to select the selectAll checkboxe.
+                    # if all the below checkboxes are selected.
+                    x_init="updateSelectAll()",
                 ),
-                Tbody(*map(render_srs_eligible_rows, eligible_records)),
+                cls="space-y-2 uk-overflow-auto h-[32vh]",
+                id="srs_eligible_table",
             ),
-            cls="space-y-2 uk-overflow-auto h-[32vh]",
-            id="srs_eligible_table",
+            srs_start_btn,
         ),
         cls="space-y-2",
-    )    
-    
+    )
+
     ############ current_srs_table ############
     current_srs_items = [
         i.item_id
@@ -5615,6 +5643,7 @@ def srs_detailed_page_view(
     )
 
 
+# This route is responsible for the adding single record
 @app.get("/start-srs/{item_id}")
 def start_srs(item_id: int, auth):
     current_date = get_current_date(auth)
@@ -5637,6 +5666,17 @@ def start_srs(item_id: int, auth):
 
     return RedirectResponse("/srs?is_populate=False")
 
+
+# This route is responsible for the adding multiple record
+@app.post("/start-srs")
+async def start_srs_for_multiple_records(req, auth):
+    form_data = await req.form()
+    item_ids = form_data.getlist("item_ids")
+
+    for item_id in item_ids:
+        start_srs(item_id, auth)
+
+    return RedirectResponse(req.headers.get("referer", "/srs"), status_code=303)
 
 @app.get("/change_current_date")
 def change_current_date(auth):
