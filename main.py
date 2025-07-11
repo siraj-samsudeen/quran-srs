@@ -5498,7 +5498,7 @@ def srs_detailed_page_view(
         ),
         P("Applying the sort...", cls="htmx-indicator"),
         cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
-        hx_get="/srs",
+        hx_get="/srs?is_populate=false",
         hx_target="#srs_eligible_table",
         hx_select="#srs_eligible_table",
         hx_swap="outerHTML",
