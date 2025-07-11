@@ -803,6 +803,7 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "current_interval": None,
         "next_interval": None,
         "srs_booster_pack_id": None,
+        "srs_start_date": None,
     }
 
     if mode_id == 3:
@@ -5514,7 +5515,11 @@ def srs_detailed_page_view(
         hx_indicator=".htmx-indicator",
     )
     srs_start_btn = Button(
-        "Start SRS", type="button", hx_post="/start-srs", hx_target="body", cls=(ButtonT.xs, ButtonT.primary)
+        "Start SRS",
+        type="button",
+        hx_post="/start-srs",
+        hx_target="body",
+        cls=(ButtonT.xs, ButtonT.primary),
     )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
@@ -5661,6 +5666,7 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
         current_hafiz_items.next_interval = next_interval
+        current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
 
@@ -5677,6 +5683,7 @@ async def start_srs_for_multiple_records(req, auth):
         start_srs(item_id, auth)
 
     return RedirectResponse(req.headers.get("referer", "/srs"), status_code=303)
+
 
 @app.get("/change_current_date")
 def change_current_date(auth):

@@ -1,4 +1,5 @@
 -- Changes on the hafizs_items table
+ALTER TABLE hafizs_items ADD COLUMN srs_start_date TEXT;
 ALTER TABLE hafizs_items ADD COLUMN good_count INTEGER;
 ALTER TABLE hafizs_items ADD COLUMN bad_count INTEGER;
 ALTER TABLE hafizs_items ADD COLUMN score INTEGER;
