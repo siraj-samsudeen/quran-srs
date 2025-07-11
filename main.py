@@ -5207,61 +5207,6 @@ def display_page_level_details(auth, item_id: int):
         if is_display:  # Only show if there's data
             mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
-    # TODO: REMOVE FOLLOWING LINES
-    ########### Sequence Table
-    sequence_query = build_revision_query(1, "s_no")
-    sequence_data = db.q(sequence_query)
-    is_sequence_view = True if len(sequence_data) != 0 else False
-    sequence_cols = ["s_no", "revision_date", "rating", "interval"]
-    sequence_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in sequence_cols)),
-            Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### New Memorization Table
-    new_memorization_query = build_revision_query(2, "s_no")
-    new_memorization = db.q(new_memorization_query)
-    is_new_memorization_view = True if len(new_memorization) != 0 else False
-    new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
-    new_memorization_table = Div(
-        Table(
-            Thead(
-                *(Th(col.replace("_", " ").title()) for col in new_memorization_cols)
-            ),
-            Tbody(
-                *[_render_row(row, new_memorization_cols) for row in new_memorization]
-            ),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### Recent Review Table
-    recent_review_query = build_revision_query(3, "s_no")
-    recent_review = db.q(recent_review_query)
-    is_recent_review_view = True if len(recent_review) != 0 else False
-    recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
-    recent_review_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in recent_review_cols)),
-            Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### Watch List Table
-    watch_list_query = build_revision_query(4, "s_no")
-    watch_list_data = db.q(watch_list_query)
-    is_watch_list_view = True if len(watch_list_data) != 0 else False
-    watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
-    watch_list_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in watch_list_cols)),
-            Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-
-    # TODO: REMOVE ABOVE LINES
     ########### Previous and Next Page Navigation
     def get_prev_next_item_ids(current_item_id):
         prev_query = f"""SELECT items.id, pages.page_number FROM revisions
@@ -5293,25 +5238,6 @@ def display_page_level_details(auth, item_id: int):
         href=f"/page_details/{next_id}" if next_id is not None else "#",
         cls="uk-button uk-button-default",
     )
-
-    # # Map mode_id to their corresponding table
-    # mode_data_map = {
-    #     1: (is_sequence_view, sequence_table),
-    #     2: (is_new_memorization_view, new_memorization_table),
-    #     3: (is_recent_review_view, recent_review_table),
-    #     4: (is_watch_list_view, watch_list_table),
-    # }
-    # mode_sections = []
-    # for mode_id in mode_id_list:
-    #     # Get the display mode name and table for this mode
-    #     mode_data = mode_data_map.get(mode_id)
-    #     if not mode_data:  # If no data for this mode, skip it
-    #         continue
-    #     is_display, table = mode_data
-    #     if not is_display:  # If display is not truely, skip it
-    #         continue
-    #     # Add the section for this mode
-    #     mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
     item_details = items[item_id]
     description = item_details.description
