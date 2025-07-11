@@ -5208,6 +5208,13 @@ def display_page_level_details(auth, item_id: int):
             mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
     ########### Previous and Next Page Navigation
+    def create_nav_button(item_id, arrow, show_nav):
+        return A(
+            arrow if item_id and show_nav else "",
+            href=f"/page_details/{item_id}" if item_id is not None else "#",
+            cls="uk-button uk-button-default",
+        )
+
     def get_prev_next_item_ids(current_item_id):
         def build_nav_query(operator, sort_order):
             return f"""SELECT items.id, pages.page_number FROM revisions
@@ -5224,16 +5231,8 @@ def display_page_level_details(auth, item_id: int):
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
     # Show nav arrows if there is a previous/next items and that is revisioned page
-    prev_pg = A(
-        "⬅️" if prev_id and is_show_nav_btn else "",
-        href=f"/page_details/{prev_id}" if prev_id is not None else "#",
-        cls="uk-button uk-button-default",
-    )
-    next_pg = A(
-        "➡️" if next_id and is_show_nav_btn else "",
-        href=f"/page_details/{next_id}" if next_id is not None else "#",
-        cls="uk-button uk-button-default",
-    )
+    prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
+    next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
 
     item_details = items[item_id]
     description = item_details.description
