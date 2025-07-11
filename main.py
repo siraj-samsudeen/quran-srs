@@ -5044,10 +5044,13 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
-    # # Prevent editing description for inactive items
+    # Prevent editing description for inactive items
     is_active_item = bool(items(where=f"id = {item_id} and active != 0"))
     if not is_active_item:
         return Redirect("/page_details")
+
+    # Get mode name and ids from the db
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
 
     # Avoid showing nav buttons (to go closest revisoned page) when there are no revisions for a page
     rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
@@ -5141,7 +5144,7 @@ def display_page_level_details(auth, item_id: int):
         """
 
     summary_table_query = build_revision_summary_query(
-        mode_ids=(1, 2, 3, 4), row_alias="s_no"
+        mode_ids=tuple(mode_id_list), row_alias="s_no"
     )
     summary_data = db.q(summary_table_query)
     is_summary_data = True if len(summary_data) != 0 else False
@@ -5154,7 +5157,7 @@ def display_page_level_details(auth, item_id: int):
         # cls="uk-overflow-auto max-h-[30vh] p-4",
     )
 
-    ########### Revision Tables
+    ########################## Dynamic generation of mode tables ###########################
     def build_revision_query(mode_id, row_alias):
         return f"""
             SELECT
@@ -5258,7 +5261,6 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-button uk-button-default",
     )
 
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
     # Map mode_id to their corresponding table
     mode_data_map = {
         1: (is_sequence_view, sequence_table),
