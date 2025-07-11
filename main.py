@@ -224,6 +224,12 @@ def get_current_date(auth) -> str:
     return current_date
 
 
+def get_display_count(auth):
+    """It will return the display_count for the current hafiz"""
+    current_hafiz = hafizs[auth]
+    return current_hafiz.display_count
+
+
 def get_column_headers(table):
     data_class = tables[table].dataclass()
     columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
@@ -1131,6 +1137,7 @@ def main_area(*args, active=None, auth=None):
                     href="/srs",
                     cls=is_active("SRS"),
                 ),
+                A("Settings", href="/settings", cls=is_active("Settings")),
                 # A(
                 #     "New Memorization",
                 #     href="/new_memorization/juz",
@@ -1384,8 +1391,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     ############################ Monthly Cycle ################################
 
-    DEFAULT_DISPLAY_COUNT = 5
-
     def get_monthly_target_and_progress():
         """This function will return the monthly target and the progress of the monthly review"""
         current_date = get_current_date(auth)
@@ -1431,7 +1436,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             hx_swap="outerHTML",
         )
 
-    total_display_count = DEFAULT_DISPLAY_COUNT + update_extra_page_display_count()
+    total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
         mode_ids=["1"],
@@ -2888,10 +2893,10 @@ def get(
     auth,
     item_id: int,
     # is_part is to determine whether it came from single entry page or not
+    length: int = 0,
     is_part: bool = False,
     plan_id: int = None,
     revision_date: str = None,
-    length: int = 5,
     max_item_id: int = get_last_item_id(),
     show_id_fields: bool = False,
 ):
@@ -2899,9 +2904,9 @@ def get(
     if revision_date is None:
         revision_date = get_current_date(auth)
 
-    # This is to handle the empty `No of page`
-    if length < 1:
-        length = 5
+    # This is to handle the empty and negative value of `No of page`
+    if not length or length < 0:
+        length = get_display_count(auth)
 
     page = get_page_number(item_id)
 
@@ -3011,6 +3016,8 @@ def get(
         type="number",
         id="length_field",
         value=length,
+        min=1,
+        # required=True,
         hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
         hx_trigger="keyup delay:200ms changed",
         hx_select="#table-container",
@@ -3104,9 +3111,9 @@ async def post(
     plan_id: int,
     is_part: bool,
     max_item_id: int,
+    length: int,
     auth,
     req,
-    length: int = 5,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
@@ -4945,21 +4952,27 @@ def get_ordered_mode_name_and_id():
             zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
         )
     )
-    return mode_id_list, mode_name_list
+    return list(mode_id_list), list(mode_name_list)
 
 
 @app.get("/page_details")
 def page_details_view(auth):
+    # Get mode name and ids from the db
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
+
+    # Build dynamic CASE statements for each mode
+    mode_case_statements = []
+    for mode_id in mode_id_list:
+        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_id = {mode_id} THEN 1 END), '-') AS '{mode_id}'"
+        mode_case_statements.append(case_stmt)
+    mode_cases = ",\n".join(mode_case_statements)
+
     display_pages_query = f"""SELECT 
                             items.id,
                             items.surah_id,
                             pages.page_number,
                             pages.juz_number,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS "1",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS "2",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS "3",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS "4",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 5 THEN 1 END), '-') AS "5",
+                            {mode_cases},
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
@@ -4967,8 +4980,6 @@ def page_details_view(auth):
                         WHERE revisions.hafiz_id = {auth} AND items.active != 0
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
-
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
     hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
@@ -5033,10 +5044,13 @@ def page_details_view(auth):
 
 @app.get("/page_details/{item_id}")
 def display_page_level_details(auth, item_id: int):
-    # # Prevent editing description for inactive items
+    # Prevent editing description for inactive items
     is_active_item = bool(items(where=f"id = {item_id} and active != 0"))
     if not is_active_item:
         return Redirect("/page_details")
+
+    # Get mode name and ids from the db
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
 
     # Avoid showing nav buttons (to go closest revisoned page) when there are no revisions for a page
     rev_data = revisions(where=f"item_id = {item_id}")  # TODO verify
@@ -5054,62 +5068,62 @@ def display_page_level_details(auth, item_id: int):
         return Tr(*tds)
 
     def make_mode_title_for_table(mode_id):
-        mode_details = db.q(f"SELECT * FROM modes WHERE id = {mode_id};")[0]
-        mode_name, mode_description = mode_details["name"], mode_details["description"]
+        mode_details = modes(where=f"id = {mode_id}")
+        if mode_details:
+            mode_details = mode_details[0]
+            mode_name, mode_description = (mode_details.name, mode_details.description)
+        else:
+            mode_name, mode_description = ("", "")
         return H2(mode_name, Subtitle(mode_description))
 
     ###### Title and Juz
-    meta_query = f"""SELECT 
-    items.id AS item_id,
-    pages.juz_number,
-    hafizs_items.mode_id
-    FROM items
-    LEFT JOIN pages ON items.page_id = pages.id
-    LEFT JOIN hafizs_items ON hafizs_items.item_id = items.id AND hafizs_items.hafiz_id = {auth}
-    WHERE items.id = {item_id};"""
-    meta = db.q(meta_query)
-    if len(meta) != 0:
+    is_item_exist = items(where=f"id = {item_id}")
+    if is_item_exist:
         page_description = get_page_description(item_id, is_bold=False, is_link=False)
-        juz = f"Juz {meta[0]['juz_number']}"
+        juz = f"Juz {get_juz_name(item_id=item_id)}"
     else:
         Redirect("/page_details")
-    ####### Summary of first memorization
-    first_revision_query = f""" SELECT 
-    revision_date, mode_id
-    FROM revisions
-    WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN(1,2,3,4)
-    ORDER BY revision_date ASC
-    LIMIT 1;
-    """
-    first_revision = db.q(first_revision_query)
-    if first_revision:
-        first_memorized_date = (
-            first_revision[0]["revision_date"]
-            if first_revision
-            else Redirect("/page_details")
-        )
-        first_memorized_mode_id = (
-            first_revision[0]["mode_id"]
-            if first_revision
-            else Redirect("/page_details")
-        )
-        first_memorized_mode_name, description = make_mode_title_for_table(
-            first_memorized_mode_id
-        )
-        memorization_summary = Div(
-            H2("Summary"),
-            P(
-                "This page was added on: ",
-                Span(Strong(date_to_human_readable(first_memorized_date))),
-                " under ",
-                Span(Strong(first_memorized_mode_name)),
-            ),
-        )
-    else:
-        memorization_summary = ""
 
-    ########### Summary Table
-    def build_revision_summary_query(mode_ids, row_alias):
+    ####### Summary of first memorization
+    if not mode_id_list:
+        # If no modes exist, skip first revision logic
+        memorization_summary = ""
+    else:
+        first_revision_data = revisions(
+            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_id IN ({', '.join(map(str, mode_id_list))})",
+            order_by="revision_date ASC",
+            limit=1,
+        )
+
+        if first_revision_data:
+            first_revision = first_revision_data[0]
+            first_memorized_date = (
+                first_revision.revision_date
+                if first_revision
+                else Redirect("/page_details")
+            )
+            first_memorized_mode_id = (
+                first_revision.mode_id if first_revision else Redirect("/page_details")
+            )
+            first_memorized_mode_name, description = make_mode_title_for_table(
+                first_memorized_mode_id
+            )
+            memorization_summary = Div(
+                H2("Summary"),
+                P(
+                    "This page was added on: ",
+                    Span(Strong(date_to_human_readable(first_memorized_date))),
+                    " under ",
+                    Span(Strong(first_memorized_mode_name)),
+                ),
+            )
+        else:
+            memorization_summary = ""
+
+    ########### Display Tables
+
+    def build_revision_query(mode_ids, row_alias):
+        """It fetch the revision data for the current item_id with specified mode_ids"""
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -5125,148 +5139,79 @@ def display_page_level_details(auth, item_id: int):
             END AS interval
             FROM revisions
             JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_ids}
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN ({", ".join(map(str, mode_ids))})
             ORDER BY revision_date ASC;
         """
 
-    summary_table_query = build_revision_summary_query(
-        mode_ids=(1, 2, 3, 4), row_alias="s_no"
-    )
-    summary_data = db.q(summary_table_query)
-    is_summary_data = True if len(summary_data) != 0 else False
-    summary_cols = ["s_no", "revision_date", "rating", "mode_name", "interval"]
-    summary_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in summary_cols)),
-            Tbody(*[_render_row(row, summary_cols) for row in summary_data]),
-        ),
-        # cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
+    def create_mode_table(mode_ids, is_summary=False):
+        """Generate a table for the specified mode, returning both its visibility status and the table itself"""
+        query = build_revision_query(mode_ids, "s_no")
+        data = db.q(query)
+        # determine table visibility
+        has_data = len(data) > 0
+        cols = ["s_no", "revision_date", "rating", "interval"]
+        cls = "uk-overflow-auto max-h-[30vh] p-4"
+        if is_summary:
+            # summary table has all the modes, so we need to add mode_name column
+            cols.insert(3, "mode_name")
+            cls = ""
 
-    ########### Revision Tables
-    def build_revision_query(mode_id, row_alias):
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating,
-            CASE
-                WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
-                ELSE CAST(
-                    JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
-                    AS INTEGER
-                )
-            END AS interval
-            FROM revisions
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND mode_id = {mode_id}
-            ORDER BY revision_date ASC;
-        """
+        table = Div(
+            Table(
+                Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
+                # get the table data for specific column
+                Tbody(*[_render_row(row, cols) for row in data]),
+            ),
+            cls=cls,
+        )
 
-    ########### Sequence Table
-    sequence_query = build_revision_query(1, "s_no")
-    sequence_data = db.q(sequence_query)
-    is_sequence_view = True if len(sequence_data) != 0 else False
-    sequence_cols = ["s_no", "revision_date", "rating", "interval"]
-    sequence_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in sequence_cols)),
-            Tbody(*[_render_row(row, sequence_cols) for row in sequence_data]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### New Memorization Table
-    new_memorization_query = build_revision_query(2, "s_no")
-    new_memorization = db.q(new_memorization_query)
-    is_new_memorization_view = True if len(new_memorization) != 0 else False
-    new_memorization_cols = ["s_no", "revision_date", "rating", "interval"]
-    new_memorization_table = Div(
-        Table(
-            Thead(
-                *(Th(col.replace("_", " ").title()) for col in new_memorization_cols)
-            ),
-            Tbody(
-                *[_render_row(row, new_memorization_cols) for row in new_memorization]
-            ),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### Recent Review Table
-    recent_review_query = build_revision_query(3, "s_no")
-    recent_review = db.q(recent_review_query)
-    is_recent_review_view = True if len(recent_review) != 0 else False
-    recent_review_cols = ["s_no", "revision_date", "rating", "interval"]
-    recent_review_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in recent_review_cols)),
-            Tbody(*[_render_row(row, recent_review_cols) for row in recent_review]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
-    ########### Watch List Table
-    watch_list_query = build_revision_query(4, "s_no")
-    watch_list_data = db.q(watch_list_query)
-    is_watch_list_view = True if len(watch_list_data) != 0 else False
-    watch_list_cols = ["s_no", "revision_date", "rating", "interval"]
-    watch_list_table = Div(
-        Table(
-            Thead(*(Th(col.replace("_", " ").title()) for col in watch_list_cols)),
-            Tbody(*[_render_row(row, watch_list_cols) for row in watch_list_data]),
-        ),
-        cls="uk-overflow-auto max-h-[30vh] p-4",
-    )
+        return has_data, table
+
+    ########### Summary Table
+    has_summary_data, summary_table = create_mode_table(mode_id_list, is_summary=True)
+
+    ########### Mode specific tables
+    # Dynamically generate tables for each specific revision mode
+    mode_data_map = {}
+    for mode_id in mode_id_list:
+        has_data, table = create_mode_table([mode_id])
+        mode_data_map[mode_id] = (has_data, table)
+
+    # Create mode sections dynamically
+    mode_sections = []
+    for mode_id in mode_id_list:
+        is_display, table = mode_data_map[mode_id]
+        if is_display:  # Only show if there's data
+            mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
     ########### Previous and Next Page Navigation
-    def get_prev_next_item_ids(current_item_id):
-        prev_query = f"""SELECT items.id, pages.page_number FROM revisions
-                          LEFT JOIN items ON revisions.item_id = items.id
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id < {current_item_id}
-                          ORDER BY items.id DESC LIMIT 1;"""
+    def create_nav_button(item_id, arrow, show_nav):
+        return A(
+            arrow if item_id and show_nav else "",
+            href=f"/page_details/{item_id}" if item_id is not None else "#",
+            cls="uk-button uk-button-default",
+        )
 
-        next_query = f"""SELECT items.id, pages.page_number FROM revisions
-                          LEFT JOIN items ON revisions.item_id = items.id
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id > {current_item_id}
-                          ORDER BY items.id ASC LIMIT 1;"""
-        prev_result = db.q(prev_query)
-        next_result = db.q(next_query)
+    def get_prev_next_item_ids(current_item_id):
+        def build_nav_query(operator, sort_order):
+            return f"""SELECT items.id, pages.page_number FROM revisions
+                       LEFT JOIN items ON revisions.item_id = items.id
+                       LEFT JOIN pages ON items.page_id = pages.id
+                       WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id {operator} {current_item_id}
+                       ORDER BY items.id {sort_order} LIMIT 1;"""
+
+        prev_result = db.q(build_nav_query("<", "DESC"))
+        next_result = db.q(build_nav_query(">", "ASC"))
         prev_id = prev_result[0]["id"] if prev_result else None
         next_id = next_result[0]["id"] if next_result else None
         return prev_id, next_id
 
     prev_id, next_id = get_prev_next_item_ids(item_id)
     # Show nav arrows if there is a previous/next items and that is revisioned page
-    prev_pg = A(
-        "⬅️" if prev_id and is_show_nav_btn else "",
-        href=f"/page_details/{prev_id}" if prev_id is not None else "#",
-        cls="uk-button uk-button-default",
-    )
-    next_pg = A(
-        "➡️" if next_id and is_show_nav_btn else "",
-        href=f"/page_details/{next_id}" if next_id is not None else "#",
-        cls="uk-button uk-button-default",
-    )
+    prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
+    next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
 
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
-    # Map mode_id to their corresponding table
-    mode_data_map = {
-        1: (is_sequence_view, sequence_table),
-        2: (is_new_memorization_view, new_memorization_table),
-        3: (is_recent_review_view, recent_review_table),
-        4: (is_watch_list_view, watch_list_table),
-    }
-    mode_sections = []
-    for mode_id in mode_id_list:
-        # Get the display mode name and table for this mode
-        mode_data = mode_data_map.get(mode_id)
-        if not mode_data:  # If no data for this mode, skip it
-            continue
-        is_display, table = mode_data
-        if not is_display:  # If display is not truely, skip it
-            continue
-        # Add the section for this mode
-        mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
-
+    ########### Display Editable Description and Start Text
     item_details = items[item_id]
     description = item_details.description
     start_text = item_details.start_text
@@ -5318,7 +5263,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H2("Summary Table"), summary_table) if is_summary_data else None,
+                Div(H2("Summary Table"), summary_table) if has_summary_data else None,
                 *mode_sections,
                 cls="space-y-6",
             ),
@@ -5640,6 +5585,66 @@ def update_current_date(auth, current_date: str):
     current_hafiz.current_date = current_date
     hafizs.update(current_hafiz)
     return RedirectResponse("/change_current_date", status_code=303)
+
+
+@app.get("/settings")
+def settings_page(auth):
+    current_hafiz = hafizs[auth]
+
+    def render_field(label, field_type, required=True, **kwargs):
+        """
+        Creates a standardized form input field with a label.
+        - The field ID is generated by standardizing the label
+        - The field value is populated from current_hafiz.field_name
+        """
+        field_name = standardize_column(label)
+        value = getattr(current_hafiz, field_name)
+        return LabelInput(
+            label,
+            id=field_name,
+            type=field_type,
+            value=value,
+            required=required,
+            **kwargs,
+        )
+
+    form = Form(
+        render_field("Name", "text"),
+        render_field("Daily Capacity", "number", False),
+        render_field("Current Date", "date"),
+        render_field("Display Count", "number", min=1),
+        DivHStacked(
+            Button("Update", type="submit", cls=ButtonT.primary),
+            Button(
+                "Discard", hx_get="/settings", hx_target="body", cls=ButtonT.destructive
+            ),
+        ),
+        action="/settings",
+        method="POST",
+    )
+    return main_area(
+        Div(
+            H1("Hafiz Preferences", cls=TextT.center),
+            Div(form, cls="max-w-xl mx-auto"),
+            cls="space-y-6",
+        ),
+        auth=auth,
+        active="Settings",
+    )
+
+
+@app.post("/settings")
+def update_setings(auth, hafiz_data: Hafiz):
+    display_count = hafiz_data.display_count
+    # Use existing value if display_count is invalid
+    if not display_count or display_count < 0:
+        hafiz_data.display_count = get_display_count(auth)
+
+    hafizs.update(
+        hafiz_data,
+        hafizs[auth].id,
+    )
+    return RedirectResponse("/settings", status_code=303)
 
 
 serve()
