@@ -5087,40 +5087,48 @@ def display_page_level_details(auth, item_id: int):
         juz = f"Juz {meta[0]['juz_number']}"
     else:
         Redirect("/page_details")
+
     ####### Summary of first memorization
-    first_revision_query = f""" SELECT 
-    revision_date, mode_id
-    FROM revisions
-    WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN(1,2,3,4)
-    ORDER BY revision_date ASC
-    LIMIT 1;
-    """
-    first_revision = db.q(first_revision_query)
-    if first_revision:
-        first_memorized_date = (
-            first_revision[0]["revision_date"]
-            if first_revision
-            else Redirect("/page_details")
-        )
-        first_memorized_mode_id = (
-            first_revision[0]["mode_id"]
-            if first_revision
-            else Redirect("/page_details")
-        )
-        first_memorized_mode_name, description = make_mode_title_for_table(
-            first_memorized_mode_id
-        )
-        memorization_summary = Div(
-            H2("Summary"),
-            P(
-                "This page was added on: ",
-                Span(Strong(date_to_human_readable(first_memorized_date))),
-                " under ",
-                Span(Strong(first_memorized_mode_name)),
-            ),
-        )
-    else:
+    if not mode_id_list:
+        # If no modes exist, skip first revision logic
         memorization_summary = ""
+    else:
+        mode_ids_tuple = (
+            tuple(mode_id_list) if len(mode_id_list) > 1 else f"({mode_id_list[0]})"
+        )
+        first_revision_query = f""" SELECT 
+        revision_date, mode_id
+        FROM revisions
+        WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN {mode_ids_tuple}
+        ORDER BY revision_date ASC
+        LIMIT 1;
+        """
+        first_revision = db.q(first_revision_query)
+        if first_revision:
+            first_memorized_date = (
+                first_revision[0]["revision_date"]
+                if first_revision
+                else Redirect("/page_details")
+            )
+            first_memorized_mode_id = (
+                first_revision[0]["mode_id"]
+                if first_revision
+                else Redirect("/page_details")
+            )
+            first_memorized_mode_name, description = make_mode_title_for_table(
+                first_memorized_mode_id
+            )
+            memorization_summary = Div(
+                H2("Summary"),
+                P(
+                    "This page was added on: ",
+                    Span(Strong(date_to_human_readable(first_memorized_date))),
+                    " under ",
+                    Span(Strong(first_memorized_mode_name)),
+                ),
+            )
+        else:
+            memorization_summary = ""
 
     ########### Summary Table
     def build_revision_summary_query(mode_ids, row_alias):
