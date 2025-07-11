@@ -4957,16 +4957,22 @@ def get_ordered_mode_name_and_id():
 
 @app.get("/page_details")
 def page_details_view(auth):
+    # Get mode name and ids from the db
+    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
+
+    # Build dynamic CASE statements for each mode
+    mode_case_statements = []
+    for mode_id in mode_id_list:
+        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_id = {mode_id} THEN 1 END), '-') AS '{mode_id}'"
+        mode_case_statements.append(case_stmt)
+    mode_cases = ",\n".join(mode_case_statements)
+
     display_pages_query = f"""SELECT 
                             items.id,
                             items.surah_id,
                             pages.page_number,
                             pages.juz_number,
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 1 THEN 1 END), '-') AS "1",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 2 THEN 1 END), '-') AS "2",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 3 THEN 1 END), '-') AS "3",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 4 THEN 1 END), '-') AS "4",
-                            COALESCE(SUM(CASE WHEN revisions.mode_id = 5 THEN 1 END), '-') AS "5",
+                            {mode_cases},
                             SUM(revisions.rating) AS rating_summary
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
@@ -4974,8 +4980,6 @@ def page_details_view(auth):
                         WHERE revisions.hafiz_id = {auth} AND items.active != 0
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
-
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
     hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
