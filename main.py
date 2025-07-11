@@ -5157,8 +5157,9 @@ def display_page_level_details(auth, item_id: int):
         # cls="uk-overflow-auto max-h-[30vh] p-4",
     )
 
-    ########################## Dynamic generation of mode tables ###########################
+    ########################## Mode tables ###########################
     def build_revision_query(mode_id, row_alias):
+        """Fetch data for a specific mode"""
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -5176,6 +5177,37 @@ def display_page_level_details(auth, item_id: int):
             ORDER BY revision_date ASC;
         """
 
+    def create_mode_table(mode_id):
+        """Create a table for a specific mode"""
+        query = build_revision_query(mode_id, "s_no")
+        data = db.q(query)
+        has_data = len(data) > 0
+        cols = ["s_no", "revision_date", "rating", "interval"]
+
+        table = Div(
+            Table(
+                Thead(*map(lambda col: Th(col.replace("_", " ").title()), cols)),
+                Tbody(*[_render_row(row, cols) for row in data]),
+            ),
+            cls="uk-overflow-auto max-h-[30vh] p-4",
+        )
+
+        return has_data, table
+
+    ########### Generate tables for all modes dynamically ###########
+    mode_data_map = {}
+    for mode_id in mode_id_list:
+        has_data, table = create_mode_table(mode_id)
+        mode_data_map[mode_id] = (has_data, table)
+
+    # Create mode sections dynamically
+    mode_sections = []
+    for mode_id in mode_id_list:
+        is_display, table = mode_data_map[mode_id]
+        if is_display:  # Only show if there's data
+            mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
+
+    # TODO: REMOVE FOLLOWING LINES
     ########### Sequence Table
     sequence_query = build_revision_query(1, "s_no")
     sequence_data = db.q(sequence_query)
@@ -5229,6 +5261,7 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-overflow-auto max-h-[30vh] p-4",
     )
 
+    # TODO: REMOVE ABOVE LINES
     ########### Previous and Next Page Navigation
     def get_prev_next_item_ids(current_item_id):
         prev_query = f"""SELECT items.id, pages.page_number FROM revisions
@@ -5261,24 +5294,24 @@ def display_page_level_details(auth, item_id: int):
         cls="uk-button uk-button-default",
     )
 
-    # Map mode_id to their corresponding table
-    mode_data_map = {
-        1: (is_sequence_view, sequence_table),
-        2: (is_new_memorization_view, new_memorization_table),
-        3: (is_recent_review_view, recent_review_table),
-        4: (is_watch_list_view, watch_list_table),
-    }
-    mode_sections = []
-    for mode_id in mode_id_list:
-        # Get the display mode name and table for this mode
-        mode_data = mode_data_map.get(mode_id)
-        if not mode_data:  # If no data for this mode, skip it
-            continue
-        is_display, table = mode_data
-        if not is_display:  # If display is not truely, skip it
-            continue
-        # Add the section for this mode
-        mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
+    # # Map mode_id to their corresponding table
+    # mode_data_map = {
+    #     1: (is_sequence_view, sequence_table),
+    #     2: (is_new_memorization_view, new_memorization_table),
+    #     3: (is_recent_review_view, recent_review_table),
+    #     4: (is_watch_list_view, watch_list_table),
+    # }
+    # mode_sections = []
+    # for mode_id in mode_id_list:
+    #     # Get the display mode name and table for this mode
+    #     mode_data = mode_data_map.get(mode_id)
+    #     if not mode_data:  # If no data for this mode, skip it
+    #         continue
+    #     is_display, table = mode_data
+    #     if not is_display:  # If display is not truely, skip it
+    #         continue
+    #     # Add the section for this mode
+    #     mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
 
     item_details = items[item_id]
     description = item_details.description
