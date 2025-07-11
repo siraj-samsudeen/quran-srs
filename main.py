@@ -5127,7 +5127,8 @@ def display_page_level_details(auth, item_id: int):
         else:
             memorization_summary = ""
 
-    ########### Summary Table
+    ########### Dsiplay Tables
+
     def build_revision_query(mode_ids, row_alias):
         """It fetch the revision data for the current item_id with specified mode_ids"""
         return f"""
@@ -5149,22 +5150,23 @@ def display_page_level_details(auth, item_id: int):
             ORDER BY revision_date ASC;
         """
 
-    ########################## Mode tables ###########################
-
     def create_mode_table(mode_ids, is_summary=False):
-        """Create a table for a specific mode"""
+        """Generate a table for the specified mode, returning both its visibility status and the table itself"""
         query = build_revision_query(mode_ids, "s_no")
         data = db.q(query)
+        # determine table visibility
         has_data = len(data) > 0
         cols = ["s_no", "revision_date", "rating", "interval"]
         cls = "uk-overflow-auto max-h-[30vh] p-4"
         if is_summary:
+            # summary table has all the modes, so we need to add mode_name column
             cols.insert(3, "mode_name")
             cls = ""
 
         table = Div(
             Table(
                 Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
+                # get the table data for specific column
                 Tbody(*[_render_row(row, cols) for row in data]),
             ),
             cls=cls,
@@ -5172,8 +5174,11 @@ def display_page_level_details(auth, item_id: int):
 
         return has_data, table
 
+    ########### Summary Table
     has_summary_data, summary_table = create_mode_table(mode_id_list, is_summary=True)
-    ########### Generate tables for all modes dynamically ###########
+
+    ########### Mode specific tables
+    # Dynamically generate tables for each specific revision mode
     mode_data_map = {}
     for mode_id in mode_id_list:
         has_data, table = create_mode_table([mode_id])
@@ -5213,6 +5218,7 @@ def display_page_level_details(auth, item_id: int):
     prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
     next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
 
+    ########### Display Editable Description and Start Text
     item_details = items[item_id]
     description = item_details.description
     start_text = item_details.start_text
