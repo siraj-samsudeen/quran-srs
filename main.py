@@ -1287,6 +1287,479 @@ def render_stats_summary_table(auth, target_counts):
     )
 
 
+#################### start ## Custom Single and Bulk Entry ################################
+# old
+
+#  old
+
+
+def create_revision_form(type, show_id_fields=False):
+    def RadioLabel(o):
+        value, label = o
+        is_checked = True if value == "1" else False
+        return Div(
+            FormLabel(
+                Radio(
+                    id="rating", value=value, checked=is_checked, autofocus=is_checked
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+        )
+
+    def _option(obj):
+        return Option(
+            f"{obj.id} ({obj.name})",
+            value=obj.id,
+            # TODO: Temp condition for selecting siraj, later it should be handled by sess
+            # Another caviat is that siraj should be in the top of the list of users
+            # or else the edit functionality will not work properly.
+            selected=True if "siraj" in obj.name.lower() else False,
+        )
+
+    additional_fields = (
+        mode_dropdown(),
+        LabelInput("Plan Id", name="plan_id", type="number"),
+        LabelInput(
+            "Revision Date",
+            name="revision_date",
+            type="date",
+            value=current_time("%Y-%m-%d"),
+            cls="space-y-2 col-span-2",
+        ),
+    )
+
+    return Form(
+        Hidden(name="id"),
+        # Hide the User selection temporarily
+        LabelSelect(
+            *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
+        ),
+        (
+            toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
+            if type == "add"
+            else Grid(*additional_fields)
+        ),
+        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
+        Div(
+            FormLabel("Rating"),
+            *map(RadioLabel, RATING_MAP.items()),
+            cls="space-y-2 leading-8 sm:leading-6 ",
+        ),
+        Div(
+            Button("Save", cls=ButtonT.primary),
+            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+            cls="flex justify-around items-center w-full",
+        ),
+        action=f"/revision/{type}",
+        method="POST",
+    )
+
+
+# old
+@rt("/revision/entry/add")
+def get(
+    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+):
+    if "-" in page:
+        page = page.split("-")[0]
+
+    page_in_float = float(page)
+    page = int(page_in_float)
+
+    if page >= max_page:
+        return Redirect(index)
+
+    if len(get_item_id(page_number=int(page))) > 1:
+        return Redirect(f"/revision/entry/bulk_add?page={page}&is_part=1")
+
+    try:
+        last_added_record = revisions(where="mode_id = 1")[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
+
+    return main_area(
+        Titled(
+            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
+            fill_form(
+                create_revision_form("add", show_id_fields=show_id_fields),
+                {
+                    "page_no": page,
+                    "mode_id": defalut_mode_value,
+                    "plan_id": defalut_plan_value,
+                    "revision_date": date,
+                },
+            ),
+        ),
+        active="Revision",
+        auth=auth,
+    )
+
+
+@rt("/revision/entry/add")
+def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
+    # The id is set to zero in the form, so we need to delete it
+    # before inserting to generate the id automatically
+    del revision_details.id
+    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+
+    item_id = items(where=f"page_id = {page_no}")[0].id
+    revision_details.item_id = item_id
+
+    # updating the status of the item to memorized
+    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+    hafizs_items.update({"status": "memorized"}, hafizs_items_id)
+
+    rev = revisions.insert(revision_details)
+
+    return Redirect(
+        f"/revision/entry/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+    )
+
+
+# Bulk add
+@app.get("/revision/entry/bulk_add")
+def get(
+    auth,
+    page: str,
+    # is_part is to determine whether it came from single entry page or not
+    is_part: bool = False,
+    mode_id: int = None,
+    plan_id: int = None,
+    revision_date: str = None,
+    length: int = 5,
+    max_page: float = 604.4,
+    show_id_fields: bool = False,
+):
+
+    # the length only matters if the pages have consecutive surahs
+    if "-" in page:
+        page, length = page.split("-")
+
+    # Handle the max page
+    if float(page) >= max_page:
+        return Redirect(index)
+
+    if "." in page:
+        page, part = page.split(".")
+        part = int(part)
+    else:
+        part = None
+
+    page = int(page)
+    length = int(length)
+
+    # This is to show only one page if it came from single entry
+    if is_part:
+        length = 1
+
+    last_page = page + length
+
+    if last_page > max_page:
+        last_page = math.ceil(max_page)
+
+    item_ids = flatten_list(
+        [get_item_id(page_number=p) for p in range(page, last_page)]
+    )
+
+    description = ""
+
+    # if there is part in the page number,
+    # then we need to slice them to exclude already added part
+    if part:
+        item_ids = item_ids[part - 1 :]
+
+    if not is_part:
+
+        # This will responsible for stopping the length on surah or juz end
+        # TODO: currently we are not showing what is stopped like `juz end` or `surah end`
+        _temp_item_ids = []
+        first_page_surah = get_surah_name(item_id=item_ids[0])
+        first_page_juz = get_juz_name(item_id=item_ids[0])
+
+        for item_id in item_ids:
+            current_surah = get_surah_name(item_id=item_id)
+            current_juz = get_juz_name(item_id=item_id)
+
+            if current_surah != first_page_surah and current_juz != first_page_juz:
+                description = "Surah and Juz ends"
+                break
+            elif current_surah != first_page_surah:
+                description = "Surah ends"
+                break
+            elif current_juz != first_page_juz:
+                description = "Juz ends"
+                break
+            else:
+                _temp_item_ids.append(item_id)
+
+        if _temp_item_ids:
+            item_ids = _temp_item_ids
+
+    last_page = items[item_ids[-1]].page_id
+
+    def _render_row(item_id):
+
+        def _render_radio(o):
+            value, label = o
+            is_checked = True if value == "1" else False
+            return FormLabel(
+                Radio(
+                    id=f"rating-{item_id}",
+                    value=value,
+                    checked=is_checked,
+                    cls="toggleable-radio",
+                ),
+                Span(label),
+                cls="space-x-2",
+            )
+
+        current_page_details = items[item_id]
+        return Tr(
+            Td(
+                CheckboxX(
+                    name="ids",
+                    value=item_id,
+                    cls="revision_ids",
+                    _at_click="handleCheckboxClick($event)",
+                )
+            ),
+            Td(P(current_page_details.page_id)),
+            Td(current_page_details.part),
+            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(
+                Div(
+                    *map(_render_radio, RATING_MAP.items()),
+                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
+                )
+            ),
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th(
+                    CheckboxX(
+                        cls="select_all", x_model="selectAll", _at_change="toggleAll()"
+                    )
+                ),
+                Th("Page"),
+                Th("Part"),
+                Th("Start"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(
+            *map(_render_row, item_ids),
+            (
+                Tr(Td(P(description), colspan="5", cls="text-center"))
+                if description
+                else None
+            ),
+        ),
+        x_data=select_all_checkbox_x_data(
+            class_name="revision_ids",
+            is_select_all="false" if is_part else "true",
+        ),
+        x_init="toggleAll()",
+    )
+
+    action_buttons = Div(
+        Button(
+            "Save",
+            cls=ButtonT.primary,
+        ),
+        A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+        cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
+    )
+
+    try:
+        last_added_record = revisions(where="mode_id = 1")[-1]
+    except IndexError:
+        defalut_mode_value = 1
+        defalut_plan_value = None
+    else:
+        defalut_mode_value = last_added_record.mode_id
+        defalut_plan_value = last_added_record.plan_id
+
+    # if this page comes from single entry page, then we are displaying the all the surahs in that page
+    if is_part:
+        heading = f"{page} - " + ", ".join(
+            [get_surah_name(item_id=item_id) for item_id in item_ids]
+        )
+    # if the bulk entry page shows only start page
+    elif len(item_ids) == 1:
+        heading = f"{page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
+    else:
+        heading = f"{page} => {last_page} - {get_surah_name(item_id=item_ids[-1])} - Juz {get_juz_name(item_id=item_ids[-1])}"
+
+    return main_area(
+        H1(heading),
+        Form(
+            Hidden(name="length", value=length),
+            Hidden(name="is_part", value=str(is_part)),
+            toggle_input_fields(
+                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
+                LabelInput(
+                    "Plan ID",
+                    name="plan_id",
+                    type="number",
+                    value=(plan_id or defalut_plan_value),
+                ),
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=(revision_date or current_time("%Y-%m-%d")),
+                    cls="space-y-2 col-span-2",
+                ),
+                show_id_fields=show_id_fields,
+            ),
+            Div(table, cls="uk-overflow-auto"),
+            action_buttons,
+            action="/revision/entry/bulk_add",
+            method="POST",
+        ),
+        Script(src="/public/script.js"),
+        active="Revision",
+        auth=auth,
+    )
+
+
+@rt("/revision/entry/bulk_add")
+async def post(
+    revision_date: str,
+    mode_id: int,
+    plan_id: int,
+    length: int,
+    is_part: bool,
+    auth,
+    req,
+    show_id_fields: bool = False,
+):
+    plan_id = set_zero_to_none(plan_id)
+    form_data = await req.form()
+    item_ids = form_data.getlist("ids")
+
+    parsed_data = []
+    for name, value in form_data.items():
+        if name.startswith("rating-"):
+            item_id = name.split("-")[1]
+            if item_id in item_ids:
+                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+                hafizs_items.update({"status": "memorized"}, hafizs_items_id)
+                parsed_data.append(
+                    Revision(
+                        item_id=int(item_id),
+                        rating=int(value),
+                        hafiz_id=auth,
+                        revision_date=revision_date,
+                        mode_id=mode_id,
+                        plan_id=plan_id,
+                    )
+                )
+
+    revisions.insert_all(parsed_data)
+    if parsed_data:
+        last_item_id = parsed_data[-1].item_id
+        # To show the next page
+        last_page = items[last_item_id].page_id
+    else:
+        return Redirect(index)
+
+    last_page_item_ids = get_item_id(last_page)
+
+    if not last_page_item_ids:
+        return Redirect(index)  # Handle the case where no items are found
+
+    # if the last added page doesn't have part or it is the last part of that particular page
+    # then add full page
+    if len(last_page_item_ids) == 1 or last_item_id == last_page_item_ids[-1]:
+        next_page = last_page + 1
+    #  or if the page has parts then add decimal such as 604.2, 604.3
+    else:
+        next_page = f"{last_page}.{last_page_item_ids.index(last_item_id) + 2}"
+        next_page = float(next_page)
+
+    if is_part:
+        return Redirect(
+            f"/revision/entry/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
+        )
+
+    return Redirect(
+        f"/revision/entry/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+    )
+
+
+# This route is used to redirect to the appropriate revision entry form
+@rt("/revision/entry")
+def post(type: str, page: str):
+    if type == "bulk":
+        return Redirect(f"/revision/entry/bulk_add?page={page}")
+    elif type == "single":
+        return Redirect(f"/revision/entry/add?page={page}")
+
+
+# new function for retain input
+def custom_entry():
+    revision_data = revisions(where="mode_id = 1")
+    last_added_item_id = revision_data[-1].item_id if revision_data else None
+
+    if last_added_item_id:
+        item_details = items[last_added_item_id]
+        last_added_page = item_details.page_id
+
+        if item_details.item_type == "page-part":
+            # fill the page input with parts based on the last added record
+            # to start from the next part
+            if "1" in item_details.part:
+                last_added_page = last_added_page + 0.2
+            elif (
+                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
+                and "2" in item_details.part
+            ):
+                last_added_page = last_added_page + 0.3
+    else:
+        last_added_page = None
+
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
+        last_added_page = None
+    # if not last_added_page:
+    #     last_added_page = 1
+    if isinstance(last_added_page, int):
+        last_added_page += 1
+    entry_buttons = Form(
+        DivLAligned(
+            Input(
+                type="text",
+                placeholder="page",
+                cls="w-20",
+                id="page",
+                value=last_added_page,
+                autocomplete="off",
+                required=True,
+            ),
+            Button("Bulk", name="type", value="bulk", cls=ButtonT.link),
+            Button("Single", name="type", value="single", cls=ButtonT.link),
+            cls=("gap-3", FlexT.wrap),
+        ),
+        action="/revision/entry",
+        method="POST",
+    )
+    return Div(
+        entry_buttons,
+        cls="flex-wrap gap-4 min-w-72 m-4",
+    )
+
+
+############################ END # Custom Single and Bulk Entry ################################
+
+
 @rt
 def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
@@ -1466,18 +1939,23 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         Div(
             description,
-            Table(
-                Thead(
-                    Tr(
-                        # Th("Plan Id"),
-                        Th("Next"),
-                        Th("Entry"),
-                    )
-                ),
-                Tbody(*map(render_overall_row, items_gaps_with_limit)),
-                id="monthly_cycle_link_table",
+            (
+                Table(
+                    Thead(
+                        Tr(
+                            # Th("Plan Id"),
+                            Th("Next"),
+                            Th("Entry"),
+                        )
+                    ),
+                    Tbody(*map(render_overall_row, items_gaps_with_limit)),
+                    id="monthly_cycle_link_table",
+                )
+                if len(items_gaps_with_limit) > 1
+                else Div(id="monthly_cycle_link_table")
             ),
-            cls="uk-overflow-auto",
+            Tr(Td(custom_entry())),
+            # cls="uk-overflow-auto",
         ),
         open=True,
     )
