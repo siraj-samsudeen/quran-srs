@@ -4952,7 +4952,7 @@ def get_ordered_mode_name_and_id():
             zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
         )
     )
-    return mode_id_list, mode_name_list
+    return list(mode_id_list), list(mode_name_list)
 
 
 @app.get("/page_details")
@@ -5093,13 +5093,10 @@ def display_page_level_details(auth, item_id: int):
         # If no modes exist, skip first revision logic
         memorization_summary = ""
     else:
-        mode_ids_tuple = (
-            tuple(mode_id_list) if len(mode_id_list) > 1 else f"({mode_id_list[0]})"
-        )
         first_revision_query = f""" SELECT 
         revision_date, mode_id
         FROM revisions
-        WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN {mode_ids_tuple}
+        WHERE item_id = {item_id} AND hafiz_id = {auth} and mode_id IN ({", ".join(map(str, mode_id_list))})
         ORDER BY revision_date ASC
         LIMIT 1;
         """
@@ -5147,12 +5144,12 @@ def display_page_level_details(auth, item_id: int):
             END AS interval
             FROM revisions
             JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN {mode_ids}
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN ({", ".join(map(str, mode_id_list))})
             ORDER BY revision_date ASC;
         """
 
     summary_table_query = build_revision_summary_query(
-        mode_ids=tuple(mode_id_list), row_alias="s_no"
+        mode_ids=mode_id_list, row_alias="s_no"
     )
     summary_data = db.q(summary_table_query)
     is_summary_data = True if len(summary_data) != 0 else False
