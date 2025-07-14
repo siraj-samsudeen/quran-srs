@@ -1696,7 +1696,7 @@ async def post(
 @rt("/revision/entry")
 def post(type: str, page: str):
     if type == "bulk":
-        return Redirect(f"/revision/entry/bulk_add?page={page}")
+        return Redirect(f"/revision/bulk_add?page={page}")
     elif type == "single":
         # The page value might have '-number' to show extra pages (like '604.2-3'),
         # but for a single entry, we only need the first page.
@@ -3400,13 +3400,15 @@ def update_revision_rating(rev_id: int, rating: int):
 def get(
     auth,
     item_id: int = None,
-    page: int = None,
+    # page: int = None,
+    page: str = None,
     length: int = 0,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
     plan_id: int = None,
     revision_date: str = None,
     max_item_id: int = get_last_item_id(),
+    max_page_id: int = 605,
     show_id_fields: bool = False,
 ):
 
@@ -3417,10 +3419,40 @@ def get(
     if not length or length < 0:
         length = get_display_count(auth)
 
+    # process item_id and page_id
     if item_id is not None:
         page = get_page_number(item_id)
-    elif page is not None:
         item_id = get_item_id(page_number=page)[0]
+    elif page is not None:
+        if "-" not in page and "." not in page:
+            if int(page) >= max_page_id:
+                return Redirect(index)
+            item_id = get_item_id(page_number=page)[0]
+        if "-" in page:
+            page, length = page.split("-")
+            if "." not in page:
+                item_id = get_item_id(page_number=page)[0]
+        if "." in page:
+            page, part = page.split(".")
+            part = int(part)
+            page = int(page)
+
+            if page >= max_page_id:
+                return Redirect(index)
+
+            item_list = get_item_id(page_number=page)
+            page_part_count = len(item_list)
+
+            if part in ["0", ""] or page_part_count < int(part):
+                # if page_part is invalid or greater than expected, then redirect to show bulk entry page
+                item_id = item_list[0]
+            else:
+                current_page_part = items(
+                    where=f"page_id = {page} and active = 1 and part = {float(part)}"
+                )
+                item_id = current_page_part[0].id
+        page = int(page)
+        length = int(length)
 
     # This is to show only one page if it came from single entry
     if is_part:
