@@ -277,6 +277,15 @@ def populate_hafizs_items_stat_columns(
         hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
+# This function is responsible for updating the hafizs_items stats column and interval column(if needed)
+def update_stats_and_interval(rev_id: int, current_date: str):
+    current_revision = revisions[rev_id]
+    item_id = current_revision.item_id
+    populate_hafizs_items_stat_columns(item_id=item_id)
+    if current_revision.mode_id == 5:
+        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
+
+
 def get_item_id(page_number: int, not_memorized_only: bool = False):
     """
     This function will lookup the page_number in the `hafizs_items` table
@@ -2205,6 +2214,8 @@ def mark_as_new_memorized(
         del hafizs_items_data.status
         hafizs_items_data.mode_id = 1
         hafizs_items.update(hafizs_items_data)
+
+    populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return RedirectResponse(referer, status_code=303)
 
@@ -2242,6 +2253,8 @@ def bulk_mark_as_new_memorized(
             },
             hafizs_items_id,
         )
+
+    populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -2732,23 +2745,28 @@ def get(revision_id: int, auth, req):
 
 
 @rt("/revision/edit")
-def post(revision_details: Revision, backlink: str):
+def post(revision_details: Revision, backlink: str, auth):
     # setting the plan_id to None if it is 0
     # as it get defaults to 0 if the field is empty.
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    revisions.update(revision_details)
+    current_revision = revisions.update(revision_details)
+    update_stats_and_interval(
+        rev_id=current_revision.id, current_date=get_current_date(auth)
+    )
     return Redirect(backlink)
 
 
 @rt("/revision/delete/{revision_id}")
-def delete(revision_id: int):
+def delete(revision_id: int, auth):
     revisions.delete(revision_id)
+    update_stats_and_interval(rev_id=revision_id, current_date=get_current_date(auth))
 
 
 @app.delete("/revision")
-def revision_delete_all(ids: List[int]):
+def revision_delete_all(ids: List[int], auth):
     for id in ids:
         revisions.delete(id)
+        update_stats_and_interval(rev_id=id, current_date=get_current_date(auth))
     return RedirectResponse(revision, status_code=303)
 
 
@@ -2874,7 +2892,7 @@ def bulk_edit_view(ids: str, auth):
 
 
 @app.post("/revision")
-async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
+async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req, auth):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
@@ -2891,6 +2909,9 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
                         mode_id=mode_id,
                         plan_id=plan_id,
                     )
+                )
+                update_stats_and_interval(
+                    rev_id=int(current_id), current_date=get_current_date(auth)
                 )
 
     return RedirectResponse("/revision", status_code=303)
@@ -2954,18 +2975,20 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     hafizs_items.update({"status": "memorized"}, hafizs_items_id)
 
     rev = revisions.insert(revision_details)
-
+    populate_hafizs_items_stat_columns(item_id=item_id)
     return Redirect(
         f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
     )
 
 
+# This is to update the rating from the summary table
 @app.put("/revision/{rev_id}")
 def update_revision_rating(rev_id: int, rating: int):
     revisions.update({"rating": rating}, rev_id)
 
     current_revision = revisions[rev_id]
     item_id = current_revision.item_id
+    # The recalculation is not need as we are editing the rating for the current_date
     if current_revision.mode_id == 5:
         next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
 
@@ -3231,6 +3254,11 @@ async def post(
                 )
 
     revisions.insert_all(parsed_data)
+
+    # Update the stat columns for the added items
+    for rec in parsed_data:
+        populate_hafizs_items_stat_columns(item_id=rec.item_id)
+
     if parsed_data:
         last_item_id = parsed_data[-1].item_id
     else:
@@ -3788,14 +3816,13 @@ def resolve_update_data(current_item, selected_status):
     return {"status": selected_status, "mode_id": 1}
 
 
-##
+# This page is related to `profile`
 @app.post("/update_checkbox/{current_type}/{type_number}/{filter_status}")
 async def update_status(
     current_type: str, type_number: int, filter_status: str, req: Request, auth
 ):
     form_data = await req.form()
     existing_status = filter_status
-    ##
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.active != 0;"""
@@ -3818,6 +3845,7 @@ async def update_status(
     return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
 
 
+# This page is related to `profile`
 @app.post("/update_status/{current_type}/{type_number}")
 def update_page_status(
     current_type: str,
@@ -3855,6 +3883,7 @@ def update_page_status(
     return RedirectResponse(referer, status_code=303)
 
 
+# This page is related to `profile`
 @app.post("/partial_profile/{current_type}/{type_number}")
 async def update_page_status(
     current_type: str,
@@ -4363,6 +4392,7 @@ def watch_list_edit_data(revision_details: Revision):
     revisions.update(revision_details)
     item_id = revision_details.item_id
     update_review_dates(item_id, 4)
+    populate_hafizs_items_stat_columns(item_id=item_id)
     return RedirectResponse(f"/watch_list", status_code=303)
 
 
@@ -4370,6 +4400,7 @@ def watch_list_edit_data(revision_details: Revision):
 def watch_list_delete_data(id: int, item_id: int):
     revisions.delete(id)
     update_review_dates(item_id, 4)
+    populate_hafizs_items_stat_columns(item_id=item_id)
     return Redirect("/watch_list")
 
 
@@ -4386,6 +4417,7 @@ def watch_list_add_data(revision_details: Revision, auth):
         return RedirectResponse(f"/watch_list", status_code=303)
 
     update_review_dates(item_id, 4)
+    populate_hafizs_items_stat_columns(item_id=item_id)
 
     return RedirectResponse("/watch_list", status_code=303)
 
@@ -4693,6 +4725,8 @@ def delete(auth, request, item_id: str):
     del hafizs_items_data.status
     hafizs_items_data.mode_id = 1
     hafizs_items.update(hafizs_items_data)
+    populate_hafizs_items_stat_columns(item_id=item_id)
+
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
