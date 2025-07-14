@@ -5601,7 +5601,7 @@ def srs_detailed_page_view(
         )
 
     sort_fields = Form(
-        P("Sort Options: ", cls=TextPresets.bold_lg),
+        P("Sort Options: ", cls=TextT.bold),
         custom_select(name="sort_col", vals=columns, default_val=sort_col),
         custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
         LabelSwitch(
@@ -5630,40 +5630,43 @@ def srs_detailed_page_view(
     )
     srs_eligible_table = Div(
         H4("Eligible Pages"),
-        sort_fields,
-        Form(
-            Div(
-                Table(
-                    Thead(
-                        Tr(
-                            *map(Td, columns[:2]),
-                            Td(
-                                CheckboxX(
-                                    cls=("select_all"),
-                                    x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                                    _at_change="toggleAll()",  # based on that update the status of all the checkboxes
-                                )
+        Div(
+            sort_fields,
+            Form(
+                Div(
+                    Table(
+                        Thead(
+                            Tr(
+                                *map(Td, columns[:2]),
+                                Td(
+                                    CheckboxX(
+                                        cls=("select_all"),
+                                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                                    )
+                                ),
+                                Td(""),
+                                *map(Td, columns[2:]),
                             ),
-                            Td(""),
-                            *map(Td, columns[2:]),
+                            cls="sticky z-50 top-0 bg-white",
                         ),
-                        cls="sticky z-50 top-0 bg-white",
+                        Tbody(*map(render_srs_eligible_rows, eligible_records)),
+                        # defining the reactive data for for component to reference (alpine.js)
+                        x_data=select_all_with_shift_click_for_summary_table(
+                            class_name="srs_eligible_table"
+                        ),
+                        # initializing the updateSelectAll function to select the selectAll checkboxe.
+                        # if all the below checkboxes are selected.
+                        x_init="updateSelectAll()",
                     ),
-                    Tbody(*map(render_srs_eligible_rows, eligible_records)),
-                    # defining the reactive data for for component to reference (alpine.js)
-                    x_data=select_all_with_shift_click_for_summary_table(
-                        class_name="srs_eligible_table"
-                    ),
-                    # initializing the updateSelectAll function to select the selectAll checkboxe.
-                    # if all the below checkboxes are selected.
-                    x_init="updateSelectAll()",
+                    cls="space-y-2 uk-overflow-auto h-[32vh]",
+                    id="srs_eligible_table",
                 ),
-                cls="space-y-2 uk-overflow-auto h-[32vh]",
-                id="srs_eligible_table",
+                srs_start_btn,
+                cls="space-y-2"
             ),
-            srs_start_btn,
         ),
-        cls="space-y-2",
+        cls="space-y-2 mt-4",
     )
 
     ############ current_srs_table ############
@@ -5760,7 +5763,7 @@ def srs_detailed_page_view(
                 ),
             ),
             srs_eligible_table,
-            Divider(),
+            Divider(cls=('mb-4', DividerT.icon)),
             current_srs_table,
         ),
         auth=auth,
