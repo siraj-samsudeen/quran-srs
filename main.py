@@ -107,25 +107,117 @@ app, rt = fast_app(
 )
 
 
-def populate_hafizs_items_stat_columns(item_id: int = None):
+def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
     """
-    Populate or update statistics columns for Hafiz items.
+    Recalculates SRS (Spaced Repetition System) intervals for a specific item based on its revision history.
 
-    This function calculates and updates various statistics for memorization items,
-    including good/bad streaks, review counts, and overall score. It can update
+    Args:
+        item_id (int): The unique identifier of the item being processed.
+        current_date (str): The current date used for interval calculations.
+
+    Returns:
+        None: Updates the item's SRS intervals in the database, or returns None if no revision records exist.
+
+    Notes:
+        - Handles initial state when no revision records are found
+        - Calculates intervals based on previous revision dates and ratings
+        - Updates item's next review interval and date dynamically
+    """
+    hafiz_item_details = get_hafizs_items(item_id)
+    srs_start_date = hafiz_item_details.srs_start_date
+
+    # Here we are taking the start_interval
+    # as we want the start_interval as the starting point, when looping through all the records
+    booster_id = hafiz_item_details.srs_booster_pack_id
+    start_interval = srs_booster_pack[booster_id].start_interval
+
+    items_rev_data = revisions(
+        where=f"item_id = {item_id} AND mode_id = 5 AND revision_date >= '{srs_start_date}'",
+        order_by="revision_date ASC",
+    )
+
+    # If no records, reset to initial state (Either deleted all records or not even started)
+    if not items_rev_data:
+        hafiz_item_details.next_interval = start_interval
+        hafiz_item_details.next_review = add_days_to_date(
+            srs_start_date, start_interval
+        )
+        hafiz_item_details.last_interval = None
+        hafiz_item_details.current_interval = calculate_days_difference(
+            srs_start_date, current_date
+        )
+        hafizs_items.update(hafiz_item_details)
+        return None
+
+    intervals = get_srs_interval_list(item_id)
+    previous_date = srs_start_date
+    current_interval_position = start_interval
+
+    for rev in items_rev_data:
+        current_revision_date = rev.revision_date
+        current_interval = calculate_days_difference(
+            previous_date, current_revision_date
+        )
+        last_interval = current_interval_position
+
+        # This is get the previous and next interval based in the `last_interval` -> [1,2,3] the middle one is the `last_interval`
+        # "good": move forward in sequence
+        # "ok": stay at same position
+        # "bad": move backward in sequence
+        rating_intervals = get_interval_triplet(
+            current_interval=last_interval, interval_list=intervals
+        )
+        next_interval = rating_intervals[rev.rating + 1]
+
+        data_to_update = {
+            "last_interval": last_interval,
+            "current_interval": current_interval,
+            "next_interval": next_interval,
+        }
+        revisions.update(data_to_update, rev.id)
+
+        # Update hafizs_items with final state
+        if rev.id == items_rev_data[-1].id:
+            data_to_update["last_review"] = current_revision_date
+            data_to_update["next_review"] = add_days_to_date(
+                current_revision_date, data_to_update["next_interval"]
+            )
+            data_to_update["current_interval"] = calculate_days_difference(
+                current_revision_date, current_date
+            )
+            hafizs_items.update(data_to_update, hafiz_item_details.id)
+            break
+
+        # Prepare for the next iteration
+        previous_date = current_revision_date
+        current_interval_position = next_interval  # (for next iteration)
+
+
+def populate_hafizs_items_stat_columns(
+    item_id: int = None,
+    # current_date: str,
+    # update_srs: bool = True,
+):
+    """
+    Populate or update statistics columns for Hafiz items in the memorization tracking system.
+
+    This function calculates and updates various review-related statistics for memorization items,
+    including good/bad review streaks, review counts, and overall review score. It can update
     statistics for a specific item or all items in the hafizs_items table.
 
     Args:
+        current_date (str): The current date used for interval calculations.
         item_id (int, optional): Specific item ID to update. If None, updates all items.
+        update_srs (bool, optional): Whether to recalculate SRS intervals. Defaults to True.
 
     Returns:
         None: Updates hafizs_items table directly with calculated statistics.
 
-    Internal method that computes review-related metrics like:
-    - Consecutive good/bad review streaks
-    - Total good and bad review counts
-    - Last review date
-    - Cumulative review score
+    The function performs the following key operations:
+    - Computes consecutive good and bad review streaks
+    - Tracks total good and bad review counts
+    - Calculates cumulative review score
+    - Optionally updates Spaced Repetition System (SRS) intervals
     """
 
     def get_item_id_summary(item_id: int):
@@ -682,21 +774,14 @@ def get_interval_based_on_rating(
 def update_hafiz_items_for_srs(
     item_id: int, mode_id: int, current_date: str, rating: int, is_checked: bool
 ):
-    latest_revision_date = get_lastest_date(item_id, mode_id)
-    current_hafiz_item = get_hafizs_items(item_id)
-
-    if latest_revision_date:
-        # In here the `is_checked` is used to check if the item is deleted or created
+    if is_checked:
+        latest_revision_date = get_lastest_date(item_id, mode_id)
+        current_hafiz_item = get_hafizs_items(item_id)
         # TODO: the current_interval is difference between last_review and current_date instead of the last_interval
-        next_interval = (
-            get_interval_based_on_rating(item_id, rating)
-            if is_checked
-            else current_hafiz_item.current_interval
-        )
+        next_interval = get_interval_based_on_rating(item_id, rating)
         current_hafiz_item.last_interval = current_hafiz_item.next_interval
         current_hafiz_item.current_interval = calculate_days_difference(
-            (current_hafiz_item.last_review if is_checked else latest_revision_date),
-            current_date,
+            current_hafiz_item.last_review, current_date
         )
         current_hafiz_item.next_interval = next_interval
         # To update the status of hafizs_items table if it is newly memorized
@@ -704,20 +789,9 @@ def update_hafiz_items_for_srs(
         current_hafiz_item.next_review = add_days_to_date(
             latest_revision_date, next_interval
         )
+        hafizs_items.update(current_hafiz_item)
     else:
-        # This else bolck will run only if we deleted the only record for that mode
-        if mode_id == 5:
-            # TODO: currently if we deleted the only record there is no way of retriving the next_review date
-            current_hafiz_item.next_review = None
-            current_hafiz_item.next_interval = srs_booster_pack[
-                current_hafiz_item.srs_booster_pack_id
-            ].start_interval
-            current_hafiz_item.current_interval = None
-            current_hafiz_item.last_interval = None
-
-    hafizs_items.update(current_hafiz_item)
-    # Update the stat columns of the item_id
-    populate_hafizs_items_stat_columns(item_id=item_id)
+        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
@@ -760,6 +834,7 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
     elif revisions_data and not is_checked:
         # Delete existing revision
         revisions.delete(revisions_data[0].id)
+
     if mode_id == 5:
         update_hafiz_items_for_srs(
             item_id=item_id,
@@ -771,6 +846,9 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
     else:
         # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
         update_review_dates(item_id, mode_id)
+
+    # After the operation populate the stats columns
+    populate_hafizs_items_stat_columns(item_id=item_id)
 
 
 def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
@@ -2887,8 +2965,8 @@ def update_revision_rating(rev_id: int, rating: int):
     revisions.update({"rating": rating}, rev_id)
 
     current_revision = revisions[rev_id]
+    item_id = current_revision.item_id
     if current_revision.mode_id == 5:
-        item_id = current_revision.item_id
         next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
 
         # Update the next_interval, as it is the only column which is based on the rating
@@ -2900,7 +2978,7 @@ def update_revision_rating(rev_id: int, rating: int):
             current_revision.revision_date, next_interval
         )
         hafizs_items.update(current_hafiz_item)
-        populate_hafizs_items_stat_columns(item_id=item_id)
+    populate_hafizs_items_stat_columns(item_id=item_id)
 
 
 # Bulk add
@@ -5413,6 +5491,7 @@ def srs_detailed_page_view(
     is_populate: bool = True,
 ):
     current_date = get_current_date(auth)
+    # TODO: Need to move this into seperate route
     if is_populate:
         # Populate the stat values for all the items before displaying the eligible pages
         populate_hafizs_items_stat_columns()
