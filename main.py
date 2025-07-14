@@ -1417,6 +1417,7 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+    revision_details.mode_id = 1
 
     item_id = items(where=f"page_id = {page_no}")[0].id
     revision_details.item_id = item_id
@@ -1424,7 +1425,8 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     # updating the status of the item to memorized
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update({"status": "memorized"}, hafizs_items_id)
-
+    # inserting the revision details
+    revisions.insert(revision_details)
     return Redirect(
         f"/revision/entry/add?page={page_no + 1}&show_id_fields={show_id_fields}"
     )
@@ -1437,15 +1439,19 @@ def get(
     page: str,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    mode_id: int = None,
     plan_id: int = None,
     revision_date: str = None,
-    length: int = 5,
+    length: int = 0,
     max_page: float = 604.4,
     show_id_fields: bool = False,
 ):
     if revision_date is None:
         revision_date = get_current_date(auth)
+
+    # This is to handle the empty and negative value of `No of page`
+    if not length or length < 0:
+        length = get_display_count(auth)
+
     # the length only matters if the pages have consecutive surahs
     if "-" in page:
         page, length = page.split("-")
@@ -1590,10 +1596,8 @@ def get(
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
-        defalut_mode_value = 1
         defalut_plan_value = None
     else:
-        defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
 
     # if this page comes from single entry page, then we are displaying the all the surahs in that page
@@ -1611,15 +1615,9 @@ def get(
         H1(heading),
         Form(
             Hidden(name="length", value=length),
+            Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
             Hidden(name="is_part", value=str(is_part)),
             toggle_input_fields(
-                mode_dropdown(default_mode=(mode_id or defalut_mode_value)),
-                LabelInput(
-                    "Plan ID",
-                    name="plan_id",
-                    type="number",
-                    value=(plan_id or defalut_plan_value),
-                ),
                 LabelInput(
                     "Revision Date",
                     name="revision_date",
@@ -1635,7 +1633,7 @@ def get(
             method="POST",
         ),
         Script(src="/public/script.js"),
-        active="Revision",
+        active="Home",
         auth=auth,
     )
 
@@ -1643,7 +1641,6 @@ def get(
 @rt("/revision/entry/bulk_add")
 async def post(
     revision_date: str,
-    mode_id: int,
     plan_id: int,
     length: int,
     is_part: bool,
@@ -1668,7 +1665,7 @@ async def post(
                         rating=int(value),
                         hafiz_id=auth,
                         revision_date=revision_date,
-                        mode_id=mode_id,
+                        mode_id=1,
                         plan_id=plan_id,
                     )
                 )
@@ -1697,11 +1694,11 @@ async def post(
 
     if is_part:
         return Redirect(
-            f"/revision/entry/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }&date={revision_date}"
+            f"/revision/entry/add?page={math.ceil(next_page) if isinstance(next_page, float) else next_page  }"
         )
 
     return Redirect(
-        f"/revision/entry/bulk_add?page={next_page}&revision_date={revision_date}&length={length}&mode_id={mode_id}&plan_id={plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/entry/bulk_add?page={next_page}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}"
     )
 
 
@@ -1739,8 +1736,8 @@ def custom_entry():
     # if it is greater than 604, we are reseting the last added page to None
     if isinstance(last_added_page, int) and last_added_page >= 604:
         last_added_page = None
-    # if not last_added_page:
-    #     last_added_page = 1
+    if not last_added_page:
+        last_added_page = 1
     if isinstance(last_added_page, int):
         last_added_page += 1
     entry_buttons = Form(
