@@ -278,11 +278,9 @@ def populate_hafizs_items_stat_columns(
 
 
 # This function is responsible for updating the hafizs_items stats column and interval column(if needed)
-def update_stats_and_interval(rev_id: int, current_date: str):
-    current_revision = revisions[rev_id]
-    item_id = current_revision.item_id
+def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):
     populate_hafizs_items_stat_columns(item_id=item_id)
-    if current_revision.mode_id == 5:
+    if mode_id == 5:
         recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 
@@ -2751,22 +2749,34 @@ def post(revision_details: Revision, backlink: str, auth):
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     current_revision = revisions.update(revision_details)
     update_stats_and_interval(
-        rev_id=current_revision.id, current_date=get_current_date(auth)
+        item_id=current_revision.item_id,
+        mode_id=current_revision.mode_id,
+        current_date=get_current_date(auth),
     )
     return Redirect(backlink)
 
 
 @rt("/revision/delete/{revision_id}")
 def delete(revision_id: int, auth):
+    current_revision = revisions[revision_id]
     revisions.delete(revision_id)
-    update_stats_and_interval(rev_id=revision_id, current_date=get_current_date(auth))
+    update_stats_and_interval(
+        item_id=current_revision.item_id,
+        mode_id=current_revision.mode_id,
+        current_date=get_current_date(auth),
+    )
 
 
 @app.delete("/revision")
 def revision_delete_all(ids: List[int], auth):
     for id in ids:
+        current_revision = revisions[id]
         revisions.delete(id)
-        update_stats_and_interval(rev_id=id, current_date=get_current_date(auth))
+        update_stats_and_interval(
+            item_id=current_revision.item_id,
+            mode_id=current_revision.mode_id,
+            current_date=get_current_date(auth),
+        )
     return RedirectResponse(revision, status_code=303)
 
 
@@ -2911,7 +2921,9 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req, au
                     )
                 )
                 update_stats_and_interval(
-                    rev_id=int(current_id), current_date=get_current_date(auth)
+                    item_id=revisions[int(current_id)].item_id,
+                    mode_id=mode_id,
+                    current_date=get_current_date(auth),
                 )
 
     return RedirectResponse("/revision", status_code=303)
@@ -5663,7 +5675,7 @@ def srs_detailed_page_view(
                     id="srs_eligible_table",
                 ),
                 srs_start_btn,
-                cls="space-y-2"
+                cls="space-y-2",
             ),
         ),
         cls="space-y-2 mt-4",
@@ -5763,7 +5775,7 @@ def srs_detailed_page_view(
                 ),
             ),
             srs_eligible_table,
-            Divider(cls=('mb-4', DividerT.icon)),
+            Divider(cls=("mb-4", DividerT.icon)),
             current_srs_table,
         ),
         auth=auth,
