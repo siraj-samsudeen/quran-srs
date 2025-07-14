@@ -1698,7 +1698,7 @@ def post(type: str, page: str):
     if type == "bulk":
         return Redirect(f"/revision/entry/bulk_add?page={page}")
     elif type == "single":
-        return Redirect(f"/revision/entry/add?page={page}")
+        return Redirect(f"/revision/add?page={page}")
 
 
 # new function for retain input
@@ -3279,13 +3279,17 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 @rt("/revision/add")
 def get(
     auth,
-    item_id: int,
+    item_id: int = None,
+    page: int = None,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
     plan_id: int = None,
 ):
-    page = get_page_number(item_id)
+    if item_id is not None:
+        page = get_page_number(item_id)
+    elif page is not None:
+        item_id = get_item_id(page_number=page)[0]
 
     if page >= max_page:
         return Redirect(index)
@@ -3365,9 +3369,10 @@ def update_revision_rating(rev_id: int, rating: int):
 @app.get("/revision/bulk_add")
 def get(
     auth,
-    item_id: int,
-    # is_part is to determine whether it came from single entry page or not
+    item_id: int = None,
+    page: int = None,
     length: int = 0,
+    # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
     plan_id: int = None,
     revision_date: str = None,
@@ -3382,7 +3387,10 @@ def get(
     if not length or length < 0:
         length = get_display_count(auth)
 
-    page = get_page_number(item_id)
+    if item_id is not None:
+        page = get_page_number(item_id)
+    elif page is not None:
+        item_id = get_item_id(page_number=page)[0]
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -3528,6 +3536,12 @@ def get(
     surah_description = get_description("surah")
     juz_description = get_description("juz")
     page_description = get_description("page")
+    try:
+        last_added_record = revisions(where="mode_id = 1")[-1]
+    except IndexError:
+        defalut_plan_value = None
+    else:
+        defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Div(
@@ -3547,7 +3561,7 @@ def get(
         ),
         Form(
             Hidden(name="is_part", value=str(is_part)),
-            Hidden(name="plan_id", value=plan_id),
+            Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
             Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
                 length_input if not is_part else None,
@@ -3585,9 +3599,9 @@ async def post(
     plan_id: int,
     is_part: bool,
     max_item_id: int,
-    length: int,
     auth,
     req,
+    length: int = 0,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
