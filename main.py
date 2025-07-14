@@ -1299,124 +1299,124 @@ def render_stats_summary_table(auth, target_counts):
 #  old
 
 
-def create_entry_revision_form(type, auth, show_id_fields=False):
-    def _option(obj):
-        return Option(
-            f"{obj.id} ({obj.name})",
-            value=obj.id,
-            # TODO: Temp condition for selecting siraj, later it should be handled by sess
-            # Another caviat is that siraj should be in the top of the list of users
-            # or else the edit functionality will not work properly.
-            selected=True if "siraj" in obj.name.lower() else False,
-        )
+# def create_entry_revision_form(type, auth, show_id_fields=False):
+#     def _option(obj):
+#         return Option(
+#             f"{obj.id} ({obj.name})",
+#             value=obj.id,
+#             # TODO: Temp condition for selecting siraj, later it should be handled by sess
+#             # Another caviat is that siraj should be in the top of the list of users
+#             # or else the edit functionality will not work properly.
+#             selected=True if "siraj" in obj.name.lower() else False,
+#         )
 
-    additional_fields = (
-        *(
-            (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
-            if type == "edit"
-            else ()
-        ),
-        LabelInput(
-            "Revision Date",
-            name="revision_date",
-            type="date",
-            value=get_current_date(auth),
-            cls="space-y-2 col-span-2",
-        ),
-    )
+#     additional_fields = (
+#         *(
+#             (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+#             if type == "edit"
+#             else ()
+#         ),
+#         LabelInput(
+#             "Revision Date",
+#             name="revision_date",
+#             type="date",
+#             value=get_current_date(auth),
+#             cls="space-y-2 col-span-2",
+#         ),
+#     )
 
-    return Form(
-        Hidden(name="id"),
-        Hidden(name="item_id"),
-        Hidden(name="plan_id"),
-        Hidden(name="page_no"),
-        # Hide the User selection temporarily
-        LabelSelect(
-            *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
-        ),
-        (
-            toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
-            if type == "entry/add"
-            else Grid(*additional_fields)
-        ),
-        rating_radio(),
-        Div(
-            Button("Save", cls=ButtonT.primary),
-            A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
-            cls="flex justify-around items-center w-full",
-        ),
-        action=f"/revision/{type}",
-        method="POST",
-    )
-
-
-# old
-@rt("/revision/entry/add")
-def get(
-    auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
-):
-    if "-" in page:
-        page = page.split("-")[0]
-
-    page_in_float = float(page)
-    page = int(page_in_float)
-
-    if page >= max_page:
-        return Redirect(index)
-
-    if len(get_item_id(page_number=int(page))) > 1:
-        return Redirect(f"/revision/entry/bulk_add?page={page}&is_part=1")
-
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_mode_value = 1
-        defalut_plan_value = None
-    else:
-        defalut_mode_value = last_added_record.mode_id
-        defalut_plan_value = last_added_record.plan_id
-    item_id = items(where=f"page_id = {page}")[0].id
-    return main_area(
-        Titled(
-            get_page_description(
-                item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
-            ),
-            fill_form(
-                create_entry_revision_form(
-                    "entry/add", auth=auth, show_id_fields=show_id_fields
-                ),
-                {
-                    "page_no": page,
-                    "mode_id": defalut_mode_value,
-                    "plan_id": defalut_plan_value,
-                    "revision_date": date,
-                },
-            ),
-        ),
-        active="Revision",
-        auth=auth,
-    )
+#     return Form(
+#         Hidden(name="id"),
+#         Hidden(name="item_id"),
+#         Hidden(name="plan_id"),
+#         Hidden(name="page_no"),
+#         # Hide the User selection temporarily
+#         LabelSelect(
+#             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
+#         ),
+#         (
+#             toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
+#             if type == "entry/add"
+#             else Grid(*additional_fields)
+#         ),
+#         rating_radio(),
+#         Div(
+#             Button("Save", cls=ButtonT.primary),
+#             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
+#             cls="flex justify-around items-center w-full",
+#         ),
+#         action=f"/revision/{type}",
+#         method="POST",
+#     )
 
 
-@rt("/revision/entry/add")
-def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
-    # The id is set to zero in the form, so we need to delete it
-    # before inserting to generate the id automatically
-    del revision_details.id
-    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    revision_details.mode_id = 1
+# # old
+# @rt("/revision/entry/add")
+# def get(
+#     auth, page: str, max_page: int = 605, date: str = None, show_id_fields: bool = False
+# ):
+#     if "-" in page:
+#         page = page.split("-")[0]
 
-    item_id = items(where=f"page_id = {page_no}")[0].id
-    revision_details.item_id = item_id
+#     page_in_float = float(page)
+#     page = int(page_in_float)
 
-    # updating the status of the item to memorized
-    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    hafizs_items.update({"status": "memorized"}, hafizs_items_id)
-    # inserting the revision details
-    revisions.insert(revision_details)
-    return Redirect(
-        f"/revision/entry/add?page={page_no + 1}&show_id_fields={show_id_fields}"
-    )
+#     if page >= max_page:
+#         return Redirect(index)
+
+#     if len(get_item_id(page_number=int(page))) > 1:
+#         return Redirect(f"/revision/entry/bulk_add?page={page}&is_part=1")
+
+#     try:
+#         last_added_record = revisions(where="mode_id = 1")[-1]
+#     except IndexError:
+#         defalut_mode_value = 1
+#         defalut_plan_value = None
+#     else:
+#         defalut_mode_value = last_added_record.mode_id
+#         defalut_plan_value = last_added_record.plan_id
+#     item_id = items(where=f"page_id = {page}")[0].id
+#     return main_area(
+#         Titled(
+#             get_page_description(
+#                 item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
+#             ),
+#             fill_form(
+#                 create_entry_revision_form(
+#                     "entry/add", auth=auth, show_id_fields=show_id_fields
+#                 ),
+#                 {
+#                     "page_no": page,
+#                     "mode_id": defalut_mode_value,
+#                     "plan_id": defalut_plan_value,
+#                     "revision_date": date,
+#                 },
+#             ),
+#         ),
+#         active="Revision",
+#         auth=auth,
+#     )
+
+
+# @rt("/revision/entry/add")
+# def post(page_no: int, revision_details: Revision, show_id_fields: bool = False):
+#     # The id is set to zero in the form, so we need to delete it
+#     # before inserting to generate the id automatically
+#     del revision_details.id
+#     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
+#     revision_details.mode_id = 1
+
+#     item_id = items(where=f"page_id = {page_no}")[0].id
+#     revision_details.item_id = item_id
+
+#     # updating the status of the item to memorized
+#     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
+#     hafizs_items.update({"status": "memorized"}, hafizs_items_id)
+#     # inserting the revision details
+#     revisions.insert(revision_details)
+#     return Redirect(
+#         f"/revision/entry/add?page={page_no + 1}&show_id_fields={show_id_fields}"
+#     )
 
 
 # Bulk add
@@ -1698,6 +1698,10 @@ def post(type: str, page: str):
     if type == "bulk":
         return Redirect(f"/revision/entry/bulk_add?page={page}")
     elif type == "single":
+        # The page value might have '-number' to show extra pages (like '604.2-3'),
+        # but for a single entry, we only need the first page.
+        if "-" in page:
+            page = page.split("-")[0]
         return Redirect(f"/revision/add?page={page}")
 
 
@@ -1739,6 +1743,8 @@ def custom_entry():
                 id="page",
                 value=last_added_page,
                 autocomplete="off",
+                pattern=r"^\d+(\.\d+)?(-\d+)?$",
+                title="Enter format like 604, 604.2, or 604.2-3",
                 required=True,
             ),
             Button("Bulk", name="type", value="bulk", cls=ButtonT.link),
@@ -3280,7 +3286,7 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 def get(
     auth,
     item_id: int = None,
-    page: int = None,
+    page: str = None,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
@@ -3289,14 +3295,38 @@ def get(
     if item_id is not None:
         page = get_page_number(item_id)
     elif page is not None:
-        item_id = get_item_id(page_number=page)[0]
+        if "." in page:
+            page, page_part = page.split(".")
+            page = int(page)
 
-    if page >= max_page:
+            if page >= max_page:
+                # if page is invalid then redirect to index
+                return Redirect(index)
+            item_list = get_item_id(page_number=page)
+            page_part_count = len(item_list)
+
+            if page_part in ["0", ""] or page_part_count < int(page_part):
+                # if page_part is invalid or greater than expected, then redirect to show bulk entry page
+                item_id = item_list[0]
+                return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
+            else:
+                current_page_part = items(
+                    where=f"page_id = {page} and active = 1 and part = {float(page_part)}"
+                )
+                item_id = current_page_part[0].id
+        else:
+            page = int(page)
+
+            if page >= max_page:
+                return Redirect(index)
+
+            item_list = get_item_id(page_number=page)
+            item_id = item_list[0]
+            #  if page has parts then show all decendent parts (full page)
+            if len(item_list) > 1:
+                return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
+    else:
         return Redirect(index)
-
-    if len(get_item_id(page_number=page)) > 1:
-        return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
-
     try:
         last_added_record = revisions(where="mode_id = 1")[-1]
     except IndexError:
