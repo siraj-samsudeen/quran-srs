@@ -5521,14 +5521,8 @@ def srs_detailed_page_view(
     sort_col: str = "last_review_date",
     sort_type: str = "desc",
     is_bad_streak: bool = False,
-    # Skip refreshing hafizs_items stats when starting SRS (prevents refresh on redirect)
-    is_populate: bool = True,
 ):
     current_date = get_current_date(auth)
-    # TODO: Need to move this into seperate route
-    if is_populate:
-        # Populate the stat values for all the items before displaying the eligible pages
-        populate_hafizs_items_stat_columns()
 
     # This table is responsible for showing the eligible pages for SRS
     columns = [
@@ -5619,7 +5613,7 @@ def srs_detailed_page_view(
         ),
         P("Applying the sort...", cls="htmx-indicator"),
         cls=("w-full gap-1 md:gap-4", FlexT.block, FlexT.middle),
-        hx_get="/srs?is_populate=false",
+        hx_get="/srs",
         hx_target="#srs_eligible_table",
         hx_select="#srs_eligible_table",
         hx_swap="outerHTML",
@@ -5755,7 +5749,20 @@ def srs_detailed_page_view(
     )
 
     return main_area(
-        Div(H1(get_mode_name(5)), srs_eligible_table, Divider(), current_srs_table),
+        Div(
+            DivFullySpaced(
+                H1(get_mode_name(5)),
+                A(
+                    "Refresh stats",
+                    hx_get="/update_stats_column",
+                    hx_swap="none",
+                    cls=AT.classic,
+                ),
+            ),
+            srs_eligible_table,
+            Divider(),
+            current_srs_table,
+        ),
         auth=auth,
         active="SRS",
     )
@@ -5783,7 +5790,7 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
 
-    return RedirectResponse("/srs?is_populate=False")
+    return RedirectResponse("/srs")
 
 
 # This route is responsible for the adding multiple record
@@ -5819,6 +5826,11 @@ def update_current_date(auth, current_date: str):
     current_hafiz.current_date = current_date
     hafizs.update(current_hafiz)
     return RedirectResponse("/change_current_date", status_code=303)
+
+
+@app.get("/update_stats_column")
+def update_stats_column():
+    populate_hafizs_items_stat_columns()
 
 
 serve()
