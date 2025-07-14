@@ -1299,7 +1299,9 @@ def render_stats_summary_table(auth, target_counts):
 #  old
 
 
-def create_revision_form(type, show_id_fields=False):
+def create_entry_revision_form(type, auth, show_id_fields=False):
+    print("old")
+
     def RadioLabel(o):
         value, label = o
         is_checked = True if value == "1" else False
@@ -1324,29 +1326,34 @@ def create_revision_form(type, show_id_fields=False):
         )
 
     additional_fields = (
-        mode_dropdown(),
-        LabelInput("Plan Id", name="plan_id", type="number"),
+        *(
+            (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+            if type == "edit"
+            else ()
+        ),
         LabelInput(
             "Revision Date",
             name="revision_date",
             type="date",
-            value=current_time("%Y-%m-%d"),
+            value=get_current_date(auth),
             cls="space-y-2 col-span-2",
         ),
     )
 
     return Form(
         Hidden(name="id"),
+        Hidden(name="item_id"),
+        Hidden(name="plan_id"),
+        Hidden(name="page_no"),
         # Hide the User selection temporarily
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         (
             toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
-            if type == "add"
+            if type == "entry/add"
             else Grid(*additional_fields)
         ),
-        LabelInput("Page", name="page_no", type="number", input_cls="text-2xl"),
         Div(
             FormLabel("Rating"),
             *map(RadioLabel, RATING_MAP.items()),
@@ -1392,7 +1399,9 @@ def get(
         Titled(
             f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
             fill_form(
-                create_revision_form("add", show_id_fields=show_id_fields),
+                create_entry_revision_form(
+                    "entry/add", auth=auth, show_id_fields=show_id_fields
+                ),
                 {
                     "page_no": page,
                     "mode_id": defalut_mode_value,
@@ -1758,8 +1767,7 @@ def custom_entry():
         method="POST",
     )
     return Div(
-        entry_buttons,
-        cls="flex-wrap gap-4 min-w-72 m-4",
+        entry_buttons, cls="flex-wrap gap-4 min-w-72 m-4", id="custom_entry_link"
     )
 
 
@@ -1960,7 +1968,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 if len(items_gaps_with_limit) > 1
                 else Div(id="monthly_cycle_link_table")
             ),
-            Tr(Td(custom_entry())),
+            custom_entry(),
             # cls="uk-overflow-auto",
         ),
         open=True,
@@ -2380,7 +2388,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table, #custom_entry_link",
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
