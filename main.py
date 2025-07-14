@@ -1354,11 +1354,7 @@ def create_entry_revision_form(type, auth, show_id_fields=False):
             if type == "entry/add"
             else Grid(*additional_fields)
         ),
-        Div(
-            FormLabel("Rating"),
-            *map(RadioLabel, RATING_MAP.items()),
-            cls="space-y-2 leading-8 sm:leading-6 ",
-        ),
+        rating_radio(),
         Div(
             Button("Save", cls=ButtonT.primary),
             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
@@ -1429,10 +1425,8 @@ def post(page_no: int, revision_details: Revision, show_id_fields: bool = False)
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update({"status": "memorized"}, hafizs_items_id)
 
-    rev = revisions.insert(revision_details)
-
     return Redirect(
-        f"/revision/entry/add?page={page_no + 1}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+        f"/revision/entry/add?page={page_no + 1}&show_id_fields={show_id_fields}"
     )
 
 
@@ -1450,7 +1444,8 @@ def get(
     max_page: float = 604.4,
     show_id_fields: bool = False,
 ):
-
+    if revision_date is None:
+        revision_date = get_current_date(auth)
     # the length only matters if the pages have consecutive surahs
     if "-" in page:
         page, length = page.split("-")
@@ -1629,7 +1624,7 @@ def get(
                     "Revision Date",
                     name="revision_date",
                     type="date",
-                    value=(revision_date or current_time("%Y-%m-%d")),
+                    value=revision_date,
                     cls="space-y-2 col-span-2",
                 ),
                 show_id_fields=show_id_fields,
