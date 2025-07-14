@@ -1300,21 +1300,6 @@ def render_stats_summary_table(auth, target_counts):
 
 
 def create_entry_revision_form(type, auth, show_id_fields=False):
-    print("old")
-
-    def RadioLabel(o):
-        value, label = o
-        is_checked = True if value == "1" else False
-        return Div(
-            FormLabel(
-                Radio(
-                    id="rating", value=value, checked=is_checked, autofocus=is_checked
-                ),
-                Span(label),
-                cls="space-x-2",
-            )
-        )
-
     def _option(obj):
         return Option(
             f"{obj.id} ({obj.name})",
@@ -1390,10 +1375,12 @@ def get(
     else:
         defalut_mode_value = last_added_record.mode_id
         defalut_plan_value = last_added_record.plan_id
-
+    item_id = items(where=f"page_id = {page}")[0].id
     return main_area(
         Titled(
-            f"{page} - {get_surah_name(page_id=page)} - {pages[page].start_text}",
+            get_page_description(
+                item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
+            ),
             fill_form(
                 create_entry_revision_form(
                     "entry/add", auth=auth, show_id_fields=show_id_fields
@@ -1535,6 +1522,8 @@ def get(
             )
 
         current_page_details = items[item_id]
+        current_item_id = current_page_details.id
+        current_start_text = current_page_details.start_text
         return Tr(
             Td(
                 CheckboxX(
@@ -1544,14 +1533,16 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(P(current_page_details.page_id)),
-            Td(current_page_details.part),
-            Td(P(current_page_details.start_text, cls=(TextT.xl))),
+            Td(get_page_description(current_item_id)),
+            Td(P(current_start_text, cls=(TextT.lg))),
             Td(
-                Div(
-                    *map(_render_radio, RATING_MAP.items()),
-                    cls=(FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4"),
-                )
+                rating_radio(
+                    direction="horizontal",
+                    is_label=False,
+                    id=f"rating-{current_item_id}",
+                    cls="toggleable-radio",
+                ),
+                cls="!pr-0 min-w-32",
             ),
         )
 
@@ -1564,7 +1555,6 @@ def get(
                     )
                 ),
                 Th("Page"),
-                Th("Part"),
                 Th("Start"),
                 Th("Rating"),
             )
