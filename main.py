@@ -2826,6 +2826,14 @@ def bulk_edit_view(ids: str, auth):
         current_item_id = current_revision.item_id
         item_details = items[current_item_id]
         return Tr(
+            Td(get_page_description(current_item_id)),
+            # Td(P(item_details.page_id)),
+            # Td(P(item_details.surah_name)),
+            # Td(P(item_details.part)),
+            Td(P(item_details.start_text, cls=TextT.lg)),
+            # Td(P(current_revision.revision_date)),
+            # Td(P(current_revision.mode_id)),
+            # Td(P(current_revision.plan_id)),
             Td(
                 CheckboxX(
                     name="ids",
@@ -2835,14 +2843,6 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(get_page_description(current_item_id)),
-            # Td(P(item_details.page_id)),
-            # Td(P(item_details.surah_name)),
-            # Td(P(item_details.part)),
-            Td(P(item_details.start_text, cls=TextT.lg)),
-            # Td(P(current_revision.revision_date)),
-            # Td(P(current_revision.mode_id)),
-            # Td(P(current_revision.plan_id)),
             Td(
                 rating_radio(
                     default_rating=current_revision.rating,
@@ -2857,13 +2857,6 @@ def bulk_edit_view(ids: str, auth):
     table = Table(
         Thead(
             Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all",
-                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
-                    )
-                ),
                 Th("Page"),
                 # Th("Surah"),
                 # Th("Part"),
@@ -2871,6 +2864,13 @@ def bulk_edit_view(ids: str, auth):
                 # Th("Date"),
                 # Th("Mode"),
                 # Th("Plan ID"),
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                    )
+                ),
                 Th("Rating"),
             )
         ),
@@ -2892,15 +2892,17 @@ def bulk_edit_view(ids: str, auth):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
-            Grid(
-                mode_dropdown(default_mode=first_revision.mode_id),
-                LabelInput(
-                    "Plan ID",
-                    name="plan_id",
-                    type="number",
-                    value=first_revision.plan_id,
-                ),
-            ),
+            # Grid(
+            #     mode_dropdown(default_mode=first_revision.mode_id),
+            #     LabelInput(
+            #         "Plan ID",
+            #         name="plan_id",
+            #         type="number",
+            #         value=first_revision.plan_id,
+            #     ),
+            # ),
+            Hidden(name="mode_id", value=first_revision.mode_id),
+            Hidden(name="plan_id", value=first_revision.plan_id),
             Div(
                 LabelInput(
                     "Revision Date",
@@ -3196,6 +3198,8 @@ def get(
 
         current_page_details = items[current_item_id]
         return Tr(
+            Td(get_page_description(current_item_id)),
+            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 CheckboxX(
                     name="ids",
@@ -3204,8 +3208,6 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(get_page_description(current_item_id)),
-            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 rating_radio(
                     direction="horizontal",
@@ -3220,13 +3222,13 @@ def get(
     table = Table(
         Thead(
             Tr(
+                Th("Page"),
+                Th("Start Text"),
                 Th(
                     CheckboxX(
                         cls="select_all", x_model="selectAll", _at_change="toggleAll()"
                     )
                 ),
-                Th("Page"),
-                Th("Start"),
                 Th("Rating"),
             )
         ),
@@ -3245,23 +3247,6 @@ def get(
         ),
         A(Button("Cancel", type="button", cls=ButtonT.secondary), href=index),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
-    )
-
-    length_input = LabelInput(
-        "No of pages",
-        name="length",
-        type="number",
-        id="length_field",
-        value=length,
-        min=1,
-        # required=True,
-        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
-        hx_trigger="keyup delay:200ms changed",
-        hx_select="#table-container",
-        hx_select_oob="#header_area",
-        hx_target="#table-container",
-        hx_swap="outerHTML",
-        hx_push_url="true",
     )
 
     # This is to render the surah and juz based in the lenth
@@ -3313,7 +3298,6 @@ def get(
             Hidden(name="plan_id", value=plan_id),
             Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
-                length_input if not is_part else None,
                 # mode_dropdown(),
                 # LabelInput(
                 #     "Plan ID",
@@ -3326,7 +3310,7 @@ def get(
                     name="revision_date",
                     type="date",
                     value=revision_date,
-                    cls=("space-y-2", ("col-span-2" if is_part else None)),
+                    cls=("space-y-2 col-span-2"),
                 ),
                 show_id_fields=show_id_fields,
             ),
