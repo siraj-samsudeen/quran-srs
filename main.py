@@ -2892,15 +2892,17 @@ def bulk_edit_view(ids: str, auth):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
-            Grid(
-                mode_dropdown(default_mode=first_revision.mode_id),
-                LabelInput(
-                    "Plan ID",
-                    name="plan_id",
-                    type="number",
-                    value=first_revision.plan_id,
-                ),
-            ),
+            # Grid(
+            #     mode_dropdown(default_mode=first_revision.mode_id),
+            #     LabelInput(
+            #         "Plan ID",
+            #         name="plan_id",
+            #         type="number",
+            #         value=first_revision.plan_id,
+            #     ),
+            # ),
+            Hidden(name="mode_id", value=first_revision.mode_id),
+            Hidden(name="plan_id", value=first_revision.plan_id),
             Div(
                 LabelInput(
                     "Revision Date",
