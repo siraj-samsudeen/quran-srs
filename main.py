@@ -2826,6 +2826,14 @@ def bulk_edit_view(ids: str, auth):
         current_item_id = current_revision.item_id
         item_details = items[current_item_id]
         return Tr(
+            Td(get_page_description(current_item_id)),
+            # Td(P(item_details.page_id)),
+            # Td(P(item_details.surah_name)),
+            # Td(P(item_details.part)),
+            Td(P(item_details.start_text, cls=TextT.lg)),
+            # Td(P(current_revision.revision_date)),
+            # Td(P(current_revision.mode_id)),
+            # Td(P(current_revision.plan_id)),
             Td(
                 CheckboxX(
                     name="ids",
@@ -2835,14 +2843,6 @@ def bulk_edit_view(ids: str, auth):
                     _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
                 )
             ),
-            Td(get_page_description(current_item_id)),
-            # Td(P(item_details.page_id)),
-            # Td(P(item_details.surah_name)),
-            # Td(P(item_details.part)),
-            Td(P(item_details.start_text, cls=TextT.lg)),
-            # Td(P(current_revision.revision_date)),
-            # Td(P(current_revision.mode_id)),
-            # Td(P(current_revision.plan_id)),
             Td(
                 rating_radio(
                     default_rating=current_revision.rating,
@@ -2857,13 +2857,6 @@ def bulk_edit_view(ids: str, auth):
     table = Table(
         Thead(
             Tr(
-                Th(
-                    CheckboxX(
-                        cls="select_all",
-                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
-                    )
-                ),
                 Th("Page"),
                 # Th("Surah"),
                 # Th("Part"),
@@ -2871,6 +2864,13 @@ def bulk_edit_view(ids: str, auth):
                 # Th("Date"),
                 # Th("Mode"),
                 # Th("Plan ID"),
+                Th(
+                    CheckboxX(
+                        cls="select_all",
+                        x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
+                        _at_change="toggleAll()",  # based on that update the status of all the checkboxes
+                    )
+                ),
                 Th("Rating"),
             )
         ),
@@ -3196,6 +3196,8 @@ def get(
 
         current_page_details = items[current_item_id]
         return Tr(
+            Td(get_page_description(current_item_id)),
+            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 CheckboxX(
                     name="ids",
@@ -3204,8 +3206,6 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(get_page_description(current_item_id)),
-            Td(P(current_page_details.start_text, cls=(TextT.lg))),
             Td(
                 rating_radio(
                     direction="horizontal",
@@ -3220,13 +3220,13 @@ def get(
     table = Table(
         Thead(
             Tr(
+                Th("Page"),
+                Th("Start Text"),
                 Th(
                     CheckboxX(
                         cls="select_all", x_model="selectAll", _at_change="toggleAll()"
                     )
                 ),
-                Th("Page"),
-                Th("Start"),
                 Th("Rating"),
             )
         ),
