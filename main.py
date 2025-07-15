@@ -1296,19 +1296,20 @@ def render_stats_summary_table(auth, target_counts):
 #################### start ## Custom Single and Bulk Entry ################################
 # This route is used to redirect to the appropriate revision entry form
 @rt("/revision/entry")
-def post(type: str, page: str):
+def post(type: str, page: str, plan_id: int):
+    print(plan_id)
     if type == "bulk":
-        return Redirect(f"/revision/bulk_add?page={page}")
+        return Redirect(f"/revision/bulk_add?page={page}&plan_id={plan_id}")
     elif type == "single":
         # The page value might have '-number' to show extra pages (like '604.2-3'),
         # but for a single entry, we only need the first page.
         if "-" in page:
             page = page.split("-")[0]
-        return Redirect(f"/revision/add?page={page}")
+        return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
 # new function for retain input
-def custom_entry():
+def custom_entry(plan_id):
     """
     This function is used to retain the input values in the form and display the custom entry inputs
     """
@@ -1352,6 +1353,7 @@ def custom_entry():
                 title="Enter format like 604, 604.2, or 604.2-3",
                 required=True,
             ),
+            Hidden(id="plan_id", value=plan_id),
             Button("Bulk", name="type", value="bulk", cls=ButtonT.link),
             Button("Single", name="type", value="single", cls=ButtonT.link),
             cls=("gap-3", FlexT.wrap),
@@ -1468,7 +1470,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             description = None
     else:
         description = None
-
+    # print(plan_id)
     ############################ Monthly Cycle ################################
 
     def get_monthly_target_and_progress():
@@ -1561,7 +1563,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 if len(items_gaps_with_limit) > 1
                 else Div(id="monthly_cycle_link_table")
             ),
-            custom_entry(),
+            custom_entry(plan_id),
             # cls="uk-overflow-auto",
         ),
         open=True,
@@ -2890,12 +2892,12 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
 @rt("/revision/add")
 def get(
     auth,
+    plan_id: int,
     item_id: int = None,
     page: str = None,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
-    plan_id: int = None,
 ):
     if item_id is not None:
         page = get_page_number(item_id)
@@ -2913,7 +2915,9 @@ def get(
             if page_part in ["0", ""] or page_part_count < int(page_part):
                 # if page_part is invalid or greater than expected, then redirect to show bulk entry page
                 item_id = item_list[0]
-                return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
+                return Redirect(
+                    f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
+                )
             else:
                 current_page_part = items(
                     where=f"page_id = {page} and active = 1 and part = {float(page_part)}"
@@ -2929,15 +2933,17 @@ def get(
             item_id = item_list[0]
             #  if page has parts then show all decendent parts (full page)
             if len(item_list) > 1:
-                return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
+                return Redirect(
+                    f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
+                )
     else:
         return Redirect(index)
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_plan_value = None
-    else:
-        defalut_plan_value = last_added_record.plan_id
+    # try:
+    #     last_added_record = revisions(where="mode_id = 1")[-1]
+    # except IndexError:
+    #     defalut_plan_value = None
+    # else:
+    #     defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Titled(
@@ -2948,7 +2954,7 @@ def get(
                 create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
                 {
                     "item_id": item_id,
-                    "plan_id": plan_id or defalut_plan_value,
+                    "plan_id": plan_id,
                     "revision_date": date,
                 },
             ),
@@ -2975,7 +2981,7 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     rev = revisions.insert(revision_details)
 
     return Redirect(
-        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}"
     )
 
 
@@ -3004,13 +3010,13 @@ def update_revision_rating(rev_id: int, rating: int):
 @app.get("/revision/bulk_add")
 def get(
     auth,
+    plan_id: int,
     item_id: int = None,
     # page: int = None,
     page: str = None,
     length: int = 0,
     # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    plan_id: int = None,
     revision_date: str = None,
     max_item_id: int = get_last_item_id(),
     max_page_id: int = 605,
@@ -3203,12 +3209,12 @@ def get(
     surah_description = get_description("surah")
     juz_description = get_description("juz")
     page_description = get_description("page")
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_plan_value = None
-    else:
-        defalut_plan_value = last_added_record.plan_id
+    # try:
+    #     last_added_record = revisions(where="mode_id = 1")[-1]
+    # except IndexError:
+    #     defalut_plan_value = None
+    # else:
+    #     defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Div(
@@ -3228,7 +3234,7 @@ def get(
         ),
         Form(
             Hidden(name="is_part", value=str(is_part)),
-            Hidden(name="plan_id", value=(plan_id or defalut_plan_value)),
+            Hidden(name="plan_id", value=plan_id),
             Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
                 length_input if not is_part else None,
@@ -3315,7 +3321,9 @@ async def post(
         return Redirect(index)
 
     if is_part:
-        return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
+        return Redirect(
+            f"/revision/add?item_id={next_item_id}&date={revision_date}&plan_id={plan_id}"
+        )
 
     return Redirect(
         f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
