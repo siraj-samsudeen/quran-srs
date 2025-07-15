@@ -46,17 +46,6 @@ def select_all_with_shift_click_for_summary_table(class_name):
             const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
           this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
         },
-        toggleAll() {
-          $el.querySelectorAll('.CLASS_NAME_PLACEHOLDER').forEach(cb =>  {
-            cb.checked = this.selectAll;
-            // Trigger change event for each checkbox
-            const event = new Event('change', {
-                bubbles: true, 
-                cancelable: true
-            });
-            cb.dispatchEvent(event);
-        });
-        },
         handleCheckboxClick(e) {
             // Handle shift+click selection
             if (e.shiftKey) {
