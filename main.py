@@ -1340,6 +1340,10 @@ def custom_entry_inputs(plan_id):
     if isinstance(last_added_page, int):
         last_added_page += 1
     entry_buttons = Form(
+        P(
+            "Custom Page Entry",
+            cls=TextPresets.muted_sm,
+        ),
         DivLAligned(
             Input(
                 type="text",
