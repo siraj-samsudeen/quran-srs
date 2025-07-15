@@ -1981,7 +1981,9 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 else f"/home/add/{item_id}"
             ),
             "hx_select": f"#{row_id}",
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table, #custom_entry_link",
+            # TODO: make the monthly cycle to only rerender on monthly summary table
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
+            + (", #monthly_cycle_link_table" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -2051,9 +2053,14 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             Td(progress) if not (is_newly_memorized or is_monthly_review) else None,
             Td(record_btn),
             Td(
-                Div(
-                    rating_dropdown_input,
-                    cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+                Form(
+                    Div(
+                        rating_dropdown_input,
+                        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+                    ),
+                    Hidden(name="item_id", value=item_id),
+                    Hidden(name="is_checked", value=f"{is_checked}"),
+                    id=f"{route}_ratings",
                 )
             ),
             id=row_id,
@@ -2068,6 +2075,15 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
+
+    # This is used on the select_all checkboxes
+    select_all_vals = {
+        "mode_id": mode_id,
+        "date": current_date,
+    }
+    if is_monthly_review:
+        select_all_vals["plan_id"] = plan_id
+
     render_output = (
         Div(
             Div(
@@ -2095,18 +2111,32 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         ),
                         Th(
                             CheckboxX(
+                                name="is_select_all",
+                                hx_vals=select_all_vals,
+                                hx_post="/home/bulk_add",
+                                hx_trigger="change",
+                                hx_include=f"#{route}_ratings",
+                                hx_select=f"#{route}_tbody",
+                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header"
+                                + (
+                                    ", #monthly_cycle_link_table"
+                                    if is_monthly_review
+                                    else ""
+                                ),
+                                hx_target=f"#{route}_tbody",
+                                hx_swap="outerHTML",
+                                checked=all(is_all_selected),
                                 cls=(
                                     "select_all",
                                     ("hidden" if mode_id == 5 else None),
                                 ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                                _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                             )
                         ),
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
-                Tbody(*body_rows),
+                Tbody(*body_rows, id=f"{route}_tbody"),
                 id=f"{route}_summary_table",
                 # defining the reactive data for for component to reference (alpine.js)
                 x_data=select_all_with_shift_click_for_summary_table(
@@ -2151,6 +2181,41 @@ def update_status_from_index(
         is_checked=is_checked,
         plan_id=plan_id,
     )
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/home/bulk_add")
+def update_multiple_items_from_index(
+    mode_id: int,
+    date: str,
+    item_id: list[int],
+    rating: list[int],
+    is_checked: list[bool],
+    plan_id: str = None,
+    is_select_all: bool = False,
+):
+    for o in zip(item_id, rating, is_checked):
+        current_item_id, current_rating, current_is_checked = o
+        if not is_select_all:
+            checkbox_update_logic(
+                mode_id=mode_id,
+                rating=current_rating,
+                item_id=current_item_id,
+                date=date,
+                is_checked=is_select_all,
+                plan_id=plan_id,
+            )
+        else:
+            if not current_is_checked:
+                checkbox_update_logic(
+                    mode_id=mode_id,
+                    rating=current_rating,
+                    item_id=current_item_id,
+                    date=date,
+                    is_checked=is_select_all,
+                    plan_id=plan_id,
+                )
+
     return RedirectResponse("/", status_code=303)
 
 
