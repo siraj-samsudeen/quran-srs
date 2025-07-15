@@ -1304,12 +1304,11 @@ def post(type: str, page: str, plan_id: int):
         # The page value might have '-number' to show extra pages (like '604.2-3'),
         # but for a single entry, we only need the first page.
         if "-" in page:
-            page = page.split("-")[0]
+            page = page.split("-")[0]  # skip the page ranges
         return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
-# new function for retain input
-def custom_entry(plan_id):
+def custom_entry_inputs(plan_id):
     """
     This function is used to retain the input values in the form and display the custom entry inputs
     """
@@ -1350,7 +1349,7 @@ def custom_entry(plan_id):
                 value=last_added_page,
                 autocomplete="off",
                 # pattern=r"^\d+(\.\d+)?(-\d+)?$",
-                pattern=r"^(?:[1-9]\d{0,2})(?:\.\d+)?(?:-\d+)?$",
+                pattern=r"^(?!0+(?:\.0*)?$)0*\d{1,3}(?:\.\d+)?(?:-\d+)?$",
                 title="Enter format like 604, 604.2, or 604.2-3",
                 required=True,
             ),
@@ -1471,7 +1470,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             description = None
     else:
         description = None
-    # print(plan_id)
     ############################ Monthly Cycle ################################
 
     def get_monthly_target_and_progress():
@@ -1564,8 +1562,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 if len(items_gaps_with_limit) > 1
                 else Div(id="monthly_cycle_link_table")
             ),
-            custom_entry(plan_id),
-            # cls="uk-overflow-auto",
+            custom_entry_inputs(plan_id),
         ),
         open=True,
     )
@@ -2903,23 +2900,26 @@ def get(
     if item_id is not None:
         page = get_page_number(item_id)
     elif page is not None:
+        # handle page with part
         if "." in page:
             page, page_part = page.split(".")
             page = int(page)
+            page_part = int(page_part)
 
             if page >= max_page:
                 # if page is invalid then redirect to index
                 return Redirect(index)
+
             item_list = get_item_id(page_number=page)
             page_part_count = len(item_list)
-
-            if page_part in ["0", ""] or page_part_count < int(page_part):
-                # if page_part is invalid or greater than expected, then redirect to show bulk entry page
+            # if page_part is 0 or greater than expected value, then redirect to show bulk entry page
+            if page_part == 0 or page_part_count < page_part:
                 item_id = item_list[0]
                 return Redirect(
                     f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
                 )
             else:
+                # otherwise show the current page part
                 current_page_part = items(
                     where=f"page_id = {page} and active = 1 and part = {float(page_part)}"
                 )
@@ -2939,12 +2939,6 @@ def get(
                 )
     else:
         return Redirect(index)
-    # try:
-    #     last_added_record = revisions(where="mode_id = 1")[-1]
-    # except IndexError:
-    #     defalut_plan_value = None
-    # else:
-    #     defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Titled(
@@ -3050,14 +3044,21 @@ def get(
         page = get_page_number(item_id)
         item_id = get_item_id(page_number=page)[0]
     elif page is not None:
+        # handle the case when page is a single number
         if "-" not in page and "." not in page:
             if int(page) >= max_page_id:
                 return Redirect(index)
             item_id = get_item_id(page_number=page)[0]
+        # handle the case when page is a range
         if "-" in page:
             page, length = page.split("-")
+            length = int(length)
+            # if length is not given, then set it to default value
+            if length == 0:
+                length = get_display_count(auth)
             if "." not in page:
                 item_id = get_item_id(page_number=page)[0]
+        # handle the case when page is a range with part
         if "." in page:
             page, part = page.split(".")
             part = int(part)
@@ -3068,11 +3069,11 @@ def get(
 
             item_list = get_item_id(page_number=page)
             page_part_count = len(item_list)
-
-            if part in ["0", ""] or page_part_count < int(part):
-                # if page_part is invalid or greater than expected, then redirect to show bulk entry page
+            # if part is 0 or greater than expected value, then take first item_id and it redirect to show bulk entry page
+            if part == 0 or page_part_count < int(part):
                 item_id = item_list[0]
             else:
+                # otherwise, show the that page-part
                 current_page_part = items(
                     where=f"page_id = {page} and active = 1 and part = {float(part)}"
                 )
@@ -3224,12 +3225,6 @@ def get(
     surah_description = get_description("surah")
     juz_description = get_description("juz")
     page_description = get_description("page")
-    # try:
-    #     last_added_record = revisions(where="mode_id = 1")[-1]
-    # except IndexError:
-    #     defalut_plan_value = None
-    # else:
-    #     defalut_plan_value = last_added_record.plan_id
 
     return main_area(
         Div(
