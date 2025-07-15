@@ -3247,23 +3247,6 @@ def get(
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
-    length_input = LabelInput(
-        "No of pages",
-        name="length",
-        type="number",
-        id="length_field",
-        value=length,
-        min=1,
-        # required=True,
-        hx_get=f"/revision/bulk_add?item_id={item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}",
-        hx_trigger="keyup delay:200ms changed",
-        hx_select="#table-container",
-        hx_select_oob="#header_area",
-        hx_target="#table-container",
-        hx_swap="outerHTML",
-        hx_push_url="true",
-    )
-
     # This is to render the surah and juz based in the lenth
     def get_description(type):
         get_type_function = {
@@ -3313,7 +3296,6 @@ def get(
             Hidden(name="plan_id", value=plan_id),
             Hidden(name="max_item_id", value=max_item_id),
             toggle_input_fields(
-                length_input if not is_part else None,
                 # mode_dropdown(),
                 # LabelInput(
                 #     "Plan ID",
@@ -3326,7 +3308,7 @@ def get(
                     name="revision_date",
                     type="date",
                     value=revision_date,
-                    cls=("space-y-2", ("col-span-2" if is_part else None)),
+                    cls=("space-y-2 col-span-2"),
                 ),
                 show_id_fields=show_id_fields,
             ),
