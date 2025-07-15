@@ -3065,6 +3065,7 @@ def get(
             return Redirect(index)
 
         # if length is not given or invalid value, then set it to default value
+        # TODO: Later: handle this in the parse_page_string function
         if not length or length <= 0:
             length = int(get_display_count(auth))
 
