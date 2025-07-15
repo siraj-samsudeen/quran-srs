@@ -1301,10 +1301,6 @@ def post(type: str, page: str, plan_id: int):
     if type == "bulk":
         return Redirect(f"/revision/bulk_add?page={page}&plan_id={plan_id}")
     elif type == "single":
-        # The page value might have '-number' to show extra pages (like '604.2-3'),
-        # but for a single entry, we only need the first page.
-        if "-" in page:
-            page = page.split("-")[0]  # skip the page ranges
         return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
@@ -2891,6 +2887,31 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
     return RedirectResponse("/revision", status_code=303)
 
 
+def parse_page_string(page_str: str):
+    """
+    Formats supported:
+    - "5" -> (5, 0, 0)
+    - "5.2" -> (5, 2, 0)
+    - "5-10" -> (5, 0, 10)
+    - "5.2-10" -> (5, 2, 10)
+    """
+    page = page_str
+    part = 0
+    length = 0
+
+    # Extract length if present (handle range)
+    if "-" in page:
+        page, length_str = page.split("-")
+        length = int(length_str) if length_str else length
+
+    # Extract part if present
+    if "." in page:
+        page, part_str = page.split(".")
+        part = int(part_str) if part_str else part
+
+    return int(page), part, length
+
+
 @rt("/revision/add")
 def get(
     auth,
@@ -2904,39 +2925,29 @@ def get(
     if item_id is not None:
         page = get_page_number(item_id)
     elif page is not None:
-        # handle page with part
-        if "." in page:
-            page, page_part = page.split(".")
-            page = int(page)
-            page_part = int(page_part)
+        # for the single entry, we don't need to use lenght
+        page, page_part, length = parse_page_string(page)
+        if page >= max_page:
+            # if page is invalid then redirect to index
+            return Redirect(index)
+        item_list = get_item_id(page_number=page)
+        # To start the page from beginning even if there is multiple parts
+        item_id = item_list[0]
 
-            if page >= max_page:
-                # if page is invalid then redirect to index
-                return Redirect(index)
-
-            item_list = get_item_id(page_number=page)
-            page_part_count = len(item_list)
+        if page_part:
             # if page_part is 0 or greater than expected value, then redirect to show bulk entry page
-            if page_part == 0 or page_part_count < page_part:
+            if page_part == 0 or len(item_list) < page_part:
                 item_id = item_list[0]
                 return Redirect(
                     f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
                 )
             else:
                 # otherwise show the current page part
-                current_page_part = items(
-                    where=f"page_id = {page} and active = 1 and part = {float(page_part)}"
-                )
-                item_id = current_page_part[0].id
+                current_page_part = items(where=f"page_id = {page} and active = 1")
+                # get the given page_part using index
+                item_id = current_page_part[page_part - 1].id
+                #  if page has parts then show all decendent parts (full page)
         else:
-            page = int(page)
-
-            if page >= max_page:
-                return Redirect(index)
-
-            item_list = get_item_id(page_number=page)
-            item_id = item_list[0]
-            #  if page has parts then show all decendent parts (full page)
             if len(item_list) > 1:
                 return Redirect(
                     f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
@@ -3048,42 +3059,27 @@ def get(
         page = get_page_number(item_id)
         item_id = get_item_id(page_number=page)[0]
     elif page is not None:
-        # handle the case when page is a single number
-        if "-" not in page and "." not in page:
-            if int(page) >= max_page_id:
-                return Redirect(index)
-            item_id = get_item_id(page_number=page)[0]
-        # handle the case when page is a range
-        if "-" in page:
-            page, length = page.split("-")
-            length = int(length)
-            # if length is not given, then set it to default value
-            if length == 0:
-                length = get_display_count(auth)
-            if "." not in page:
-                item_id = get_item_id(page_number=page)[0]
-        # handle the case when page is a range with part
-        if "." in page:
-            page, part = page.split(".")
-            part = int(part)
-            page = int(page)
+        page, part, length = parse_page_string(page)
 
-            if page >= max_page_id:
-                return Redirect(index)
+        if page >= max_page_id:
+            return Redirect(index)
 
-            item_list = get_item_id(page_number=page)
-            page_part_count = len(item_list)
+        # if length is not given or invalid value, then set it to default value
+        if not length or length <= 0:
+            length = int(get_display_count(auth))
+
+        item_list = get_item_id(page_number=page)
+        item_id = item_list[0]
+
+        if part:
             # if part is 0 or greater than expected value, then take first item_id and it redirect to show bulk entry page
-            if part == 0 or page_part_count < int(part):
-                item_id = item_list[0]
+            if part == 0 or len(item_list) < part:
+                item_id = item_id
             else:
                 # otherwise, show the that page-part
-                current_page_part = items(
-                    where=f"page_id = {page} and active = 1 and part = {float(part)}"
-                )
-                item_id = current_page_part[0].id
-        page = int(page)
-        length = int(length)
+                current_page_part = items(where=f"page_id = {page} and active = 1")
+                # get the given page_part using index
+                item_id = current_page_part[part - 1].id
 
     # This is to show only one page if it came from single entry
     if is_part:
