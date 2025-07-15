@@ -1903,7 +1903,8 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             ),
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header, #monthly_cycle_link_table",
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
+            + (", #monthly_cycle_link_table" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -2037,7 +2038,12 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 hx_trigger="change",
                                 hx_include=f"#{route}_ratings",
                                 hx_select=f"#{route}_tbody",
-                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header",
+                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header"
+                                + (
+                                    ", #monthly_cycle_link_table"
+                                    if is_monthly_review
+                                    else ""
+                                ),
                                 hx_target=f"#{route}_tbody",
                                 hx_swap="outerHTML",
                                 checked=all(is_all_selected),
