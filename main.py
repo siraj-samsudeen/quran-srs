@@ -1293,6 +1293,82 @@ def render_stats_summary_table(auth, target_counts):
     )
 
 
+#################### start ## Custom Single and Bulk Entry ################################
+# This route is used to redirect to the appropriate revision entry form
+@rt("/revision/entry")
+def post(type: str, page: str, plan_id: int):
+    print(plan_id)
+    if type == "bulk":
+        return Redirect(f"/revision/bulk_add?page={page}&plan_id={plan_id}")
+    elif type == "single":
+        return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
+
+
+def custom_entry_inputs(plan_id):
+    """
+    This function is used to retain the input values in the form and display the custom entry inputs
+    """
+    revision_data = revisions(where="mode_id = 1")
+    last_added_item_id = revision_data[-1].item_id if revision_data else None
+
+    if last_added_item_id:
+        item_details = items[last_added_item_id]
+        last_added_page = item_details.page_id
+
+        if item_details.item_type == "page-part":
+            # fill the page input with parts based on the last added record
+            # to start from the next part
+            if "1" in item_details.part:
+                last_added_page = last_added_page + 0.2
+            elif (
+                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
+                and "2" in item_details.part
+            ):
+                last_added_page = last_added_page + 0.3
+    else:
+        last_added_page = None
+
+    # if it is greater than 604, we are reseting the last added page to None
+    if isinstance(last_added_page, int) and last_added_page >= 604:
+        last_added_page = None
+    if not last_added_page:
+        last_added_page = 1
+    if isinstance(last_added_page, int):
+        last_added_page += 1
+    entry_buttons = Form(
+        P(
+            "Custom Page Entry",
+            cls=TextPresets.muted_sm,
+        ),
+        DivLAligned(
+            Input(
+                type="text",
+                placeholder="page",
+                cls="w-20",
+                id="page",
+                value=last_added_page,
+                autocomplete="off",
+                # pattern=r"^\d+(\.\d+)?(-\d+)?$",
+                pattern=r"^(?!0+(?:\.0*)?$)0*\d{1,3}(?:\.\d+)?(?:-\d+)?$",
+                title="Enter format like 604, 604.2, or 604.2-3",
+                required=True,
+            ),
+            Hidden(id="plan_id", value=plan_id),
+            Button("Bulk", name="type", value="bulk", cls=ButtonT.link),
+            Button("Single", name="type", value="single", cls=ButtonT.link),
+            cls=("gap-3", FlexT.wrap),
+        ),
+        action="/revision/entry",
+        method="POST",
+    )
+    return Div(
+        entry_buttons, cls="flex-wrap gap-4 min-w-72 m-4", id="custom_entry_link"
+    )
+
+
+############################ END # Custom Single and Bulk Entry ################################
+
+
 @rt
 def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
@@ -1394,7 +1470,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             description = None
     else:
         description = None
-
     ############################ Monthly Cycle ################################
 
     def get_monthly_target_and_progress():
@@ -1472,18 +1547,22 @@ def index(auth, sess, full_cycle_display_count: int = None):
         ),
         Div(
             description,
-            Table(
-                Thead(
-                    Tr(
-                        # Th("Plan Id"),
-                        Th("Next"),
-                        Th("Entry"),
-                    )
-                ),
-                Tbody(*map(render_overall_row, items_gaps_with_limit)),
-                id="monthly_cycle_link_table",
+            (
+                Table(
+                    Thead(
+                        Tr(
+                            # Th("Plan Id"),
+                            Th("Next"),
+                            Th("Entry"),
+                        )
+                    ),
+                    Tbody(*map(render_overall_row, items_gaps_with_limit)),
+                    id="monthly_cycle_link_table",
+                )
+                if len(items_gaps_with_limit) > 1
+                else Div(id="monthly_cycle_link_table")
             ),
-            cls="uk-overflow-auto",
+            custom_entry_inputs(plan_id),
         ),
         open=True,
     )
@@ -2873,29 +2952,73 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
     return RedirectResponse("/revision", status_code=303)
 
 
+def parse_page_string(page_str: str):
+    """
+    Formats supported:
+    - "5" -> (5, 0, 0)
+    - "5.2" -> (5, 2, 0)
+    - "5-10" -> (5, 0, 10)
+    - "5.2-10" -> (5, 2, 10)
+    """
+    page = page_str
+    part = 0
+    length = 0
+
+    # Extract length if present (handle range)
+    if "-" in page:
+        page, length_str = page.split("-")
+        length = int(length_str) if length_str else length
+
+    # Extract part if present
+    if "." in page:
+        page, part_str = page.split(".")
+        part = int(part_str) if part_str else part
+
+    return int(page), part, length
+
+
 @rt("/revision/add")
 def get(
     auth,
-    item_id: int,
+    plan_id: int,
+    item_id: int = None,
+    page: str = None,
     max_page: int = 605,
     date: str = None,
     show_id_fields: bool = False,
-    plan_id: int = None,
 ):
-    page = get_page_number(item_id)
+    if item_id is not None:
+        page = get_page_number(item_id)
+    elif page is not None:
+        # for the single entry, we don't need to use lenght
+        page, page_part, length = parse_page_string(page)
+        if page >= max_page:
+            # if page is invalid then redirect to index
+            return Redirect(index)
+        item_list = get_item_id(page_number=page)
+        # To start the page from beginning even if there is multiple parts
+        item_id = item_list[0]
 
-    if page >= max_page:
-        return Redirect(index)
-
-    if len(get_item_id(page_number=page)) > 1:
-        return Redirect(f"/revision/bulk_add?item_id={item_id}&is_part=1")
-
-    try:
-        last_added_record = revisions(where="mode_id = 1")[-1]
-    except IndexError:
-        defalut_plan_value = None
+        if page_part:
+            # if page_part is 0 or greater than expected value, then redirect to show bulk entry page
+            if page_part == 0 or len(item_list) < page_part:
+                item_id = item_list[0]
+                return Redirect(
+                    f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
+                )
+            else:
+                # otherwise show the current page part
+                current_page_part = items(where=f"page_id = {page} and active = 1")
+                # get the given page_part using index
+                item_id = current_page_part[page_part - 1].id
+                #  if page has parts then show all decendent parts (full page)
+        else:
+            if len(item_list) > 1:
+                return Redirect(
+                    f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
+                )
     else:
-        defalut_plan_value = last_added_record.plan_id
+        return Redirect(index)
 
     return main_area(
         Titled(
@@ -2906,7 +3029,7 @@ def get(
                 create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
                 {
                     "item_id": item_id,
-                    "plan_id": plan_id or defalut_plan_value,
+                    "plan_id": plan_id,
                     "revision_date": date,
                 },
             ),
@@ -2932,8 +3055,22 @@ def post(revision_details: Revision, show_id_fields: bool = False):
 
     rev = revisions.insert(revision_details)
 
+    next_item_id = find_next_item_id(item_id)
+
+    # get the next page item ids using next_item_id
+    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    # check if the next page contains multiple items
+    is_next_page_is_part = len(next_page_item_ids) > 1
+
+    # if the next page contains multiple items, redirect to bulk revision page
+    if is_next_page_is_part:
+        return Redirect(
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}&is_part=1"
+        )
+
+    # if the next page has only one item, redirect to single item revision page
     return Redirect(
-        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&show_id_fields={show_id_fields}"
+        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}"
     )
 
 
@@ -2962,13 +3099,16 @@ def update_revision_rating(rev_id: int, rating: int):
 @app.get("/revision/bulk_add")
 def get(
     auth,
-    item_id: int,
-    # is_part is to determine whether it came from single entry page or not
+    plan_id: int,
+    item_id: int = None,
+    # page: int = None,
+    page: str = None,
     length: int = 0,
+    # is_part is to determine whether it came from single entry page or not
     is_part: bool = False,
-    plan_id: int = None,
     revision_date: str = None,
     max_item_id: int = get_last_item_id(),
+    max_page_id: int = 605,
     show_id_fields: bool = False,
 ):
 
@@ -2979,7 +3119,33 @@ def get(
     if not length or length < 0:
         length = get_display_count(auth)
 
-    page = get_page_number(item_id)
+    # process item_id and page_id
+    if item_id is not None:
+        page = get_page_number(item_id)
+        item_id = get_item_id(page_number=page)[0]
+    elif page is not None:
+        page, part, length = parse_page_string(page)
+
+        if page >= max_page_id:
+            return Redirect(index)
+
+        # if length is not given or invalid value, then set it to default value
+        # TODO: Later: handle this in the parse_page_string function
+        if not length or length <= 0:
+            length = int(get_display_count(auth))
+
+        item_list = get_item_id(page_number=page)
+        item_id = item_list[0]
+
+        if part:
+            # if part is 0 or greater than expected value, then take first item_id and it redirect to show bulk entry page
+            if part == 0 or len(item_list) < part:
+                item_id = item_id
+            else:
+                # otherwise, show the that page-part
+                current_page_part = items(where=f"page_id = {page} and active = 1")
+                # get the given page_part using index
+                item_id = current_page_part[part - 1].id
 
     # This is to show only one page if it came from single entry
     if is_part:
@@ -3182,9 +3348,9 @@ async def post(
     plan_id: int,
     is_part: bool,
     max_item_id: int,
-    length: int,
     auth,
     req,
+    length: int = 0,
     show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
@@ -3230,9 +3396,24 @@ async def post(
     if next_item_id is None or next_item_id >= max_item_id:
         return Redirect(index)
 
-    if is_part:
-        return Redirect(f"/revision/add?item_id={next_item_id}&date={revision_date}")
+    # get the next page item ids using next_item_id
+    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    # check if the next page contains multiple items
+    is_next_page_is_part = len(next_page_item_ids) > 1
 
+    # if current item is is_part,
+    # and the next page has only one item, redirect to single item revision page
+    if is_part and not is_next_page_is_part:
+        return Redirect(
+            f"/revision/add?item_id={next_item_id}&date={revision_date}&plan_id={plan_id}"
+        )
+
+    # if current item is is_part,
+    # and the next page contains multiple items, redirect to bulk revision page
+    if is_part and is_next_page_is_part:
+        return Redirect(
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&is_part=1"
+        )
     return Redirect(
         f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
     )
