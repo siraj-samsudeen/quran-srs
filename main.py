@@ -2980,6 +2980,20 @@ def post(revision_details: Revision, show_id_fields: bool = False):
 
     rev = revisions.insert(revision_details)
 
+    next_item_id = find_next_item_id(item_id)
+
+    # get the next page item ids using next_item_id
+    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    # check if the next page contains multiple items
+    is_next_page_is_part = len(next_page_item_ids) > 1
+
+    # if the next page contains multiple items, redirect to bulk revision page
+    if is_next_page_is_part:
+        return Redirect(
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}&is_part=1"
+        )
+
+    # if the next page has only one item, redirect to single item revision page
     return Redirect(
         f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}"
     )
@@ -3320,11 +3334,24 @@ async def post(
     if next_item_id is None or next_item_id >= max_item_id:
         return Redirect(index)
 
-    if is_part:
+    # get the next page item ids using next_item_id
+    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    # check if the next page contains multiple items
+    is_next_page_is_part = len(next_page_item_ids) > 1
+
+    # if current item is is_part,
+    # and the next page has only one item, redirect to single item revision page
+    if is_part and not is_next_page_is_part:
         return Redirect(
             f"/revision/add?item_id={next_item_id}&date={revision_date}&plan_id={plan_id}"
         )
 
+    # if current item is is_part,
+    # and the next page contains multiple items, redirect to bulk revision page
+    if is_part and is_next_page_is_part:
+        return Redirect(
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&is_part=1"
+        )
     return Redirect(
         f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
     )
