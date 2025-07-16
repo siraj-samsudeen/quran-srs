@@ -79,47 +79,20 @@ In addition, we want to enable a 1.5 page surah to be tracked as a single item.
 ### Revision Management 
 
 #### modes table
-Different modes of memorization practice (e.g., New Memorization, Daily, Weekly, Monthly, SRS).
+Different modes of memorization practice (e.g., New Memorization, Daily, Weekly, Full Cycle, SRS).
 
 - name
 - description
-
-#### srs_booster_pack table
-Spaced Repetition System configurations for different difficulty levels.
-
-- name
-- description
-- start_interval: Initial interval in days
-- end_interval: Final interval in days
-- interval_days: comma-separated list of interval progression
-
-#### plans table
-Memorization plans for monthly mode.
-
-- hafiz_id
-- start_date: Plan start date
-- end_date: Plan completion date
-- start_page: Starting page number for the plan
-- end_page: Ending page number for the plan
-- revision_count: Total number of revisions in the plan
-- page_count: Total number of pages in the plan
-- completed: Boolean indicating if plan is completed
-
-## Memorization Tracking
-
-### Tables
 
 #### hafizs_items table
-Junction table tracking the relationship between hafizs and their assigned items with memorization status.
+Memorization status for each item for each hafiz. Also used to store item level statistics for each hafiz. 
 
 - hafiz_id
 - item_id
-- page_number
-- status: Current memorization status of this item
-  - values: memorized, newly_memorized, Null(not_memorized)
+- status: Values: memorized, newly_memorized, not_memorized
 - mode_id
-- next_review: Date when this item should be reviewed next
 - last_review: Date when this item was last reviewed
+- next_review: Date when this item should be reviewed next
 - watch_list_graduation_date: Date when item graduated from watch list
 - srs_booster_pack_id
 - good_streak: Count of consecutive successful reviews
@@ -134,6 +107,20 @@ Junction table tracking the relationship between hafizs and their assigned items
 - count: Total number of reviews for this item
 
 
+#### full_cycles table
+here we capture the data about the pages covered in each full cycle of revision through all the memorized pages. 
+
+- hafiz_id
+- number: current cycle number. starts at 1 and keeps going
+- start_date
+- end_date
+- start_page
+- end_page
+- page_count: Total number of pages revised in the cycle
+- completed: Boolean
+
+
+
 #### revisions table
 Individual revision sessions and their outcomes.
 
@@ -143,8 +130,9 @@ Individual revision sessions and their outcomes.
 - rating: Performance rating for this revision
   - values: -1(Bad), 0(Ok), 1(Bad)
 - mode_id
-- plan_id
+- full_cycle_id
 <!-- - notes: Additional notes about the revision session -->
 - last_interval: Previous planned interval duration in days
 - current_interval: Actual interval duration in days
 - next_interval: Calculated interval for next revision in days
+
