@@ -754,6 +754,14 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
             rating=rating,
             is_checked=is_checked,
         )
+    elif mode_id == 2:
+        hafiz_items_data = get_hafizs_items(item_id)
+        if is_checked:
+            hafizs_items.update(
+                {"status": "newly_memorized", "mode_id": 2}, hafiz_items_data.id
+            )
+        else:
+            hafizs_items.update({"status": None, "mode_id": 1}, hafiz_items_data.id)
     else:
         # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
         update_review_dates(item_id, mode_id)
@@ -1975,11 +1983,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
         checkbox_hx_attrs = {
-            "hx_post": (
-                f"/markas/new_memorization/{item_id}"
-                if is_newly_memorized
-                else f"/home/add/{item_id}"
-            ),
+            "hx_post": f"/home/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
             "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
