@@ -446,12 +446,16 @@ def rating_dropdown(
         is_selected = lambda m: m == default_mode
         return fh.Option(name, value=id, selected=is_selected(id))
 
-    return fh.Select(
-        map(mk_options, rating_dict.items()),
-        label=("Rating" if is_label else None),
-        name=name,
-        select_kwargs={"name": name},
-        **kwargs,
+    return Div(
+        fh.Select(
+            map(mk_options, rating_dict.items()),
+            label=("Rating" if is_label else None),
+            name=name,
+            select_kwargs={"name": name},
+            cls="[&>div]:h-8 uk-form-sm w-28",
+            **kwargs,
+        ),
+        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
     )
 
 
@@ -2034,7 +2038,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             default_mode=str(default_rating),
             is_label=False,
             rating_dict=custom_rating_dict,
-            cls="[&>div]:h-8 uk-form-sm w-28",
+            # cls="[&>div]:h-8 uk-form-sm w-28",
             id=f"rev-{item_id}",
             hx_trigger="change",
             **change_rating_hx_attrs,
@@ -2056,10 +2060,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             Td(record_btn),
             Td(
                 Form(
-                    Div(
-                        rating_dropdown_input,
-                        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
-                    ),
+                    rating_dropdown_input,
                     Hidden(name="item_id", value=item_id),
                     Hidden(name="is_checked", value=f"{is_checked}"),
                     id=f"{route}_ratings",
