@@ -3904,7 +3904,7 @@ async def update_status(
 
 
 @app.post("/profile/update_status/{current_type}/{type_number}")
-def update_page_status(
+def profile_page_status_update(
     current_type: str,
     type_number: int,
     req: Request,
@@ -3941,7 +3941,7 @@ def update_page_status(
 
 
 @app.post("/profile/custom_status_update/{current_type}/{type_number}")
-async def update_page_status(
+async def profile_page_custom_status_update(
     current_type: str,
     type_number: int,
     req: Request,
