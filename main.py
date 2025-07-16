@@ -1696,7 +1696,7 @@ def render_new_memorization_checkbox(
         check_form = Form(
             LabelCheckboxX(
                 label,
-                hx_get=f"/new_memorization/filter/page/{page_id}",
+                hx_get=f"/new_memorization/expand/page/{page_id}",
                 checked=False,
                 hx_trigger="click",
                 onClick="return false",
@@ -1718,7 +1718,7 @@ def render_new_memorization_checkbox(
                 label,
                 name=f"is_checked",
                 value="1",
-                hx_post=f"/markas/new_memorization/{item_id}",
+                hx_post=f"/new_memorization/update_as_newly_memorized/{item_id}",
                 **kwrgs,
                 checked=True if current_revision_data else False,
             )
@@ -2222,8 +2222,8 @@ def update_multiple_items_from_index(
     return RedirectResponse("/", status_code=303)
 
 
-@app.post("/markas/new_memorization/{item_id}")
-def mark_as_new_memorized(
+@app.post("/new_memorization/update_as_newly_memorized/{item_id}")
+def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
 ):
     qry = f"item_id = {item_id} AND mode_id = 2;"
@@ -2268,8 +2268,8 @@ def mark_as_new_memorized(
     return RedirectResponse(referer, status_code=303)
 
 
-@app.post("/markas/new_memorization_bulk")
-def bulk_mark_as_new_memorized(
+@app.post("/new_memorization/bulk_update_as_newly_memorized")
+def bulk_update_status_as_newly_memorized(
     request, item_ids: list[int], auth, rating: int = None
 ):  # for query string format
     current_date = get_current_date(auth)
@@ -3450,7 +3450,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 Form(
                     Hidden(name="filter_status", value=status),
                     status_dropdown(status_value),
-                    hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_post=f"/profile/update_status/{current_type}/{type_number}",
                     hx_target=f"#{current_type}-{type_number}",
                     hx_select=f"#{current_type}-{type_number}",
                     hx_select_oob="#stats_info",
@@ -3463,7 +3463,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 Td(
                     A("Customize ➡️"),
                     cls=(AT.classic, "text-right"),
-                    hx_get=f"/partial_profile/{current_type}/{type_number}"
+                    hx_get=f"/profile/custom_status_update/{current_type}/{type_number}"
                     + (f"?status={status}" if status else ""),
                     hx_vals={
                         "title": title,
@@ -3725,8 +3725,8 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_profile/{current_type}/{type_number}")
-def filtered_table_for_modal(
+@app.get("/profile/custom_status_update/{current_type}/{type_number}")
+def load_descendant_items_for_profile(
     current_type: str,
     type_number: int,
     title: str,
@@ -3806,7 +3806,7 @@ def filtered_table_for_modal(
         status_dropdown(status),
         id="my-modal-body",
     )
-    base = f"/partial_profile/{current_type}"
+    base = f"/profile/custom_status_update/{current_type}"
     if type_number is not None:
         base += f"/{type_number}"
     # adding status filter to the response
@@ -3903,8 +3903,8 @@ async def update_status(
     return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
 
 
-@app.post("/update_status/{current_type}/{type_number}")
-def update_page_status(
+@app.post("/profile/update_status/{current_type}/{type_number}")
+def profile_page_status_update(
     current_type: str,
     type_number: int,
     req: Request,
@@ -3940,8 +3940,8 @@ def update_page_status(
     return RedirectResponse(referer, status_code=303)
 
 
-@app.post("/partial_profile/{current_type}/{type_number}")
-async def update_page_status(
+@app.post("/profile/custom_status_update/{current_type}/{type_number}")
+async def profile_page_custom_status_update(
     current_type: str,
     type_number: int,
     req: Request,
@@ -3988,7 +3988,9 @@ async def update_page_status(
     query_string += (
         f"title={title}&description={description}&filter_status={filter_status}"
     )
-    stay_url = f"/partial_profile/{current_type}/{type_number}{query_string}"
+    stay_url = (
+        f"/profile/custom_status_update/{current_type}/{type_number}{query_string}"
+    )
     close_url = f"/profile/{current_type}{query_string}"
     if action == "stay":
         return RedirectResponse(stay_url, status_code=303)
@@ -4634,7 +4636,7 @@ def render_row_based_on_type(
         else surahs[type_number].name
     )
 
-    filter_url = f"/new_memorization/filter/{current_type}/{type_number}"
+    filter_url = f"/new_memorization/expand/{current_type}/{type_number}"
     if current_type == "page":
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
         get_page = (
@@ -4770,7 +4772,7 @@ def format_output(groups: list):
     return formatted
 
 
-@app.delete("/markas/new_memorization/{item_id}")
+@app.delete("/new_memorization/update_as_newly_memorized/{item_id}")
 def delete(auth, request, item_id: str):
     qry = f"item_id = {item_id} AND mode_id = 2;"
     revisions_data = revisions(where=qry)
@@ -4880,7 +4882,7 @@ def new_memorization(auth, current_type: str):
             Td(
                 A(
                     "Delete",
-                    hx_delete=f"/markas/new_memorization/{type_number}",
+                    hx_delete=f"/new_memorization/update_as_newly_memorized/{type_number}",
                     hx_confirm="Are you sure? This page might be available in other modes.",
                 ),
                 cls=AT.muted,
@@ -4939,8 +4941,8 @@ def new_memorization(auth, current_type: str):
     )
 
 
-@app.get("/new_memorization/filter/{current_type}/{type_number}")
-def filtered_table_for_new_memorization_modal(
+@app.get("/new_memorization/expand/{current_type}/{type_number}")
+def load_descendant_items_for_new_memorization(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
@@ -5003,7 +5005,7 @@ def filtered_table_for_new_memorization_modal(
         Form(
             table,
             Button("Set as Newly Memorized", cls="bg-green-600 text-white"),
-            hx_post=f"/markas/new_memorization_bulk",
+            hx_post=f"/new_memorization/bulk_update_as_newly_memorized",
             cls="space-y-2",
         ),
         ModalTitle(
