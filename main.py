@@ -3463,7 +3463,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 Td(
                     A("Customize ➡️"),
                     cls=(AT.classic, "text-right"),
-                    hx_get=f"/partial_profile/{current_type}/{type_number}"
+                    hx_get=f"/profile/custom_status_update/{current_type}/{type_number}"
                     + (f"?status={status}" if status else ""),
                     hx_vals={
                         "title": title,
@@ -3725,7 +3725,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
 
 
 # This is responsible for updating the modal
-@app.get("/partial_profile/{current_type}/{type_number}")
+@app.get("/profile/custom_status_update/{current_type}/{type_number}")
 def filtered_table_for_modal(
     current_type: str,
     type_number: int,
@@ -3806,7 +3806,7 @@ def filtered_table_for_modal(
         status_dropdown(status),
         id="my-modal-body",
     )
-    base = f"/partial_profile/{current_type}"
+    base = f"/profile/custom_status_update/{current_type}"
     if type_number is not None:
         base += f"/{type_number}"
     # adding status filter to the response
@@ -3940,7 +3940,7 @@ def update_page_status(
     return RedirectResponse(referer, status_code=303)
 
 
-@app.post("/partial_profile/{current_type}/{type_number}")
+@app.post("/profile/custom_status_update/{current_type}/{type_number}")
 async def update_page_status(
     current_type: str,
     type_number: int,
@@ -3988,7 +3988,9 @@ async def update_page_status(
     query_string += (
         f"title={title}&description={description}&filter_status={filter_status}"
     )
-    stay_url = f"/partial_profile/{current_type}/{type_number}{query_string}"
+    stay_url = (
+        f"/profile/custom_status_update/{current_type}/{type_number}{query_string}"
+    )
     close_url = f"/profile/{current_type}{query_string}"
     if action == "stay":
         return RedirectResponse(stay_url, status_code=303)
