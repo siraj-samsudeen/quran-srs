@@ -3450,7 +3450,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 Form(
                     Hidden(name="filter_status", value=status),
                     status_dropdown(status_value),
-                    hx_post=f"/update_status/{current_type}/{type_number}",
+                    hx_post=f"/profile/update_status/{current_type}/{type_number}",
                     hx_target=f"#{current_type}-{type_number}",
                     hx_select=f"#{current_type}-{type_number}",
                     hx_select_oob="#stats_info",
@@ -3903,7 +3903,7 @@ async def update_status(
     return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
 
 
-@app.post("/update_status/{current_type}/{type_number}")
+@app.post("/profile/update_status/{current_type}/{type_number}")
 def update_page_status(
     current_type: str,
     type_number: int,
