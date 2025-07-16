@@ -446,12 +446,16 @@ def rating_dropdown(
         is_selected = lambda m: m == default_mode
         return fh.Option(name, value=id, selected=is_selected(id))
 
-    return fh.Select(
-        map(mk_options, rating_dict.items()),
-        label=("Rating" if is_label else None),
-        name=name,
-        select_kwargs={"name": name},
-        **kwargs,
+    return Div(
+        fh.Select(
+            map(mk_options, rating_dict.items()),
+            label=("Rating" if is_label else None),
+            name=name,
+            select_kwargs={"name": name},
+            cls="[&>div]:h-8 uk-form-sm w-28",
+            **kwargs,
+        ),
+        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
     )
 
 
@@ -2034,7 +2038,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             default_mode=str(default_rating),
             is_label=False,
             rating_dict=custom_rating_dict,
-            cls="[&>div]:h-8 uk-form-sm w-28",
+            # cls="[&>div]:h-8 uk-form-sm w-28",
             id=f"rev-{item_id}",
             hx_trigger="change",
             **change_rating_hx_attrs,
@@ -2056,10 +2060,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             Td(record_btn),
             Td(
                 Form(
-                    Div(
-                        rating_dropdown_input,
-                        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
-                    ),
+                    rating_dropdown_input,
                     Hidden(name="item_id", value=item_id),
                     Hidden(name="is_checked", value=f"{is_checked}"),
                     id=f"{route}_ratings",
@@ -4106,18 +4107,21 @@ def recent_review_view(auth):
 
         return Tr(
             Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_start_text(item_id), cls=TextT.lg),
             Td(
                 revision_count,
-                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
+                cls="text-center",
                 id=f"count-{item_id}",
             ),
             Td(
-                graduate_btn_recent_review(
-                    item_id,
-                    is_graduated=(mode_id == 4),
-                    is_disabled=(revision_count == 0),
-                ),
-                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+                Div(
+                    graduate_btn_recent_review(
+                        item_id,
+                        is_graduated=(mode_id == 4),
+                        is_disabled=(revision_count == 0),
+                    ),
+                    cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+                )
             ),
             *map(render_checkbox, date_range),
             id=f"row-{item_id}",
@@ -4127,7 +4131,8 @@ def recent_review_view(auth):
         Thead(
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Start Text", cls="min-w-28"),
+                Th("Count"),
                 Th("Graduate"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center sm:min-w-28")
@@ -4297,10 +4302,8 @@ def watch_list_view(auth):
 
         return Tr(
             Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
-            Td(
-                revision_count,
-                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
-            ),
+            Td(get_start_text(item_id), cls=TextT.lg),
+            Td(revision_count, cls="text-center"),
             Td(
                 date_to_human_readable(hafiz_item.next_review)
                 if (not is_graduated) and revision_count < 7
@@ -4328,7 +4331,8 @@ def watch_list_view(auth):
         Thead(
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Start Text", cls="min-w-28"),
+                Th("Count"),
                 Th("Next Review", cls="min-w-28 "),
                 Th("Due day"),
                 Th("Graduate", cls="column_to_scroll"),
