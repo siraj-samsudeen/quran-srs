@@ -1696,7 +1696,7 @@ def render_new_memorization_checkbox(
         check_form = Form(
             LabelCheckboxX(
                 label,
-                hx_get=f"/new_memorization/filter/page/{page_id}",
+                hx_get=f"/new_memorization/expand/page/{page_id}",
                 checked=False,
                 hx_trigger="click",
                 onClick="return false",
@@ -4636,7 +4636,7 @@ def render_row_based_on_type(
         else surahs[type_number].name
     )
 
-    filter_url = f"/new_memorization/filter/{current_type}/{type_number}"
+    filter_url = f"/new_memorization/expand/{current_type}/{type_number}"
     if current_type == "page":
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
         get_page = (
@@ -4941,8 +4941,8 @@ def new_memorization(auth, current_type: str):
     )
 
 
-@app.get("/new_memorization/filter/{current_type}/{type_number}")
-def filtered_table_for_new_memorization_modal(
+@app.get("/new_memorization/expand/{current_type}/{type_number}")
+def load_descendant_items_for_type_number(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
