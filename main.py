@@ -190,7 +190,6 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
                     item_id=item.id,
                     page_number=item.page_id,
                     mode_id=1,
-                    # active=True,
                 )
             )
     hafiz_data = (
@@ -1065,7 +1064,6 @@ def hafiz_selection(sess):
     if user_auth is None:
         return login_redir
 
-    # cards = [render_hafiz_card(h, auth) for h in hafizs()]
     cards = [
         render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
@@ -1442,7 +1440,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             )
 
         return Tr(
-            # Td(A(plan_id, href=f"/tables/plans/{plan_id}/edit", cls=AT.muted)),
             Td(next_page),
             Td(action_buttons),
         )
@@ -1561,7 +1558,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 Table(
                     Thead(
                         Tr(
-                            # Th("Plan Id"),
                             Th("Next"),
                             Th("Entry"),
                         )
@@ -2613,8 +2609,6 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
         item_details = items[item_id]
         page = item_details.page_id
         return Tr(
-            # Td(rev.id),
-            # Td(rev.user_id),
             Td(
                 CheckboxX(
                     name="ids",
@@ -2672,9 +2666,6 @@ def revision(auth, idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
-                # Columns are temporarily hidden
-                # Th("Id"),
-                # Th("User Id"),
                 Th(),  # empty header for checkbox
                 Th("Page"),
                 Th("Part"),
@@ -2715,11 +2706,6 @@ def create_revision_form(type, auth, backlink="/"):
         )
 
     additional_fields = (
-        # *(
-        #     (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
-        #     if type == "edit"
-        #     else ()
-        # ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -2829,13 +2815,6 @@ def bulk_edit_view(ids: str, auth):
                 )
             ),
             Td(
-                # replace with dd
-                # rating_radio(
-                #     default_rating=current_revision.rating,
-                #     direction="horizontal",
-                #     is_label=False,
-                #     id=f"rating-{id}",
-                # ),
                 rating_dropdown(
                     default_mode=str(current_revision.rating),
                     name=f"rating-{id}",
@@ -2891,15 +2870,6 @@ def bulk_edit_view(ids: str, auth):
     return main_area(
         H1("Bulk Edit Revision"),
         Form(
-            # Grid(
-            #     mode_dropdown(default_mode=first_revision.mode_id),
-            #     LabelInput(
-            #         "Plan ID",
-            #         name="plan_id",
-            #         type="number",
-            #         value=first_revision.plan_id,
-            #     ),
-            # ),
             # We don't need to send it because not update the mode_id and plan_id
             # Hidden(name="mode_id", value=first_revision.mode_id),
             # Hidden(name="plan_id", value=first_revision.plan_id),
@@ -2911,12 +2881,6 @@ def bulk_edit_view(ids: str, auth):
                     value=first_revision.revision_date,
                     cls="space-y-2 w-full",
                 ),
-                # cls=(
-                #     FlexT.block,
-                #     FlexT.between,
-                #     FlexT.bottom,
-                #     "w-full gap-2 space-y-2 col-span-2",
-                # ),
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
@@ -3200,13 +3164,7 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(  # replace with dd
-                # rating_radio(
-                #     direction="horizontal",
-                #     is_label=False,
-                #     id=f"rating-{current_item_id}",
-                #     cls="toggleable-radio",
-                # ),
+            Td(
                 rating_dropdown(is_label=False, name=f"rating-{current_item_id}"),
                 cls="!pr-0 min-w-32",
             ),
