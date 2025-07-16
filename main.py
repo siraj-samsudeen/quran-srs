@@ -1718,7 +1718,7 @@ def render_new_memorization_checkbox(
                 label,
                 name=f"is_checked",
                 value="1",
-                hx_post=f"/markas/new_memorization/{item_id}",
+                hx_post=f"/new_memorization/update_as_newly_memorized/{item_id}",
                 **kwrgs,
                 checked=True if current_revision_data else False,
             )
@@ -2222,8 +2222,8 @@ def update_multiple_items_from_index(
     return RedirectResponse("/", status_code=303)
 
 
-@app.post("/markas/new_memorization/{item_id}")
-def mark_as_new_memorized(
+@app.post("/new_memorization/update_as_newly_memorized/{item_id}")
+def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
 ):
     qry = f"item_id = {item_id} AND mode_id = 2;"
@@ -4772,7 +4772,7 @@ def format_output(groups: list):
     return formatted
 
 
-@app.delete("/markas/new_memorization/{item_id}")
+@app.delete("/new_memorization/update_as_newly_memorized/{item_id}")
 def delete(auth, request, item_id: str):
     qry = f"item_id = {item_id} AND mode_id = 2;"
     revisions_data = revisions(where=qry)
@@ -4882,7 +4882,7 @@ def new_memorization(auth, current_type: str):
             Td(
                 A(
                     "Delete",
-                    hx_delete=f"/markas/new_memorization/{type_number}",
+                    hx_delete=f"/new_memorization/update_as_newly_memorized/{type_number}",
                     hx_confirm="Are you sure? This page might be available in other modes.",
                 ),
                 cls=AT.muted,
