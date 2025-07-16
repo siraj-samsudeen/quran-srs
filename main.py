@@ -5576,7 +5576,7 @@ def srs_detailed_page_view(
     auth,
     sort_col: str = "last_review_date",
     sort_type: str = "desc",
-    is_bad_streak: bool = False,
+    is_bad_streak: bool = True,
 ):
     current_date = get_current_date(auth)
 
@@ -5660,6 +5660,7 @@ def srs_detailed_page_view(
         P("Sort Options: ", cls=TextT.bold),
         custom_select(name="sort_col", vals=columns, default_val=sort_col),
         custom_select(name="sort_type", vals=["ASC", "DESC"], default_val=sort_type),
+        Hidden(name="is_bad_streak", value="False"),
         LabelSwitch(
             label="Bad Streak",
             id="is_bad_streak",
