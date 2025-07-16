@@ -2700,28 +2700,7 @@ def revision(auth, idx: int | None = 1):
     )
 
 
-# This function is to hide the id fields with toggle button
-def toggle_input_fields(*args, show_id_fields=False):
-    return (
-        Div(
-            LabelSwitch(
-                label="Show additional fields", id="show_id_fields", x_model="isChecked"
-            ),
-            Grid(
-                *args,
-                cols=2,
-                cls=("gap-4", "hidden" if not show_id_fields else None),
-                **{"x-bind:class": "{ 'hidden': !isChecked }"},
-            ),
-            x_data="{ isChecked: IS_HIDE_FIELDS }".replace(
-                "IS_HIDE_FIELDS", "true" if show_id_fields else "false"
-            ),
-            cls="space-y-3",
-        ),
-    )
-
-
-def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
+def create_revision_form(type, auth, backlink="/"):
 
     def _option(obj):
         return Option(
@@ -2756,7 +2735,7 @@ def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
-        toggle_input_fields(*additional_fields, show_id_fields=show_id_fields),
+        *additional_fields,
         rating_radio(),
         Div(
             Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
@@ -2864,7 +2843,7 @@ def bulk_edit_view(ids: str, auth):
                 Th("Page"),
                 # Th("Surah"),
                 # Th("Part"),
-                Th("Start"),
+                Th("Start Text"),
                 # Th("Date"),
                 # Th("Mode"),
                 # Th("Plan ID"),
@@ -2890,6 +2869,14 @@ def bulk_edit_view(ids: str, auth):
         Button(
             "Cancel", type="button", cls=ButtonT.secondary, onclick="history.back()"
         ),
+        Button(
+            "Delete",
+            hx_delete="/revision",
+            hx_confirm="Are you sure you want to delete these revisions?",
+            hx_target="body",
+            hx_push_url="true",
+            cls=ButtonT.destructive,
+        ),
         cls=(FlexT.block, FlexT.around, FlexT.middle, "w-full"),
     )
 
@@ -2907,30 +2894,20 @@ def bulk_edit_view(ids: str, auth):
             # ),
             Hidden(name="mode_id", value=first_revision.mode_id),
             Hidden(name="plan_id", value=first_revision.plan_id),
-            toggle_input_fields(
-                Div(
-                    LabelInput(
-                        "Revision Date",
-                        name="revision_date",
-                        type="date",
-                        value=first_revision.revision_date,
-                        cls="space-y-2 w-full",
-                    ),
-                    Button(
-                        "Delete",
-                        hx_delete="/revision",
-                        hx_confirm="Are you sure you want to delete these revisions?",
-                        hx_target="body",
-                        hx_push_url="true",
-                        cls=ButtonT.destructive,
-                    ),
-                    cls=(
-                        FlexT.block,
-                        FlexT.between,
-                        FlexT.bottom,
-                        "w-full gap-2 space-y-2 col-span-2",
-                    ),
-                )
+            Div(
+                LabelInput(
+                    "Revision Date",
+                    name="revision_date",
+                    type="date",
+                    value=first_revision.revision_date,
+                    cls="space-y-2 w-full",
+                ),
+                # cls=(
+                #     FlexT.block,
+                #     FlexT.between,
+                #     FlexT.bottom,
+                #     "w-full gap-2 space-y-2 col-span-2",
+                # ),
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
@@ -2998,7 +2975,6 @@ def get(
     page: str = None,
     max_page: int = 605,
     date: str = None,
-    show_id_fields: bool = False,
 ):
     if item_id is not None:
         page = get_page_number(item_id)
@@ -3039,7 +3015,7 @@ def get(
                 item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
             ),
             fill_form(
-                create_revision_form("add", auth=auth, show_id_fields=show_id_fields),
+                create_revision_form("add", auth=auth),
                 {
                     "item_id": item_id,
                     "plan_id": plan_id,
@@ -3053,7 +3029,7 @@ def get(
 
 
 @rt("/revision/add")
-def post(revision_details: Revision, show_id_fields: bool = False):
+def post(revision_details: Revision):
     # The id is set to zero in the form, so we need to delete it
     # before inserting to generate the id automatically
     del revision_details.id
@@ -3078,12 +3054,12 @@ def post(revision_details: Revision, show_id_fields: bool = False):
     # if the next page contains multiple items, redirect to bulk revision page
     if is_next_page_is_part:
         return Redirect(
-            f"/revision/bulk_add?item_id={next_item_id}&revision_date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}&is_part=1"
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={rev.revision_date}&plan_id={rev.plan_id}&is_part=1"
         )
 
     # if the next page has only one item, redirect to single item revision page
     return Redirect(
-        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}&show_id_fields={show_id_fields}"
+        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}"
     )
 
 
@@ -3122,7 +3098,6 @@ def get(
     revision_date: str = None,
     max_item_id: int = get_last_item_id(),
     max_page_id: int = 605,
-    show_id_fields: bool = False,
 ):
 
     if revision_date is None:
@@ -3308,22 +3283,12 @@ def get(
             Hidden(name="is_part", value=str(is_part)),
             Hidden(name="plan_id", value=plan_id),
             Hidden(name="max_item_id", value=max_item_id),
-            toggle_input_fields(
-                # mode_dropdown(),
-                # LabelInput(
-                #     "Plan ID",
-                #     name="plan_id",
-                #     type="number",
-                #     value=(plan_id or defalut_plan_value),
-                # ),
-                LabelInput(
-                    "Revision Date",
-                    name="revision_date",
-                    type="date",
-                    value=revision_date,
-                    cls=("space-y-2 col-span-2"),
-                ),
-                show_id_fields=show_id_fields,
+            LabelInput(
+                "Revision Date",
+                name="revision_date",
+                type="date",
+                value=revision_date,
+                cls=("space-y-2 col-span-2"),
             ),
             Div(table, cls="uk-overflow-auto", id="table-container"),
             action_buttons,
@@ -3346,7 +3311,6 @@ async def post(
     auth,
     req,
     length: int = 0,
-    show_id_fields: bool = False,
 ):
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
@@ -3407,10 +3371,10 @@ async def post(
     # and the next page contains multiple items, redirect to bulk revision page
     if is_part and is_next_page_is_part:
         return Redirect(
-            f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&plan_id={plan_id}&show_id_fields={show_id_fields}&is_part=1"
+            f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&plan_id={plan_id}&is_part=1"
         )
     return Redirect(
-        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&show_id_fields={show_id_fields}&max_item_id={max_item_id}"
+        f"/revision/bulk_add?item_id={next_item_id}&revision_date={revision_date}&length={length}&plan_id={plan_id}&max_item_id={max_item_id}"
     )
 
 
