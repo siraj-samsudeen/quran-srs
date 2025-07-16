@@ -4106,18 +4106,21 @@ def recent_review_view(auth):
 
         return Tr(
             Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
+            Td(get_start_text(item_id), cls=TextT.lg),
             Td(
                 revision_count,
-                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
+                cls="text-center",
                 id=f"count-{item_id}",
             ),
             Td(
-                graduate_btn_recent_review(
-                    item_id,
-                    is_graduated=(mode_id == 4),
-                    is_disabled=(revision_count == 0),
-                ),
-                cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+                Div(
+                    graduate_btn_recent_review(
+                        item_id,
+                        is_graduated=(mode_id == 4),
+                        is_disabled=(revision_count == 0),
+                    ),
+                    cls=(FlexT.block, FlexT.center, FlexT.middle, "min-h-11"),
+                )
             ),
             *map(render_checkbox, date_range),
             id=f"row-{item_id}",
@@ -4127,7 +4130,8 @@ def recent_review_view(auth):
         Thead(
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Start Text", cls="min-w-28"),
+                Th("Count"),
                 Th("Graduate"),
                 *[
                     Th(date.strftime("%b %d %a"), cls="!text-center sm:min-w-28")
@@ -4297,10 +4301,8 @@ def watch_list_view(auth):
 
         return Tr(
             Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
-            Td(
-                revision_count,
-                cls="sticky left-28 sm:left-36 z-10 bg-white text-center",
-            ),
+            Td(get_start_text(item_id), cls=TextT.lg),
+            Td(revision_count, cls="text-center"),
             Td(
                 date_to_human_readable(hafiz_item.next_review)
                 if (not is_graduated) and revision_count < 7
@@ -4328,7 +4330,8 @@ def watch_list_view(auth):
         Thead(
             Tr(
                 Th("Pages", cls="min-w-28 sm:min-w-36 sticky left-0 z-20 bg-white"),
-                Th("Count", cls="sticky left-28 sm:left-36 z-10 bg-white"),
+                Th("Start Text", cls="min-w-28"),
+                Th("Count"),
                 Th("Next Review", cls="min-w-28 "),
                 Th("Due day"),
                 Th("Graduate", cls="column_to_scroll"),

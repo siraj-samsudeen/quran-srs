@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', handleEvents);
 
 function updateVisibility(checkbox) {
     const row = checkbox.closest('tr');
-    const cells = Array.from(row.querySelectorAll('td')).slice(3); // Skip first three cell (page, count and button)
+    const cells = Array.from(row.querySelectorAll('td')).slice(4); // Skip first three cell (page, start_text, count and button)
     const isGraduated = row.querySelector('input[name="is_checked"]').checked
     // Get all checked checkboxes in this row
     const checkedCells = cells.filter(cell => cell.querySelector('input[type="checkbox"]').checked);
