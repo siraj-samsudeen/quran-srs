@@ -439,7 +439,9 @@ def rating_radio(
     return Div(label, *options, cls=outer_cls)
 
 
-def rating_dropdown(default_mode="1", is_label=True, rating_dict=RATING_MAP, **kwargs):
+def rating_dropdown(
+    default_mode="1", is_label=True, rating_dict=RATING_MAP, name="rating", **kwargs
+):
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == default_mode
@@ -448,8 +450,8 @@ def rating_dropdown(default_mode="1", is_label=True, rating_dict=RATING_MAP, **k
     return fh.Select(
         map(mk_options, rating_dict.items()),
         label=("Rating" if is_label else None),
-        name="rating",
-        select_kwargs={"name": "rating"},
+        name=name,
+        select_kwargs={"name": name},
         **kwargs,
     )
 
@@ -2736,7 +2738,7 @@ def create_revision_form(type, auth, backlink="/"):
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         *additional_fields,
-        rating_radio(),
+        rating_radio(),  # single entry
         Div(
             Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=backlink),
@@ -2827,11 +2829,17 @@ def bulk_edit_view(ids: str, auth):
                 )
             ),
             Td(
-                rating_radio(
-                    default_rating=current_revision.rating,
-                    direction="horizontal",
+                # replace with dd
+                # rating_radio(
+                #     default_rating=current_revision.rating,
+                #     direction="horizontal",
+                #     is_label=False,
+                #     id=f"rating-{id}",
+                # ),
+                rating_dropdown(
+                    default_mode=str(current_revision.rating),
+                    name=f"rating-{id}",
                     is_label=False,
-                    id=f"rating-{id}",
                 ),
                 cls="min-w-32",
             ),
@@ -2892,8 +2900,9 @@ def bulk_edit_view(ids: str, auth):
             #         value=first_revision.plan_id,
             #     ),
             # ),
-            Hidden(name="mode_id", value=first_revision.mode_id),
-            Hidden(name="plan_id", value=first_revision.plan_id),
+            # We don't need to send it because not update the mode_id and plan_id
+            # Hidden(name="mode_id", value=first_revision.mode_id),
+            # Hidden(name="plan_id", value=first_revision.plan_id),
             Div(
                 LabelInput(
                     "Revision Date",
@@ -2920,8 +2929,7 @@ def bulk_edit_view(ids: str, auth):
 
 
 @app.post("/revision")
-async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
-    plan_id = set_zero_to_none(plan_id)
+async def bulk_edit_save(revision_date: str, req):
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -2934,8 +2942,6 @@ async def bulk_edit_save(revision_date: str, mode_id: int, plan_id: int, req):
                         id=int(current_id),
                         rating=int(value),
                         revision_date=revision_date,
-                        mode_id=mode_id,
-                        plan_id=plan_id,
                     )
                 )
 
@@ -3194,13 +3200,14 @@ def get(
                     _at_click="handleCheckboxClick($event)",
                 )
             ),
-            Td(
-                rating_radio(
-                    direction="horizontal",
-                    is_label=False,
-                    id=f"rating-{current_item_id}",
-                    cls="toggleable-radio",
-                ),
+            Td(  # replace with dd
+                # rating_radio(
+                #     direction="horizontal",
+                #     is_label=False,
+                #     id=f"rating-{current_item_id}",
+                #     cls="toggleable-radio",
+                # ),
+                rating_dropdown(is_label=False, name=f"rating-{current_item_id}"),
                 cls="!pr-0 min-w-32",
             ),
         )
@@ -4428,7 +4435,7 @@ def watch_list_form(item_id: int, min_date: str, _type: str, auth):
     current_date = get_current_date(auth)
 
     return Container(
-        H1(f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}"),
+        H1(get_page_description(item_id), f" - {items[item_id].start_text}"),
         Form(
             LabelInput(
                 "Revision Date",
@@ -4442,7 +4449,7 @@ def watch_list_form(item_id: int, min_date: str, _type: str, auth):
             Hidden(name="page_no", value=page),
             Hidden(name="mode_id", value=4),
             Hidden(name="item_id", value=item_id),
-            rating_radio(),
+            rating_radio(),  # single entry
             Div(
                 Button("Save", cls=ButtonT.primary),
                 (
@@ -5067,7 +5074,7 @@ def create_new_memorization_revision_form(
             Input(name="page_no", type="hidden"),
             Input(name="mode_id", type="hidden"),
             Input(name="item_id", type="hidden"),
-            rating_radio(),
+            rating_radio(),  # Not now
             Div(
                 Button("Save", cls=ButtonT.primary),
                 # A(
