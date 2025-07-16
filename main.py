@@ -2734,11 +2734,11 @@ def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
         )
 
     additional_fields = (
-        *(
-            (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
-            if type == "edit"
-            else ()
-        ),
+        # *(
+        #     (mode_dropdown(), LabelInput("Plan Id", name="plan_id", type="number"))
+        #     if type == "edit"
+        #     else ()
+        # ),
         LabelInput(
             "Revision Date",
             name="revision_date",
@@ -2756,11 +2756,7 @@ def create_revision_form(type, auth, show_id_fields=False, backlink="/"):
         LabelSelect(
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
-        (
-            toggle_input_fields(*additional_fields, show_id_fields=show_id_fields)
-            if type == "add"
-            else Grid(*additional_fields, cols=2)
-        ),
+        toggle_input_fields(*additional_fields, show_id_fields=show_id_fields),
         rating_radio(),
         Div(
             Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
@@ -2783,7 +2779,11 @@ def get(revision_id: int, auth, req):
     )
     return main_area(
         Titled(
-            f"Edit => {(get_page_number(item_id))} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
+            (
+                "Edit => ",
+                get_page_description(item_id),
+                f" - {items[item_id].start_text}",
+            ),
             fill_form(form, current_revision),
         ),
         active="Revision",
@@ -2907,23 +2907,30 @@ def bulk_edit_view(ids: str, auth):
             # ),
             Hidden(name="mode_id", value=first_revision.mode_id),
             Hidden(name="plan_id", value=first_revision.plan_id),
-            Div(
-                LabelInput(
-                    "Revision Date",
-                    name="revision_date",
-                    type="date",
-                    value=first_revision.revision_date,
-                    cls="space-y-2 w-full",
-                ),
-                Button(
-                    "Delete",
-                    hx_delete="/revision",
-                    hx_confirm="Are you sure you want to delete these revisions?",
-                    hx_target="body",
-                    hx_push_url="true",
-                    cls=ButtonT.destructive,
-                ),
-                cls=(FlexT.block, FlexT.between, FlexT.bottom, "w-full gap-2"),
+            toggle_input_fields(
+                Div(
+                    LabelInput(
+                        "Revision Date",
+                        name="revision_date",
+                        type="date",
+                        value=first_revision.revision_date,
+                        cls="space-y-2 w-full",
+                    ),
+                    Button(
+                        "Delete",
+                        hx_delete="/revision",
+                        hx_confirm="Are you sure you want to delete these revisions?",
+                        hx_target="body",
+                        hx_push_url="true",
+                        cls=ButtonT.destructive,
+                    ),
+                    cls=(
+                        FlexT.block,
+                        FlexT.between,
+                        FlexT.bottom,
+                        "w-full gap-2 space-y-2 col-span-2",
+                    ),
+                )
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
