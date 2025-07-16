@@ -2268,8 +2268,8 @@ def update_status_as_newly_memorized(
     return RedirectResponse(referer, status_code=303)
 
 
-@app.post("/markas/new_memorization_bulk")
-def bulk_mark_as_new_memorized(
+@app.post("/new_memorization/bulk_update_as_newly_memorized")
+def bulk_update_status_as_newly_memorized(
     request, item_ids: list[int], auth, rating: int = None
 ):  # for query string format
     current_date = get_current_date(auth)
@@ -5005,7 +5005,7 @@ def filtered_table_for_new_memorization_modal(
         Form(
             table,
             Button("Set as Newly Memorized", cls="bg-green-600 text-white"),
-            hx_post=f"/markas/new_memorization_bulk",
+            hx_post=f"/new_memorization/bulk_update_as_newly_memorized",
             cls="space-y-2",
         ),
         ModalTitle(
