@@ -3726,7 +3726,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
 
 # This is responsible for updating the modal
 @app.get("/profile/custom_status_update/{current_type}/{type_number}")
-def filtered_table_for_modal(
+def load_descendant_items_for_profile(
     current_type: str,
     type_number: int,
     title: str,
@@ -4942,7 +4942,7 @@ def new_memorization(auth, current_type: str):
 
 
 @app.get("/new_memorization/expand/{current_type}/{type_number}")
-def load_descendant_items_for_type_number(
+def load_descendant_items_for_new_memorization(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
     if current_type == "juz":
