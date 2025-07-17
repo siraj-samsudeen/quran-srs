@@ -18,7 +18,7 @@ STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
-DB_PATH = "data/quran_v9.db"
+DB_PATH = "data/quran_v10.db"
 
 # This function will handle table creation and migration using fastmigrate
 create_and_migrate_db(DB_PATH)
@@ -38,6 +38,7 @@ tables = db.t
     mushafs,
     hafizs_items,
     srs_booster_pack,
+    statuses,
 ) = (
     tables.revisions,
     tables.hafizs,
@@ -51,6 +52,7 @@ tables = db.t
     tables.mushafs,
     tables.hafizs_items,
     tables.srs_booster_pack,
+    tables.statuses,
 )
 (
     Revision,
@@ -65,6 +67,7 @@ tables = db.t
     Mushaf,
     Hafiz_Items,
     Srs_Booster_Pack,
+    Status,
 ) = (
     revisions.dataclass(),
     hafizs.dataclass(),
@@ -78,6 +81,7 @@ tables = db.t
     mushafs.dataclass(),
     hafizs_items.dataclass(),
     srs_booster_pack.dataclass(),
+    statuses.dataclass(),
 )
 
 
