@@ -84,12 +84,18 @@ Different modes of memorization practice (e.g., New Memorization, Daily, Weekly,
 - name
 - description
 
+#### statuses table
+Possible statuses for memorization items to track their current state.
+
+- status: Values: Strong, Weakened, Forgotten, New Memorization, SRS Mode, Not Started
+- description
+
 #### hafizs_items table
 Memorization status for each item for each hafiz. Also used to store item level statistics for each hafiz. 
 
 - hafiz_id
 - item_id
-- status: Values: memorized, newly_memorized, not_memorized
+- status_id
 - mode_id
 - last_review: Date when this item was last reviewed
 - good_streak: Count of consecutive successful reviews
