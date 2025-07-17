@@ -5500,6 +5500,9 @@ def display_page_level_details(auth, item_id: int):
                 revision_date,
                 rating,
                 modes.name AS mode_name,
+                last_interval AS previous_interval,
+                current_interval AS actual_interval,
+                next_interval,
             CASE
                 WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
                 ELSE CAST(
@@ -5519,7 +5522,18 @@ def display_page_level_details(auth, item_id: int):
         data = db.q(query)
         # determine table visibility
         has_data = len(data) > 0
-        cols = ["s_no", "revision_date", "rating", "interval"]
+        # This is to render the srs table different from others
+        if len(mode_ids) == 1 and 5 in mode_ids:
+            cols = [
+                "s_no",
+                "revision_date",
+                "rating",
+                "previous_interval",
+                "actual_interval",
+                "next_interval",
+            ]
+        else:
+            cols = ["s_no", "revision_date", "rating", "interval"]
         cls = "uk-overflow-auto max-h-[30vh] p-4"
         if is_summary:
             # summary table has all the modes, so we need to add mode_name column
