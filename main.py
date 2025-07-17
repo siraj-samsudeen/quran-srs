@@ -3073,7 +3073,7 @@ async def bulk_edit_save(revision_date: str, req, auth):
         if name.startswith("rating-"):
             current_id = name.split("-")[1]
             if current_id in ids_to_update:
-                revisions.update(
+                current_revision = revisions.update(
                     Revision(
                         id=int(current_id),
                         rating=int(value),
@@ -3081,8 +3081,8 @@ async def bulk_edit_save(revision_date: str, req, auth):
                     )
                 )
                 update_stats_and_interval(
-                    item_id=revisions[int(current_id)].item_id,
-                    mode_id=mode_id,
+                    item_id=current_revision.item_id,
+                    mode_id=current_revision.mode_id,
                     current_date=get_current_date(auth),
                 )
 
