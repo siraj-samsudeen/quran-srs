@@ -92,15 +92,8 @@ Memorization status for each item for each hafiz. Also used to store item level 
 - status: Values: memorized, newly_memorized, not_memorized
 - mode_id
 - last_review: Date when this item was last reviewed
-- next_review: Date when this item should be reviewed next
-- watch_list_graduation_date: Date when item graduated from watch list
-- srs_booster_pack_id
 - good_streak: Count of consecutive successful reviews
 - bad_streak: Count of consecutive failed reviews
-- last_interval: Previous planned interval duration in days 
-- current_interval: Actual interval duration in days
-- next_interval: Calculated interval for next review in days
-- srs_start_date: Date when SRS tracking began for this item
 - good_count: Total count of successful reviews
 - bad_count: Total count of failed reviews
 - score: Sum of the ratings
@@ -128,11 +121,6 @@ Individual revision sessions and their outcomes.
 - item_id
 - revision_date: Date when revision took place
 - rating: Performance rating for this revision
-  - values: -1(Bad), 0(Ok), 1(Bad)
+  - values: -1(Bad), 0(Ok), 1(Good)
 - mode_id
 - full_cycle_id
-<!-- - notes: Additional notes about the revision session -->
-- last_interval: Previous planned interval duration in days
-- current_interval: Actual interval duration in days
-- next_interval: Calculated interval for next revision in days
-
