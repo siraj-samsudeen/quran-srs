@@ -5459,12 +5459,13 @@ def display_page_level_details(auth, item_id: int):
         # If no modes exist, skip first revision logic
         memorization_summary = ""
     else:
+        ctn = []
+
         first_revision_data = revisions(
             where=f"item_id = {item_id} and hafiz_id = {auth} and mode_id IN ({', '.join(map(str, mode_id_list))})",
             order_by="revision_date ASC",
             limit=1,
         )
-
         if first_revision_data:
             first_revision = first_revision_data[0]
             first_memorized_date = (
@@ -5478,15 +5479,66 @@ def display_page_level_details(auth, item_id: int):
             first_memorized_mode_name, description = make_mode_title_for_table(
                 first_memorized_mode_id
             )
-            memorization_summary = Div(
-                H2("Summary"),
+            ctn.append(
                 P(
                     "This page was added on: ",
                     Span(Strong(date_to_human_readable(first_memorized_date))),
                     " under ",
                     Span(Strong(first_memorized_mode_name)),
-                ),
+                )
             )
+
+            # Stats of the item_id
+            hafiz_items_details = get_hafizs_items(item_id)
+            if hafiz_items_details:
+                stat_columns = [
+                    "last_review",
+                    "status",
+                    "mode_id",
+                    "good_streak",
+                    "good_count",
+                    "bad_streak",
+                    "bad_count",
+                    "score",
+                    "count",
+                ]
+
+                # Table View
+                def render_stats(col_name: str):
+                    value = hafiz_items_details.__dict__[col_name]
+                    if col_name == "mode_id":
+                        col_name = "current mode"
+                        value = get_mode_name(value)
+                    else:
+                        value = str(value).capitalize()
+                    return Tr(Th(destandardize_text(col_name)), Td(value))
+
+                stats_table = Table(
+                    Tbody(*map(render_stats, stat_columns)), cls=TableT.sm
+                )
+                ctn.append(Div(stats_table, cls="max-w-80"))
+
+                # # List View
+                # lists = []
+                # for col in stat_columns:
+                #     value = hafiz_items_details.__dict__[col]
+                #     # Render the mode_id differently as we need the name of the rather than the id
+                #     if col == "mode_id":
+                #         col = "current mode"
+                #         value = get_mode_name(value)
+                #     else:
+                #         value = str(value).capitalize()
+                #     lists.append(
+                #         Li(
+                #             Span(f"{destandardize_text(col)}: "),
+                #             Span(value, cls=TextT.bold),
+                #         )
+                #     )
+                # ctn.append(Ul(*lists, cls="space-y-1"))
+
+        # To render the summary, only if the page has any revision
+        if ctn:
+            memorization_summary = Div(H2("Summary"), Div(*ctn, cls="space-y-3"))
         else:
             memorization_summary = ""
 
