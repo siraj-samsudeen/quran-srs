@@ -5495,23 +5495,33 @@ def display_page_level_details(auth, item_id: int):
                     "last_review",
                     "status",
                     "mode_id",
-                    "good_streak",
-                    "good_count",
-                    "bad_streak",
-                    "bad_count",
-                    "score",
-                    "count",
+                    "last_interval",
+                    "current_interval",
+                    "next_interval",
+                    # "good_streak",
+                    # "good_count",
+                    # "bad_streak",
+                    # "bad_count",
+                    # "score",
+                    # "count",
                 ]
+                rename_columns = {
+                    "mode_id": "current_mode",
+                    "last_interval": "previous_interval",
+                    "current_interval": "actual_interval",
+                }
 
                 # Table View
                 def render_stats(col_name: str):
                     value = hafiz_items_details.__dict__[col_name]
                     if col_name == "mode_id":
-                        col_name = "current mode"
                         value = get_mode_name(value)
                     else:
                         value = str(value).capitalize()
-                    return Tr(Th(destandardize_text(col_name)), Td(value))
+                    return Tr(
+                        Th(destandardize_text(rename_columns.get(col_name, col_name))),
+                        Td(value),
+                    )
 
                 stats_table = Table(
                     Tbody(*map(render_stats, stat_columns)),
