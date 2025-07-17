@@ -6007,7 +6007,7 @@ def srs_detailed_page_view(
                 A(
                     "Refresh stats",
                     hx_get="/update_stats_column",
-                    hx_swap="none",
+                    hx_target="body",
                     cls=AT.classic,
                 ),
             ),
@@ -6081,8 +6081,9 @@ def update_current_date(auth, current_date: str):
 
 
 @app.get("/update_stats_column")
-def update_stats_column():
+def update_stats_column(req):
     populate_hafizs_items_stat_columns()
+    return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
 
 @app.get("/settings")
