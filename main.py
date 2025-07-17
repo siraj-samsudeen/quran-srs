@@ -5514,9 +5514,22 @@ def display_page_level_details(auth, item_id: int):
                     return Tr(Th(destandardize_text(col_name)), Td(value))
 
                 stats_table = Table(
-                    Tbody(*map(render_stats, stat_columns)), cls=TableT.sm
+                    Tbody(*map(render_stats, stat_columns)),
+                    cls=(TableT.sm, TableT.responsive, TableT.justify),
                 )
-                ctn.append(Div(stats_table, cls="max-w-80"))
+                ctn.append(
+                    Div(
+                        A(
+                            "Refresh stats",
+                            hx_get="/update_stats_column",
+                            hx_vals={"item_id": item_id},
+                            hx_target="body",
+                            cls=AT.classic,
+                        ),
+                        stats_table,
+                        cls="max-w-80 space-y-1",
+                    )
+                )
 
                 # # List View
                 # lists = []
@@ -6081,8 +6094,11 @@ def update_current_date(auth, current_date: str):
 
 
 @app.get("/update_stats_column")
-def update_stats_column(req):
-    populate_hafizs_items_stat_columns()
+def update_stats_column(req, item_id: int = None):
+    if item_id:
+        populate_hafizs_items_stat_columns(item_id)
+    else:
+        populate_hafizs_items_stat_columns()
     return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
 
