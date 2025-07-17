@@ -5921,8 +5921,9 @@ def srs_detailed_page_view(
                         Td("Last Review"),
                         Td("Next Review"),
                         Td("Due"),
-                        Td("Last Interval"),
-                        Td("Current Interval"),
+                        # TODO: The column names are renamed temporarly for testing
+                        Td("Previous Interval"),
+                        Td("Actual Interval"),
                         Td("Next Interval"),
                     ),
                     cls="sticky z-50 top-0 bg-white",
