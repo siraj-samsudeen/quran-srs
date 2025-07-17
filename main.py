@@ -6087,11 +6087,26 @@ def update_current_date(auth, current_date: str):
 
 
 @app.get("/update_stats_column")
-def update_stats_column(req, item_id: int = None):
+def update_stats_column(req, auth, item_id: int = None):
+    current_date = get_current_date(auth)
+
+    def update_actual_interval(current_item_id):
+        """Update the current_interval in hafizs_items table"""
+        current_hafiz_details = get_hafizs_items(current_item_id)
+        if current_hafiz_details.mode_id == 5:
+            current_hafiz_details.current_interval = calculate_days_difference(
+                current_hafiz_details.last_review, current_date
+            )
+            hafizs_items.update(current_hafiz_details)
+
     if item_id:
         populate_hafizs_items_stat_columns(item_id)
+        update_actual_interval(item_id)
     else:
         populate_hafizs_items_stat_columns()
+        for hafiz_item in hafizs_items(where="mode_id = 5"):
+            update_actual_interval(hafiz_item.id)
+
     return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
 
