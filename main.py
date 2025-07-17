@@ -5531,24 +5531,6 @@ def display_page_level_details(auth, item_id: int):
                     )
                 )
 
-                # # List View
-                # lists = []
-                # for col in stat_columns:
-                #     value = hafiz_items_details.__dict__[col]
-                #     # Render the mode_id differently as we need the name of the rather than the id
-                #     if col == "mode_id":
-                #         col = "current mode"
-                #         value = get_mode_name(value)
-                #     else:
-                #         value = str(value).capitalize()
-                #     lists.append(
-                #         Li(
-                #             Span(f"{destandardize_text(col)}: "),
-                #             Span(value, cls=TextT.bold),
-                #         )
-                #     )
-                # ctn.append(Ul(*lists, cls="space-y-1"))
-
         # To render the summary, only if the page has any revision
         if ctn:
             memorization_summary = Div(H2("Summary"), Div(*ctn, cls="space-y-3"))
