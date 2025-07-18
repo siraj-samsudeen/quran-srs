@@ -701,8 +701,17 @@ def update_actual_interval(item_id, current_date):
     """Update the current_interval in hafizs_items table"""
     current_hafiz_details = get_hafizs_items(item_id)
     if current_hafiz_details.mode_id == 5:
+
+        # This is to handle the case where if it is newly added into the SRS
+        if revisions(
+            where=f"item_id={current_hafiz_details.item_id} and mode_id={current_hafiz_details.mode_id}"
+        ):
+            last_review = current_hafiz_details.last_review
+        else:
+            last_review = current_hafiz_details.srs_start_date
+
         current_hafiz_details.current_interval = calculate_days_difference(
-            current_hafiz_details.last_review, current_date
+            last_review, current_date
         )
         hafizs_items.update(current_hafiz_details)
 
@@ -1831,6 +1840,12 @@ def change_the_current_date(auth):
             pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
             if hafiz_items_details.next_interval > pack_details.end_interval:
                 graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+
+    # TODO: The page should enter into SRS mode before or after updating the current_date?
+    # Automatically add the pages which have 2 consecutive bad streak to SRS mode
+    populate_hafizs_items_stat_columns()
+    for hafiz_item in hafizs_items(where="bad_streak >= 2"):
+        start_srs(hafiz_item.item_id, auth)
 
     # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
