@@ -697,6 +697,16 @@ def extract_mode_sort_number(mode_id):
 ####################### Recent_review and Watch_list common function #######################
 
 
+def update_actual_interval(item_id, current_date):
+    """Update the current_interval in hafizs_items table"""
+    current_hafiz_details = get_hafizs_items(item_id)
+    if current_hafiz_details.mode_id == 5:
+        current_hafiz_details.current_interval = calculate_days_difference(
+            current_hafiz_details.last_review, current_date
+        )
+        hafizs_items.update(current_hafiz_details)
+
+
 def update_hafizs_items_table(item_id: int, data_to_update: dict):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
 
@@ -1825,6 +1835,12 @@ def change_the_current_date(auth):
     # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
+
+    # Update the current_interval for the SRS items
+    current_date = get_current_date(auth)
+    for hafiz_item in hafizs_items(where="mode_id = 5"):
+        update_actual_interval(item_id=hafiz_item.item_id, current_date=current_date)
+
     return Redirect("/")
 
 
@@ -6090,22 +6106,15 @@ def update_current_date(auth, current_date: str):
 def update_stats_column(req, auth, item_id: int = None):
     current_date = get_current_date(auth)
 
-    def update_actual_interval(current_item_id):
-        """Update the current_interval in hafizs_items table"""
-        current_hafiz_details = get_hafizs_items(current_item_id)
-        if current_hafiz_details.mode_id == 5:
-            current_hafiz_details.current_interval = calculate_days_difference(
-                current_hafiz_details.last_review, current_date
-            )
-            hafizs_items.update(current_hafiz_details)
-
     if item_id:
         populate_hafizs_items_stat_columns(item_id)
-        update_actual_interval(item_id)
+        update_actual_interval(item_id=item_id, current_date=current_date)
     else:
         populate_hafizs_items_stat_columns()
         for hafiz_item in hafizs_items(where="mode_id = 5"):
-            update_actual_interval(hafiz_item.id)
+            update_actual_interval(
+                item_id=hafiz_item.item_id, current_date=current_date
+            )
 
     return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
