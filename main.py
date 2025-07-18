@@ -596,7 +596,12 @@ def rating_radio(
 
 
 def rating_dropdown(
-    default_mode="1", is_label=True, rating_dict=RATING_MAP, name="rating", **kwargs
+    default_mode="1",
+    is_label=True,
+    rating_dict=RATING_MAP,
+    name="rating",
+    cls="[&>div]:h-8 uk-form-sm w-28",
+    **kwargs,
 ):
     def mk_options(o):
         id, name = o
@@ -609,7 +614,7 @@ def rating_dropdown(
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls="[&>div]:h-8 uk-form-sm w-28",
+            cls=cls,
             **kwargs,
         ),
         cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
@@ -2427,8 +2432,8 @@ def update_status_as_newly_memorized(
         hafizs_items_data = hafizs_items(
             where=f"item_id = {item_id} AND hafiz_id= {auth}"
         )[0]
-        # check status_id del works already its status
-        del hafizs_items_data.status_id
+        # already we delete the status that consider as Not Memorized. so now we can update the status_id to 6
+        hafizs_items_data.status_id = 6  # status_id 6 is `Not Started`(Not Memorized)
         hafizs_items_data.mode_id = 1
         hafizs_items.update(hafizs_items_data)
 
@@ -2470,8 +2475,7 @@ def bulk_update_status_as_newly_memorized(
             },
             hafizs_items_id,
         )
-
-    populate_hafizs_items_stat_columns(item_id=item_id)
+        populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -3550,7 +3554,7 @@ async def post(
 
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, sess, status: str = ""):
-    status_id = None
+    status_id = None  # Initially we did't apply filter
     if status == "memorized":
         status_id = 1
     elif status == "newly_memorized":
@@ -3572,6 +3576,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             hafizs_items.insert(
                 item_id=missing_item_id,
                 page_number=get_page_number(missing_item_id),
+                status_id=6,  # Initially we set status_id 6 is `Not Memorized` for all records.
                 mode_id=1,  # TODO: Confirm that mode_id=1 is appropriate here.
                 # Missing items are currently assumed to belong to the "sequence" mode.
             )
@@ -3763,7 +3768,9 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
     for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
-        if item["status_id"] == 1:  # status_id 1 is `Strong`(Memorized)
+        if (
+            item["status_id"] == 1 or item["status_id"] == 5
+        ):  # status_id 1 is `Strong`(Memorized), 5 is SRS (both status are memorized pages)
             page_stats[page]["memorized"] += 1
 
     total_memorized_pages = 0
@@ -4111,7 +4118,7 @@ async def update_status(
         elif existing_status == 6:
             set_status = 1
         else:
-            set_status = current_record.status
+            set_status = current_record.status_id
         current_record.status = set_status
         hafizs_items.update(current_record)
     query_string = f"?status={filter_status}&" if filter_status else ""
@@ -4172,10 +4179,9 @@ async def profile_page_custom_status_update(
     auth,
     status: str = None,
 ):
-    print("triggered")
     form_data = await req.form()
-    selected_status_id = form_data.get("selected_status_id")
-    print(selected_status_id, type(selected_status_id))
+    selected_status_id = int(form_data.get("selected_status_id"))
+    # ensure selected_status_id is int
     is_newly_memorized = selected_status_id == 4
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
@@ -5003,7 +5009,8 @@ def delete(auth, request, item_id: str):
     hafizs_items_data = hafizs_items(where=f"item_id = {item_id} AND hafiz_id= {auth}")[
         0
     ]
-    del hafizs_items_data.status
+    # already we delete the status that consider as Not Memorized. so now we can update the status_id to 6
+    hafizs_items_data.status_id = 6  # status_id 6 is `Not Started`(Not Memorized)
     hafizs_items_data.mode_id = 1
     hafizs_items.update(hafizs_items_data)
     populate_hafizs_items_stat_columns(item_id=item_id)
