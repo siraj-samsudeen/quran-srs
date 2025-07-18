@@ -5995,13 +5995,12 @@ def start_srs(item_id: int, auth):
     next_review_date = add_days_to_date(current_date, next_interval)
 
     # Change the current mode_id for the item_id to 5(srs)
-    # TODO: What about the status?
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
-        # current_hafiz_items.status_id = 5  # status_id 5 is SRS
+        current_hafiz_items.status_id = 5  # status_id 5 is SRS
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
