@@ -3551,11 +3551,11 @@ async def post(
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, sess, status: str = ""):
     status_id = None  # Initially we did't apply filter
-    if status == "memorized":
+    if status == "strong":
         status_id = 1
-    elif status == "newly_memorized":
+    elif status == "new_memorization":
         status_id = 4
-    elif status == "not_memorized":
+    elif status == "not_started":
         status_id = 6
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
@@ -3733,7 +3733,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         P("Status Filter:", cls=TextPresets.muted_sm),
         *map(
             render_filter_btn,
-            ["Memorized", "Not Memorized", "Newly Memorized"],
+            ["Strong", "Not Started", "New Memorization"],
         ),
         (
             Label(
@@ -3943,11 +3943,11 @@ def load_descendant_items_for_profile(
 ):
     # Status_id map
     status_id = 1
-    if status == "memorized":
+    if status == "strong":
         status_id = 1
-    elif status == "newly_memorized":
+    elif status == "new_memorization":
         status_id = 4
-    elif status == "not_memorized":
+    elif status == "not_started":
         status_id = 6
 
     if current_type == "juz":
@@ -4107,7 +4107,7 @@ async def update_status(
             set_status = 1
         else:
             set_status = current_record.status_id
-        current_record.status = set_status
+        current_record.status_id = set_status
         hafizs_items.update(current_record)
     query_string = f"?status={filter_status}&" if filter_status else ""
     return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
