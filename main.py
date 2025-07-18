@@ -3757,9 +3757,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
     for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
-        if (
-            item["status_id"] == 1 or item["status_id"] == 5
-        ):  # status_id 1 is `Strong`(Memorized), 5 is SRS (both status are memorized pages)
+        if item["status_id"] == 1:  # status_id 1 is `Strong`(Memorized)
             page_stats[page]["memorized"] += 1
 
     total_memorized_pages = 0
