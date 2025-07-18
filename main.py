@@ -1135,9 +1135,6 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
-# TODO: ABOVE CHECKED AND UPDATED STATUS WITH STATUS_ID
-
-
 def render_hafiz_card(hafizs_user, auth):
     is_current_hafizs_user = auth != hafizs_user.hafiz_id
     return Card(
@@ -1811,7 +1808,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         4: watch_list_target,
         5: srs_target,
     }
-    # FIXME: need to pass argument as keyword argument
+
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
 
     return main_area(
@@ -3103,7 +3100,6 @@ async def bulk_edit_save(revision_date: str, req, auth):
                 )
                 update_stats_and_interval(
                     item_id=revisions[int(current_id)].item_id,
-                    # FIXME: check why? mode_id NOT defined?
                     mode_id=mode_id,
                     current_date=get_current_date(auth),
                 )
@@ -3582,14 +3578,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        # TODO: FIX STATUS NAME
         status_value = records[0]["status_id"]
-        # status_value = (
-        #     status_name.replace("_", " ").title()
-        #     if status_name is not None
-        #     else "Not Memorized"
-        # )
-        # status_value = status_name
         if status_id and status_id != status_value:
             return None
 
@@ -3617,7 +3606,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             else surahs[type_number].name
         )
         item_length = 1
-        # FIXME: simplify this status_filter logic
+
         status_filter = f"status_id = {status_value}"
 
         if current_type == "page":
@@ -4024,7 +4013,6 @@ def load_descendant_items_for_profile(
         id="filtered-table",
     )
     modal_level_dd = Div(
-        # TODO: FIX status_dropdown
         status_dropdown(status_id),
         id="my-modal-body",
     )
@@ -4142,8 +4130,8 @@ def profile_page_status_update(
                           WHERE items.active != 0;"""
     ct = db.q(qry)
     is_newly_memorized = selected_status_id == 4  # status_id 4 is `New Memorization`
-    # FIXME: This produce error but still it update the status of the item with error and it not capture rev record on new memorization
     grouped = group_by_type(ct, current_type, feild="id")
+
     for item_id in grouped[type_number]:
         current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
         current_item = current_item[0]
@@ -4161,9 +4149,6 @@ def profile_page_status_update(
             )
     referer = req.headers.get("referer", "/")
     return RedirectResponse(referer, status_code=303)
-
-
-# TODO: ABOVE CHECKED AND UPDATED STATUS WITH STATUS_ID
 
 
 @app.post("/profile/custom_status_update/{current_type}/{type_number}")
@@ -6016,6 +6001,7 @@ def start_srs(item_id: int, auth):
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
+        # current_hafiz_items.status_id = 5  # status_id 5 is SRS
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
