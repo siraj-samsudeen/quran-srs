@@ -14,11 +14,11 @@ OPTION_MAP = {
     "age_group": ["child", "teen", "adult"],
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
-STATUS_OPTIONS = ["Memorized", "Newly Memorized", "Not Memorized"]
+
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
-DB_PATH = "data/quran_v9.db"
+DB_PATH = "data/quran_v10.db"
 
 # This function will handle table creation and migration using fastmigrate
 create_and_migrate_db(DB_PATH)
@@ -38,6 +38,7 @@ tables = db.t
     mushafs,
     hafizs_items,
     srs_booster_pack,
+    statuses,
 ) = (
     tables.revisions,
     tables.hafizs,
@@ -51,6 +52,7 @@ tables = db.t
     tables.mushafs,
     tables.hafizs_items,
     tables.srs_booster_pack,
+    tables.statuses,
 )
 (
     Revision,
@@ -65,6 +67,7 @@ tables = db.t
     Mushaf,
     Hafiz_Items,
     Srs_Booster_Pack,
+    Status,
 ) = (
     revisions.dataclass(),
     hafizs.dataclass(),
@@ -78,6 +81,7 @@ tables = db.t
     mushafs.dataclass(),
     hafizs_items.dataclass(),
     srs_booster_pack.dataclass(),
+    statuses.dataclass(),
 )
 
 
@@ -346,8 +350,9 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
             )
     hafiz_data = (
         hafizs_items(
-            where=f"{qry} AND status IS NULL"
-        )  # Filter out memorized, as of now status is NULL
+            # Stats_id 6 is the `Not Started`(Not Memorized)
+            where=f"{qry} AND status_id = 6"
+        )  # Filtered only `Not Started
         if not_memorized_only
         else hafizs_items(where=qry)
     )
@@ -591,7 +596,12 @@ def rating_radio(
 
 
 def rating_dropdown(
-    default_mode="1", is_label=True, rating_dict=RATING_MAP, name="rating", **kwargs
+    default_mode="1",
+    is_label=True,
+    rating_dict=RATING_MAP,
+    name="rating",
+    cls="[&>div]:h-8 uk-form-sm w-28",
+    **kwargs,
 ):
     def mk_options(o):
         id, name = o
@@ -604,24 +614,28 @@ def rating_dropdown(
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls="[&>div]:h-8 uk-form-sm w-28",
+            cls=cls,
             **kwargs,
         ),
         cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
     )
 
 
-def status_dropdown(current_status):
+def status_dropdown(current_status_id):
+    current_status = statuses[current_status_id].name
+    name_to_id = {status.name: status.id for status in statuses()}
+
     def render_options(status):
+        status_id = name_to_id[status]
         return fh.Option(
             status,
-            value=standardize_column(status),
+            value=status_id,
             selected=(status == current_status),
         )
 
     return fh.Select(
-        map(render_options, STATUS_OPTIONS),
-        name="selected_status",
+        map(render_options, [status.name for status in statuses()]),
+        name="selected_status_id",
         style="margin: 0px 12px 12px 0px !important;",
     )
 
@@ -927,11 +941,11 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
     elif mode_id == 2:
         hafiz_items_data = get_hafizs_items(item_id)
         if is_checked:
-            hafizs_items.update(
-                {"status": "newly_memorized", "mode_id": 2}, hafiz_items_data.id
-            )
+            # status_id 4 is `New Memorization`
+            hafizs_items.update({"status_id": 4, "mode_id": 2}, hafiz_items_data.id)
         else:
-            hafizs_items.update({"status": None, "mode_id": 1}, hafiz_items_data.id)
+            # status_id 6 is `Not Started`
+            hafizs_items.update({"status_id": 6, "mode_id": 1}, hafiz_items_data.id)
     else:
         # Update the review dates based on the mode -> RR should increment by one and WL should increment by 7
         update_review_dates(item_id, mode_id)
@@ -948,21 +962,21 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "next_review": add_days_to_date(last_review_date, 1),
     }
     watch_list = {
-        "status": "newly_memorized",
+        "status_id": 4,  # status_id 4 is `New Memorization`
         "mode_id": 4,
         "last_review": last_review_date,
         "next_review": add_days_to_date(last_review_date, 7),
         "watch_list_graduation_date": None,
     }
     memorized = {
-        "status": "memorized",
+        "status_id": 1,  # status_id 1 is `Strong`(Memorized)
         "mode_id": 1,
         "last_review": None,
         "next_review": None,
         "watch_list_graduation_date": get_current_date(auth),
     }
     srs = {
-        "status": "memorized",
+        "status_id": 1,  # status_id 1 is `Strong`(Memorized)
         "mode_id": 1,
         "last_review": last_review_date,
         "next_review": None,
@@ -1656,7 +1670,9 @@ def index(auth, sess, full_cycle_display_count: int = None):
         """This function will return the monthly target and the progress of the monthly review"""
         current_date = get_current_date(auth)
         memorized_len = len(
-            hafizs_items(where=f"hafiz_id = {auth} and status = 'memorized'")
+            hafizs_items(
+                where=f"hafiz_id = {auth} and status_id = 1"
+            )  # status_id 1 is `Strong`(Memorized)
         )
         monthly_review_target = round(memorized_len / 30)
         monthly_reviews_completed_today = get_page_count(
@@ -1811,7 +1827,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         4: watch_list_target,
         5: srs_target,
     }
-    # FIXME: need to pass argument as keyword argument
+
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
 
     return main_area(
@@ -1932,7 +1948,9 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
 
     def get_not_memorized_item_ids(page_id):
         """Get not memorized item for a given page."""
-        result = hafizs_items(where=f"page_number = {page_id} AND status IS NULL")
+        result = hafizs_items(
+            where=f"page_number = {page_id} AND status_id = 6"
+        )  # status_id 6 is `Not Started`(Not Memorized)
         return [i.item_id for i in result]
 
     def get_next_unmemorized_page_items(item_id):
@@ -1940,7 +1958,7 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
         qry = f"""
             SELECT items.id AS item_id, items.page_id AS page_number FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-            WHERE hafizs_items.status IS NULL AND items.active != 0 AND items.id > {item_id}
+            WHERE hafizs_items.status_id = 6 AND items.active != 0 AND items.id > {item_id}
        """
         ct = db.q(qry)
         grouped = group_by_type(ct, "page")
@@ -2430,7 +2448,7 @@ def update_status_as_newly_memorized(
         hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
         hafizs_items.update(
             {
-                "status": "newly_memorized",
+                "status_id": 4,  # status_id 4 is `New Memorization`
                 "mode_id": 2,
                 # "last_review": current_date,
                 # "next_review": add_days_to_date(current_date, 1),
@@ -2442,7 +2460,8 @@ def update_status_as_newly_memorized(
         hafizs_items_data = hafizs_items(
             where=f"item_id = {item_id} AND hafiz_id= {auth}"
         )[0]
-        del hafizs_items_data.status
+        # already we delete the status that consider as Not Memorized. so now we can update the status_id to 6
+        hafizs_items_data.status_id = 6  # status_id 6 is `Not Started`(Not Memorized)
         hafizs_items_data.mode_id = 1
         hafizs_items.update(hafizs_items_data)
 
@@ -2477,15 +2496,14 @@ def bulk_update_status_as_newly_memorized(
         hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
         hafizs_items.update(
             {
-                "status": "newly_memorized",
+                "status_id": 4,  # status_id 4 is `New Memorization`
                 "mode_id": 2,
                 # "last_review": current_date,
                 # "next_review": add_days_to_date(current_date, 1),
             },
             hafizs_items_id,
         )
-
-    populate_hafizs_items_stat_columns(item_id=item_id)
+        populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -3218,7 +3236,8 @@ def post(revision_details: Revision):
 
     # updating the status of the item to memorized
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    hafizs_items.update({"status": "memorized"}, hafizs_items_id)
+    # status_id 1 is `Strong`(Memorized)
+    hafizs_items.update({"status_id": 1}, hafizs_items_id)
 
     rev = revisions.insert(revision_details)
     populate_hafizs_items_stat_columns(item_id=item_id)
@@ -3498,7 +3517,8 @@ async def post(
             item_id = name.split("-")[1]
             if item_id in item_ids:
                 hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update({"status": "memorized"}, hafizs_items_id)
+                # status_id 1 is `Strong`(Memorized)
+                hafizs_items.update({"status_id": 1}, hafizs_items_id)
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
@@ -3561,7 +3581,13 @@ async def post(
 
 @app.get("/profile/{current_type}")
 def show_page_status(current_type: str, auth, sess, status: str = ""):
-
+    status_id = None  # Initially we did't apply filter
+    if status == "strong":
+        status_id = 1
+    elif status == "new_memorization":
+        status_id = 4
+    elif status == "not_started":
+        status_id = 6
     # This query will return all the missing items for that hafiz
     # and we will add the items in to the hafizs_items table
     qry = f"""
@@ -3577,17 +3603,14 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             hafizs_items.insert(
                 item_id=missing_item_id,
                 page_number=get_page_number(missing_item_id),
-                mode_id=1,
+                status_id=6,  # Initially we set status_id 6 is `Not Memorized` for all records.
+                mode_id=1,  # TODO: Confirm that mode_id=1 is appropriate here.
+                # Missing items are currently assumed to belong to the "sequence" mode.
             )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        status_name = records[0]["status"]
-        status_value = (
-            status_name.replace("_", " ").title()
-            if status_name is not None
-            else "Not Memorized"
-        )
-        if status and status != standardize_column(status_value):
+        status_value = records[0]["status_id"]
+        if status_id and status_id != status_value:
             return None
 
         _surahs = sorted({r["surah_id"] for r in records})
@@ -3614,12 +3637,8 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             else surahs[type_number].name
         )
         item_length = 1
-        existing_status = standardize_column(status_value)
-        status_filter = (
-            "status IS NULL"
-            if existing_status == "not_memorized"
-            else f"status = '{existing_status}'"
-        )
+
+        status_filter = f"status_id = {status_value}"
 
         if current_type == "page":
             where_clause = f"page_number={type_number} and hafiz_id={auth}"
@@ -3706,15 +3725,13 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             cls=("uk-active" if _type == current_type else None),
         )
 
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status_id FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-
-    if status in ["memorized", "newly_memorized"]:
-        status_condition = f" AND hafizs_items.status = '{status}'"
-    elif status == "not_memorized":
-        status_condition = " AND hafizs_items.status IS NULL"
+    # status_id 1 is `Strong`, 4 is `New Memorization`, 6 is `Not Started`
+    if status in [1, 4, 6]:
+        status_condition = f" AND hafizs_items.status_id = {status}"
     else:
         status_condition = ""
     query_with_status = qry.replace(";", f" {status_condition};")
@@ -3747,7 +3764,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         P("Status Filter:", cls=TextPresets.muted_sm),
         *map(
             render_filter_btn,
-            ["Memorized", "Not Memorized", "Newly Memorized"],
+            ["Strong", "Not Started", "New Memorization"],
         ),
         (
             Label(
@@ -3771,7 +3788,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
     for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
-        if item["status"] == "memorized":
+        if item["status_id"] == 1:  # status_id 1 is `Strong`(Memorized)
             page_stats[page]["memorized"] += 1
 
     total_memorized_pages = 0
@@ -3784,11 +3801,12 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         type_stats = group_by_type(unfiltered_data, _type)
         count = 0
         for type_number, stats in type_stats.items():
-
-            status_list = [item["status"] == "memorized" for item in stats]
-            if _status == "memorized" and all(status_list):
+            # status_id 1 is `Strong`(Memorized)
+            status_list = [item["status_id"] == 1 for item in stats]
+            if _status == 1 and all(status_list):
                 count += 1
-            elif _status == "not_memorized" and not any(status_list):
+            # status_id 6 is `Not Started`(Not Memorized)
+            elif _status == 6 and not any(status_list):
                 count += 1
             elif (
                 _status == "partially_memorized"
@@ -3952,6 +3970,15 @@ def load_descendant_items_for_profile(
     sess,
     status: str = None,
 ):
+    # Status_id map
+    status_id = 1
+    if status == "strong":
+        status_id = 1
+    elif status == "new_memorization":
+        status_id = 4
+    elif status == "not_started":
+        status_id = 6
+
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
     elif current_type == "surah":
@@ -3960,22 +3987,19 @@ def load_descendant_items_for_profile(
         condition = f"pages.page_number = {type_number}"
     else:
         return "Invalid current_type"
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items 
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status_id FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0 AND {condition};"""
 
-    status_condition = (
-        f"AND hafizs_items.status = '{status}'"
-        if status != "not_memorized"
-        else "AND hafizs_items.status IS NULL"
-    )
+    status_condition = f"AND hafizs_items.status_id = {status_id}" if status else ""
     if status is not None:
         qry = qry.replace(";", f" {status_condition};")
     ct = db.q(qry)
 
     def render_row(record):
-        current_status = destandardize_text(record["status"] or "not_memorized")
+        # status_id 6 is `Not Started`(Not Memorized)
+        current_status_id = record["status_id"] or 6
         current_id = record["id"]
         return Tr(
             Td(
@@ -3991,7 +4015,7 @@ def load_descendant_items_for_profile(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(current_status),
+            Td(statuses[current_status_id].name),
         )
 
     table = Table(
@@ -4018,7 +4042,7 @@ def load_descendant_items_for_profile(
         id="filtered-table",
     )
     modal_level_dd = Div(
-        status_dropdown(status),
+        status_dropdown(status_id),
         id="my-modal-body",
     )
     base = f"/profile/custom_status_update/{current_type}"
@@ -4080,12 +4104,13 @@ def load_descendant_items_for_profile(
     )
 
 
-def resolve_update_data(current_item, selected_status):
+def resolve_update_data(current_item, selected_status_id):
     if current_item.mode_id in (3, 4):
-        return {"status": selected_status}
-    if selected_status == "newly_memorized":
-        return {"status": selected_status, "mode_id": 2}
-    return {"status": selected_status, "mode_id": 1}
+        return {"status_id": selected_status_id}
+    # status_id 4 is `New Memorization`
+    if selected_status_id == 4:
+        return {"status_id": selected_status_id, "mode_id": 2}
+    return {"status_id": selected_status_id, "mode_id": 1}
 
 
 # This page is related to `profile`
@@ -4105,13 +4130,13 @@ async def update_status(
             where=f"item_id = {item_id} and hafiz_id = {auth}"
         )[0]
         # update logic
-        if existing_status == "memorized":
-            set_status = None
-        elif existing_status is None:
-            set_status = "memorized"
+        if existing_status == 1:  # status_id 1 is `Strong`(Memorized)
+            set_status = 6  # status_id 6 is `Not Started`(Not Memorized)
+        elif existing_status == 6:
+            set_status = 1
         else:
-            set_status = current_record.status
-        current_record.status = set_status
+            set_status = current_record.status_id
+        current_record.status_id = set_status
         hafizs_items.update(current_record)
     query_string = f"?status={filter_status}&" if filter_status else ""
     return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
@@ -4122,24 +4147,25 @@ def profile_page_status_update(
     current_type: str,
     type_number: int,
     req: Request,
-    selected_status: str,
+    selected_status_id: int,
     filter_status: str,
     sess,
     auth,
 ):
-    #  "not_memorized" means no status, so store it as NULL in DB
-    selected_status = None if selected_status == "not_memorized" else selected_status
+    # #  "not_memorized" means no status, so store it as NULL in DB
+    # selected_status_id = None if selected_status_id == "not_memorized" else selected_status_id
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.active != 0;"""
     ct = db.q(qry)
-    is_newly_memorized = selected_status == "newly_memorized"
+    is_newly_memorized = selected_status_id == 4  # status_id 4 is `New Memorization`
     grouped = group_by_type(ct, current_type, feild="id")
+
     for item_id in grouped[type_number]:
         current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
         current_item = current_item[0]
         # determine what to update
-        update_data = resolve_update_data(current_item, selected_status)
+        update_data = resolve_update_data(current_item, selected_status_id)
         hafizs_items.update(update_data, current_item.id)
         if is_newly_memorized:
             # add revision newly_memorized pages
@@ -4168,9 +4194,9 @@ async def profile_page_custom_status_update(
     status: str = None,
 ):
     form_data = await req.form()
-    selected_status = form_data.get("selected_status")
-    selected_status = None if selected_status == "not_memorized" else selected_status
-    is_newly_memorized = selected_status == "newly_memorized"
+    selected_status_id = int(form_data.get("selected_status_id"))
+    # ensure selected_status_id is int
+    is_newly_memorized = selected_status_id == 4
     for id_str, check in form_data.items():
         if not id_str.startswith("id-"):
             continue  # Skip non-id keys
@@ -4186,7 +4212,7 @@ async def profile_page_custom_status_update(
         current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
         current_item = current_item[0]
         # determine what to update
-        update_data = resolve_update_data(current_item, selected_status)
+        update_data = resolve_update_data(current_item, selected_status_id)
         hafizs_items.update(update_data, current_item.id)
         if is_newly_memorized:
             # add revision newly_memorized pages
@@ -4754,12 +4780,12 @@ def theme():
 
 
 def get_not_memorized_records(auth, custom_where=None):
-    default = "hafizs_items.status IS NULL AND items.active != 0"
+    default = "hafizs_items.status_id = 6 AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
     not_memorized_tb = f"""
         SELECT items.id, items.surah_id, items.surah_name,
-        hafizs_items.item_id, hafizs_items.status, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
+        hafizs_items.item_id, hafizs_items.status_id, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
         FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         LEFT JOIN pages ON items.page_id = pages.id
@@ -4997,7 +5023,8 @@ def delete(auth, request, item_id: str):
     hafizs_items_data = hafizs_items(where=f"item_id = {item_id} AND hafiz_id= {auth}")[
         0
     ]
-    del hafizs_items_data.status
+    # already we delete the status that consider as Not Memorized. so now we can update the status_id to 6
+    hafizs_items_data.status_id = 6  # status_id 6 is `Not Started`(Not Memorized)
     hafizs_items_data.mode_id = 1
     hafizs_items.update(hafizs_items_data)
     populate_hafizs_items_stat_columns(item_id=item_id)
@@ -5173,10 +5200,10 @@ def load_descendant_items_for_new_memorization(
     else:
         return "Invalid current_type"
 
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status FROM items
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status_id FROM items
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-                          WHERE items.active != 0 AND hafizs_items.status IS NULL AND {condition}"""
+                          WHERE items.active != 0 AND hafizs_items.status_id = 6 AND {condition}"""
     ct = db.q(qry)
 
     def render_row(record):
@@ -5335,7 +5362,8 @@ def post(
         hafizs_items.insert(Hafiz_Items(item_id=item_id, page_number=page_no))
     hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
     hafizs_items.update(
-        {"status": "newly_memorized", "mode_id": revision_details.mode_id},
+        # status_id 4 is `New Memorization`
+        {"status_id": 4, "mode_id": revision_details.mode_id},
         hafizs_items_id,
     )
     revisions.insert(revision_details)
@@ -5820,7 +5848,7 @@ def srs_detailed_page_view(
     ]
     # based on the is_bad_steak we are filtering only the bad_streak items
     bad_streak_items = hafizs_items(
-        where=f"mode_id <> 5 AND status IS NOT NULL {"AND bad_streak > 0" if is_bad_streak else ""}",
+        where=f"mode_id <> 5 AND status_id != 6 {"AND bad_streak > 0" if is_bad_streak else ""}",
         order_by="last_review DESC",
     )
 
@@ -6056,12 +6084,12 @@ def start_srs(item_id: int, auth):
     next_review_date = add_days_to_date(current_date, next_interval)
 
     # Change the current mode_id for the item_id to 5(srs)
-    # TODO: What about the status?
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = 5
+        current_hafiz_items.status_id = 5  # status_id 5 is SRS
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
