@@ -701,8 +701,17 @@ def update_actual_interval(item_id, current_date):
     """Update the current_interval in hafizs_items table"""
     current_hafiz_details = get_hafizs_items(item_id)
     if current_hafiz_details.mode_id == 5:
+
+        # This is to handle the case where if it is newly added into the SRS
+        if revisions(
+            where=f"item_id={current_hafiz_details.item_id} and mode_id={current_hafiz_details.mode_id}"
+        ):
+            last_review = current_hafiz_details.last_review
+        else:
+            last_review = current_hafiz_details.srs_start_date
+
         current_hafiz_details.current_interval = calculate_days_difference(
-            current_hafiz_details.last_review, current_date
+            last_review, current_date
         )
         hafizs_items.update(current_hafiz_details)
 
@@ -1831,6 +1840,12 @@ def change_the_current_date(auth):
             pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
             if hafiz_items_details.next_interval > pack_details.end_interval:
                 graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+
+    # TODO: The page should enter into SRS mode before or after updating the current_date?
+    # Automatically add the pages which have 2 consecutive bad streak to SRS mode
+    populate_hafizs_items_stat_columns()
+    for hafiz_item in hafizs_items(where="bad_streak >= 2"):
+        start_srs(hafiz_item.item_id, auth)
 
     # This will update the hafiz current date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
@@ -5837,14 +5852,6 @@ def srs_detailed_page_view(
     def render_srs_eligible_rows(record: dict):
         current_item_id = record["page"]
         page_description = get_page_description(current_item_id)
-        start_srs_link = A(
-            "Start SRS",
-            hx_get=f"/start-srs/{current_item_id}",
-            hx_target=f"#srs_eligible_row_{current_item_id}",
-            hx_select=f"#srs_eligible_row_{current_item_id}",
-            hx_select_oob="#current_srs_table",
-            cls=AT.classic,
-        )
         bad_percentage = (
             f"{record["bad_%"]}%"
             if isinstance(record["bad_%"], int)
@@ -5860,7 +5867,6 @@ def srs_detailed_page_view(
             Td(page_description),
             Td(record["start_text"]),
             Td(checkbox),
-            Td(start_srs_link),
             Td(record["bad_streak"]),
             Td(render_date(record["last_review_date"])),
             Td(bad_percentage),
@@ -5915,7 +5921,6 @@ def srs_detailed_page_view(
                                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                                     )
                                 ),
-                                Td(""),
                                 *map(Td, columns[2:]),
                             ),
                             cls="sticky z-50 top-0 bg-white",
@@ -6042,8 +6047,6 @@ def srs_detailed_page_view(
     )
 
 
-# This route is responsible for the adding single record
-@app.get("/start-srs/{item_id}")
 def start_srs(item_id: int, auth):
     current_date = get_current_date(auth)
     # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
@@ -6063,8 +6066,6 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
-
-    return RedirectResponse("/srs")
 
 
 # This route is responsible for the adding multiple record
