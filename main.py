@@ -5852,14 +5852,6 @@ def srs_detailed_page_view(
     def render_srs_eligible_rows(record: dict):
         current_item_id = record["page"]
         page_description = get_page_description(current_item_id)
-        start_srs_link = A(
-            "Start SRS",
-            hx_get=f"/start-srs/{current_item_id}",
-            hx_target=f"#srs_eligible_row_{current_item_id}",
-            hx_select=f"#srs_eligible_row_{current_item_id}",
-            hx_select_oob="#current_srs_table",
-            cls=AT.classic,
-        )
         bad_percentage = (
             f"{record["bad_%"]}%"
             if isinstance(record["bad_%"], int)
@@ -5875,7 +5867,6 @@ def srs_detailed_page_view(
             Td(page_description),
             Td(record["start_text"]),
             Td(checkbox),
-            Td(start_srs_link),
             Td(record["bad_streak"]),
             Td(render_date(record["last_review_date"])),
             Td(bad_percentage),
@@ -5930,7 +5921,6 @@ def srs_detailed_page_view(
                                         _at_change="toggleAll()",  # based on that update the status of all the checkboxes
                                     )
                                 ),
-                                Td(""),
                                 *map(Td, columns[2:]),
                             ),
                             cls="sticky z-50 top-0 bg-white",
@@ -6057,8 +6047,6 @@ def srs_detailed_page_view(
     )
 
 
-# This route is responsible for the adding single record
-@app.get("/start-srs/{item_id}")
 def start_srs(item_id: int, auth):
     current_date = get_current_date(auth)
     # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
@@ -6078,8 +6066,6 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
-
-    return RedirectResponse("/srs")
 
 
 # This route is responsible for the adding multiple record
