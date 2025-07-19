@@ -5552,7 +5552,7 @@ def display_page_level_details(auth, item_id: int):
             if hafiz_items_details:
                 stat_columns = [
                     "last_review",
-                    "status",
+                    "status_id",
                     "mode_id",
                     "last_interval",
                     "current_interval",
@@ -5575,6 +5575,8 @@ def display_page_level_details(auth, item_id: int):
                     value = hafiz_items_details.__dict__[col_name]
                     if col_name == "mode_id":
                         value = get_mode_name(value)
+                    elif col_name == "status_id":
+                        value = statuses[value].name
                     else:
                         value = str(value).capitalize()
                     return Tr(
