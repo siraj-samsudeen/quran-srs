@@ -6215,4 +6215,36 @@ def update_setings(auth, hafiz_data: Hafiz):
     return RedirectResponse("/settings", status_code=303)
 
 
+@app.get("/backups")
+def list_backups(auth):
+    files = [f for f in os.listdir("data/backup") if f.endswith(".db")]
+    files = sorted(files, reverse=True)
+
+    def render_dbs(file_name: str):
+        return Li(
+            A(
+                file_name,
+                href=f"/backups/{file_name}",
+                cls=AT.classic,
+                hx_boost="false",
+            ),
+            cls=ListT.bullet,
+        )
+
+    return main_area(
+        Div(
+            H1("Database Backups", cls=TextT.center),
+            Ul(*map(render_dbs, files)),
+            cls="space-y-6",
+        ),
+        auth=auth,
+        active="Backups",
+    )
+
+
+@app.get("/backups/{file}")
+def download_backup(file: str):
+    return FileResponse(f"data/backup/{file}", media_type="application/octet-stream")
+
+
 serve()
