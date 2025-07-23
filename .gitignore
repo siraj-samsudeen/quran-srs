@@ -139,7 +139,7 @@ coverage.xml
 temp.py
 db.sqlite3-journal
 .idea
-data/
+data/backup/
 issues.xlsx
 
 # ignore virtual environment files
