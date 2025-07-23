@@ -76,7 +76,7 @@ In addition, we want to enable a 1.5 page surah to be tracked as a single item.
 - active: to enable/disable certain items globally
 - description
 
-### Revision Management 
+### Revision Tracking 
 
 #### modes table
 Different modes of memorization practice (e.g., New Memorization, Daily, Weekly, Full Cycle, SRS).
@@ -84,10 +84,26 @@ Different modes of memorization practice (e.g., New Memorization, Daily, Weekly,
 - name
 - description
 
+#### revisions table
+All revisions across all modes. In each revision, the user selects one of 3 ratings: Good = 1, Ok = 0 and Bad = -1
+
+- hafiz_id
+- item_id
+- mode_id
+- revision_date: Date when revision took place
+- rating: Performance rating for this revision. Values: -1(Bad), 0(Ok), 1(Good)
+- full_cycle_id: if page is under full cycle mode, then this captures the cycle number indirectly
+
 #### statuses table
 Possible statuses for memorization items to track their current state.
 
-- status: Values: Strong, Weakened, Forgotten, New Memorization, SRS Mode, Not Started
+- status: Current state of memorization
+ - Strong: I can recite this confidently without hesitation
+ - Weakened: I know it but sometimes struggle or make mistakes
+ - Forgotten: I used to know this but can barely recite it now
+ - Not Memorized: I haven't memorized this yet
+ - New Memorization: Memorization done inside this system using specific amount of fixed Reps (Daily, Weekly, etc.)
+ - Tough Page: This page consistently gives me trouble and needs special attention through SRS mode.
 - description
 
 #### hafizs_items table
@@ -97,12 +113,12 @@ Memorization status for each item for each hafiz. Also used to store item level 
 - item_id
 - status_id
 - mode_id
-- last_review: Date when this item was last reviewed
-- good_streak: Count of consecutive successful reviews
-- bad_streak: Count of consecutive failed reviews
-- good_count: Total count of successful reviews
-- bad_count: Total count of failed reviews
-- score: Sum of the ratings
+- last_review_date: Date when this item was last reviewed
+- good_count: Total count of reviews with rating = Good
+- good_streak: Count of consecutive reviews with rating = Good. Gets reset when any other rating is chosen.
+- bad_count
+- bad_streak
+- score: Sum of the ratings (with Good = 1, OK = 0 and Bad = -1)
 - count: Total number of reviews for this item
 
 
@@ -110,23 +126,10 @@ Memorization status for each item for each hafiz. Also used to store item level 
 here we capture the data about the pages covered in each full cycle of revision through all the memorized pages. 
 
 - hafiz_id
-- number: current cycle number. starts at 1 and keeps going
+- number: current cycle number. starts at 1 for each hafiz and keeps going
 - start_date
 - end_date
 - start_page
 - end_page
 - page_count: Total number of pages revised in the cycle
 - completed: Boolean
-
-
-
-#### revisions table
-Individual revision sessions and their outcomes.
-
-- hafiz_id
-- item_id
-- revision_date: Date when revision took place
-- rating: Performance rating for this revision
-  - values: -1(Bad), 0(Ok), 1(Good)
-- mode_id
-- full_cycle_id
