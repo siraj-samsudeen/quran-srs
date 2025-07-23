@@ -149,3 +149,6 @@ venv/
 node_modules/
 playwright-report/
 test-results/
+
+# ignore data folder as it is used only in local DEV environment to bring prod data in from data_backup
+data/
