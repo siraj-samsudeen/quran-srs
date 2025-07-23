@@ -1,6 +1,0 @@
-id,name,description
-1,1. Full Cycle,Imported file - Done
-2,2. New Memorization,First time a page is memorized and entered into the system
-3,3. Recent Review,Daily revision for number of days e.g. default = 7 days
-4,4. Watch List,"Weekly revision for newly memorised pages for 7 weeks, by default"
-5,5. SRS,Spaced Repetition for weak pages
