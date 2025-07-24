@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   // Login and select Siraj hafiz - common setup for all tests
-  await page.goto('http://localhost:5001/login');
+  await page.goto('http://localhost:5001/users/login');
   await page.getByLabel('Email').fill('mailsiraj@gmail.com');
   await page.getByLabel('Password').fill('123');
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page).toHaveURL('http://localhost:5001/hafiz_selection');
+  await expect(page).toHaveURL('http://localhost:5001/users/hafiz_selection');
   await page.getByRole('button', { name: 'Switch Hafiz' }).first().click();
   await expect(page).toHaveURL('http://localhost:5001/');
 });

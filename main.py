@@ -7,6 +7,7 @@ from io import BytesIO
 from collections import defaultdict
 import time
 from datetime import datetime
+from users import users_app
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
@@ -58,7 +59,6 @@ tables = db.t
     Revision,
     Hafiz,
     User,
-    Hafiz_Users,
     Plan,
     Mode,
     Page,
@@ -72,7 +72,6 @@ tables = db.t
     revisions.dataclass(),
     hafizs.dataclass(),
     users.dataclass(),
-    hafizs_users.dataclass(),
     plans.dataclass(),
     modes.dataclass(),
     pages.dataclass(),
@@ -94,22 +93,24 @@ alpinejs_header = Script(
 def before(req, sess):
     user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
     if not user_auth:
-        return RedirectResponse("/login", status_code=303)
+        return RedirectResponse("/users/login", status_code=303)
     auth = req.scope["auth"] = sess.get("auth", None)
     if not auth:
-        return RedirectResponse("/hafiz_selection", status_code=303)
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
     revisions.xtra(hafiz_id=auth)
     hafizs_items.xtra(hafiz_id=auth)
 
 
-bware = Beforeware(before, skip=["/hafiz_selection", "/login", "/logout", "/add_hafiz"])
+bware = Beforeware(before, skip=["/users/hafiz_selection", "/users/login", "/users/logout", "/users/add_hafiz"])
 
 app, rt = fast_app(
     before=bware,
     hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
     bodykw={"hx-boost": "true"},
+    routes=[Mount("/users", users_app, name="users")]
 )
 
+print("-"*15, "ROUTES=", app.routes)
 
 def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
     """
@@ -1154,23 +1155,6 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
-def render_hafiz_card(hafizs_user, auth):
-    is_current_hafizs_user = auth != hafizs_user.hafiz_id
-    return Card(
-        header=DivFullySpaced(H3(hafizs[hafizs_user.hafiz_id].name)),
-        footer=Button(
-            "Switch hafiz" if is_current_hafizs_user else "Go to home",
-            name="current_hafiz_id",
-            value=hafizs_user.hafiz_id,
-            hx_post="/hafiz_selection",
-            hx_target="body",
-            hx_replace_url="true",
-            id=f"btn-{hafizs[hafizs_user.hafiz_id].name}",
-            cls=(ButtonT.primary if is_current_hafizs_user else ButtonT.secondary),
-        ),
-        cls="min-w-[300px] max-w-[400px]",
-    )
-
 
 def render_options(option):
     return Option(
@@ -1179,127 +1163,9 @@ def render_options(option):
     )
 
 
-login_redir = RedirectResponse("/login", status_code=303)
 
 
-@app.get("/login")
-def login():
-    form = Form(
-        LabelInput(label="Email", name="email", type="email"),
-        LabelInput(label="Password", name="password", type="password"),
-        Button("Login"),
-        action="/login",
-        method="post",
-    )
-    return Titled("Login", form)
 
-
-@dataclass
-class Login:
-    email: str
-    password: str
-
-
-@app.post("/login")
-def login_post(login: Login, sess):
-    if not login.email or not login.password:
-        return login_redir
-    try:
-        u = users(where="email = '{}'".format(login.email))[0]
-    except IndexError:
-        # u = users.insert(login)
-        return login_redir
-    if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
-        return login_redir
-    sess["user_auth"] = u.id
-    hafizs_users.xtra(id=u.id)
-    return RedirectResponse("/", status_code=303)
-
-
-@app.get("/logout")
-def logout(sess):
-    user_auth = sess.get("user_auth", None)
-    if user_auth is not None:
-        del sess["user_auth"]
-    auth = sess.get("auth", None)
-    if auth is not None:
-        del sess["auth"]
-    return RedirectResponse("/login", status_code=303)
-
-
-@app.post("/add_hafiz")
-def add_hafiz_and_relations(hafiz: Hafiz, relationship: str, sess):
-    hafiz_id = hafizs.insert(hafiz)
-    hafizs_users.insert(
-        hafiz_id=hafiz_id.id,
-        user_id=sess["user_auth"],
-        relationship=relationship,
-        granted_by_user_id=sess["user_auth"],
-        granted_at=datetime.now().strftime("%d-%m-%y %H:%M:%S"),
-    )
-    return RedirectResponse("/hafiz_selection", status_code=303)
-
-
-@app.get("/hafiz_selection")
-def hafiz_selection(sess):
-    # In beforeware we are adding the hafiz_id filter using xtra
-    # we have to reset that xtra attribute in order to show revisions for all hafiz
-    revisions.xtra()
-    hafizs_users.xtra()
-    auth = sess.get("auth", None)
-    user_auth = sess.get("user_auth", None)
-    if user_auth is None:
-        return login_redir
-
-    cards = [
-        render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
-    ]
-    hafiz_form = Card(
-        Titled(
-            "Add Hafiz",
-            Form(
-                LabelInput(label="Hafiz Name", name="name", required=True),
-                LabelSelect(
-                    *map(render_options, OPTION_MAP["age_group"]),
-                    label="Age Group",
-                    name="age_group",
-                ),
-                LabelInput(
-                    label="Daily Capacity",
-                    name="daily_capacity",
-                    type="number",
-                    min="1",
-                    value="1",
-                    required=True,
-                ),
-                LabelSelect(
-                    *map(render_options, OPTION_MAP["relationship"]),
-                    label="Relationship",
-                    name="relationship",
-                ),
-                Button("Add Hafiz"),
-                action="/add_hafiz",
-                method="post",
-                cls="space-y-3",
-            ),
-        ),
-        cls="w-[300px]",
-    )
-    return main_area(
-        Div(
-            H5("Select Hafiz"),
-            Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
-            Div(hafiz_form),
-            cls="space-y-4",
-        ),
-        auth=auth,
-    )
-
-
-@app.post("/hafiz_selection")
-def change_hafiz(current_hafiz_id: int, sess):
-    sess["auth"] = current_hafiz_id
-    return RedirectResponse("/", status_code=303)
 
 
 def main_area(*args, active=None, auth=None):
@@ -1307,7 +1173,7 @@ def main_area(*args, active=None, auth=None):
     title = A("Quran SRS", href=index)
     hafiz_name = A(
         f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
-        href="/hafiz_selection",
+        href="/users/hafiz_selection",
         method="GET",
     )
     return Title("Quran SRS"), Container(
@@ -1348,7 +1214,7 @@ def main_area(*args, active=None, auth=None):
                 #     href="/watch_list",
                 #     cls=is_active("Watch List"),
                 # ),
-                A("logout", href="/logout"),
+                A("logout", href="/users/logout"),
                 # A("User", href=user, cls=is_active("User")), # The user nav is temporarily disabled
                 brand=H3(title, Span(" - "), hafiz_name),
             ),
