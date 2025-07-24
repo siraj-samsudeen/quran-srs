@@ -4,6 +4,7 @@ import re
 import sqlite3
 import os
 import itertools
+from fasthtml.common import database
 from fastmigrate.core import (
     create_db,
     run_migrations,
@@ -24,6 +25,18 @@ def create_and_migrate_db(db_path):
     if not success:
         # Handle migration failure
         print("Database migration failed!")
+
+
+def get_database_connection():
+    """Get configured database connection with migrations"""
+    DB_PATH = get_database_path()
+    create_and_migrate_db(DB_PATH)
+    return database(DB_PATH)
+
+
+def get_database_path():
+    """Get the database file path"""
+    return "data/quran_v10.db"
 
 
 def flatten_list(list_of_lists):

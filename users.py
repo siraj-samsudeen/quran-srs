@@ -1,6 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
+from utils import get_database_connection
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -18,8 +18,7 @@ OPTION_MAP = {
 }
 
 
-DB_PATH = "data/quran_v10.db"
-db = database(DB_PATH)
+db = get_database_connection()
 
 users = db.t.users
 hafizs = db.t.hafizs

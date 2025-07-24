@@ -19,12 +19,7 @@ OPTION_MAP = {
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
-DB_PATH = "data/quran_v10.db"
-
-# This function will handle table creation and migration using fastmigrate
-create_and_migrate_db(DB_PATH)
-
-db = database(DB_PATH)
+db = get_database_connection()
 tables = db.t
 (
     revisions,
@@ -2661,7 +2656,7 @@ async def import_specific_table_preview(table: str, file: UploadFile):
 
 @app.post("/tables/{table}/import")
 async def import_specific_table(table: str, file: UploadFile):
-    backup_sqlite_db(DB_PATH, "data/backup")
+    backup_sqlite_db(get_database_path(), "data/backup")
     # Instead of using the import_file method, we are using upsert method to import the csv file
     # as some of the forign key values are being used in another table
     # so we cannot truncate the table
@@ -4113,10 +4108,11 @@ async def profile_page_custom_status_update(
 
 @app.get
 def backup():
-    if not os.path.exists(DB_PATH):
+    db_path = get_database_path()
+    if not os.path.exists(db_path):
         return Titled("Error", P("Database file not found"))
 
-    backup_path = backup_sqlite_db(DB_PATH, "data/backup")
+    backup_path = backup_sqlite_db(db_path, "data/backup")
 
     return FileResponse(backup_path, filename="quran_backup.db")
 
@@ -4635,7 +4631,7 @@ def import_db(auth):
 @app.post
 async def import_db(file: UploadFile):
     path = "data/" + file.filename
-    if DB_PATH == path:
+    if get_database_path() == path:
         return Titled("Error", P("Cannot overwrite the current DB"))
 
     file_content = await file.read()
