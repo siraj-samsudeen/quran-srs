@@ -12,6 +12,11 @@ class Login:
     email: str
     password: str
 
+OPTION_MAP = {
+    "age_group": ["child", "teen", "adult"],
+    "relationship": ["self", "parent", "teacher", "sibling"],
+}
+
 
 DB_PATH = "data/quran_v10.db"
 db = database(DB_PATH)
@@ -85,24 +90,38 @@ def get(sess):
     cards = [
         render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
-    
+
+    def render_options(option):
+        return Option(
+            option.capitalize(),
+            value=option,
+        )
+
     hafiz_form = Card(
         Titled(
             "Add Hafiz",
             Form(
                 LabelInput(label="Name", name="name"),
                 LabelSelect(
+                    *map(render_options, OPTION_MAP["age_group"]),
                     label="Age Group",
                     name="age_group",
-                    options=["child", "teen", "adult"],
+                ),
+                LabelInput(
+                    label="Daily Capacity",
+                    name="daily_capacity",
+                    type="number",
+                    min="1",
+                    value="1",
+                    required=True,
                 ),
                 LabelSelect(
+                    *map(render_options, OPTION_MAP["relationship"]),
                     label="Relationship",
                     name="relationship",
-                    options=["self", "parent", "teacher", "sibling"],
                 ),
                 Button("Add Hafiz"),
-                action="/add_hafiz",
+                action="/users/add_hafiz",
                 method="post",
             ),
         ),
