@@ -4429,6 +4429,7 @@ def render_row_based_on_type(
     if current_type == "page":
         item_ids = [item.id for item in items(where=f"page_id = {type_number}")]
         get_page = (
+            # FIXME: This route not exist as it was
             f"/new_memorization/add/{current_type}?item_id={item_ids[0]}"
             if len(item_ids) == 1
             else filter_url
@@ -4746,103 +4747,6 @@ def load_descendant_items_for_new_memorization(
             cls=TextPresets.muted_lg,
         ),
     )
-
-
-# FIXME: Check whether this function is used or not
-def create_new_memorization_revision_form(
-    current_type: str, title: str, description: str, current_date: str
-):
-
-    return Div(
-        Form(
-            LabelInput(
-                "Revision Date",
-                name="revision_date",
-                type="date",
-                value=current_date,
-            ),
-            Input(name="page_no", type="hidden"),
-            Input(name="mode_id", type="hidden"),
-            Input(name="item_id", type="hidden"),
-            rating_radio(),  # Not now
-            Div(
-                Button("Save", cls=ButtonT.primary),
-                Button(
-                    "Cancel", type="button", cls=ButtonT.secondary + "uk-modal-close"
-                ),
-                cls="flex justify-around items-center w-full",
-            ),
-            action=f"/new_memorization/add/{current_type}",
-            method="POST",
-        ),
-        ModalTitle(
-            "" if title == "" else f"{title} - Select Memorized Page",
-            id="modal-title",
-            hx_swap_oob="true",
-        ),
-        P(
-            description,
-            id="modal-description",
-            hx_swap_oob="true",
-            cls=TextPresets.muted_lg,
-        ),
-    )
-
-
-# FIXME: Check whether this route is used or not
-@rt("/new_memorization/add/{current_type}")
-def get(
-    auth,
-    current_type: str,
-    item_id: str,
-    title: str = None,
-    description: str = None,
-    max_item_id: int = 836,
-    date: str = None,
-):
-    item_id = int(item_id)
-    if item_id >= max_item_id:
-        return Redirect(new_memorization)
-
-    page = items[item_id].page_id
-    return Titled(
-        f"{page} - {get_surah_name(item_id=item_id)} - {items[item_id].start_text}",
-        fill_form(
-            create_new_memorization_revision_form(
-                current_type, title, description, get_current_date(auth)
-            ),
-            {
-                "page_no": page,
-                "mode_id": 2,
-                "plan_id": None,
-                "revision_date": date,
-                "item_id": item_id,
-            },
-        ),
-    )
-
-
-# FIXME: Check whether this route is used or not
-@rt("/new_memorization/add/{current_type}")
-def post(
-    request, current_type: str, page_no: int, item_id: int, revision_details: Revision
-):
-    # The id is set to zer in the form, so we need to delete it
-    # before inserting to generate the id automatically
-    del revision_details.id
-    revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    try:
-        hafizs_items(where=f"item_id = {item_id}")[0]
-    except IndexError:
-        hafizs_items.insert(Hafiz_Items(item_id=item_id, page_number=page_no))
-    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    hafizs_items.update(
-        {"status_id": 4, "mode_id": revision_details.mode_id},
-        hafizs_items_id,
-    )
-    revisions.insert(revision_details)
-    referer = request.headers.get("referer")
-    return Redirect(referer or f"/new_memorization/{current_type}")
 
 
 def get_ordered_mode_name_and_id():
