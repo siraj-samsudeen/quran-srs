@@ -7,7 +7,7 @@ from io import BytesIO
 from collections import defaultdict
 import time
 from datetime import datetime
-from users import users_app
+from app.users_controller import users_app
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
