@@ -94,15 +94,19 @@ test.describe('Hafiz Selection', () => {
   test('add hafiz form is visible', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Add Hafiz' })).toBeVisible();
     await expect(page.getByLabel('Name')).toBeVisible();
-    await expect(page.getByLabel('Age Group')).toBeVisible(); 
-    await expect(page.getByLabel('Relationship')).toBeVisible();
+    await expect(page.locator('uk-select[name="age_group"] >> button.uk-input-fake')).toBeVisible();
+    await expect(page.getByLabel('Daily Capacity')).toBeVisible(); 
+    await expect(page.locator('uk-select[name="relationship"] >> button.uk-input-fake')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add Hafiz' })).toBeVisible();
   });
 
   test('adding new hafiz with valid data', async ({ page }) => {
     await page.getByLabel('Name').fill('Test Hafiz');
-    await page.locator('select[name="age_group"]').selectOption('adult');
-    await page.locator('select[name="relationship"]').selectOption('sibling');
+    await page.locator('uk-select[name="age_group"] >> button.uk-input-fake').click()
+    await page.locator('uk-select[name="age_group"]  >> a').filter({ hasText: 'Adult' }).click();
+    await page.getByLabel('Daily Capacity').fill('5');
+    await page.locator('uk-select[name="relationship"] >> button.uk-input-fake').click()
+    await page.locator('uk-select[name="relationship"]  >> a').filter({ hasText: 'Sibling' }).click();
     await page.getByRole('button', { name: 'Add Hafiz' }).click();
     
     await expect(page).toHaveURL('http://localhost:5001/users/hafiz_selection');
