@@ -21,21 +21,17 @@ hafizs = db.t.hafizs
 hafizs_users = db.t.hafizs_users
 revisions = db.t.revisions
 
-(    Hafiz,
-    User,
-    Hafiz_Users,
-    Revisions
-) = (
+(Hafiz, User, Hafiz_Users, Revisions) = (
     hafizs.dataclass(),
     users.dataclass(),
     hafizs_users.dataclass(),
-    revisions.dataclass()
+    revisions.dataclass(),
 )
 
 # Redirect target for login failures
 login_redir = RedirectResponse("/users/login", status_code=303)
 
-users_app, rt = fast_app()
+users_app, rt = fast_app(hdrs=Theme.blue.headers())
 
 @rt("/login")
 def get(sess):
@@ -85,7 +81,7 @@ def get(sess):
     user_auth = sess.get("user_auth", None)
     if user_auth is None:
         return login_redir
-    
+
     cards = [
         render_hafiz_card(h, auth) for h in hafizs_users() if h.user_id == user_auth
     ]
@@ -109,11 +105,20 @@ def get(sess):
                 action="/add_hafiz",
                 method="post",
             ),
-        )
+        ),
+        cls="w-[300px]",
     )
-    
-    cards.append(hafiz_form)
-    return Titled("Hafiz Selection", Container(*cards))
+
+    return Titled(
+        "Hafiz Selection",
+        Container(
+            Div(
+                Div(*cards, cls=(FlexT.block, FlexT.wrap, "gap-4")),
+                hafiz_form,
+                cls="space-y-4",
+            )
+        ),
+    )
 
 @rt("/hafiz_selection")
 def post(current_hafiz_id: int, sess):
@@ -146,6 +151,7 @@ def render_hafiz_card(hafizs_user, auth):
             hx_post="/users/hafiz_selection",
             hx_target="body",
             hx_replace_url="true",
-            cls="btn-primary",
+            cls=ButtonT.primary,
         ),
+        cls="min-w-[300px] max-w-[400px]",
     )
