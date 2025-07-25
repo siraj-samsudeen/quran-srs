@@ -95,7 +95,7 @@ def main_area(*args, active=None, auth=None):
                     href="/srs",
                     cls=is_active("SRS"),
                 ),
-                A("Settings", href="/settings", cls=is_active("Settings")),
+                A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
                 brand=H3(title, Span(" - "), hafiz_name),
             ),

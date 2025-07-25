@@ -247,7 +247,7 @@ def srs_detailed_page_view(
                 H1(get_mode_name(5)),
                 A(
                     "Refresh stats",
-                    hx_get="/update_stats_column",
+                    hx_get="/hafiz/update_stats_column",
                     hx_target="body",
                     cls=AT.classic,
                 ),

@@ -216,7 +216,7 @@ def display_page_level_details(auth, item_id: int):
                     Div(
                         A(
                             "Refresh stats",
-                            hx_get="/update_stats_column",
+                            hx_get="/hafiz/update_stats_column",
                             hx_vals={"item_id": item_id},
                             hx_target="body",
                             cls=AT.classic,
