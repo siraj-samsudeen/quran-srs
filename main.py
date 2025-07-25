@@ -1045,7 +1045,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
         checkbox_hx_attrs = {
-            "hx_post": f"/home/add/{item_id}",
+            "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
             "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
@@ -1173,7 +1173,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                             CheckboxX(
                                 name="is_select_all",
                                 hx_vals=select_all_vals,
-                                hx_post="/home/bulk_add",
+                                hx_post="/bulk_add",
                                 hx_trigger="change",
                                 hx_include=f"#{route}_ratings",
                                 hx_select=f"#{route}_tbody",
@@ -1220,7 +1220,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
 # This route is responsible for adding and deleting record for all the summary table on the home page
 # and update the review dates for that item_id
-@app.post("/home/add/{item_id}")
+@app.post("/add/{item_id}")
 def update_status_from_index(
     date: str,
     item_id: str,
@@ -1240,7 +1240,7 @@ def update_status_from_index(
     return RedirectResponse("/", status_code=303)
 
 
-@app.post("/home/bulk_add")
+@app.post("/bulk_add")
 def update_multiple_items_from_index(
     mode_id: int,
     date: str,
