@@ -766,3 +766,15 @@ def get_juz_name(page_id=None, item_id=None):
     else:
         juz_number = pages[page_id].juz_number
     return juz_number
+
+
+def get_ordered_mode_name_and_id():
+    mode_name_list = [mode.name for mode in modes()]
+    mode_id_list = [mode.id for mode in modes()]
+    # to display the mode names in the correct order
+    mode_id_list, mode_name_list = zip(
+        *sorted(
+            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
+        )
+    )
+    return list(mode_id_list), list(mode_name_list)
