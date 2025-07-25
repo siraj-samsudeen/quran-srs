@@ -2,26 +2,8 @@ from fasthtml.common import *
 from monsterui.all import *
 from io import BytesIO
 import pandas as pd
-
-from utils import (
-    get_database_connection,
-    format_number,
-    render_date,
-    select_all_with_shift_click_for_summary_table,
-    calculate_days_difference,
-    get_database_path,
-    backup_sqlite_db,
-)
-from app.common_function import (
-    main_area,
-    get_current_date,
-    get_page_description,
-    create_app_with_auth,
-    get_start_text,
-    custom_select,
-    get_mode_name,
-    start_srs,
-)
+from utils import *
+from app.common_function import *
 
 OPTION_MAP = {
     "role": ["hafiz", "parent", "teacher", "parent_hafiz"],

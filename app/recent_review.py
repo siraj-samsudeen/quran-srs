@@ -3,16 +3,7 @@ from monsterui.all import *
 import pandas as pd
 import time
 from utils import get_database_connection
-from app.common_function import (
-    main_area,
-    get_current_date,
-    get_page_description,
-    create_app_with_auth,
-    get_mode_count,
-    get_start_text,
-    graduate_the_item_id,
-    checkbox_update_logic,
-)
+from app.common_function import *
 
 db = get_database_connection()
 

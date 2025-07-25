@@ -1,22 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
 from hmac import compare_digest
-
-from .users_model import (
-    Login, Hafiz,
-    get_user_by_email,
-    get_hafizs_for_user,
-    insert_hafiz,
-    insert_hafiz_user_relationship,
-    get_hafiz_by_id,
-    reset_table_filters,
-)
-from .users_view import (
-    render_login_form,
-    render_add_hafiz_form,
-    render_hafiz_card,
-    render_hafiz_selection_page,
-)
+from .users_model import *
+from .users_view import *
 
 
 # Redirect target for login failures
@@ -37,14 +23,14 @@ def post(login: Login, sess):
     """Process login form submission"""
     if not login.email or not login.password:
         return login_redir
-    
+
     u = get_user_by_email(login.email)
     if u is None:
         return login_redir
-    
+
     if not compare_digest(u.password.encode("utf-8"), login.password.encode("utf-8")):
         return login_redir
-    
+
     sess["user_auth"] = u.id
     return RedirectResponse("/users/hafiz_selection", status_code=303)
 
@@ -72,7 +58,7 @@ def get(sess):
 
     hafizs_users = get_hafizs_for_user(user_auth)
     cards = [
-        render_hafiz_card(h, auth, get_hafiz_by_id(h.hafiz_id).name) 
+        render_hafiz_card(h, auth, get_hafiz_by_id(h.hafiz_id).name)
         for h in hafizs_users
     ]
 
@@ -92,9 +78,5 @@ def post(current_hafiz_id: int, sess):
 def post(hafiz: Hafiz, relationship: str, sess):
     """Add new hafiz and create user relationship"""
     hafiz_id = insert_hafiz(hafiz)
-    insert_hafiz_user_relationship(
-        hafiz_id.id,
-        sess["user_auth"],
-        relationship
-    )
+    insert_hafiz_user_relationship(hafiz_id.id, sess["user_auth"], relationship)
     return RedirectResponse("/users/hafiz_selection", status_code=303)

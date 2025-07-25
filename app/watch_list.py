@@ -1,20 +1,7 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import get_database_connection, day_diff, date_to_human_readable
-from app.common_function import (
-    main_area,
-    get_current_date,
-    get_page_description,
-    create_app_with_auth,
-    get_mode_count,
-    get_start_text,
-    graduate_the_item_id,
-    render_rating,
-    rating_dropdown,
-    rating_radio,
-    populate_hafizs_items_stat_columns,
-    update_review_dates,
-)
+from utils import *
+from app.common_function import *
 
 db = get_database_connection()
 

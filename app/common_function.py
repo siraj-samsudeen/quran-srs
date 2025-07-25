@@ -1,15 +1,7 @@
 from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
-from utils import (
-    get_database_connection,
-    current_time,
-    calculate_days_difference,
-    add_days_to_date,
-    get_interval_triplet,
-    standardize_column,
-    find_next_greater,
-)
+from utils import *
 from collections import defaultdict
 
 

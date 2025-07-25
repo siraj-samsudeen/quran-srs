@@ -1,20 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import (
-    get_database_connection,
-    date_to_human_readable,
-    select_all_checkbox_x_data,
-)
+from utils import *
 from datetime import datetime
-from app.common_function import (
-    main_area,
-    populate_hafizs_items_stat_columns,
-    get_current_date,
-    get_not_memorized_records,
-    group_by_type,
-    get_page_description,
-    create_app_with_auth,
-)
+from app.common_function import *
 
 DEFAULT_RATINGS = {
     "new_memorization": 1,
