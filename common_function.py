@@ -95,7 +95,7 @@ def main_area(*args, active=None, auth=None):
                     cls=is_active("Page Details"),
                 ),
                 A("Revision", href="/revision", cls=is_active("Revision")),
-                A("Tables", href="/tables", cls=is_active("Tables")),
+                A("Tables", href="/admin/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
                 A(
                     "SRS",
