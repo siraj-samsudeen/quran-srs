@@ -7,6 +7,7 @@ from utils import (
     calculate_days_difference,
     add_days_to_date,
     get_interval_triplet,
+    standardize_column,
 )
 from collections import defaultdict
 
@@ -20,8 +21,9 @@ items = db.t.items
 pages = db.t.pages
 surahs = db.t.surahs
 srs_booster_pack = db.t.srs_booster_pack
+modes = db.t.modes
 
-(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack) = (
+(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack, Modes) = (
     revisions.dataclass(),
     hafizs_items.dataclass(),
     hafizs.dataclass(),
@@ -29,6 +31,7 @@ srs_booster_pack = db.t.srs_booster_pack
     pages.dataclass(),
     surahs.dataclass(),
     srs_booster_pack.dataclass(),
+    modes.dataclass(),
 )
 
 
@@ -708,3 +711,42 @@ def rating_radio(
         label = None
 
     return Div(label, *options, cls=outer_cls)
+
+
+def start_srs(item_id: int, auth):
+    current_date = get_current_date(auth)
+    # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
+    booster_pack_details = srs_booster_pack[1]
+    srs_booster_id = booster_pack_details.id
+    next_interval = booster_pack_details.start_interval
+    next_review_date = add_days_to_date(current_date, next_interval)
+
+    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+    if current_hafiz_items:
+        current_hafiz_items = current_hafiz_items[0]
+        current_hafiz_items.srs_booster_pack_id = srs_booster_id
+        current_hafiz_items.mode_id = 5
+        current_hafiz_items.status_id = 5
+        current_hafiz_items.next_interval = next_interval
+        current_hafiz_items.srs_start_date = current_date
+        current_hafiz_items.next_review = next_review_date
+        hafizs_items.update(current_hafiz_items)
+
+
+def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
+    def render_options(val):
+        return fh.Option(
+            val,
+            value=standardize_column(val),
+            selected=(standardize_column(val) == standardize_column(default_val)),
+        )
+
+    return fh.Select(
+        map(render_options, vals),
+        name=name,
+        **kwargs,
+    )
+
+
+def get_mode_name(mode_id: int):
+    return modes[mode_id].name

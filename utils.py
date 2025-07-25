@@ -472,3 +472,9 @@ def get_interval_triplet(current_interval, interval_list):
 
     # This shouldn't happen based on the given constraints
     return [current_interval, current_interval, current_interval]
+
+
+def render_date(date: str):
+    if date:
+        date = date_to_human_readable(date)
+    return date
