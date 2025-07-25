@@ -6,7 +6,7 @@ from utils import (
     select_all_checkbox_x_data,
 )
 from datetime import datetime
-from common_function import (
+from app.common_function import (
     main_area,
     populate_hafizs_items_stat_columns,
     get_current_date,

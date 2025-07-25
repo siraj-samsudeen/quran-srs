@@ -1,7 +1,7 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import get_database_connection, day_diff, date_to_human_readable
-from common_function import (
+from app.common_function import (
     main_area,
     get_current_date,
     get_page_description,

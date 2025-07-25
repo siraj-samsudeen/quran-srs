@@ -5,12 +5,12 @@ from utils import *
 import pandas as pd
 from collections import defaultdict
 from app.users_controller import users_app
-from common_function import *
-from new_memorization import new_memorization_app
-from recent_review import recent_review_app
-from watch_list import watch_list_app
-from srs import srs_app
-from admin import admin_app
+from app.new_memorization import new_memorization_app
+from app.recent_review import recent_review_app
+from app.watch_list import watch_list_app
+from app.srs import srs_app
+from app.admin import admin_app
+from app.common_function import *
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {

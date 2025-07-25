@@ -1,7 +1,7 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
-from common_function import *
+from app.common_function import *
 
 db = get_database_connection()
 

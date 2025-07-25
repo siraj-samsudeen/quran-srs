@@ -7,7 +7,7 @@ from utils import (
     select_all_with_shift_click_for_summary_table,
     calculate_days_difference,
 )
-from common_function import (
+from app.common_function import (
     main_area,
     get_current_date,
     get_page_description,

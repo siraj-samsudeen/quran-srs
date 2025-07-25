@@ -12,7 +12,7 @@ from utils import (
     get_database_path,
     backup_sqlite_db,
 )
-from common_function import (
+from app.common_function import (
     main_area,
     get_current_date,
     get_page_description,
