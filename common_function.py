@@ -1,4 +1,5 @@
 from fasthtml.common import *
+import fasthtml.common as fh
 from monsterui.all import *
 from utils import (
     get_database_connection,
@@ -639,3 +640,71 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
         update_review_dates(item_id, mode_id)
 
     populate_hafizs_items_stat_columns(item_id=item_id)
+
+
+RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+
+
+def render_rating(rating: int):
+    return RATING_MAP.get(str(rating))
+
+
+def rating_dropdown(
+    default_mode="1",
+    is_label=True,
+    rating_dict=RATING_MAP,
+    name="rating",
+    cls="[&>div]:h-8 uk-form-sm w-28",
+    **kwargs,
+):
+    def mk_options(o):
+        id, name = o
+        is_selected = lambda m: m == default_mode
+        return fh.Option(name, value=id, selected=is_selected(id))
+
+    return Div(
+        fh.Select(
+            map(mk_options, rating_dict.items()),
+            label=("Rating" if is_label else None),
+            name=name,
+            select_kwargs={"name": name},
+            cls=cls,
+            **kwargs,
+        ),
+        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+    )
+
+
+def rating_radio(
+    default_rating: int = 1,
+    direction: str = "vertical",
+    is_label: bool = True,
+    id: str = "rating",
+    cls: str = None,
+):
+
+    def render_radio(o):
+        value, label = o
+        is_checked = True if int(value) == default_rating else False
+        return Div(
+            FormLabel(
+                Radio(id=id, value=value, checked=is_checked, cls=cls),
+                Span(label),
+                cls="space-x-2 p-1 border border-transparent has-[:checked]:border-blue-500",
+            ),
+            cls=f"{"inline-block" if direction == "horizontal" else None}",
+        )
+
+    options = map(render_radio, RATING_MAP.items())
+
+    if direction == "horizontal":
+        outer_cls = (FlexT.block, FlexT.row, FlexT.wrap, "gap-x-6 gap-y-4")
+    elif direction == "vertical":
+        outer_cls = "space-y-2 leading-8 sm:leading-6"
+
+    if is_label:
+        label = FormLabel("Rating")
+    else:
+        label = None
+
+    return Div(label, *options, cls=outer_cls)
