@@ -8,6 +8,7 @@ from utils import (
     add_days_to_date,
     get_interval_triplet,
     standardize_column,
+    find_next_greater,
 )
 from collections import defaultdict
 
@@ -750,3 +751,26 @@ def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
 
 def get_mode_name(mode_id: int):
     return modes[mode_id].name
+
+
+def find_next_item_id(item_id):
+    item_ids = [item.id for item in items(where="active = 1")]
+    return find_next_greater(item_ids, item_id)
+
+
+def get_last_item_id():
+    return items(where="active = 1", order_by="id DESC")[0].id
+
+
+def get_display_count(auth):
+    current_hafiz = hafizs[auth]
+    return current_hafiz.display_count
+
+
+def get_juz_name(page_id=None, item_id=None):
+    if item_id:
+        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+        juz_number = db.q(qry)[0]["juz_number"]
+    else:
+        juz_number = pages[page_id].juz_number
+    return juz_number
