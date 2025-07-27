@@ -4108,12 +4108,22 @@ async def profile_page_custom_status_update(
 
 @app.get
 def backup():
+    """Create backup with WAL flush to ensure all data is included"""
     db_path = get_database_path()
     if not os.path.exists(db_path):
         return Titled("Error", P("Database file not found"))
 
-    backup_path = backup_sqlite_db(db_path, "data/backup")
+    # First flush WAL to ensure all data is in main DB
+    try:
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.execute('PRAGMA wal_checkpoint(FULL);')
+        conn.close()
+    except Exception as e:
+        return Titled("❌ Error", P(f"Error flushing WAL: {e}"))
 
+    # Then create backup
+    backup_path = backup_sqlite_db(db_path, "data/backup")
     return FileResponse(backup_path, filename="quran_backup.db")
 
 
