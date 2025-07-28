@@ -2,7 +2,8 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
-from app.revision_view import action_buttons, generate_revision_table_part, create_revision_form, render_revision_table
+from app.revision_view import *
+from app.revision_model import *
 
 db = get_database_connection()
 
@@ -21,56 +22,6 @@ pages = db.t.pages
 revision_app, rt = create_app_with_auth()
 
 
-def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):
-    populate_hafizs_items_stat_columns(item_id=item_id)
-    if mode_id == 5:
-        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
-
-
-def get_item_id(page_number: int, not_memorized_only: bool = False):
-    """
-    This function will lookup the page_number in the `hafizs_items` table
-    if there is no record for that page and then create new records for that page
-    by looking up the `items` table
-
-    Each page may contain more than one record (including the page_part)
-
-    Then filter out the in_active hafizs_items and return the item_id
-
-    Returns:
-    list of item_id
-    """
-
-    qry = f"page_number = {page_number}"
-    hafiz_data = hafizs_items(where=qry)
-
-    if not hafiz_data:
-        page_items = items(where=f"page_id = {page_number} AND active = 1")
-        for item in page_items:
-            hafizs_items.insert(
-                Hafiz_Items(
-                    item_id=item.id,
-                    page_number=item.page_id,
-                    mode_id=1,
-                )
-            )
-    hafiz_data = (
-        # Filtered only `Not Started`
-        hafizs_items(where=f"{qry} AND status_id = 6")
-        if not_memorized_only
-        else hafizs_items(where=qry)
-    )
-    item_ids = [
-        hafiz_item.item_id
-        for hafiz_item in hafiz_data
-        if items[hafiz_item.item_id].active
-    ]
-    return sorted(item_ids)
-
-
-
-
-
 @rt("/entry")
 def post(type: str, page: str, plan_id: int):
     print(plan_id)
@@ -80,20 +31,14 @@ def post(type: str, page: str, plan_id: int):
         return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
-
-
-
-@revision_app.get
+@revision_app.get("/")
 def revision(auth, idx: int | None = 1):
     return render_revision_table(auth, idx)
 
 
-
-
-
 @rt("/edit/{revision_id}")
 def get(revision_id: int, auth, req):
-    current_revision = revisions[revision_id].__dict__
+    current_revision = get_revision_by_id(revision_id).__dict__
     # Convert rating to string in order to make the `fill_form` to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     item_id = current_revision["item_id"]
@@ -119,7 +64,7 @@ def post(revision_details: Revision, backlink: str, auth):
     # setting the plan_id to None if it is 0
     # as it get defaults to 0 if the field is empty.
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    current_revision = revisions.update(revision_details)
+    current_revision = update_revision(revision_details)
     update_stats_and_interval(
         item_id=current_revision.item_id,
         mode_id=current_revision.mode_id,
@@ -130,8 +75,8 @@ def post(revision_details: Revision, backlink: str, auth):
 
 @rt("/delete/{revision_id}")
 def delete(revision_id: int, auth):
-    current_revision = revisions[revision_id]
-    revisions.delete(revision_id)
+    current_revision = get_revision_by_id(revision_id)
+    delete_revision(revision_id)
     update_stats_and_interval(
         item_id=current_revision.item_id,
         mode_id=current_revision.mode_id,
@@ -260,7 +205,7 @@ async def bulk_edit_save(revision_date: str, req, auth):
         if name.startswith("rating-"):
             current_id = name.split("-")[1]
             if current_id in ids_to_update:
-                current_revision = revisions.update(
+                current_revision = update_revision(
                     Revision(
                         id=int(current_id),
                         rating=int(value),
@@ -328,7 +273,7 @@ def get(
                     f"/revision/bulk_add?item_id={item_id}&plan_id={plan_id}&is_part=1"
                 )
             else:
-                current_page_part = items(where=f"page_id = {page} and active = 1")
+                current_page_part = get_items_by_page_id(page)
                 # get the given page_part using index
                 # eg: if page_part is 2 then it will get the first(2-1=1) index
                 item_id = current_page_part[page_part - 1].id
@@ -371,10 +316,10 @@ def post(revision_details: Revision):
     item_id = revision_details.item_id
 
     # Even if the item_id is in other mode, if the records is added then it is considered as a 'memorised'
-    hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-    hafizs_items.update({"status_id": 1}, hafizs_items_id)
+    hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
+    update_hafiz_item_status(hafizs_items_id, 1)
 
-    rev = revisions.insert(revision_details)
+    rev = insert_revision(revision_details)
     populate_hafizs_items_stat_columns(item_id=item_id)
 
     next_item_id = find_next_item_id(item_id)
@@ -395,7 +340,7 @@ def post(revision_details: Revision):
 # This is to update the rating from the summary tables
 @revision_app.put("/{rev_id}")
 def update_revision_rating(rev_id: int, rating: int):
-    revisions.update({"rating": rating}, rev_id)
+    update_revision_rating_only(rev_id, rating)
 
     current_revision = revisions[rev_id]
     item_id = current_revision.item_id
@@ -403,14 +348,14 @@ def update_revision_rating(rev_id: int, rating: int):
         next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
 
         # next_interval column only change based on the rating
-        revisions.update({"next_interval": next_interval}, rev_id)
+        update_revision_next_interval(rev_id, next_interval)
 
         current_hafiz_item = get_hafizs_items(item_id)
         current_hafiz_item.next_interval = next_interval
         current_hafiz_item.next_review = add_days_to_date(
             current_revision.revision_date, next_interval
         )
-        hafizs_items.update(current_hafiz_item)
+        update_hafiz_item(current_hafiz_item)
     populate_hafizs_items_stat_columns(item_id=item_id)
 
 
@@ -454,7 +399,7 @@ def get(
             if part == 0 or len(item_list) < part:
                 item_id = item_id
             else:
-                current_page_part = items(where=f"page_id = {page} and active = 1")
+                current_page_part = get_items_by_page_id(page)
                 item_id = current_page_part[part - 1].id
 
     # This is to show only one page if it came from single entry
@@ -636,8 +581,8 @@ async def post(
         if name.startswith("rating-"):
             item_id = name.split("-")[1]
             if item_id in item_ids:
-                hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-                hafizs_items.update({"status_id": 1}, hafizs_items_id)
+                hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
+                hafizs_items.update(hafizs_items_id, 1)
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
@@ -649,7 +594,7 @@ async def post(
                     )
                 )
 
-    revisions.insert_all(parsed_data)
+    insert_revisions_bulk(parsed_data)
 
     for rec in parsed_data:
         populate_hafizs_items_stat_columns(item_id=rec.item_id)

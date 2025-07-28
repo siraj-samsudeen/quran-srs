@@ -73,31 +73,6 @@ def get_revision_table_data(part_num: int = 1, size: int = 20):
     return data
 
 
-def parse_page_string(page_str: str):
-    """
-    Formats supported:
-    - "5" -> (5, 0, 0)
-    - "5.2" -> (5, 2, 0)
-    - "5-10" -> (5, 0, 10)
-    - "5.2-10" -> (5, 2, 10)
-    """
-    page = page_str
-    part = 0
-    length = 0
-
-    # Extract length if present
-    if "-" in page:
-        page, length_str = page.split("-")
-        length = int(length_str) if length_str else length
-
-    # Extract part if present
-    if "." in page:
-        page, part_str = page.split(".")
-        part = int(part_str) if part_str else part
-
-    return int(page), part, length
-
-
 def get_revision_by_id(revision_id: int):
     """Get revision record by ID"""
     return revisions[revision_id]
