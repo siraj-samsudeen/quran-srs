@@ -110,7 +110,7 @@ test.describe('Hafiz Selection', () => {
     await page.getByRole('button', { name: 'Add Hafiz' }).click();
     
     await expect(page).toHaveURL('http://localhost:5001/users/hafiz_selection');
-    await expect(page.getByText('Test Hafiz')).toBeVisible();
+    await expect(page.getByText('Test Hafiz').first()).toBeVisible();
   });
 
 });
