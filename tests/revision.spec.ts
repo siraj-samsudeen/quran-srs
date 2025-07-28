@@ -396,13 +396,14 @@ test('select all checkbox functionality works', async ({ page }) => {
     test('entry point redirects work correctly', async ({ page }) => {
       // Test bulk entry redirect
       const response = await page.request.post('http://localhost:5001/revision/entry', {
-        data: {
+        data: { 
           type: 'bulk',
           page: '1',
           plan_id: '1'
-        }
+        },
+        maxRedirects:0
       });
-      expect(response.status()).toBe(302); // Redirect
+      expect(response.status()).toBe(303); // Redirect
     });
 
     test('single entry redirect works correctly', async ({ page }) => {
@@ -411,9 +412,10 @@ test('select all checkbox functionality works', async ({ page }) => {
           type: 'single',
           page: '1',
           plan_id: '1'
-        }
+        },
+        maxRedirects:0
       });
-      expect(response.status()).toBe(302); // Redirect
+      expect(response.status()).toBe(303); // Redirect 
     });
 
     test('revision export link works', async ({ page }) => {
