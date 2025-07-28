@@ -5,6 +5,7 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
+from app.revision_model import get_revision_table_data
 
 # Database connections
 db = get_database_connection()
@@ -20,6 +21,7 @@ hafizs = db.t.hafizs
     hafizs_items.dataclass(),
     pages.dataclass(),
 )
+
 
 def action_buttons():
     """UI buttons for bulk operations on revisions"""
@@ -57,11 +59,9 @@ def action_buttons():
         cls="flex-wrap gap-4 mb-3",
     )
 
+
 def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]:
     """Generate paginated table rows for revisions display"""
-    start = (part_num - 1) * size
-    end = start + size
-    data = revisions(order_by="id desc")[start:end]
 
     def _render_rows(rev: Revision):
         item_id = rev.item_id
@@ -105,7 +105,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             id=f"revision-{rev.id}",
         )
 
-    paginated = [_render_rows(i) for i in data]
+    paginated = [_render_rows(i) for i in get_revision_table_data(part_num, size)]
 
     if len(paginated) == 20:
         paginated[-1].attrs.update(
@@ -117,6 +117,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             }
         )
     return tuple(paginated)
+
 
 def create_revision_form(type, auth, backlink="/"):
     """Create form for adding/editing revisions"""
@@ -159,6 +160,7 @@ def create_revision_form(type, auth, backlink="/"):
         action=f"/revision/{type}",
         method="POST",
     )
+
 
 def render_revision_table(auth, idx: int | None = 1):
     """Render the main revision table with pagination"""
