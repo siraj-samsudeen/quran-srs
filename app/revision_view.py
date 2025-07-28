@@ -123,13 +123,15 @@ def create_revision_form(type, auth, backlink="/"):
     """Create form for adding/editing revisions"""
 
     def _option(obj):
+        name = obj.get("name", "")
+        id = obj.get("id")
         return Option(
-            f"{obj.id} ({obj.name})",
-            value=obj.id,
+            f"{id} ({name})",
+            value=id,
             # FIXME: Temp condition for selecting siraj, later it should be handled by sess
             # Another caviat is that siraj should be in the top of the list of users
             # or else the edit functionality will not work properly.
-            selected=True if "siraj" in obj.name.lower() else False,
+            selected=True if "siraj" in name.lower() else False,
         )
 
     additional_fields = (
