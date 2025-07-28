@@ -2,7 +2,8 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
-from app.revision_view import action_buttons, generate_revision_table_part, create_revision_form, render_revision_table
+from app.revision_view import *
+from app.revision_model import *
 
 db = get_database_connection()
 
@@ -68,9 +69,6 @@ def get_item_id(page_number: int, not_memorized_only: bool = False):
     return sorted(item_ids)
 
 
-
-
-
 @rt("/entry")
 def post(type: str, page: str, plan_id: int):
     print(plan_id)
@@ -80,15 +78,9 @@ def post(type: str, page: str, plan_id: int):
         return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
-
-
-
 @revision_app.get
 def revision(auth, idx: int | None = 1):
     return render_revision_table(auth, idx)
-
-
-
 
 
 @rt("/edit/{revision_id}")
