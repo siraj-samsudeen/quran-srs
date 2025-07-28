@@ -31,7 +31,12 @@ def get_database_connection():
     """Get configured database connection with migrations"""
     DB_PATH = get_database_path()
     create_and_migrate_db(DB_PATH)
-    return database(DB_PATH)
+    db = database(DB_PATH)
+    
+    # Configure auto-checkpoint every 50 pages to prevent large WAL files
+    db.execute('PRAGMA wal_autocheckpoint=50;')
+    
+    return db
 
 
 def get_database_path():
