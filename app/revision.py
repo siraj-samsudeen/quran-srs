@@ -324,7 +324,7 @@ def post(revision_details: Revision):
 
     next_item_id = find_next_item_id(item_id)
 
-    next_page_item_ids = get_item_ids_by_page(page_number=get_page_number(next_item_id))
+    next_page_item_ids = get_item_ids_by_page(get_page_number(next_item_id))
     is_next_page_is_part = len(next_page_item_ids) > 1
 
     if is_next_page_is_part:
