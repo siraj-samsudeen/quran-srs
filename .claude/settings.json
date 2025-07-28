@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__*",
+      "mcp__context7__*"
+    ]
+  }
+}
