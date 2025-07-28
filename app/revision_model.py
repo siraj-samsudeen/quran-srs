@@ -121,6 +121,10 @@ def get_items_by_page_id(page_id: int, active_only: bool = True):
     return items(where=where_clause)
 
 
+def get_item_ids_by_page(page):
+    return [i.id for i in get_items_by_page_id(page)]
+
+
 def get_hafiz_item_by_item_id(item_id: int):
     """Get hafiz item record by item ID"""
     return hafizs_items(where=f"item_id = {item_id}")[0]

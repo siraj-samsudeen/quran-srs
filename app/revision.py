@@ -262,7 +262,7 @@ def get(
         page, page_part, length = parse_page_string(page)
         if page >= max_page:
             return Redirect("/")
-        item_list = get_item_id(page_number=page)
+        item_list = get_item_ids_by_page(page)
         # To start the page from beginning even if there is multiple parts
         item_id = item_list[0]
 
@@ -324,7 +324,7 @@ def post(revision_details: Revision):
 
     next_item_id = find_next_item_id(item_id)
 
-    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    next_page_item_ids = get_item_ids_by_page(page_number=get_page_number(next_item_id))
     is_next_page_is_part = len(next_page_item_ids) > 1
 
     if is_next_page_is_part:
@@ -381,7 +381,7 @@ def get(
 
     if item_id is not None:
         page = get_page_number(item_id)
-        item_id = get_item_id(page_number=page)[0]
+        item_id = get_item_ids_by_page(page)[0]
     elif page is not None:
         page, part, length = parse_page_string(page)
 
@@ -392,7 +392,7 @@ def get(
         if not length or length <= 0:
             length = int(get_display_count(auth))
 
-        item_list = get_item_id(page_number=page)
+        item_list = get_item_ids_by_page(page)
         item_id = item_list[0]
 
         if part:
@@ -411,6 +411,7 @@ def get(
     item_ids = flatten_list(
         [get_item_id(page_number=p) for p in range(page, last_page)]
     )
+    item_ids = flatten_list([get_item_ids_by_page(p) for p in range(page, last_page)])
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
