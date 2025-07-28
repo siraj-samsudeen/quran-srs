@@ -5,6 +5,7 @@ from utils import *
 import pandas as pd
 from collections import defaultdict
 from app.users_controller import users_app
+from app.revision import revision_app
 from app.new_memorization import new_memorization_app
 from app.recent_review import recent_review_app
 from app.watch_list import watch_list_app
@@ -88,6 +89,7 @@ tables = db.t
 app, rt = create_app_with_auth(
     routes=[
         Mount("/users", users_app, name="users"),
+        Mount("/revision", revision_app, name="revision"),
         Mount("/new_memorization", new_memorization_app, name="new_memorization"),
         Mount("/recent_review", recent_review_app, name="recent_review"),
         Mount("/watch_list", watch_list_app, name="watch_list"),
