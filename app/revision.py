@@ -31,7 +31,7 @@ def post(type: str, page: str, plan_id: int):
         return Redirect(f"/revision/add?page={page}&plan_id={plan_id}")
 
 
-@revision_app.get
+@revision_app.get("/")
 def revision(auth, idx: int | None = 1):
     return render_revision_table(auth, idx)
 
