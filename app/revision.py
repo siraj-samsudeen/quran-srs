@@ -24,7 +24,6 @@ revision_app, rt = create_app_with_auth()
 
 @rt("/entry")
 def post(type: str, page: str, plan_id: int):
-    print(plan_id)
     if type == "bulk":
         return Redirect(f"/revision/bulk_add?page={page}&plan_id={plan_id}")
     elif type == "single":

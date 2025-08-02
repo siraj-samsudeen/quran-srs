@@ -495,7 +495,6 @@ def custom_entry_inputs(plan_id):
 
 @rt
 def index(auth, sess, full_cycle_display_count: int = None):
-    print(hafizs_items(where="hafiz_id <> 1"))
     current_date = get_current_date(auth)
     ################### Overall summary ###################
     seq_id = "1"

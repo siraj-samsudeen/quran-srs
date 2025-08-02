@@ -353,7 +353,6 @@ def new_memorization(auth, current_type: str):
     ORDER BY revisions.revision_date DESC, revisions.id DESC 
     LIMIT 10;
     """
-    print(auth)
     newly_memorized = get_not_memorized_records(auth, where_query)
     grouped = group_by_type(newly_memorized, "item_id")
 
