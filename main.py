@@ -728,7 +728,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
     tables_dict = {
-        modes[1].name: overall_table,
+        modes[1].name: overall_table if not (plan_id is None) else None,
         modes[2].name: new_memorization_table,
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
