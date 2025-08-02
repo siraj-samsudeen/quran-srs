@@ -1,4 +1,3 @@
-from utils import get_database_connection
 from datetime import datetime
 from dataclasses import dataclass
 from globals import *

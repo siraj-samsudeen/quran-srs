@@ -1,4 +1,3 @@
-from utils import get_database_connection
 from app.common_function import *
 from globals import *
 
