@@ -2,8 +2,8 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
+from globals import *
 
-db = get_database_connection()
 
 revisions = db.t.revisions
 items = db.t.items

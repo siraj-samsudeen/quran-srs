@@ -2,12 +2,12 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
+from globals import *
 
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-db = get_database_connection()
 
 hafizs = db.t.hafizs
 

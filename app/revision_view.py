@@ -6,9 +6,9 @@ from monsterui.all import *
 from utils import *
 from app.common_function import *
 from app.revision_model import get_revision_table_data
+from globals import *
 
 # Database connections
-db = get_database_connection()
 revisions = db.t.revisions
 items = db.t.items
 hafizs_items = db.t.hafizs_items

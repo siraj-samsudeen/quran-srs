@@ -3,9 +3,8 @@ import fasthtml.common as fh
 from monsterui.all import *
 from utils import *
 from collections import defaultdict
+from globals import *
 
-
-db = get_database_connection()
 
 revisions = db.t.revisions
 hafizs_items = db.t.hafizs_items

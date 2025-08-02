@@ -4,6 +4,7 @@ from io import BytesIO
 import pandas as pd
 from utils import *
 from app.common_function import *
+from globals import *
 
 OPTION_MAP = {
     "role": ["hafiz", "parent", "teacher", "parent_hafiz"],
@@ -11,7 +12,6 @@ OPTION_MAP = {
     "relationship": ["self", "parent", "teacher", "sibling"],
 }
 
-db = get_database_connection()
 tables = db.t
 
 revisions = db.t.revisions
@@ -178,8 +178,9 @@ def backup_active_db():
     # First flush WAL to ensure all data is in main DB
     try:
         import sqlite3
+
         conn = sqlite3.connect(db_path)
-        conn.execute('PRAGMA wal_checkpoint(FULL);')
+        conn.execute("PRAGMA wal_checkpoint(FULL);")
         conn.close()
     except Exception as e:
         return Titled("❌ Error", P(f"Error flushing WAL: {e}"))

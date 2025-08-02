@@ -1,6 +1,7 @@
 from utils import get_database_connection
 from datetime import datetime
 from dataclasses import dataclass
+from globals import *
 
 
 @dataclass
@@ -10,7 +11,6 @@ class Login:
 
 
 # Database connection and table setup
-db = get_database_connection()
 users = db.t.users
 hafizs = db.t.hafizs
 hafizs_users = db.t.hafizs_users

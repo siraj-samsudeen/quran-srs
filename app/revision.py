@@ -4,8 +4,8 @@ from utils import *
 from app.common_function import *
 from app.revision_view import *
 from app.revision_model import *
+from globals import *
 
-db = get_database_connection()
 
 revisions = db.t.revisions
 items = db.t.items

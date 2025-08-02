@@ -3,13 +3,12 @@ from monsterui.all import *
 from utils import *
 from datetime import datetime
 from app.common_function import *
+from globals import *
 
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-
-db = get_database_connection()
 
 revisions = db.t.revisions
 items = db.t.items
