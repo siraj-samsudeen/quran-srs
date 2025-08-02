@@ -582,7 +582,7 @@ async def post(
             item_id = name.split("-")[1]
             if item_id in item_ids:
                 hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
-                hafizs_items.update(hafizs_items_id, 1)
+                update_hafiz_item_status(hafizs_items_id, 1)
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
