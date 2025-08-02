@@ -14,8 +14,9 @@ pages = db.t.pages
 surahs = db.t.surahs
 srs_booster_pack = db.t.srs_booster_pack
 modes = db.t.modes
+plans = db.t.plans
 
-(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack, Modes) = (
+(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack, Modes, Plan) = (
     revisions.dataclass(),
     hafizs_items.dataclass(),
     hafizs.dataclass(),
@@ -24,6 +25,7 @@ modes = db.t.modes
     surahs.dataclass(),
     srs_booster_pack.dataclass(),
     modes.dataclass(),
+    plans.dataclass(),
 )
 
 
@@ -36,6 +38,7 @@ def before(req, sess):
         return RedirectResponse("/users/hafiz_selection", status_code=303)
     revisions.xtra(hafiz_id=auth)
     hafizs_items.xtra(hafiz_id=auth)
+    plans.xtra(hafiz_id=auth)
 
 
 bware = Beforeware(
