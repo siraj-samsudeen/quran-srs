@@ -572,7 +572,12 @@ def index(auth, sess, full_cycle_display_count: int = None):
             total_pages = len(unique_pages)
 
             first_date = current_plans_revision_date[0].revision_date
-            total_days = calculate_days_difference(first_date, current_date)
+
+            # When adding a record for the first time, total_days will be 0
+            if first_date == current_date:
+                total_days = 1
+            else:
+                total_days = calculate_days_difference(first_date, current_date)
 
             average_pages = total_pages / total_days
             average_pages = (
@@ -723,7 +728,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
     tables_dict = {
-        modes[1].name: overall_table if items_gaps_with_limit else None,
+        modes[1].name: overall_table,
         modes[2].name: new_memorization_table,
         modes[3].name: recent_review_table,
         modes[4].name: watch_list_table,
