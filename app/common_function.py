@@ -59,12 +59,18 @@ alpinejs_header = Script(
 
 # Create sub-apps with the beforeware
 def create_app_with_auth(**kwargs):
-    return fast_app(
+    app, rt = fast_app(
         before=bware,
         hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
         bodykw={"hx-boost": "true"},
         **kwargs,
     )
+    setup_toasts(app)
+    return app, rt
+
+
+def error_toast(sess, msg):
+    add_toast(sess, msg, "error")
 
 
 def main_area(*args, active=None, auth=None):
