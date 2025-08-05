@@ -684,6 +684,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             custom_entry_inputs(plan_id),
         ),
         open=True,
+        div_kwargs={"data-testid": "monthly-cycle-summary-table-area"},
     )
     ############################# END ################################
 
@@ -1204,7 +1205,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
-                Tbody(*body_rows, id=f"{route}_tbody"),
+                Tbody(*body_rows, id=f"{route}_tbody", data_testid=f"{route}_tbody"),
                 id=f"{route}_summary_table",
                 x_data=select_all_with_shift_click_for_summary_table(
                     class_name=f"{route}_ids"

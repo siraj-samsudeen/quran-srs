@@ -35,7 +35,10 @@ def tables_main_area(*args, active_table=None, auth=None):
         t for t in str(tables).split(", ") if not t.startswith(("sqlite", "_"))
     ]
     table_links = [
-        Li(A(t.capitalize(), href=f"/admin/tables/{t}"), cls=is_active(t))
+        Li(
+            A(t.capitalize(), href=f"/admin/tables/{t}", data_testid=f"{t}-link"),
+            cls=is_active(t),
+        )
         for t in tables_list
     ]
 
@@ -208,7 +211,8 @@ def view_table(table: str, auth):
                         data[column],
                         href=f"/admin/tables/{table}/{data[column]}/edit",
                         cls=AT.muted,
-                    )
+                    ),
+                    data_testid="row-id",
                 )
             return Td(data[column])
 
@@ -229,7 +233,7 @@ def view_table(table: str, auth):
 
     table_element = Table(
         Thead(Tr(*map(Th, columns), Th("Action"))),
-        Tbody(*map(_render_rows, records)),
+        Tbody(*map(_render_rows, records), data_testid=f"{table}-rows"),
     )
     return tables_main_area(
         Div(

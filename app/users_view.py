@@ -11,14 +11,14 @@ OPTION_MAP = {
 def render_login_form():
     """Render login form"""
     return Titled(
-        "Login", 
+        "Login",
         Form(
             LabelInput(label="Email", name="email", type="email"),
             LabelInput(label="Password", name="password", type="password"),
             Button("Login"),
             action="/users/login",
             method="post",
-        )
+        ),
     )
 
 
@@ -77,6 +77,7 @@ def render_hafiz_card(hafizs_user, auth, hafiz_name):
             hx_target="body",
             hx_replace_url="true",
             cls=ButtonT.primary,
+            data_testid=f"switch-{hafiz_name}-hafiz-button",
         ),
         cls="min-w-[300px] max-w-[400px]",
     )
