@@ -893,8 +893,8 @@ def make_summary_table(
     def has_recent_mode_id(item: dict) -> bool:
         return item["mode_id"] == 3
 
-    def has_monthly_cycle_mode_id(item: dict) -> bool:
-        return item["mode_id"] == 1
+    def has_memorized(item: dict) -> bool:
+        return item["status_id"] == 1
 
     def has_revisions(item: dict) -> bool:
         """Check if item has revisions for current mode."""
@@ -911,7 +911,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.status_id FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -930,7 +930,7 @@ def make_summary_table(
         "srs": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
-        "monthly_cycle": lambda item: (has_monthly_cycle_mode_id(item)),
+        "monthly_cycle": lambda item: (has_memorized(item)),
     }
 
     recent_items = list(
