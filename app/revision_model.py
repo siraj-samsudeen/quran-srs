@@ -23,47 +23,6 @@ def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):
         recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 
-def get_item_id(page_number: int, not_memorized_only: bool = False):
-    """
-    This function will lookup the page_number in the `hafizs_items` table
-    if there is no record for that page and then create new records for that page
-    by looking up the `items` table
-
-    Each page may contain more than one record (including the page_part)
-
-    Then filter out the in_active hafizs_items and return the item_id
-
-    Returns:
-    list of item_id
-    """
-
-    qry = f"page_number = {page_number}"
-    hafiz_data = hafizs_items(where=qry)
-
-    if not hafiz_data:
-        page_items = items(where=f"page_id = {page_number} AND active = 1")
-        for item in page_items:
-            hafizs_items.insert(
-                Hafiz_Items(
-                    item_id=item.id,
-                    page_number=item.page_id,
-                    mode_id=1,
-                )
-            )
-    hafiz_data = (
-        # Filtered only `Not Started`
-        hafizs_items(where=f"{qry} AND status_id = 6")
-        if not_memorized_only
-        else hafizs_items(where=qry)
-    )
-    item_ids = [
-        hafiz_item.item_id
-        for hafiz_item in hafiz_data
-        if items[hafiz_item.item_id].active
-    ]
-    return sorted(item_ids)
-
-
 def get_revision_table_data(part_num: int = 1, size: int = 20):
     """Get paginated revision data for table display"""
     start = (part_num - 1) * size
