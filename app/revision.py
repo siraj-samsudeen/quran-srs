@@ -245,9 +245,21 @@ def parse_page_string(page_str: str):
     return int(page), part, length
 
 
+def validate_page_revision(sess, item_id, page, plan_id):
+    """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
+    if not hafizs_items(where=f"item_id = {item_id} AND status_id = 1"):
+        error_toast(sess, f"Given page '{page}' is not yet memorized!")
+        return False
+    if revisions(where=f"item_id = {item_id} AND plan_id = {plan_id}"):
+        error_toast(sess, f"Given page '{page}' is already revised under current plan!")
+        return False
+    return True
+
+
 @rt("/add")
 def get(
     auth,
+    sess,
     plan_id: int,
     item_id: int = None,
     page: str = None,
@@ -284,7 +296,8 @@ def get(
                 )
     else:
         return Redirect("/")
-
+    if not validate_page_revision(sess, item_id, page, plan_id):
+        return Redirect("/")
     return main_area(
         Titled(
             get_page_description(
@@ -361,6 +374,7 @@ def update_revision_rating(rev_id: int, rating: int):
 @revision_app.get("/bulk_add")
 def get(
     auth,
+    sess,
     plan_id: int,
     item_id: int = None,
     page: str = None,
@@ -371,7 +385,6 @@ def get(
     max_item_id: int = get_last_item_id(),
     max_page_id: int = 605,
 ):
-
     if revision_date is None:
         revision_date = get_current_date(auth)
 
@@ -401,6 +414,8 @@ def get(
                 current_page_part = get_items_by_page_id(page)
                 item_id = current_page_part[part - 1].id
 
+    if not validate_page_revision(sess, item_id, page, plan_id):
+        return Redirect("/")
     # This is to show only one page if it came from single entry
     if is_part:
         length = 1
