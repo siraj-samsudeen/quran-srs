@@ -407,10 +407,14 @@ def get(
 
     last_page = page + length
 
-    item_ids = flatten_list(
-        [get_item_id(page_number=p) for p in range(page, last_page)]
-    )
     item_ids = flatten_list([get_item_ids_by_page(p) for p in range(page, last_page)])
+    # Exclude item_ids that are not memorized or already revised under the current plan_id
+    item_ids = [
+        i
+        for i in item_ids
+        if hafizs_items(where=f"item_id = {i} AND status_id = 1")
+        and not revisions(where=f"item_id = {i} AND plan_id = {plan_id}")
+    ]
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
@@ -617,7 +621,7 @@ async def post(
     if next_item_id is None or next_item_id >= max_item_id:
         return Redirect("/")
 
-    next_page_item_ids = get_item_id(page_number=get_page_number(next_item_id))
+    next_page_item_ids = get_item_ids_by_page(get_page_number(next_item_id))
     is_next_page_is_part = len(next_page_item_ids) > 1
     if is_part and not is_next_page_is_part:
         return Redirect(

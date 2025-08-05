@@ -433,7 +433,7 @@ def custom_entry_inputs(plan_id):
     """
     This function is used to retain the input values in the form and display the custom entry inputs
     """
-    revision_data = revisions(where="mode_id = 1")
+    revision_data = revisions(where=f"mode_id = 1 AND plan_id = {plan_id}")
     last_added_item_id = revision_data[-1].item_id if revision_data else None
 
     if last_added_item_id:
@@ -678,7 +678,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                     Tbody(*map(render_overall_row, items_gaps_with_limit)),
                     id="monthly_cycle_link_table",
                 )
-                if len(items_gaps_with_limit) > 1
+                if len(items_gaps_with_limit) > 0
                 else Div(id="monthly_cycle_link_table")
             ),
             custom_entry_inputs(plan_id),
