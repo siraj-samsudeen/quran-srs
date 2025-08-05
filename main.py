@@ -519,9 +519,9 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 )
             ]
         )
-        item_ids = [i.id for i in items(where="active = 1")]
+        memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
         # this will return the gap of the current_plan_item_ids based on the master(items_id)
-        items_gaps_with_limit = find_gaps(current_plan_item_ids, item_ids)
+        items_gaps_with_limit = find_gaps(current_plan_item_ids, memorized_item_ids)
 
     def render_overall_row(o: tuple):
         last_added_item_id, upper_limit = o

@@ -754,8 +754,8 @@ def get_mode_name(mode_id: int):
 
 
 def find_next_item_id(item_id):
-    item_ids = [item.id for item in items(where="active = 1")]
-    return find_next_greater(item_ids, item_id)
+    memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
+    return find_next_greater(memorized_item_ids, item_id)
 
 
 def get_last_item_id():
