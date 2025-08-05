@@ -59,8 +59,10 @@ test.describe('Full Cycle E2E Workflow', () => {
     // Set status for each page using dropdown
     for (const pageData of pages) {
       const pageTestId: string = `${pageData.testId}-row`;
+      
       await page.getByTestId(pageTestId).getByRole('combobox').click();
       await page.getByTestId(pageTestId).getByRole('combobox').selectOption(pageData.status);
+      await page.waitForTimeout(200);
     }
     await page.getByRole('link', { name: 'Home' }).click();
     await expect(page).toHaveURL('http://localhost:5001/');
@@ -82,7 +84,7 @@ test.describe('Full Cycle E2E Workflow', () => {
     await page.getByRole('button', { name: 'Save' }).click();
 
     // Verify plan was created and return to home
-    await expect(page.getByRole('cell', { name: hafizId.toString(), exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: hafizId.toString(), exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Home' }).click();
     await expect(page).toHaveURL('http://localhost:5001/');
     await expect(page.getByTestId('monthly-cycle-summary-table-area')).toBeVisible();
@@ -92,6 +94,7 @@ test.describe('Full Cycle E2E Workflow', () => {
   async function verifyHomeTablePages(page: Page, expectedPages: PageData[]): Promise<void> {
     await page.goto('http://localhost:5001/');
     await page.getByRole('button', { name: '+5' }).click();
+    await page.waitForTimeout(1000);
 
     // Extract expected page titles for comparison
     const expectedPageDetails: string[] = expectedPages.map(pageData => pageData.pageDetails);
@@ -117,13 +120,11 @@ test.describe('Full Cycle E2E Workflow', () => {
     // Test data
     const hafizName: string = 'Test Hafiz';
     const memorizedPages: PageData[] = [
-      { status: '1', testId: 'page-1', pageDetails: '1 Fatihah Juz 1 Start' },
-      { status: '1', testId: 'page-2', pageDetails: '2 Baqarah Start' },
       { status: '1', testId: 'page-3', pageDetails: '3 Baqarah P2' },
       { status: '1', testId: 'page-4', pageDetails: '4 Baqarah P3' },
       { status: '1', testId: 'page-7', pageDetails: '7 Baqarah P6' },
-      { status: '1', testId: 'page-8', pageDetails: '8 Baqarah P7' },
-      { status: '1', testId: 'page-9', pageDetails: '9 Baqarah P8' }
+      { status: '1', testId: 'page-9', pageDetails: '9 Baqarah P8' },
+      { status: '1', testId: 'page-100', pageDetails: '100 Nisa P24' }
     ];
 
     // Step 1: Create hafiz
