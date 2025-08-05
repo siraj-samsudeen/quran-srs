@@ -169,6 +169,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                 else Td("")
             ),
             id=f"{current_type}-{type_number}",
+            data_testid=f"{current_type}-{type_number}-row",
         )
 
     if not current_type:
