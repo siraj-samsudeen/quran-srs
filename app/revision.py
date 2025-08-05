@@ -321,7 +321,7 @@ def post(revision_details: Revision):
     rev = insert_revision(revision_details)
     populate_hafizs_items_stat_columns(item_id=item_id)
 
-    next_item_id = find_next_item_id(item_id)
+    next_item_id = find_next_memorized_item_id(item_id)
 
     next_page_item_ids = get_item_ids_by_page(get_page_number(next_item_id))
     is_next_page_is_part = len(next_page_item_ids) > 1
@@ -332,7 +332,7 @@ def post(revision_details: Revision):
         )
 
     return Redirect(
-        f"/revision/add?item_id={find_next_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}"
+        f"/revision/add?item_id={find_next_memorized_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}"
     )
 
 
@@ -611,7 +611,7 @@ async def post(
         else:
             return Redirect("/")
 
-    next_item_id = find_next_item_id(last_item_id)
+    next_item_id = find_next_memorized_item_id(last_item_id)
 
     # To handle the upper limit
     if next_item_id is None or next_item_id >= max_item_id:

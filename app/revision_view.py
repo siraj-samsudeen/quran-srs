@@ -123,8 +123,8 @@ def create_revision_form(type, auth, backlink="/"):
     """Create form for adding/editing revisions"""
 
     def _option(obj):
-        name = obj.get("name", "")
-        id = obj.get("id")
+        name = obj.name
+        id = obj.id
         return Option(
             f"{id} ({name})",
             value=id,

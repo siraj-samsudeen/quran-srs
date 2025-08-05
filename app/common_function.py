@@ -753,7 +753,7 @@ def get_mode_name(mode_id: int):
     return modes[mode_id].name
 
 
-def find_next_item_id(item_id):
+def find_next_memorized_item_id(item_id):
     memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
     return find_next_greater(memorized_item_ids, item_id)
 

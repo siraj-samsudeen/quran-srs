@@ -529,7 +529,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         # to avoid adding records for already added items
         upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-        next_item_id = find_next_item_id(last_added_item_id)
+        next_item_id = find_next_memorized_item_id(last_added_item_id)
 
         if next_item_id is None:
             next_page = "No further page"
