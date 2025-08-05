@@ -681,7 +681,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 if len(items_gaps_with_limit) > 0
                 else Div(id="monthly_cycle_link_table")
             ),
-            custom_entry_inputs(plan_id),
+            custom_entry_inputs(plan_id) if plan_id else None,
         ),
         open=True,
         div_kwargs={"data-testid": "monthly-cycle-summary-table-area"},
