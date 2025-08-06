@@ -758,6 +758,16 @@ def find_next_memorized_item_id(item_id):
     return find_next_greater(memorized_item_ids, item_id)
 
 
+def get_unrevised_memorized_item_ids(auth, plan_id):
+    qry = f"""
+        SELECT hafizs_items.item_id from hafizs_items
+        LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
+        WHERE hafizs_items.status_id = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        """
+    data = db.q(qry)
+    return [r["item_id"] for r in data]
+
+
 def get_last_item_id():
     return items(where="active = 1", order_by="id DESC")[0].id
 

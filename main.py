@@ -429,36 +429,38 @@ def render_stats_summary_table(auth, target_counts):
     )
 
 
-def custom_entry_inputs(plan_id):
+def custom_entry_inputs(auth, plan_id):
     """
     This function is used to retain the input values in the form and display the custom entry inputs
     """
+    # Get last added item or start from beginning
     revision_data = revisions(where=f"mode_id = 1 AND plan_id = {plan_id}")
-    last_added_item_id = revision_data[-1].item_id if revision_data else None
-
-    if last_added_item_id:
-        item_details = items[last_added_item_id]
-        last_added_page = item_details.page_id
-
-        if item_details.item_type == "page-part":
-            # fill the page input with parts based on the last added record
-            # to start from the next part
-            if "1" in item_details.part:
-                last_added_page = last_added_page + 0.2
-            elif (
-                len(items(where=f"page_id = {last_added_page} AND active != 0")) > 2
-                and "2" in item_details.part
-            ):
-                last_added_page = last_added_page + 0.3
+    if revision_data:
+        last_added_item_id = revision_data[-1].item_id
     else:
-        last_added_page = None
+        start_page = plans(where=f"hafiz_id = {auth} AND id = {plan_id}")[0].start_page
+        last_added_item_id = items(where=f"page_id = {start_page}")[0].page_id - 1
 
-    if isinstance(last_added_page, int) and last_added_page >= 604:
-        last_added_page = None
-    if not last_added_page:
-        last_added_page = 1
-    if isinstance(last_added_page, int):
-        last_added_page += 1
+    next_item_id = find_next_memorized_item_id(last_added_item_id)
+
+    if next_item_id and revisions(
+        where=f"item_id = {next_item_id} AND plan_id = {plan_id}"
+    ):
+        next_item_id = None
+
+    # Fallback to unrevised items if needed
+    if not next_item_id:
+        unrevised_item_ids = get_unrevised_memorized_item_ids(auth, plan_id)
+        next_item_id = unrevised_item_ids[0] if unrevised_item_ids else None
+
+    next_page = get_next_input_page(next_item_id) if next_item_id else None
+
+    if isinstance(next_page, int) and next_page >= 605:
+        next_page = None
+    if not next_page:
+        unrevised_item_ids = get_unrevised_memorized_item_ids(auth, plan_id)
+        next_page = "" if not unrevised_item_ids else None
+
     entry_buttons = Form(
         P(
             "Custom Page Entry",
@@ -470,11 +472,11 @@ def custom_entry_inputs(plan_id):
                 placeholder="page",
                 cls="w-20",
                 id="page",
-                value=last_added_page,
+                value=next_page,
                 autocomplete="off",
                 # Matches numbers 1 to 999 in format like "1-100" or "1.3-2" (number-range or decimal-suffix), excluding zeros
-                pattern=r"^(?!0+(?:\.0*)?$)0*\d{1,3}(?:\.\d+)?(?:-\d+)?$",
-                title="Enter format like 604, 604.2, or 604.2-3",
+                pattern=r"^(?!0+(?:\.0*)?$|1(?:\.0*)?(?:-\d+)?$)0*\d{1,3}(?:\.\d+)?(?:-\d+)?$",
+                title="Enter from page 2, format like 604, 604.2, or 604.2-3",
                 required=True,
             ),
             Hidden(id="plan_id", value=plan_id),
@@ -488,6 +490,26 @@ def custom_entry_inputs(plan_id):
     return Div(
         entry_buttons, cls="flex-wrap gap-4 min-w-72 m-4", id="custom_entry_link"
     )
+
+
+def get_next_input_page(next_item_id):
+    if next_item_id:
+        item_details = items[next_item_id]
+        next_page = item_details.page_id
+
+        if item_details.item_type == "page-part":
+            page_len = len(items(where=f"page_id = {next_page} AND active != 0"))
+            # Handle page parts with decimal increments to fill the page input
+            # based on the last added record to start from the next part
+            if "1" in item_details.part:
+                next_page += 0.1
+            elif page_len >= 2 and "2" in item_details.part:
+                next_page += 0.2
+            elif page_len >= 3 and "3" in item_details.part:
+                next_page += 0.3
+    else:
+        next_page = None
+    return next_page
 
 
 ############################ End Custom Single and Bulk Entry ################################
@@ -681,7 +703,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 if len(items_gaps_with_limit) > 0
                 else Div(id="monthly_cycle_link_table")
             ),
-            custom_entry_inputs(plan_id) if plan_id else None,
+            custom_entry_inputs(auth, plan_id) if plan_id else None,
         ),
         open=True,
         div_kwargs={"data-testid": "monthly-cycle-summary-table-area"},
@@ -1058,7 +1080,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
             "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
-            + (", #monthly_cycle_link_table" if is_monthly_review else ""),
+            + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
@@ -1188,7 +1210,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 hx_select=f"#{route}_tbody",
                                 hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header"
                                 + (
-                                    ", #monthly_cycle_link_table"
+                                    ", #monthly_cycle_link_table, #page"
                                     if is_monthly_review
                                     else ""
                                 ),
