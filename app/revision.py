@@ -420,16 +420,24 @@ def get(
     if is_part:
         length = 1
 
-    last_page = page + length
+    def get_item_ids_from_page_start(auth, plan_id, start_page, length):
+        """Returns a list of unrevised and memorized item IDs for a specific user,
+        starting from a given page number with given length."""
+        qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
+        WHERE hafizs_items.status_id = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        ORDER BY hafizs_items.page_number ASC
+        LIMIT {length};
+        """
+        rows = db.q(qry)
+        return [row["item_id"] for row in rows]
 
-    item_ids = flatten_list([get_item_ids_by_page(p) for p in range(page, last_page)])
-    # Exclude item_ids that are not memorized or already revised under the current plan_id
-    item_ids = [
-        i
-        for i in item_ids
-        if hafizs_items(where=f"item_id = {i} AND status_id = 1")
-        and not revisions(where=f"item_id = {i} AND plan_id = {plan_id}")
-    ]
+    item_ids = get_item_ids_from_page_start(
+        auth=auth, plan_id=plan_id, start_page=page, length=length
+    )
+
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
