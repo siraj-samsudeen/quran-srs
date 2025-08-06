@@ -115,8 +115,48 @@ test.describe('Full Cycle E2E Workflow', () => {
     }
   }
 
+// verify gaps and input **after each selection**
+type Step = {
+  select: string;
+  expectedGaps: string[];
+  expectedInput: string | null;
+};
+
+async function verifyMonthlyCycleGapsAndInputs(page: Page, steps: Step[]) {
+  const textbox = page.getByRole('textbox', { name: 'Enter from page 2, format' });
+
+  for (const step of steps) {
+    // Select the checkbox for the page
+    await page.getByRole('row', { name: step.select }).getByRole('checkbox').check();
+    await page.waitForTimeout(400);
+
+    // If there are expected gaps, "Next" header should be visible and gaps should be visible
+    if (step.expectedGaps.length > 0) {
+      await expect(page.getByRole('cell', { name: 'Next' })).toBeVisible();
+
+      for (const gap of step.expectedGaps) {
+        await expect(
+          page.locator('#monthly_cycle_link_table').getByRole('cell', { name: gap })
+        ).toBeVisible();
+      }
+    } else {
+      // If no gaps expected, "Next" header should not be visible
+      await expect(page.getByRole('cell', { name: 'Next' })).not.toBeVisible();
+    }
+
+    // Check input value
+    if (step.expectedInput === null) {
+      await expect(textbox).toBeEmpty();
+    } else {
+      await expect(textbox).toHaveValue(step.expectedInput);
+    }
+  }
+}
+
+
+
   // Main E2E test
-  test('complete full-cycle workflow: create hafiz, set pages, create plan, verify home display', async ({ page }) => {
+  test('complete full-cycle workflow: create hafiz, set pages, create plan, verify home display, Verify gaps and input value', async ({ page }) => {
     // Test data
     const hafizName: string = 'Test Hafiz';
     const memorizedPages: PageData[] = [
@@ -138,6 +178,16 @@ test.describe('Full Cycle E2E Workflow', () => {
 
     // Step 4: Verify home page displays only memorized pages correctly
     await verifyHomeTablePages(page, memorizedPages);
+
+    // Step 5: Verify gaps and input after each revision selection
+    await verifyMonthlyCycleGapsAndInputs(page, [
+    { select: '3 Baqarah P2', expectedGaps: ['4 Baqarah P3'], expectedInput: '4' },
+    { select: '7 Baqarah P6', expectedGaps: ['4 Baqarah P3', '9 Baqarah P8'], expectedInput: '9' },
+    { select: '100 Nisa P24', expectedGaps: ['4 Baqarah P3', '9 Baqarah P8'], expectedInput: '4' },
+    { select: '4 Baqarah P3', expectedGaps: ['9 Baqarah P8'], expectedInput: '9' },
+    { select: '9 Baqarah P8', expectedGaps: [], expectedInput: null }
+  ]);
+
   });
 
 });
