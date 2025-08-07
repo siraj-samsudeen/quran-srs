@@ -13,12 +13,29 @@ def render_login_form():
     return Titled(
         "Login",
         Form(
-            LabelInput(label="Email", name="email", type="email"),
-            LabelInput(label="Password", name="password", type="password"),
+            LabelInput(
+                label="Email",
+                name="email",
+                type="email",
+                required=True,
+                placeholder="Email",
+            ),
+            LabelInput(
+                label="Password",
+                name="password",
+                type="password",
+                required=True,
+                placeholder="Password",
+            ),
             Button("Login"),
             action="/users/login",
             method="post",
         ),
+        P(
+            "Don't have an account? ",
+            A("Register", href="/users/signup", cls=TextT.primary),
+        ),
+        cls="space-y-6",
     )
 
 
