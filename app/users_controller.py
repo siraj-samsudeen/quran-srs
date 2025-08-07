@@ -62,7 +62,7 @@ def post(user: User, confirm_password: str, sess):
         new_user = insert_user(user)
         sess["user_auth"] = new_user.id
         success_toast(sess, "Account created successfully!")
-        return hafizs_selection_redir
+        return login_redir
     except Exception as e:
         error_toast(sess, f"Failed to create account. Please try again.")
         return signup_redir
