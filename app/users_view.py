@@ -39,6 +39,51 @@ def render_login_form():
     )
 
 
+def render_signup_form():
+    """Render User Signup form"""
+    return Titled(
+        "User Registration",
+        Form(
+            LabelInput(
+                label="Name",
+                name="name",
+                type="text",
+                required=True,
+                placeholder="Name",
+            ),
+            LabelInput(
+                label="Email",
+                name="email",
+                type="email",
+                required=True,
+                placeholder="Email",
+            ),
+            LabelInput(
+                label="Password",
+                name="password",
+                type="password",
+                required=True,
+                placeholder="Password",
+            ),
+            LabelInput(
+                label="Confirm Password",
+                name="confirm_password",
+                type="password",
+                required=True,
+                placeholder="Password",
+            ),
+            Button("Signup"),
+            action="/users/signup",
+            method="post",
+        ),
+        P(
+            "Already have an account? ",
+            A("Login", href="/users/login", cls=TextT.primary),
+        ),
+        cls="space-y-6",
+    )
+
+
 def render_options(option):
     """Render option for select dropdown"""
     return Option(

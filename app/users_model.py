@@ -32,6 +32,11 @@ def get_user_by_email(email: str):
         return None
 
 
+def insert_user(user: User):
+    """Insert new user record"""
+    return users.insert(user)
+
+
 def get_hafizs_for_user(user_id: int):
     """Get all hafizs associated with a user"""
     return [h for h in hafizs_users() if h.user_id == user_id]
