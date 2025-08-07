@@ -46,6 +46,7 @@ bware = Beforeware(
     skip=[
         "/users/hafiz_selection",
         "/users/login",
+        "/users/signup",
         "/users/logout",
         "/users/add_hafiz",
     ],
@@ -71,6 +72,14 @@ def create_app_with_auth(**kwargs):
 
 def error_toast(sess, msg):
     add_toast(sess, msg, "error")
+
+
+def success_toast(sess, msg):
+    add_toast(sess, msg, "success")
+
+
+def warning_toast(sess, msg):
+    add_toast(sess, msg, "warning")
 
 
 def main_area(*args, active=None, auth=None):
