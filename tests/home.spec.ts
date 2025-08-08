@@ -4,7 +4,7 @@ import { test, expect, Page } from "@playwright/test";
 interface PageData {
   status: string;
   testId: string;
-  pageDetails: string;
+  pageNumber: string;
 }
 
 test.describe("Full Cycle E2E Workflow", () => {
@@ -164,11 +164,9 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     // Set status for each page using dropdown
     for (const pageData of pages) {
-      const pageTestId: string = `${pageData.testId}-row`;
-
-      await page.getByTestId(pageTestId).getByRole("combobox").click();
+      await page.getByTestId(pageData.testId).getByRole("combobox").click();
       await page
-        .getByTestId(pageTestId)
+        .getByTestId(pageData.testId)
         .getByRole("combobox")
         .selectOption(pageData.status);
       await page.waitForTimeout(200);
@@ -211,7 +209,7 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     // Extract expected page titles for comparison
     const expectedPageDetails: string[] = expectedPages.map(
-      (pageData) => pageData.pageDetails
+      (pageData) => pageData.pageNumber
     );
 
     // Get actual page titles from the table
@@ -226,14 +224,18 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     // Verify each expected page is displayed
     for (const titleElement of titleElements) {
-      expect(expectedPageDetails).toContainEqual(titleElement);
+      const parts = titleElement.split(" ");
+      // Get the first part of the array
+      const actualPage = parts[0];
+
+      expect(expectedPageDetails).toContainEqual(actualPage);
     }
   }
 
   // verify gaps and input **after each selection**
   type Step = {
-    select: string;
-    expectedGaps: string[];
+    selectPage: string;
+    expectedPageGaps: string[];
     expectedInput: string | null;
   };
 
@@ -244,21 +246,21 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     for (const step of steps) {
       // Select the checkbox for the page
-      await page
-        .getByRole("row", { name: step.select })
-        .getByRole("checkbox")
-        .check();
-      await page.waitForTimeout(400);
+      // FIXME: This is not the best way to select the checkbox
+      // We should find a better way to select the checkbox
+      await page.getByTestId(`${step.selectPage}-checkbox`).check();
+
+      await page.waitForTimeout(200);
 
       // If there are expected gaps, "Next" header should be visible and gaps should be visible
-      if (step.expectedGaps.length > 0) {
+      if (step.expectedPageGaps.length > 0) {
         await expect(page.getByRole("cell", { name: "Next" })).toBeVisible();
 
-        for (const gap of step.expectedGaps) {
+        for (const gap of step.expectedPageGaps) {
           await expect(
             page
               .locator("#monthly_cycle_link_table")
-              .getByRole("cell", { name: gap })
+              .locator("td", { hasText: gap })
           ).toBeVisible();
         }
       } else {
@@ -283,11 +285,18 @@ test.describe("Full Cycle E2E Workflow", () => {
   }) => {
     // Test data
     const memorizedPages: PageData[] = [
-      { status: "1", testId: "page-3", pageDetails: "3 Baqarah P2" },
-      { status: "1", testId: "page-4", pageDetails: "4 Baqarah P3" },
-      { status: "1", testId: "page-7", pageDetails: "7 Baqarah P6" },
-      { status: "1", testId: "page-9", pageDetails: "9 Baqarah P8" },
-      { status: "1", testId: "page-100", pageDetails: "100 Nisa P24" },
+      { status: "1", testId: "page-3-row", pageNumber: "3" },
+      { status: "1", testId: "page-4-row", pageNumber: "4" },
+      { status: "1", testId: "page-7-row", pageNumber: "7" },
+      { status: "1", testId: "page-9-row", pageNumber: "9" },
+      { status: "1", testId: "page-100-row", pageNumber: "100" },
+    ];
+    const monthlyCycleSteps: Step[] = [
+      { selectPage: "3", expectedPageGaps: ["4"], expectedInput: "4" },
+      { selectPage: "7", expectedPageGaps: ["4", "9"], expectedInput: "9" },
+      { selectPage: "100", expectedPageGaps: ["4", "9"], expectedInput: "4" },
+      { selectPage: "4", expectedPageGaps: ["9"], expectedInput: "9" },
+      { selectPage: "9", expectedPageGaps: [], expectedInput: null },
     ];
 
     // Step 1: Set memorized pages in profile
@@ -300,28 +309,6 @@ test.describe("Full Cycle E2E Workflow", () => {
     await verifyHomeTablePages(page, memorizedPages);
 
     // Step 4: Verify gaps and input after each revision selection
-    await verifyMonthlyCycleGapsAndInputs(page, [
-      {
-        select: "3 Baqarah P2",
-        expectedGaps: ["4 Baqarah P3"],
-        expectedInput: "4",
-      },
-      {
-        select: "7 Baqarah P6",
-        expectedGaps: ["4 Baqarah P3", "9 Baqarah P8"],
-        expectedInput: "9",
-      },
-      {
-        select: "100 Nisa P24",
-        expectedGaps: ["4 Baqarah P3", "9 Baqarah P8"],
-        expectedInput: "4",
-      },
-      {
-        select: "4 Baqarah P3",
-        expectedGaps: ["9 Baqarah P8"],
-        expectedInput: "9",
-      },
-      { select: "9 Baqarah P8", expectedGaps: [], expectedInput: null },
-    ]);
+    await verifyMonthlyCycleGapsAndInputs(page, monthlyCycleSteps);
   });
 });

@@ -1096,6 +1096,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             checked=is_checked,
             cls=f"{route}_ids",
             _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
+            data_testid=f"{item_id}-checkbox",
         )
 
         if current_revision_data:
