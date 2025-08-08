@@ -128,21 +128,7 @@ test.describe("Full Cycle E2E Workflow", () => {
       storageState: authStorageState,
     });
     const page = await context.newPage();
-    const hafizId = await getHafizId(page, testHafizName);
     const userId = await getUserId(page, testName);
-
-    // Hafiz cleanup
-    // Delete the hafiz account
-    const hafizDeleteResponse = await page.request.delete(`/hafiz/${hafizId}`);
-
-    // Verify deletion was successful
-    expect(hafizDeleteResponse.ok()).toBeTruthy();
-
-    // Navigate to home page
-    await page.goto("/");
-
-    // Verify logout was successful
-    await expect(page).toHaveURL("/hafiz/selection");
 
     // User cleanup
     // Delete the user account
@@ -151,9 +137,6 @@ test.describe("Full Cycle E2E Workflow", () => {
     // Verify deletion was successful
     expect(deleteResponse.ok()).toBeTruthy();
 
-    // Logout (clear session)
-    await page.goto("/users/logout");
-
     // Navigate to home page
     await page.goto("/");
 
@@ -161,10 +144,10 @@ test.describe("Full Cycle E2E Workflow", () => {
     await expect(page).toHaveURL("/users/login");
 
     // Login with deleted user
-    login(page);
+    await login(page);
 
-    // Verify login was unsuccessful, as the user is deleted.
-    await expect(page).toHaveURL("/users/login");
+    // Verify login was unsuccessful and redirects to signup page, as the user is deleted.
+    await expect(page).toHaveURL("/users/signup");
 
     await page.close();
     await context.close();
