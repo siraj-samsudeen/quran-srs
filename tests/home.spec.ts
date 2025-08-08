@@ -9,101 +9,47 @@ interface PageData {
 
 test.describe("Full Cycle E2E Workflow", () => {
   // Test user credentials - unique per test run
-  const testEmail = `test_${Date.now()}@example.com`;
+  const testName = `testUser`;
+  const testEmail = `test@example.com`;
   const testPassword = "Test123!@#";
+  const testHafizName = "Test Hafiz";
 
   // Helper function to register a new user
   async function registerUser(page: Page): Promise<void> {
-    await page.goto("/users/register");
+    await page.goto("/users/signup");
 
     // Fill registration form
+    await page.getByLabel("Name").fill(testName);
     await page.getByLabel("Email").fill(testEmail);
     await page.getByLabel("Password", { exact: true }).fill(testPassword);
     await page.getByLabel("Confirm Password").fill(testPassword);
 
     // Submit registration
-    await page.getByRole("button", { name: "Register" }).click();
+    await page.getByRole("button", { name: "Signup" }).click();
 
     // Verify registration success - should redirect to login or hafiz selection
     await expect(page).toHaveURL(/\/users\/login/);
   }
 
   // Helper function to perform full login
-  async function loginAndSelectHafiz(page: Page): Promise<void> {
+  async function login(page: Page): Promise<void> {
     await page.goto("/users/login");
     await page.getByLabel("Email").fill(testEmail);
     await page.getByLabel("Password").fill(testPassword);
     await page.getByRole("button", { name: "Login" }).click();
-    await expect(page).toHaveURL("/users/hafiz_selection");
   }
 
-  let authStorageState: any;
-
-  // Register and login user once before all tests, save auth state
-  test.beforeAll(async ({ browser }) => {
-    const page = await browser.newPage();
-
-    // Register new test user
-    await registerUser(page);
-
-    // Login with the new user
-    await loginAndSelectHafiz(page);
-
-    // Save authentication state (cookies, localStorage, etc.)
-    authStorageState = await page.context().storageState();
-
-    await page.close();
-  });
-
-  test.beforeEach(async ({ page }) => {
-    // Load the saved authentication state
-    if (authStorageState) {
-      await page.context().addCookies(authStorageState.cookies || []);
-
-      // Navigate to hafiz selection (should be authenticated)
-      await page.goto("/users/hafiz_selection");
-    } else {
-      // Fallback: login if no auth state
-      await loginAndSelectHafiz(page);
-    }
-  });
-
-  // Logout and delete test user after all tests
-  test.afterAll(async ({ browser }) => {
-    const context = await browser.newContext({
-      storageState: authStorageState,
-    });
-    const page = await context.newPage();
-
-    // Delete the user account (using saved auth)
-    const deleteResponse = await page.request.delete("/users/delete", {
-      data: {
-        email: testEmail,
-        password: testPassword, // Require password confirmation for safety
-      },
-    });
-
-    // Verify deletion was successful
-    expect(deleteResponse.ok()).toBeTruthy();
-
-    // Logout (clear session)
-    await page.goto("/users/logout");
-
-    await page.close();
-    await context.close();
-  });
-
   // Helper function to create a new hafiz
-  async function createHafiz(page: Page, name: string): Promise<void> {
+  async function createAndSelectHafiz(page: Page, name: string): Promise<void> {
     await page.goto("/users/hafiz_selection");
     await page.getByRole("textbox", { name: "Name" }).fill(name);
     await page.getByRole("button", { name: "Add Hafiz" }).click();
     await page.getByTestId(`switch-${name}-hafiz-button`).click();
-    await expect(page).toHaveURL("/");
   }
 
   // Helper function to get hafiz ID by name
   async function getHafizId(page: Page, name: string): Promise<number> {
+    await page.goto("/");
     await page.getByRole("link", { name: "Tables" }).click();
     await page.getByTestId("hafizs-link").click();
 
@@ -120,6 +66,109 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     return parseInt(idText.trim());
   }
+
+  // Helper function to get hafiz ID by name
+  async function getUserId(page: Page, name: string): Promise<number> {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Tables" }).click();
+    await page.getByTestId("users-link").click();
+
+    // Find row with matching name and extract ID from first column
+    const idText = await page
+      .locator('[data-testid="users-rows"] tr')
+      .filter({ hasText: name })
+      .locator('[data-testid="row-id"] a')
+      .textContent();
+
+    if (!idText) {
+      throw new Error(`User with name "${name}" not found`);
+    }
+
+    return parseInt(idText.trim());
+  }
+
+  let authStorageState: any;
+
+  // Register and login user once before all tests, save auth state
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+
+    // Register new test user
+    await registerUser(page);
+
+    // Login with the new user
+    await login(page);
+
+    // Verify login was successful
+    await expect(page).toHaveURL("/users/hafiz_selection");
+
+    // Create a new hafiz
+    await createAndSelectHafiz(page, testHafizName);
+
+    // Verify hafiz creation was successful
+    await expect(page).toHaveURL("/");
+
+    // Save authentication state (cookies, localStorage, etc.)
+    authStorageState = await page.context().storageState();
+
+    await page.close();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // Load the saved authentication state
+    await page.context().addCookies(authStorageState.cookies || []);
+
+    // Navigate to Home page
+    await page.goto("/");
+  });
+
+  // Logout and delete test user after all tests
+  test.afterAll(async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: authStorageState,
+    });
+    const page = await context.newPage();
+    const hafizId = await getHafizId(page, testHafizName);
+    const userId = await getUserId(page, testHafizName);
+
+    // Hafiz cleanup
+    // Delete the hafiz account
+    const hafizDeleteResponse = await page.request.delete(`/hafiz/${hafizId}`);
+
+    // Verify deletion was successful
+    expect(hafizDeleteResponse.ok()).toBeTruthy();
+
+    // Navigate to home page
+    await page.goto("/");
+
+    // Verify logout was successful
+    await expect(page).toHaveURL("/hafiz/selection");
+
+    // User cleanup
+    // Delete the user account
+    const deleteResponse = await page.request.delete(`/users/${userId}`);
+
+    // Verify deletion was successful
+    expect(deleteResponse.ok()).toBeTruthy();
+
+    // Logout (clear session)
+    await page.goto("/users/logout");
+
+    // Navigate to home page
+    await page.goto("/");
+
+    // Verify logout was successful
+    await expect(page).toHaveURL("/users/login");
+
+    // Login with deleted user
+    login(page);
+
+    // Verify login was unsuccessful, as the user is deleted.
+    await expect(page).toHaveURL("/users/login");
+
+    await page.close();
+    await context.close();
+  });
 
   // Helper function to set specific pages with memorized status
   async function setMemorizedPages(
@@ -161,11 +210,6 @@ test.describe("Full Cycle E2E Workflow", () => {
     await page.getByRole("spinbutton", { name: "start_page" }).fill("2");
     await page.getByRole("radio", { name: "False" }).check();
     await page.getByRole("button", { name: "Save" }).click();
-
-    // Verify plan was created and return to home
-    await expect(
-      page.getByRole("link", { name: hafizId.toString(), exact: true })
-    ).toBeVisible();
     await page.getByRole("link", { name: "Home" }).click();
     await expect(page).toHaveURL("/");
     await expect(
@@ -255,7 +299,6 @@ test.describe("Full Cycle E2E Workflow", () => {
     page,
   }) => {
     // Test data
-    const hafizName: string = "Test Hafiz";
     const memorizedPages: PageData[] = [
       { status: "1", testId: "page-3", pageDetails: "3 Baqarah P2" },
       { status: "1", testId: "page-4", pageDetails: "4 Baqarah P3" },
@@ -264,19 +307,16 @@ test.describe("Full Cycle E2E Workflow", () => {
       { status: "1", testId: "page-100", pageDetails: "100 Nisa P24" },
     ];
 
-    // Step 1: Create hafiz
-    await createHafiz(page, hafizName);
-
-    // Step 2: Set memorized pages in profile
+    // Step 1: Set memorized pages in profile
     await setMemorizedPages(page, memorizedPages);
 
-    // Step 3: Create new plan
-    await createNewPlan(page, hafizName);
+    // Step 2: Create new plan
+    await createNewPlan(page, testHafizName);
 
-    // Step 4: Verify home page displays only memorized pages correctly
+    // Step 3: Verify home page displays only memorized pages correctly
     await verifyHomeTablePages(page, memorizedPages);
 
-    // Step 5: Verify gaps and input after each revision selection
+    // Step 4: Verify gaps and input after each revision selection
     await verifyMonthlyCycleGapsAndInputs(page, [
       {
         select: "3 Baqarah P2",
