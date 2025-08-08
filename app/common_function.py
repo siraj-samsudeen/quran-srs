@@ -15,8 +15,20 @@ surahs = db.t.surahs
 srs_booster_pack = db.t.srs_booster_pack
 modes = db.t.modes
 plans = db.t.plans
+users = db.t.users
 
-(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack, Modes, Plan) = (
+(
+    Revision,
+    Hafiz_Items,
+    Hafiz,
+    Item,
+    Page,
+    Surah,
+    SRS_Booster_Pack,
+    Modes,
+    Plan,
+    Users,
+) = (
     revisions.dataclass(),
     hafizs_items.dataclass(),
     hafizs.dataclass(),
@@ -26,16 +38,30 @@ plans = db.t.plans
     srs_booster_pack.dataclass(),
     modes.dataclass(),
     plans.dataclass(),
+    users.dataclass(),
 )
 
 
 def before(req, sess):
-    user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
-    if not user_auth:
-        return RedirectResponse("/users/login", status_code=303)
-    auth = req.scope["auth"] = sess.get("auth", None)
-    if not auth:
-        return RedirectResponse("/users/hafiz_selection", status_code=303)
+    # If the logged-in user or hafiz was deleted, clear the session
+    for key, table in [("user_auth", users), ("auth", hafizs)]:
+        value = req.scope[key] = sess.get(key, None)
+        if value:
+            try:
+                table[value]
+            except NotFoundError:
+                del sess[key]
+                value = None
+        if not value:
+            return RedirectResponse(
+                {
+                    "user_auth": "/users/login",
+                    "auth": "/users/hafiz_selection",
+                }[key],
+                status_code=303,
+            )
+
+    auth = sess.get("auth", None)
     revisions.xtra(hafiz_id=auth)
     hafizs_items.xtra(hafiz_id=auth)
     plans.xtra(hafiz_id=auth)
@@ -805,3 +831,7 @@ def get_ordered_mode_name_and_id():
         )
     )
     return list(mode_id_list), list(mode_name_list)
+
+
+def delete_hafiz(hafiz_id: int):
+    hafizs.delete(hafiz_id)

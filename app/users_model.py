@@ -37,6 +37,19 @@ def insert_user(user: User):
     return users.insert(user)
 
 
+def delete_user(user_id: int):
+    """Delete user record"""
+    users.delete(user_id)
+
+
+def cleanup_orphaned_hafizs():
+    qry = """DELETE FROM hafizs
+    WHERE id NOT IN (
+        SELECT DISTINCT hafiz_id FROM hafizs_users
+    );"""
+    db.q(qry)
+
+
 def get_hafizs_for_user(user_id: int):
     """Get all hafizs associated with a user"""
     return [h for h in hafizs_users() if h.user_id == user_id]
