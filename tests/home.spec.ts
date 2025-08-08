@@ -129,7 +129,7 @@ test.describe("Full Cycle E2E Workflow", () => {
     });
     const page = await context.newPage();
     const hafizId = await getHafizId(page, testHafizName);
-    const userId = await getUserId(page, testHafizName);
+    const userId = await getUserId(page, testName);
 
     // Hafiz cleanup
     // Delete the hafiz account
