@@ -42,38 +42,52 @@ users = db.t.users
 )
 
 
-def before(req, sess):
-    # If the logged-in user or hafiz was deleted, clear the session
-    for key, table in [("user_auth", users), ("auth", hafizs)]:
-        value = req.scope[key] = sess.get(key, None)
-        if value:
-            try:
-                table[value]
-            except NotFoundError:
-                del sess[key]
-                value = None
-        if not value:
-            return RedirectResponse(
-                {
-                    "user_auth": "/users/login",
-                    "auth": "/users/hafiz_selection",
-                }[key],
-                status_code=303,
-            )
-
-    auth = sess.get("auth", None)
-    revisions.xtra(hafiz_id=auth)
-    hafizs_items.xtra(hafiz_id=auth)
-    plans.xtra(hafiz_id=auth)
+def user_auth(req, sess):
+    print("user-beforeware")
+    # Check user authentication
+    user_id = req.scope["user_auth"] = sess.get("user_auth", None)
+    if user_id:
+        try:
+            users[user_id]
+        except NotFoundError:
+            del sess["user_auth"]
+            user_id = None
+    if not user_id:
+        return RedirectResponse("/users/login", status_code=303)
 
 
-bware = Beforeware(
-    before,
+user_bware = Beforeware(
+    user_auth,
+    skip=["/users/login", "/users/signup", "/users/logout"],
+)
+
+
+def hafiz_auth(req, sess):
+    print("hafiz-beforeware")
+    # Check hafiz authentication
+    hafiz_id = req.scope["auth"] = sess.get("auth", None)
+    if hafiz_id:
+        try:
+            hafizs[hafiz_id]
+        except NotFoundError:
+            del sess["auth"]
+            hafiz_id = None
+    if not hafiz_id:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    revisions.xtra(hafiz_id=hafiz_id)
+    hafizs_items.xtra(hafiz_id=hafiz_id)
+    plans.xtra(hafiz_id=hafiz_id)
+
+
+hafiz_bware = Beforeware(
+    hafiz_auth,
     skip=[
-        "/users/hafiz_selection",
         "/users/login",
         "/users/signup",
         "/users/logout",
+        r"/users/\d+$",  # for deleting the user
+        "/users/hafiz_selection",
         "/users/add_hafiz",
     ],
 )
@@ -87,7 +101,7 @@ alpinejs_header = Script(
 # Create sub-apps with the beforeware
 def create_app_with_auth(**kwargs):
     app, rt = fast_app(
-        before=bware,
+        before=[user_bware, hafiz_bware],
         hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
         bodykw={"hx-boost": "true"},
         **kwargs,
