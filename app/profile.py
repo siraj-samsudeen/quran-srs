@@ -8,17 +8,6 @@ DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-
-revisions = db.t.revisions
-items = db.t.items
-statuses = db.t.statuses
-
-(Revision, Item, Status) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    statuses.dataclass(),
-)
-
 profile_app, rt = create_app_with_auth()
 
 
@@ -66,25 +55,6 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         status_id = 4
     elif status == "not_started":
         status_id = 6
-    # This query will return all the missing items for that hafiz
-    # and we will add the items in to the hafizs_items table
-    qry = f"""
-    SELECT items.id from items
-    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth} 
-    WHERE items.active <> 0 AND hafizs_items.item_id IS Null;
-    """
-    ct = db.q(qry)
-    missing_item_ids = [r["id"] for r in ct]
-
-    if missing_item_ids:
-        for missing_item_id in missing_item_ids:
-            hafizs_items.insert(
-                item_id=missing_item_id,
-                page_number=get_page_number(missing_item_id),
-                status_id=6,  # Initially we set `Not Memorized` for all records.
-                mode_id=1,  # TODO: Confirm that mode_id=1 is appropriate here.
-                # Missing items are currently assumed to belong to the "full-cycle" mode.
-            )
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
         status_value = records[0]["status_id"]

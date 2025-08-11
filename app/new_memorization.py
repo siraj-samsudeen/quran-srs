@@ -9,19 +9,6 @@ DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-
-revisions = db.t.revisions
-items = db.t.items
-surahs = db.t.surahs
-hafizs_items = db.t.hafizs_items
-
-(Revision, Item, Surah, Hafiz_Items) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    surahs.dataclass(),
-    hafizs_items.dataclass(),
-)
-
 new_memorization_app, rt = create_app_with_auth()
 
 

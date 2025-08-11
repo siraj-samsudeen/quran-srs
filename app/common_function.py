@@ -6,38 +6,47 @@ from collections import defaultdict
 from globals import *
 
 
-revisions = db.t.revisions
-hafizs_items = db.t.hafizs_items
+booster_pack = db.t.booster_pack
 hafizs = db.t.hafizs
+hafizs_items = db.t.hafizs_items
+hafizs_users = db.t.hafizs_users
 items = db.t.items
-pages = db.t.pages
-surahs = db.t.surahs
-srs_booster_pack = db.t.srs_booster_pack
 modes = db.t.modes
+pages = db.t.pages
 plans = db.t.plans
+revisions = db.t.revisions
+srs_booster_pack = db.t.srs_booster_pack
+statuses = db.t.statuses
+surahs = db.t.surahs
 users = db.t.users
 
 (
-    Revision,
-    Hafiz_Items,
+    Booster_Pack,
     Hafiz,
+    Hafiz_Items,
+    Hafiz_Users,
     Item,
+    Mode,
     Page,
-    Surah,
-    SRS_Booster_Pack,
-    Modes,
     Plan,
-    Users,
+    Revision,
+    SRS_Booster_Pack,
+    Status,
+    Surah,
+    User,
 ) = (
-    revisions.dataclass(),
-    hafizs_items.dataclass(),
+    booster_pack.dataclass(),
     hafizs.dataclass(),
+    hafizs_items.dataclass(),
+    hafizs_users.dataclass(),
     items.dataclass(),
-    pages.dataclass(),
-    surahs.dataclass(),
-    srs_booster_pack.dataclass(),
     modes.dataclass(),
+    pages.dataclass(),
     plans.dataclass(),
+    revisions.dataclass(),
+    srs_booster_pack.dataclass(),
+    statuses.dataclass(),
+    surahs.dataclass(),
     users.dataclass(),
 )
 
@@ -802,16 +811,18 @@ def get_mode_name(mode_id: int):
     return modes[mode_id].name
 
 
-def find_next_memorized_item_id(item_id):
-    memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
-    return find_next_greater(memorized_item_ids, item_id)
+def find_next_memorized_srs_item_id(item_id):
+    memorized_and_srs_item_ids = [
+        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+    ]
+    return find_next_greater(memorized_and_srs_item_ids, item_id)
 
 
 def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.status_id = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]

@@ -8,20 +8,6 @@ from app.common_function import *
 from app.revision_model import get_revision_table_data
 from globals import *
 
-# Database connections
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-pages = db.t.pages
-hafizs = db.t.hafizs
-
-(Revision, Item, Hafiz_Items, Page) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs_items.dataclass(),
-    pages.dataclass(),
-)
-
 
 def action_buttons():
     """UI buttons for bulk operations on revisions"""

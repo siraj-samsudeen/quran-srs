@@ -6,18 +6,6 @@ from app.common_function import *
 from globals import *
 
 
-revisions = db.t.revisions
-items = db.t.items
-surahs = db.t.surahs
-hafizs_items = db.t.hafizs_items
-
-(Revision, Item, Surah, Hafiz_Items) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    surahs.dataclass(),
-    hafizs_items.dataclass(),
-)
-
 recent_review_app, rt = create_app_with_auth()
 
 
