@@ -148,10 +148,10 @@ test.describe("Full Cycle E2E Workflow", () => {
   }) => {
     // Test data
     const memorizedPages: PageData[] = [
-      { status: "1", testId: "page-3-row", pageNumber: "3" },
+      { status: "1", testId: "page-3-row", pageNumber: "3" }, // status: "1" means memorized
       { status: "1", testId: "page-4-row", pageNumber: "4" },
       { status: "1", testId: "page-7-row", pageNumber: "7" },
-      { status: "5", testId: "page-9-row", pageNumber: "9" },
+      { status: "5", testId: "page-9-row", pageNumber: "9" }, // status: "5" means SRS mode
       { status: "5", testId: "page-100-row", pageNumber: "100" },
       { status: "5", testId: "page-101-row", pageNumber: "101" },
       { status: "1", testId: "page-102-row", pageNumber: "102" },
@@ -188,14 +188,17 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     await setMemorizedPages(page, memorizedPages);
 
+    // Verify memorized and srs pages were showing
     await verifyHomeTablePages(page, memorizedPages.slice(0, 5));
 
     await verifyMonthlyCycleGapsAndInputs(page, monthlyCycleSteps);
 
     await page.getByRole("button", { name: "Close Date" }).click();
 
+    // Wait for home table is updated
     await page.waitForTimeout(1000);
 
+    // Verify memorized and srs pages were showing correctly after close
     await verifyHomeTablePages(page, memorizedPages.slice(5));
   });
 });
