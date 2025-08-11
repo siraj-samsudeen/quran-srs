@@ -811,16 +811,18 @@ def get_mode_name(mode_id: int):
     return modes[mode_id].name
 
 
-def find_next_memorized_item_id(item_id):
-    memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
-    return find_next_greater(memorized_item_ids, item_id)
+def find_next_memorized_srs_item_id(item_id):
+    memorized_and_srs_item_ids = [
+        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+    ]
+    return find_next_greater(memorized_and_srs_item_ids, item_id)
 
 
 def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.status_id = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]

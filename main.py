@@ -386,7 +386,7 @@ def custom_entry_inputs(auth, plan_id):
             start_page = 2
         last_added_item_id = items(where=f"page_id = {start_page}")[0].page_id - 1
 
-    next_item_id = find_next_memorized_item_id(last_added_item_id)
+    next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
 
     if next_item_id and revisions(
         where=f"item_id = {next_item_id} AND plan_id = {plan_id}"
@@ -486,9 +486,13 @@ def index(auth, sess, full_cycle_display_count: int = None):
                 )
             ]
         )
-        memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
+        memorized_and_srs_item_ids = [
+            i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+        ]
         # this will return the gap of the current_plan_item_ids based on the master(items_id)
-        items_gaps_with_limit = find_gaps(current_plan_item_ids, memorized_item_ids)
+        items_gaps_with_limit = find_gaps(
+            current_plan_item_ids, memorized_and_srs_item_ids
+        )
 
     def render_overall_row(o: tuple):
         last_added_item_id, upper_limit = o
@@ -496,7 +500,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
         # to avoid adding records for already added items
         upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-        next_item_id = find_next_memorized_item_id(last_added_item_id)
+        next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
 
         if next_item_id is None:
             next_page = "No further page"
@@ -609,7 +613,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
-        mode_ids=["1"],
+        mode_ids=["1", "5"],
         route="monthly_cycle",
         auth=auth,
         total_display_count=total_display_count,
@@ -864,6 +868,9 @@ def make_summary_table(
     def has_memorized(item: dict) -> bool:
         return item["status_id"] == 1
 
+    def is_srs(item: dict) -> bool:
+        return item["status_id"] == 5
+
     def has_revisions(item: dict) -> bool:
         """Check if item has revisions for current mode."""
         return bool(
@@ -898,7 +905,7 @@ def make_summary_table(
         "srs": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
         ),
-        "monthly_cycle": lambda item: (has_memorized(item)),
+        "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
     recent_items = list(
