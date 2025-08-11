@@ -118,5 +118,8 @@ def post(current_hafiz_id: int, sess):
 def post(hafiz: Hafiz, relationship: str, sess):
     """Add new hafiz and create user relationship"""
     hafiz_id = insert_hafiz(hafiz)
-    insert_hafiz_user_relationship(hafiz_id.id, sess["user_auth"], relationship)
+    hafiz_id = hafiz_id.id
+    insert_hafiz_user_relationship(hafiz_id, sess["user_auth"], relationship)
+    populate_hafiz_items(hafiz_id)
+    create_new_plan(hafiz_id)
     return RedirectResponse("/users/hafiz_selection", status_code=303)

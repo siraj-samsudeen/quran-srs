@@ -381,6 +381,9 @@ def custom_entry_inputs(auth, plan_id):
         last_added_item_id = revision_data[-1].item_id
     else:
         start_page = plans(where=f"hafiz_id = {auth} AND id = {plan_id}")[0].start_page
+        # If the user doesn't have a start page, start from beginning
+        if start_page is None:
+            start_page = 2
         last_added_item_id = items(where=f"page_id = {start_page}")[0].page_id - 1
 
     next_item_id = find_next_memorized_item_id(last_added_item_id)
