@@ -27,6 +27,7 @@ users = db.t.users
     Hafiz_Users,
     Item,
     Mode,
+    Page,
     Plan,
     Revision,
     SRS_Booster_Pack,
