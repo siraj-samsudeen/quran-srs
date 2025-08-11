@@ -1,26 +1,13 @@
 from datetime import datetime
 from dataclasses import dataclass
 from globals import *
+from app.common_function import *
 
 
 @dataclass
 class Login:
     email: str
     password: str
-
-
-# Database connection and table setup
-users = db.t.users
-hafizs = db.t.hafizs
-hafizs_users = db.t.hafizs_users
-revisions = db.t.revisions
-
-(Hafiz, User, Hafiz_Users, Revisions) = (
-    hafizs.dataclass(),
-    users.dataclass(),
-    hafizs_users.dataclass(),
-    revisions.dataclass(),
-)
 
 
 # Database operations (CRUD only)

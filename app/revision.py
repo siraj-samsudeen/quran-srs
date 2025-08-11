@@ -6,19 +6,6 @@ from app.revision_view import *
 from app.revision_model import *
 from globals import *
 
-
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-pages = db.t.pages
-
-(Revision, Item, Hafiz_Items, Page) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs_items.dataclass(),
-    pages.dataclass(),
-)
-
 revision_app, rt = create_app_with_auth()
 
 

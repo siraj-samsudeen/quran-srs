@@ -1,19 +1,6 @@
 from app.common_function import *
 from globals import *
 
-# Database connection and table setup
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-pages = db.t.pages
-
-(Revision, Item, Hafiz_Items, Page) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs_items.dataclass(),
-    pages.dataclass(),
-)
-
 
 # Model functions for revision data operations
 def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):

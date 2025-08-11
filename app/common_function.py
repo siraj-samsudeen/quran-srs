@@ -6,38 +6,46 @@ from collections import defaultdict
 from globals import *
 
 
-revisions = db.t.revisions
-hafizs_items = db.t.hafizs_items
+booster_pack = db.t.booster_pack
 hafizs = db.t.hafizs
+hafizs_items = db.t.hafizs_items
+hafizs_users = db.t.hafizs_users
 items = db.t.items
-pages = db.t.pages
-surahs = db.t.surahs
-srs_booster_pack = db.t.srs_booster_pack
 modes = db.t.modes
+pages = db.t.pages
 plans = db.t.plans
+revisions = db.t.revisions
+srs_booster_pack = db.t.srs_booster_pack
+statuses = db.t.statuses
+surahs = db.t.surahs
 users = db.t.users
 
 (
-    Revision,
-    Hafiz_Items,
+    Booster_Pack,
     Hafiz,
+    Hafiz_Items,
+    Hafiz_Users,
     Item,
-    Page,
-    Surah,
-    SRS_Booster_Pack,
-    Modes,
+    Mode,
     Plan,
-    Users,
+    Revision,
+    SRS_Booster_Pack,
+    Status,
+    Surah,
+    User,
 ) = (
-    revisions.dataclass(),
-    hafizs_items.dataclass(),
+    booster_pack.dataclass(),
     hafizs.dataclass(),
+    hafizs_items.dataclass(),
+    hafizs_users.dataclass(),
     items.dataclass(),
-    pages.dataclass(),
-    surahs.dataclass(),
-    srs_booster_pack.dataclass(),
     modes.dataclass(),
+    pages.dataclass(),
     plans.dataclass(),
+    revisions.dataclass(),
+    srs_booster_pack.dataclass(),
+    statuses.dataclass(),
+    surahs.dataclass(),
     users.dataclass(),
 )
 

@@ -9,10 +9,6 @@ DEFAULT_RATINGS = {
 }
 
 
-hafizs = db.t.hafizs
-
-Hafiz = hafizs.dataclass()
-
 hafiz_app, rt = create_app_with_auth()
 
 

@@ -8,17 +8,6 @@ DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-
-revisions = db.t.revisions
-items = db.t.items
-statuses = db.t.statuses
-
-(Revision, Item, Status) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    statuses.dataclass(),
-)
-
 profile_app, rt = create_app_with_auth()
 
 

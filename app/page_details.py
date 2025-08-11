@@ -5,16 +5,6 @@ from app.common_function import *
 from globals import *
 
 
-revisions = db.t.revisions
-items = db.t.items
-statuses = db.t.statuses
-
-(Revision, Item, Status) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    statuses.dataclass(),
-)
-
 page_details_app, rt = create_app_with_auth()
 
 

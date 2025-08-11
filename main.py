@@ -28,64 +28,6 @@ DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
-tables = db.t
-(
-    revisions,
-    hafizs,
-    users,
-    hafizs_users,
-    plans,
-    modes,
-    pages,
-    surahs,
-    items,
-    mushafs,
-    hafizs_items,
-    srs_booster_pack,
-    statuses,
-) = (
-    tables.revisions,
-    tables.hafizs,
-    tables.users,
-    tables.hafizs_users,
-    tables.plans,
-    tables.modes,
-    tables.pages,
-    tables.surahs,
-    tables.items,
-    tables.mushafs,
-    tables.hafizs_items,
-    tables.srs_booster_pack,
-    tables.statuses,
-)
-(
-    Revision,
-    Hafiz,
-    User,
-    Plan,
-    Mode,
-    Page,
-    Item,
-    Surah,
-    Mushaf,
-    Hafiz_Items,
-    Srs_Booster_Pack,
-    Status,
-) = (
-    revisions.dataclass(),
-    hafizs.dataclass(),
-    users.dataclass(),
-    plans.dataclass(),
-    modes.dataclass(),
-    pages.dataclass(),
-    items.dataclass(),
-    surahs.dataclass(),
-    mushafs.dataclass(),
-    hafizs_items.dataclass(),
-    srs_booster_pack.dataclass(),
-    statuses.dataclass(),
-)
-
 
 app, rt = create_app_with_auth(
     routes=[
