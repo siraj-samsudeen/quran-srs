@@ -131,7 +131,11 @@ def watch_list_view(auth):
             *map(render_rev, watch_list_revisions),
             *map(
                 render_checkbox,
-                ([weeks_revision_excluded.pop(0)] if due_day >= 7 else []),
+                (
+                    [weeks_revision_excluded.pop(0)]
+                    if due_day > 0 and weeks_revision_excluded
+                    else []
+                ),
             ),
             *map(render_hyphen, weeks_revision_excluded),
             id=f"row-{item_id}",
