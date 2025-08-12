@@ -7,7 +7,6 @@ from globals import *
 
 
 def user_auth(req, sess):
-    print("user-beforeware")
     # Check user authentication
     user_id = req.scope["user_auth"] = sess.get("user_auth", None)
     if user_id:
@@ -27,7 +26,6 @@ user_bware = Beforeware(
 
 
 def hafiz_auth(req, sess):
-    print("hafiz-beforeware")
     # Check hafiz authentication
     hafiz_id = req.scope["auth"] = sess.get("auth", None)
     if hafiz_id:
