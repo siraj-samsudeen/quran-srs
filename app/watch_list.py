@@ -44,9 +44,9 @@ def watch_list_view(auth):
         revision_count = get_mode_count(item_id, 4)
 
         if not is_graduated:
-            due_day = day_diff(last_review, current_date)
+            days_since_review = day_diff(last_review, current_date)
         else:
-            due_day = 0
+            days_since_review = 0
 
         def render_checkbox(_):
             return Td(
@@ -93,11 +93,11 @@ def watch_list_view(auth):
             )
 
         if is_graduated or revision_count >= 7:
-            due_day_message = ""
-        elif due_day >= 7:
-            due_day_message = due_day - 7
+            days_overdue = ""
+        elif days_since_review >= 7:
+            days_overdue = days_since_review - 7
         else:
-            due_day_message = "-"
+            days_overdue = "-"
 
         return Tr(
             Td(get_page_description(item_id), cls="sticky left-0 z-20 bg-white"),
@@ -108,7 +108,7 @@ def watch_list_view(auth):
                 if (not is_graduated) and revision_count < 7
                 else ""
             ),
-            Td(due_day_message),
+            Td(days_overdue),
             Td(
                 graduate_btn_watch_list(
                     item_id,
@@ -120,7 +120,11 @@ def watch_list_view(auth):
             *map(render_rev, watch_list_revisions),
             *map(
                 render_checkbox,
-                ([weeks_revision_excluded.pop(0)] if due_day >= 7 else []),
+                (
+                    [weeks_revision_excluded.pop(0)]
+                    if days_since_review > 0 and weeks_revision_excluded
+                    else []
+                ),
             ),
             *map(render_hyphen, weeks_revision_excluded),
             id=f"row-{item_id}",
