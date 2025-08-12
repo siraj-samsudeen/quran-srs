@@ -90,15 +90,15 @@ test.describe.serial('Full Cycle Workflow', () => {
   });
 
   test('Step 2: Configure page memorization status', async () => {
-    // Flow: Profile → "by page" → Set statuses → Return home
+    // Flow: Profile → "by page" → Set statuses
 
-    await expect(page).toHaveURL('/');
+    // Navigate to profile
     await page.getByRole('link', { name: 'Profile' }).click();
     await page.getByRole('link', { name: 'by page' }).click();
 
+    // Set status for each page based on PAGE_STATUS_MAP
     for (const [pageNum, status] of Object.entries(PAGE_STATUS_MAP)) {
-      // Complex selector needed: page-3-row contains multiple elements, we need the combobox specifically
-      // Example: page.getByTestId('page-3-row').getByRole('combobox') finds the status dropdown in row 3
+      // Each page has its own dropdown, so we are using the testId(eg., page-3-row) to select the correct dropdown
       const dropdown = page
         .getByTestId(`page-${pageNum}-row`)
         .getByRole('combobox');
@@ -108,20 +108,34 @@ test.describe.serial('Full Cycle Workflow', () => {
   });
 
   test('Step 3: Verify full-cycle table displays all configured pages', async () => {
+    // Flow: Home → Full Cycle table → Compare expected with actual pages and vice versa
+
+    // Navigate back to home
     await page.goto('/');
 
+    // Get expected page numbers
     const expectedPages = Object.keys(PAGE_STATUS_MAP);
 
     // Get actual page numbers from table and verify
+    // Home page has multiple mode tables, so we use the mode-specific TestId to get the correct pages
     const actualPageNumbers = await page
       .getByTestId('monthly_cycle_tbody')
       .locator('tr td:first-child a span')
       .allTextContents();
 
-    for (const actualPageNumber of actualPageNumbers) {
-      // Extract page number from "3 Baqarah P2" -> 3
-      const pageNumber = parseInt(actualPageNumber.trim().split(' ')[0]);
-      expect(expectedPages).toContain(pageNumber);
+    // Extract numeric page numbers from the text content (e.g., "Page 3 of 10" → 3)
+    const actualPages = actualPageNumbers.map((actualPageNumber) =>
+      parseInt(actualPageNumber.trim().split(' ')[0])
+    );
+
+    // Compare actual pages with expected pages
+    for (const actualPage of actualPages) {
+      expect(expectedPages).toContain(actualPage);
+    }
+
+    // Compare expected pages with actual pages
+    for (const expectedPage of expectedPages) {
+      expect(actualPages).toContain(expectedPage);
     }
   });
 
