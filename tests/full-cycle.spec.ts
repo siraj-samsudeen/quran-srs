@@ -147,7 +147,7 @@ test.describe("Full Cycle E2E Workflow", () => {
     page,
   }) => {
     // Test data
-    const memorizedPages: PageData[] = [
+    const memorizedAndSrsPages: PageData[] = [
       { status: "1", testId: "page-3-row", pageNumber: "3" }, // status: "1" means memorized
       { status: "1", testId: "page-4-row", pageNumber: "4" },
       { status: "1", testId: "page-7-row", pageNumber: "7" },
@@ -186,10 +186,10 @@ test.describe("Full Cycle E2E Workflow", () => {
     // Verify hafiz creation was successful
     await expect(page).toHaveURL("/");
 
-    await setMemorizedPages(page, memorizedPages);
+    await setMemorizedPages(page, memorizedAndSrsPages);
 
     // Verify the memorized and srs pages are displayed in the full-cycle table
-    await verifyFullCycleTable(page, memorizedPages);
+    await verifyFullCycleTable(page, memorizedAndSrsPages);
 
     await verifyMonthlyCycleGapsAndInputs(page, monthlyCycleSteps);
 
@@ -199,6 +199,6 @@ test.describe("Full Cycle E2E Workflow", () => {
     await page.waitForTimeout(1000);
 
     // Verify rest of the unchecked pages are showing in full-cycle table after closing date
-    await verifyFullCycleTable(page, memorizedPages.slice(5));
+    await verifyFullCycleTable(page, memorizedAndSrsPages.slice(5));
   });
 });
