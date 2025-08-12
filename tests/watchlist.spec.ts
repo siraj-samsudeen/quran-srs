@@ -9,21 +9,35 @@ interface WatchlistPage {
 }
 
 test.describe("Watchlist Workflow E2E Tests", () => {
+  // User Creadentials
+  // #TODO: Store it in environment variables
   const testEmail = "mailsiraj@gmail.com";
   const testPassword = "123";
   const testHafizName = "Siraj";
+  let authStorageState: any;
 
-  // Log in and select hafiz user
-  async function loginAndSelectHafiz(page: Page): Promise<void> {
+  // Login once and save storage state
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    // Login and select hafiz
     await page.goto("/users/login");
     await page.getByRole("textbox", { name: "Email" }).fill(testEmail);
     await page.getByRole("textbox", { name: "Password" }).fill(testPassword);
     await page.getByRole("button", { name: "Login" }).click();
+    await expect(page).toHaveURL("/users/hafiz_selection");
     await page.getByTestId(`switch-${testHafizName}-hafiz-button`).click();
+    await expect(page).toHaveURL("/");
     await page.waitForLoadState("networkidle");
-  }
+    // Save authentication state (cookies, localStorage, etc.)
+    authStorageState = await page.context().storageState();
+    await page.close();
+  });
 
-  // Get all ungraduated pages
+  test.beforeEach(async ({ page }) => {
+    await page.context().addCookies(authStorageState.cookies || []);
+    await page.goto("/watch_list/");
+  });
+
   async function getUngraduatedWatchlistPages(page: Page): Promise<WatchlistPage[]> {
     const pages: WatchlistPage[] = [];
     const rows = await page.locator("tbody tr").all();
@@ -46,7 +60,7 @@ test.describe("Watchlist Workflow E2E Tests", () => {
     return pages;
   }
 
-  // Tick (check) the checkbox on a given watchlist page
+
   async function tickWatchlistPage(page: Page, watchPage: WatchlistPage): Promise<void> {
     if (!watchPage.hasCheckbox) {
       throw new Error(`Page ${watchPage.pageNumber} has no checkbox to tick`);
@@ -57,7 +71,6 @@ test.describe("Watchlist Workflow E2E Tests", () => {
     await expect(checkbox).toBeChecked();
   }
 
-  // Verify the page appears checked in the Home watchlist after ticking
   async function verifyPageInHomeWatchlist(page: Page, watchPage: WatchlistPage): Promise<void> {
     await page.getByRole("link", { name: "Home" }).click();
     await expect(page).toHaveURL("/");
@@ -72,13 +85,6 @@ test.describe("Watchlist Workflow E2E Tests", () => {
     await expect(checkbox).toBeChecked();
   }
 
-  // Run before each test: login and go to watchlist page
-  test.beforeEach(async ({ page }) => {
-    await loginAndSelectHafiz(page);
-    await page.goto("/watch_list/");
-  });
-
-  // Test 1: Verify all ungraduated pages have correct checkbox or tick mark
   test("verify all ungraduated pages have correct checkbox/✅ state", async ({ page }) => {
     const pages = await getUngraduatedWatchlistPages(page);
     expect(pages.length).toBeGreaterThan(0);
@@ -91,13 +97,12 @@ test.describe("Watchlist Workflow E2E Tests", () => {
         await expect(checkbox).toBeVisible();
         await expect(checkbox).not.toBeChecked();
       } else {
-        // No checkbox: expect a tick mark button visible instead
+        // No checkbox — expect today's revision tick mark button to be visible
         await expect(row.getByRole('button', { name: '✅', exact: true })).toBeVisible();
       }
     }
   });
 
-  // Test 2: Tick one ungraduated page and verify it appears checked in Home watchlist
   test("tick an ungraduated page and verify in Home watchlist table", async ({ page }) => {
     const pages = await getUngraduatedWatchlistPages(page);
     const pageToTick = pages.find(p => p.hasCheckbox);
@@ -107,10 +112,9 @@ test.describe("Watchlist Workflow E2E Tests", () => {
     const checkbox = row.locator("input.uk-checkbox");
     await expect(checkbox).toBeVisible();
     await expect(checkbox).not.toBeChecked();
-
-    // Tick the checkbox
+    
     await tickWatchlistPage(page, pageToTick);
-    // Verify in Home watchlist
+
     await verifyPageInHomeWatchlist(page, pageToTick);
   });
 });
