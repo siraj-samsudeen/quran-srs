@@ -188,7 +188,7 @@ test.describe("Full Cycle E2E Workflow", () => {
 
     await setMemorizedPages(page, memorizedPages);
 
-    // Verify memorized and srs pages were showing
+    // Verify full-cycle were showing the first 5 pages
     await verifyHomeTablePages(page, memorizedPages.slice(0, 5));
 
     await verifyMonthlyCycleGapsAndInputs(page, monthlyCycleSteps);
@@ -198,7 +198,7 @@ test.describe("Full Cycle E2E Workflow", () => {
     // Wait for home table is updated
     await page.waitForTimeout(1000);
 
-    // Verify memorized and srs pages were showing correctly after close
+    // Verify full-cycle were showing rest of the pages after closing date
     await verifyHomeTablePages(page, memorizedPages.slice(5));
   });
 });
