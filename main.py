@@ -716,8 +716,9 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     recent_review_target = get_page_count(item_ids=recent_review_items)
 
+    # Include mode_id=1 as well so that graduated watch list items are included
     watch_list_table, watch_list_items = make_summary_table(
-        mode_ids=["4"], route="watch_list", auth=auth
+        mode_ids=["4", "1"], route="watch_list", auth=auth
     )
     watch_list_target = get_page_count(item_ids=watch_list_items)
 
@@ -916,6 +917,9 @@ def make_summary_table(
     def has_recent_mode_id(item: dict) -> bool:
         return item["mode_id"] == 3
 
+    def has_watchlist_mode_id(item: dict) -> bool:
+        return item["mode_id"] == 4
+
     def has_memorized(item: dict) -> bool:
         return item["status_id"] == 1
 
@@ -934,7 +938,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.status_id FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -948,7 +952,14 @@ def make_summary_table(
             or (is_reviewed_today(item) and has_recent_mode_id(item))
         ),
         "watch_list": lambda item: (
-            is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
+            item["watch_list_graduation_date"] == current_date
+            or (
+                has_watchlist_mode_id(item)
+                and (
+                    is_review_due(item)
+                    or (is_reviewed_today(item) and has_revisions(item))
+                )
+            )
         ),
         "srs": lambda item: (
             is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
