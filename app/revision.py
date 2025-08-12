@@ -6,19 +6,6 @@ from app.revision_view import *
 from app.revision_model import *
 from globals import *
 
-
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-pages = db.t.pages
-
-(Revision, Item, Hafiz_Items, Page) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs_items.dataclass(),
-    pages.dataclass(),
-)
-
 revision_app, rt = create_app_with_auth()
 
 
@@ -247,7 +234,7 @@ def parse_page_string(page_str: str):
 
 def validate_page_revision(sess, item_id, page, plan_id):
     """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
-    if not hafizs_items(where=f"item_id = {item_id} AND status_id = 1"):
+    if not hafizs_items(where=f"item_id = {item_id} AND status_id IN (1, 5)"):
         error_toast(sess, f"Given page '{page}' is not yet memorized!")
         return False
     if revisions(where=f"item_id = {item_id} AND plan_id = {plan_id}"):
@@ -327,14 +314,10 @@ def post(revision_details: Revision):
 
     item_id = revision_details.item_id
 
-    # Even if the item_id is in other mode, if the records is added then it is considered as a 'memorised'
-    hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
-    update_hafiz_item_status(hafizs_items_id, 1)
-
     rev = insert_revision(revision_details)
     populate_hafizs_items_stat_columns(item_id=item_id)
 
-    next_item_id = find_next_memorized_item_id(item_id)
+    next_item_id = find_next_memorized_srs_item_id(item_id)
 
     next_page_item_ids = get_item_ids_by_page(get_page_number(next_item_id))
     is_next_page_is_part = len(next_page_item_ids) > 1
@@ -345,7 +328,7 @@ def post(revision_details: Revision):
         )
 
     return Redirect(
-        f"/revision/add?item_id={find_next_memorized_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}"
+        f"/revision/add?item_id={find_next_memorized_srs_item_id(item_id)}&date={rev.revision_date}&plan_id={rev.plan_id}"
     )
 
 
@@ -420,16 +403,24 @@ def get(
     if is_part:
         length = 1
 
-    last_page = page + length
+    def get_item_ids_from_page_start(auth, plan_id, start_page, length):
+        """Returns a list of unrevised and memorized item IDs for a specific user,
+        starting from a given page number with given length."""
+        qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
+        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        ORDER BY hafizs_items.page_number ASC
+        LIMIT {length};
+        """
+        rows = db.q(qry)
+        return [row["item_id"] for row in rows]
 
-    item_ids = flatten_list([get_item_ids_by_page(p) for p in range(page, last_page)])
-    # Exclude item_ids that are not memorized or already revised under the current plan_id
-    item_ids = [
-        i
-        for i in item_ids
-        if hafizs_items(where=f"item_id = {i} AND status_id = 1")
-        and not revisions(where=f"item_id = {i} AND plan_id = {plan_id}")
-    ]
+    item_ids = get_item_ids_from_page_start(
+        auth=auth, plan_id=plan_id, start_page=page, length=length
+    )
+
     # To start from the not added item id
     if item_id in item_ids:
         item_ids = item_ids[item_ids.index(item_id) :]
@@ -601,7 +592,6 @@ async def post(
             item_id = name.split("-")[1]
             if item_id in item_ids:
                 hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
-                update_hafiz_item_status(hafizs_items_id, 1)
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
@@ -630,7 +620,7 @@ async def post(
         else:
             return Redirect("/")
 
-    next_item_id = find_next_memorized_item_id(last_item_id)
+    next_item_id = find_next_memorized_srs_item_id(last_item_id)
 
     # To handle the upper limit
     if next_item_id is None or next_item_id >= max_item_id:

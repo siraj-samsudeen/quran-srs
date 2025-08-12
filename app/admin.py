@@ -14,17 +14,6 @@ OPTION_MAP = {
 
 tables = db.t
 
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-hafizs = db.t.hafizs
-
-(Revision, Item, Hafiz) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs.dataclass(),
-)
-
 admin_app, rt = create_app_with_auth()
 
 

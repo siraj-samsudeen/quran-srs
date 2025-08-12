@@ -6,47 +6,50 @@ from collections import defaultdict
 from globals import *
 
 
-revisions = db.t.revisions
-hafizs_items = db.t.hafizs_items
-hafizs = db.t.hafizs
-items = db.t.items
-pages = db.t.pages
-surahs = db.t.surahs
-srs_booster_pack = db.t.srs_booster_pack
-modes = db.t.modes
-plans = db.t.plans
+def user_auth(req, sess):
+    # Check user authentication
+    user_id = req.scope["user_auth"] = sess.get("user_auth", None)
+    if user_id:
+        try:
+            users[user_id]
+        except NotFoundError:
+            del sess["user_auth"]
+            user_id = None
+    if not user_id:
+        return RedirectResponse("/users/login", status_code=303)
 
-(Revision, Hafiz_Items, Hafiz, Item, Page, Surah, SRS_Booster_Pack, Modes, Plan) = (
-    revisions.dataclass(),
-    hafizs_items.dataclass(),
-    hafizs.dataclass(),
-    items.dataclass(),
-    pages.dataclass(),
-    surahs.dataclass(),
-    srs_booster_pack.dataclass(),
-    modes.dataclass(),
-    plans.dataclass(),
+
+user_bware = Beforeware(
+    user_auth,
+    skip=["/users/login", "/users/signup", "/users/logout"],
 )
 
 
-def before(req, sess):
-    user_auth = req.scope["user_auth"] = sess.get("user_auth", None)
-    if not user_auth:
-        return RedirectResponse("/users/login", status_code=303)
-    auth = req.scope["auth"] = sess.get("auth", None)
-    if not auth:
+def hafiz_auth(req, sess):
+    # Check hafiz authentication
+    hafiz_id = req.scope["auth"] = sess.get("auth", None)
+    if hafiz_id:
+        try:
+            hafizs[hafiz_id]
+        except NotFoundError:
+            del sess["auth"]
+            hafiz_id = None
+    if not hafiz_id:
         return RedirectResponse("/users/hafiz_selection", status_code=303)
-    revisions.xtra(hafiz_id=auth)
-    hafizs_items.xtra(hafiz_id=auth)
-    plans.xtra(hafiz_id=auth)
+
+    revisions.xtra(hafiz_id=hafiz_id)
+    hafizs_items.xtra(hafiz_id=hafiz_id)
+    plans.xtra(hafiz_id=hafiz_id)
 
 
-bware = Beforeware(
-    before,
+hafiz_bware = Beforeware(
+    hafiz_auth,
     skip=[
-        "/users/hafiz_selection",
         "/users/login",
+        "/users/signup",
         "/users/logout",
+        r"/users/\d+$",  # for deleting the user
+        "/users/hafiz_selection",
         "/users/add_hafiz",
     ],
 )
@@ -60,7 +63,7 @@ alpinejs_header = Script(
 # Create sub-apps with the beforeware
 def create_app_with_auth(**kwargs):
     app, rt = fast_app(
-        before=bware,
+        before=[user_bware, hafiz_bware],
         hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
         bodykw={"hx-boost": "true"},
         **kwargs,
@@ -71,6 +74,14 @@ def create_app_with_auth(**kwargs):
 
 def error_toast(sess, msg):
     add_toast(sess, msg, "error")
+
+
+def success_toast(sess, msg):
+    add_toast(sess, msg, "success")
+
+
+def warning_toast(sess, msg):
+    add_toast(sess, msg, "warning")
 
 
 def main_area(*args, active=None, auth=None):
@@ -753,9 +764,21 @@ def get_mode_name(mode_id: int):
     return modes[mode_id].name
 
 
-def find_next_memorized_item_id(item_id):
-    memorized_item_ids = [i.item_id for i in hafizs_items(where="status_id = 1")]
-    return find_next_greater(memorized_item_ids, item_id)
+def find_next_memorized_srs_item_id(item_id):
+    memorized_and_srs_item_ids = [
+        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+    ]
+    return find_next_greater(memorized_and_srs_item_ids, item_id)
+
+
+def get_unrevised_memorized_item_ids(auth, plan_id):
+    qry = f"""
+        SELECT hafizs_items.item_id from hafizs_items
+        LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
+        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        """
+    data = db.q(qry)
+    return [r["item_id"] for r in data]
 
 
 def get_last_item_id():
@@ -786,3 +809,7 @@ def get_ordered_mode_name_and_id():
         )
     )
     return list(mode_id_list), list(mode_name_list)
+
+
+def delete_hafiz(hafiz_id: int):
+    hafizs.delete(hafiz_id)

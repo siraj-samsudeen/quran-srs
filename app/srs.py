@@ -5,16 +5,6 @@ from app.common_function import *
 from globals import *
 
 
-revisions = db.t.revisions
-items = db.t.items
-hafizs_items = db.t.hafizs_items
-
-(Revision, Item, Hafiz_Items) = (
-    revisions.dataclass(),
-    items.dataclass(),
-    hafizs_items.dataclass(),
-)
-
 srs_app, rt = create_app_with_auth()
 
 

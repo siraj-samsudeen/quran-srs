@@ -9,10 +9,6 @@ DEFAULT_RATINGS = {
 }
 
 
-hafizs = db.t.hafizs
-
-Hafiz = hafizs.dataclass()
-
 hafiz_app, rt = create_app_with_auth()
 
 
@@ -88,6 +84,12 @@ def update_setings(auth, hafiz_data: Hafiz):
         hafizs[auth].id,
     )
     return RedirectResponse("/hafiz/settings", status_code=303)
+
+
+# hafiz delete route for testing
+@hafiz_app.delete("/{hafiz_id}")
+def delete_hafizs_data(hafiz_id: int):
+    delete_hafiz(hafiz_id)
 
 
 @hafiz_app.get("/theme")
