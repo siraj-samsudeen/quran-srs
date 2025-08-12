@@ -150,9 +150,15 @@ node_modules/
 playwright-report/
 test-results/
 
-# ignore data folder as it is used only in local DEV environment to bring prod data in from data_backup
-data/
+# ignore database files but allow seed data
+data/*.db
+data/*.db-*
+data/*.sqlite*
 
 # Serena MCP files
 .serena/
-quran_srs_phoenix
+.DS_Store
+
+# Temporary notes and work files
+docs/temp-notes.md
+temp-seeds/

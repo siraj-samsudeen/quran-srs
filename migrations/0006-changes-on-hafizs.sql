@@ -1,1 +1,0 @@
-ALTER TABLE hafizs ADD COLUMN current_date TEXT;
