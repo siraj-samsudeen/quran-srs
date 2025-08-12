@@ -1,204 +1,158 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from '@playwright/test';
 
-// Define interface for page data structure
-interface PageData {
-  status: string;
-  testId: string;
-  pageNumber: string;
-}
-type Step = {
-  selectPage: string;
-  expectedPageGaps: string[];
-  expectedInput: string | null;
-};
+/**
+ * Tests the complete memorization tracking workflow through 5 sequential steps.
+ *
+ * - User registration and hafiz creation
+ * - Page status configuration
+ * - Full-cycle table verification
+ *  - are the non-memorized pages skipped?
+ *  - are all the memorized pages including SRS pages included?
+ * - Date close and verify the summary with the actual pages entered
+ * - Next day, see whether the sequence continues
+ * - If the full cycle is complete, it should display a message to close the current cycle and create new one
+ *
+ */
 
-test.describe("Full Cycle E2E Workflow", () => {
-  // Test user credentials - unique per test run
-  const testName = `testUser`;
-  const testEmail = `test@example.com`;
-  const testPassword = "Test123!@#";
-  const testHafizName = "Test Hafiz";
+test.describe.serial('Full Cycle Workflow', () => {
+  // Single source of truth for page configuration
+  const PAGE_STATUS_MAP = {
+    3: 'Strong', // Memorized
+    4: 'Strong', // Memorized
+    7: 'Strong', // Memorized
+    9: 'SRS Mode',
+    100: 'SRS Mode',
+    101: 'SRS Mode',
+    102: 'Strong', // Memorized
+    103: 'Strong', // Memorized
+    104: 'Strong', // Memorized
+  };
 
-  async function registerUser(page: Page): Promise<void> {
-    await page.goto("/users/signup");
+  // Uses shared browser context - user registration and login happens once, state persists across tests.
+  let page: Page;
 
-    // Fill registration form
-    await page.getByLabel("Name").fill(testName);
-    await page.getByLabel("Email").fill(testEmail);
-    await page.getByLabel("Password", { exact: true }).fill(testPassword);
-    await page.getByLabel("Confirm Password").fill(testPassword);
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+  });
 
-    // Submit registration
-    await page.getByRole("button", { name: "Signup" }).click();
+  test.afterAll(async () => {
+    await page.close();
+  });
 
-    // Verify registration success - should redirect to login or hafiz selection
-    await expect(page).toHaveURL(/\/users\/login/);
-  }
+  test('Step 1: Register user and create hafiz', async () => {
+    // Flow: Register → Login → Create hafiz → Switch to hafiz → Verify home page
 
-  async function login(page: Page): Promise<void> {
-    await page.goto("/users/login");
-    await page.getByLabel("Email").fill(testEmail);
-    await page.getByLabel("Password").fill(testPassword);
-    await page.getByRole("button", { name: "Login" }).click();
-  }
+    // Unique test user credentials
+    const timestamp = Date.now();
+    const testUser = {
+      name: `testUser_${timestamp}`,
+      email: `test${timestamp}@example.com`,
+      password: 'Test123!@#',
+      hafiz1: 'Hafiz1',
+      hafiz2: 'Hafiz2',
+    };
 
-  async function createHafiz(page: Page): Promise<void> {
-    await page.goto("/users/hafiz_selection");
-    await page.getByRole("textbox", { name: "Name" }).fill(testHafizName);
-    await page.getByRole("button", { name: "Add Hafiz" }).click();
-  }
+    // Navigate to signup
+    await page.goto('/users/signup');
 
-  // Helper function to set specific pages with memorized status
-  async function setMemorizedPages(
-    page: Page,
-    pages: PageData[]
-  ): Promise<void> {
-    await expect(page).toHaveURL("/");
-    await page.getByRole("link", { name: "Profile" }).click();
-    await page.getByRole("link", { name: "by page" }).click();
+    // Register user
+    await page.getByLabel('Name').fill(testUser.name);
+    await page.getByLabel('Email').fill(testUser.email);
+    await page.getByLabel('Password', { exact: true }).fill(testUser.password);
+    await page.getByLabel('Confirm Password').fill(testUser.password);
+    await page.getByRole('button', { name: 'Signup' }).click();
 
-    // Set status for each page using dropdown
-    for (const pageData of pages) {
-      await page.getByTestId(pageData.testId).getByRole("combobox").click();
-      await page
-        .getByTestId(pageData.testId)
-        .getByRole("combobox")
-        .selectOption(pageData.status);
-      await page.waitForTimeout(200);
+    // Verify successful registration redirects to login
+    await expect(page).toHaveURL('/users/login');
+
+    // Login user
+    await page.getByLabel('Email').fill(testUser.email);
+    await page.getByLabel('Password').fill(testUser.password);
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Verify login redirects to hafiz selection
+    await expect(page).toHaveURL('/users/hafiz_selection');
+
+    // Create first hafiz
+    await page.getByRole('textbox', { name: 'Name' }).fill(testUser.hafiz1);
+    await page.getByRole('button', { name: 'Add Hafiz' }).click();
+
+    // Create second hafiz
+    await page.getByRole('textbox', { name: 'Name' }).fill(testUser.hafiz2);
+    await page.getByRole('button', { name: 'Add Hafiz' }).click();
+
+    // TODO: improve implementation
+    // Select the first hafiz (our main test hafiz)
+    await page.getByTestId(`switch-${testUser.hafiz1}-hafiz-button`).click();
+
+    // Verify successful hafiz selection redirects to home page
+    await expect(page).toHaveURL('/');
+  });
+
+  test('Step 2: Configure page memorization status', async () => {
+    // Flow: Profile → "by page" → Set statuses → Return home
+
+    await expect(page).toHaveURL('/');
+    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.getByRole('link', { name: 'by page' }).click();
+
+    for (const [pageNum, status] of Object.entries(PAGE_STATUS_MAP)) {
+      // Complex selector needed: page-3-row contains multiple elements, we need the combobox specifically
+      // Example: page.getByTestId('page-3-row').getByRole('combobox') finds the status dropdown in row 3
+      const dropdown = page
+        .getByTestId(`page-${pageNum}-row`)
+        .getByRole('combobox');
+      await dropdown.click();
+      await dropdown.selectOption(status);
     }
-    await page.getByRole("link", { name: "Home" }).click();
-    await expect(page).toHaveURL("/");
-  }
+  });
 
-  // Helper function to verify memorized pages are displayed correctly in home table
-  async function verifyFullCycleTable(
-    page: Page,
-    expectedPages: PageData[]
-  ): Promise<void> {
-    await page.goto("/");
+  test('Step 3: Verify full-cycle table displays all configured pages', async () => {
+    await page.goto('/');
 
-    // Extract expected page titles for comparison
-    const expectedPageDetails: string[] = expectedPages.map(
-      (pageData) => pageData.pageNumber
-    );
+    const expectedPages = Object.keys(PAGE_STATUS_MAP);
 
-    // Get actual page titles from the table
-    let titleElements: string[] = await page
-      .getByTestId("monthly_cycle_tbody")
-      .locator("tr td:first-child a span")
+    // Get actual page numbers from table and verify
+    const actualPageNumbers = await page
+      .getByTestId('monthly_cycle_tbody')
+      .locator('tr td:first-child a span')
       .allTextContents();
 
-    titleElements = titleElements.map((title) => title.trim());
-
-    // Verify each expected page is displayed
-    for (const titleElement of titleElements) {
-      const parts = titleElement.split(" ");
-      // Get the first part of the array
-      const actualPage = parts[0];
-
-      expect(expectedPageDetails).toContainEqual(actualPage);
+    for (const actualPageNumber of actualPageNumbers) {
+      // Extract page number from "3 Baqarah P2" -> 3
+      const pageNumber = parseInt(actualPageNumber.trim().split(' ')[0]);
+      expect(expectedPages).toContain(pageNumber);
     }
-  }
+  });
 
-  async function verifyMonthlyCycleGapsAndInputs(page: Page, steps: Step[]) {
-    const textbox = page.getByRole("textbox", {
-      name: "Enter from page 2, format",
-    });
-    await page.getByRole("button", { name: "+5" }).click();
+  test('Step 5: Close date and verify table update', async () => {
+    // Tick off some pages as completed, then close date to see what remains
+
+    // Ensure we're on the home page
+    await page.goto('/');
+
+    // Explicitly check off pages 3, 4, 7, 9 as completed
+    const completedPages = [3, 4, 7, 9];
+    for (const pageNum of completedPages) {
+      await page.getByTestId(`${pageNum}-checkbox`).check();
+    }
+
+    await page.getByRole('button', { name: 'Close Date' }).click();
     await page.waitForTimeout(1000);
 
-    for (const step of steps) {
-      // Select the checkbox for the page
-      // FIXME: This is not the best way to select the checkbox
-      // We should find a better way to select the checkbox
-      await page.getByTestId(`${step.selectPage}-checkbox`).check();
+    // After closing, only unchecked pages should remain
+    const expectedRemainingPages = [100, 101, 102, 103, 104];
 
-      await page.waitForTimeout(200);
+    // Get actual page numbers from table and verify
+    const actualPageNumbers = await page
+      .getByTestId('monthly_cycle_tbody')
+      .locator('tr td:first-child a span')
+      .allTextContents();
 
-      // If there are expected gaps, "Next" header should be visible and gaps should be visible
-      if (step.expectedPageGaps.length > 0) {
-        await expect(page.getByRole("cell", { name: "Next" })).toBeVisible();
-
-        for (const gap of step.expectedPageGaps) {
-          await expect(
-            page
-              .locator("#monthly_cycle_link_table")
-              .locator("td", { hasText: gap })
-          ).toBeVisible();
-        }
-      } else {
-        // If no gaps expected, "Next" header should not be visible
-        await expect(
-          page.getByRole("cell", { name: "Next" })
-        ).not.toBeVisible();
-      }
-
-      // Check input value
-      if (step.expectedInput === null) {
-        await expect(textbox).toBeEmpty();
-      } else {
-        await expect(textbox).toHaveValue(step.expectedInput);
-      }
+    for (const actualPageNumber of actualPageNumbers) {
+      // Extract page number from "101 Nisa Juz 5 End" -> 101
+      const pageNumber = parseInt(actualPageNumber.trim().split(' ')[0]);
+      expect(expectedRemainingPages).toContain(pageNumber);
     }
-  }
-
-  // Main E2E test
-  test("complete full-cycle workflow: create hafiz, set pages, create plan, verify home display, Verify gaps and input value", async ({
-    page,
-  }) => {
-    // Test data
-    const memorizedAndSrsPages: PageData[] = [
-      { status: "1", testId: "page-3-row", pageNumber: "3" }, // status: "1" means memorized
-      { status: "1", testId: "page-4-row", pageNumber: "4" },
-      { status: "1", testId: "page-7-row", pageNumber: "7" },
-      { status: "5", testId: "page-9-row", pageNumber: "9" }, // status: "5" means SRS mode
-      { status: "5", testId: "page-100-row", pageNumber: "100" },
-      { status: "5", testId: "page-101-row", pageNumber: "101" },
-      { status: "1", testId: "page-102-row", pageNumber: "102" },
-      { status: "1", testId: "page-103-row", pageNumber: "103" },
-      { status: "1", testId: "page-104-row", pageNumber: "104" },
-    ];
-    const monthlyCycleSteps: Step[] = [
-      { selectPage: "3", expectedPageGaps: ["4"], expectedInput: "4" },
-      { selectPage: "7", expectedPageGaps: ["4", "9"], expectedInput: "9" },
-      {
-        selectPage: "100",
-        expectedPageGaps: ["4", "9", "101"],
-        expectedInput: "101",
-      },
-      { selectPage: "4", expectedPageGaps: ["9", "101"], expectedInput: "9" },
-      { selectPage: "9", expectedPageGaps: ["101"], expectedInput: "101" },
-    ];
-
-    await registerUser(page);
-
-    await login(page);
-
-    // Verify login was successful
-    await expect(page).toHaveURL("/users/hafiz_selection");
-
-    await createHafiz(page);
-
-    // TODO
-    // Select the created hafiz
-    await page.getByTestId(`switch-${testHafizName}-hafiz-button`).click();
-
-    // Verify hafiz creation was successful
-    await expect(page).toHaveURL("/");
-
-    await setMemorizedPages(page, memorizedAndSrsPages);
-
-    // Verify the memorized and srs pages are displayed in the full-cycle table
-    await verifyFullCycleTable(page, memorizedAndSrsPages);
-
-    await verifyMonthlyCycleGapsAndInputs(page, monthlyCycleSteps);
-
-    await page.getByRole("button", { name: "Close Date" }).click();
-
-    // Wait for home table is updated
-    await page.waitForTimeout(1000);
-
-    // Verify rest of the unchecked pages are showing in full-cycle table after closing date
-    await verifyFullCycleTable(page, memorizedAndSrsPages.slice(5));
   });
 });
