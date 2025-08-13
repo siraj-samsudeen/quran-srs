@@ -1,164 +1,43 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
 
-# Created by https://www.gitignore.io/api/python
-# Edit at https://www.gitignore.io/?templates=python
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
 
-### Python ###
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# The directory Mix downloads your dependencies sources to.
+/deps/
 
-# C extensions
-*.so
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# Temporary files, for example, from tests.
+/tmp/
 
-# Translations
-*.mo
-*.pot
+# Ignore package tarball (built via "mix hex.build").
+quran_srs-*.tar
 
-# Scrapy stuff:
-.scrapy
+# Ignore assets that are produced by build tools.
+/priv/static/assets/
 
-# Sphinx documentation
-docs/_build/
+# Ignore digested assets cache.
+/priv/static/cache_manifest.json
 
-# PyBuilder
-target/
+# In case you use Node.js/npm, you want to ignore these.
+npm-debug.log
+/assets/node_modules/
 
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Siraj - to avoid exposing the secret key
-settings_prod.py
-
-*.sqlite3
-.vscode
-.DS_Store
-# End of https://www.gitignore.io/api/python
-src/credentials-sheets.json
-src/token-drive.pickle
-src/token-sheets.pickle
-src/temp.py
-
-#Excel temp files
-~$*.xlsx
-vandelay-py.js
-src/quran_review_scheduler.ipynb
-src/quran_review_scheduler.py
-src/quranSRS copy.py
-project/settings_dev.py
-Temp
-all_pages.yaml
-TODO
-.env
-
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-# *.cover
-temp.py
-db.sqlite3-journal
-.idea
-issues.xlsx
-
-# ignore virtual environment files
-.venv/
-venv/
-
-#  ignore test files and folders
-node_modules/
-playwright-report/
-test-results/
-
-# ignore database files but allow seed data
-data/*.db
-data/*.db-*
-data/*.sqlite*
-
-# Serena MCP files
-.serena/
+# Mac files
 .DS_Store
 
 # Temporary notes and work files
-docs/temp-notes.md
-temp-seeds/
+temp/
+backup/
