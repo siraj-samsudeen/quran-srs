@@ -9,3 +9,13 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- Generate new Phoenix 1.8.0 application
+  - using `mix phx.new . --app quran_srs`
+  - Used current directory to preserve existing project structure
+  - All dependencies installed with `mix deps.get`
+  - `mix test` reports all 5 tests passing
+  - started server with `mix phx.server` and home page is working
+
