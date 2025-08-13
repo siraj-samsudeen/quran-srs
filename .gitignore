@@ -41,3 +41,6 @@ npm-debug.log
 # Temporary notes and work files
 temp/
 backup/
+
+# ElixirLS (Language Server)
+/.elixir_ls/

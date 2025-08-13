@@ -21,6 +21,11 @@ defmodule QuranSrsWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    
+    live "/mushafs", MushafLive.Index, :index
+    live "/mushafs/new", MushafLive.Form, :new
+    live "/mushafs/:id", MushafLive.Show, :show
+    live "/mushafs/:id/edit", MushafLive.Form, :edit
   end
 
   # Other scopes may use custom stacks.
