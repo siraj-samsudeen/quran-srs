@@ -18,4 +18,8 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - All dependencies installed with `mix deps.get`
   - `mix test` reports all 5 tests passing
   - started server with `mix phx.server` and home page is working
+- Generate Phoenix authentication system
+  - using `mix phx.gen.auth Accounts User users`
+  - Created LiveView-based authentication
+  - `mix test` reports all 94 tests passing
 
