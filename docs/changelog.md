@@ -12,22 +12,27 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
 ## [Unreleased]
 
 ### Added
-- Generate new Phoenix 1.8.0 application
+- feature: Generate new Phoenix 1.8.0 application
   - using `mix phx.new . --app quran_srs`
   - Used current directory to preserve existing project structure
   - All dependencies installed with `mix deps.get`
   - `mix test` reports all 5 tests passing
   - started server with `mix phx.server` and home page is working
-- Generate Phoenix authentication system
+- feature: Generate Phoenix authentication system
   - using `mix phx.gen.auth Accounts User users`
   - Created LiveView-based authentication
   - `mix test` reports all 94 tests passing
-- Generate Mushaf CRUD with LiveView
+- feature: Generate Mushaf CRUD with LiveView
   - using `mix phx.gen.live Quran Mushaf mushafs name description:text --no-scope`
   - Created system-wide master data (no user scoping)
   - Added CRUD routes `/mushafs` to router.ex
   - `mix test` reports all 108 tests passing
-- Seed Mushaf data
+- chore: Update Mushaf seed data
   - Added 2 mushafs: Madinah Mushaf and Indo-Pak 15-Line
   - Verified data appears at `/mushafs` route
+- feature: Generate Surah CRUD with LiveView
+  - using `mix phx.gen.live Quran Surah surahs number:integer name total_ayat:integer --no-scope`
+  - Created system-wide master data (no user scoping)
+  - Added CRUD routes `/surahs` to router.ex
+  - `mix test` reports all 122 tests passing
 

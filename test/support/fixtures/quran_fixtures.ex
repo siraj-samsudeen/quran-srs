@@ -18,4 +18,20 @@ defmodule QuranSrs.QuranFixtures do
 
     mushaf
   end
+
+  @doc """
+  Generate a surah.
+  """
+  def surah_fixture(attrs \\ %{}) do
+    {:ok, surah} =
+      attrs
+      |> Enum.into(%{
+        name: "some name",
+        number: 42,
+        total_ayat: 42
+      })
+      |> QuranSrs.Quran.create_surah()
+
+    surah
+  end
 end

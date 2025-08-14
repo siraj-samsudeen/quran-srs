@@ -5,7 +5,7 @@
 - [ ] Create master data tables (mushafs, pages, surahs, items)
   - [x] Generate Mushaf CRUD with LiveView
   - [x] Seed Mushaf data
-  - [ ] Generate Surah CRUD with LiveView
+  - [x] Generate Surah CRUD with LiveView
   - [ ] Generate Page CRUD with LiveView and relationships
   - [ ] Generate Item CRUD with LiveView and relationships
 - Migrate master data from FastHTML project using CSVs
