@@ -35,4 +35,14 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Created system-wide master data (no user scoping)
   - Added CRUD routes `/surahs` to router.ex
   - `mix test` reports all 122 tests passing
+- chore: Seed Surah master data
+  - Moved essential master data (Mushafs, Surahs) to production-safe migrations
+  - Organized CSV files in `priv/repo/master_data/` for production reference data
+  - Created `20250814055758_seed_master_data.exs` migration
+  - Imported all 114 surahs from surahs.csv using Explorer library
+  - Verified data appears at `/surahs` route
+  - Added smoke test to check master data health
+  - Checks mushafs == 2 and surahs == 114 (catches duplicates)
+  - Updated `quran_test.exs` tests to work with master data present
+
 

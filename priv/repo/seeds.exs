@@ -10,19 +10,16 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-# Seed Mushafs
-alias QuranSrs.Quran
+# Development seed data (sample users, demo progress, etc.)
+# 
+# Master data (Mushafs, Surahs, Pages, Items) is now managed through 
+# database migrations for production safety and version control.
+# See: priv/repo/migrations/*_seed_master_data.exs
+#
+# This file is reserved for development convenience data like:
+# - Sample user accounts
+# - Demo hafiz profiles  
+# - Test memorization progress
+# - Sample revision history
 
-# Madinah Mushaf - Primary mushaf from production system
-{:ok, _madinah_mushaf} = Quran.create_mushaf(%{
-  name: "Madinah Mushaf",
-  description: "Standard Madinah Mushaf with 604 pages"
-})
-
-# Indian/Pakistani Mushaf - 15-line format
-{:ok, _indo_pak_mushaf} = Quran.create_mushaf(%{
-  name: "Indo-Pak 15-Line",
-  description: "Indian/Pakistani Mushaf with 15 lines per page"
-})
-
-IO.puts("Seeded Mushafs")
+IO.puts("No development seed data yet - add sample users/progress here as needed")

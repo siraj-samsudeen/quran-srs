@@ -211,3 +211,51 @@ Following the plan.md todo list:
 ---
 
 **Remember**: This migration preserves the evolution story while maintaining production stability and URL continuity. The Phoenix implementation should match FastHTML functionality while leveraging Phoenix's superior architecture for long-term maintainability.
+
+## LEARNINGS FROM WORKING WITH USER
+
+### Code Style and Patterns
+- **Functional pipelines preferred**: Always use `|>` chains over intermediate variables
+- **Capture operator syntax**: Use `&function/1` instead of `fn x -> function(x) end` 
+- **DRY principle**: Extract reusable helpers when patterns repeat (like CSV loading)
+- **Elixir best practices**: Use `:code.priv_dir/1` for robust file paths, not manual `__DIR__` manipulation
+
+### Phoenix Development Workflow
+- **Mix generators**: Use `--no-scope` flag for system-wide master data (no user scoping)
+- **Master data strategy**: Use database migrations for production-required data, seeds.exs for development convenience
+- **File organization**: 
+  - `priv/repo/master_data/` - Production reference data (CSV files)
+  - `priv/repo/seeds/` - Development/test sample data
+  - `priv/repo/migrations/` - Schema + master data loading
+- **Context functions**: Always use changeset validation, never direct `Repo.insert_all`
+
+### Testing Philosophy
+- **Health checks over comprehensive**: Simple smoke tests that verify essential data exists
+- **Catch regressions**: Tests should detect duplicate data from running seeds twice
+- **Exact counts**: Use `== 114` not `>= 114` to catch duplicates
+- **Master data in tests**: Use `assert item in list` not `assert list == [item]` when master data present
+- **Comments for test changes**: Explain why assertions changed (e.g., "master data from migrations also present")
+
+### Development Process
+- **Small atomic commits**: One task → do → test → commit → next task
+- **Stage first, then commit**: Always review staged changes before committing
+- **Concise commit messages**: Subject line only, no unnecessary details
+- **Update documentation**: Keep changelog.md current with actual changes
+- **Changelog format**: One bullet per commit, not per change
+  - Format: `- [type]: [main description]` with sub-bullets for details
+  - Group all related changes under single commit entry
+  - Don't fragment into many small separate bullets
+
+### Communication Preferences
+- **Brief explanations**: Explain bash commands before running them
+- **No unnecessary preamble**: Direct answers, minimal fluff
+- **Show SQL results**: After database operations, verify with queries
+- **Ask for clarification**: When patterns could be improved (like piping operations)
+- **Listen to corrections**: When user says "stop" or corrects approach, immediately adjust
+- **Pattern recognition**: Notice when user asks "should we..." - they're suggesting improvements
+
+### Technical Preferences
+- **Explorer over CSV library**: Use DataFrame approach for consistency with pandas-like workflows
+- **Functional over imperative**: Prefer pipelines and functional composition
+- **Production-ready patterns**: Think about deployment and scalability from start
+- **Clean abstractions**: Extract helpers when patterns will be repeated

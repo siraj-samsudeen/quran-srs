@@ -12,7 +12,8 @@ defmodule QuranSrs.QuranTest do
 
     test "list_mushafs/0 returns all mushafs" do
       mushaf = mushaf_fixture()
-      assert Quran.list_mushafs() == [mushaf]
+      # Test that fixture is included in list (master data from migrations also present)
+      assert mushaf in Quran.list_mushafs()
     end
 
     test "get_mushaf!/1 returns the mushaf with given id" do
@@ -68,7 +69,8 @@ defmodule QuranSrs.QuranTest do
 
     test "list_surahs/0 returns all surahs" do
       surah = surah_fixture()
-      assert Quran.list_surahs() == [surah]
+      # Test that fixture is included in list (master data from migrations also present)
+      assert surah in Quran.list_surahs()
     end
 
     test "get_surah!/1 returns the surah with given id" do
