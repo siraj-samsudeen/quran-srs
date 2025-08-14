@@ -27,4 +27,7 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Created system-wide master data (no user scoping)
   - Added CRUD routes `/mushafs` to router.ex
   - `mix test` reports all 108 tests passing
+- Seed Mushaf data
+  - Added 2 mushafs: Madinah Mushaf and Indo-Pak 15-Line
+  - Verified data appears at `/mushafs` route
 
