@@ -21,7 +21,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 
 ### 2. hafizs_items TABLE (current state):
 - mode_id: 5 = SRS mode, 1 = Full Cycle mode
-- status_id: 5 = SRS active, 6 = Other modes
+- status_id: 5 = SRS active, 6 = Not started
 - srs_start_date: When item entered SRS (e.g., '2025-07-09')
 - srs_booster_pack_id: Which pack to use (typically 1 = Standard)
 - last_review: Date of most recent SRS review
@@ -50,7 +50,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 - srs_start_date = current_date (when SRS began)
 - srs_booster_pack_id = 1 (Standard SRS pack)
 - next_interval = 7 (start_interval from booster pack)
-- next_review = srs_start_date + 7 days
+- next_review = srs_start_date + next_interval (7 days)
 - last_interval, current_interval = NULL (no reviews yet)
 
 ### EVENT 2: SRS REVISION RECORDED
@@ -88,6 +88,8 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 **Database changes in hafizs_items:**
 - next_interval = NULL (graduation marker)
 - next_review = NULL (no longer scheduled)
+- current_interval, last_interval = NULL (no more reviews)
+- srs_booster_pack_id, srs_start_date = NULL (no longer in SRS mode)
 - mode_id = 1 (returns to Full Cycle mode)
 - status_id = 1 (returns to normal memorized status)
 
@@ -97,14 +99,14 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 
 ### FIRST SRS REVISION FOR EACH PAGE:
 Special handling when page has no previous SRS reviews:
+- current_interval: Days since last_review (often much larger than expected)
 - last_interval: Set to start_interval (7 for Standard SRS) from algorithm state
-- current_interval: Days since srs_start_date (often much larger than expected)
 - Algorithm position: Uses start_interval as baseline for rating calculations
 
 **Real Example - Page 64 First SRS Review (2025-07-25):**
-- srs_start_date: likely around 2025-05-24 (based on 62-day gap)
+- srs_start_date: 2025-07-18
 - last_interval=7: Algorithm starts at start_interval position
-- current_interval=62: Actual 62 days since SRS entry (major delay)
+- current_interval=62: Actual 62 days since last_review (major delay)
 - rating=0 (ok): Stay at same algorithm position
 - next_interval=7: Algorithm kept at position 7 despite 62-day delay
 
@@ -143,7 +145,7 @@ Each revision record stores three interval values that capture different aspects
 
 ### 2. current_interval: Actual Days Between Reviews
 - Real calendar days between previous review date and this review date
-- For first revision: days since srs_start_date
+- For first revision: days since last_review (on other mode)
 - For subsequent reviews: days since previous revision
 - Shows whether review happened early, on-time, or late
 
@@ -157,7 +159,7 @@ Each revision record stores three interval values that capture different aspects
 Available prime intervals: [2,3,5,7,11,13,17,19,23,29,31...] (graduation at >30)
 
 ### EXAMPLE 1: PAGE 359 (Started with interval 2)
-SRS Start: 2025-07-09, start_interval=2 (Relaxed SRS pack)
+SRS Start: 2025-07-09, start_interval=2 (Before changing the start_interval=7 on standard pack)
 
 **Review 1 (2025-07-09): rating=1 (good)**
 - last_interval=2: Algorithm started at position 2
@@ -174,10 +176,12 @@ SRS Start: 2025-07-09, start_interval=2 (Relaxed SRS pack)
 - current_interval=5: Exactly 5 days (on time)
 - next_interval=7: Prime sequence [3,5,7] → rating=1 → advance to 7
 
-**Review 4 (2025-07-25): rating=1 (good)**
+**Review 4 (2025-07-25): rating=1 (good) → advance to 11**
 **Review 5 (2025-08-05): rating=0 (ok) → stays at 11**
 
 **Progression:** 2→3→5→7→11→11 (good ratings advance, ok rating maintains)
+
+**Key insight:** If the current position is 2 the rating bad and ok stays at the position 2.
 
 ### EXAMPLE 2: PAGE 89 (Started with interval 7)  
 SRS Start: ~2025-07-22, start_interval=7 (Standard SRS pack)
@@ -201,45 +205,45 @@ SRS Start: ~2025-07-22, start_interval=7 (Standard SRS pack)
 
 **GRADUATION:** When next_interval > end_interval (30), set next_interval=NULL
 
-## Bug Scenario (Pages 64 & 73 Reserved for Bug Testing)
+## Special Scenario (Pages 64 & 73)
 
-Normal SRS progression: 7→11 (should be due 2025-08-12)
+**Cross-Mode Review Functionality:** Pages in SRS mode can still be reviewed in Full Cycle mode without disrupting SRS progression.
 
-Full cycle review on 2025-08-11 should trigger:
-- Preserve next_interval=11
-- Push next_review to 2025-08-11 + 11 = 2025-08-22
+### Page 64 Example:
+**SRS History:**
+- 2025-07-25: First SRS review (rating=0, ok) → next_interval=7, next_review=2025-08-01
+- 2025-08-01: Second SRS review (rating=1, good) → next_interval=11, next_review=2025-08-12
 
-**BUG:** System failed to apply push_srs_review_date_without_interval_change()
+**Cross-Mode Event (2025-08-11):**
+- Page 64 reviewed in Full Cycle mode (mode_id=1) while still in SRS
+- SRS schedule: Due 2025-08-12 (next day)
+- Full Cycle review recorded normally without affecting SRS state
+
+**Key Behaviors:**
+1. **SRS State Preserved:** Page remains in SRS mode with next_review=2025-08-12
+2. **No SRS Progression:** Full Cycle review doesn't advance SRS intervals
+3. **Dual Mode Operation:** Same page can be active in both systems simultaneously
+4. **Independent Tracking:** Each mode maintains separate revision history
+
+**Technical Implementation:** The system differentiates reviews by mode_id (1=Full Cycle, 5=SRS) allowing parallel operation without interference. This flexibility lets users review SRS pages in regular sequential order when desired while maintaining their SRS schedule.
 
 ## Key Algorithm Functions
 
 - get_srs_interval_list(): Creates filtered interval progression
 - get_interval_triplet(): Maps current position to [prev,curr,next]
-- recalculate_intervals_on_srs_records(): Core SRS calculation engine
+- recalculate_intervals_on_srs_records(): Recalculate intervals if the page gets edited or deleted (Bug: Shouldn't update the first record's last_interval as it is a historical decision)
 - get_interval_based_on_rating(): Determines next interval from rating
-- is_item_in_srs_mode(): Checks if item is active in SRS
-- push_srs_review_date_without_interval_change(): Bug fix for cross-mode reviews
 
 ## Revision Types and Algorithm Behavior
 
-### THREE REVISION SCENARIOS:
+### Two REVISION SCENARIOS:
 
-#### 1. EARLY REVISION (Bug Scenario)
-**What happens:** SRS page gets reviewed in another mode (full cycle, etc.) before its scheduled next_review date.
-
-**Current behavior:** Creates bug where next_review isn't properly updated while preserving interval.
-
-**Correct behavior should be:** 
-- Preserve next_interval (don't advance SRS progression)
-- Update next_review = current_date + next_interval (push review date forward)
-- This is the bug that push_srs_review_date_without_interval_change() should fix
-
-#### 2. ON-TIME REVISION  
+#### 1. ON-TIME REVISION  
 **What happens:** SRS page reviewed exactly when current_date >= next_review.
 
 **Current behavior:** Algorithm handles this correctly with normal SRS progression.
 
-#### 3. DELAYED REVISION (Future Enhancement)
+#### 2. DELAYED REVISION (Future Enhancement)
 **What happens:** SRS page reviewed after its scheduled next_review date.
 
 **Current behavior:** Algorithm ignores the delay - progression based purely on rating.
