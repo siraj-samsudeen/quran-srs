@@ -44,3 +44,5 @@ backup/
 
 # ElixirLS (Language Server)
 /.elixir_ls/
+.playwright-mcp
+.claude/subagents

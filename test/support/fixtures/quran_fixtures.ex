@@ -34,4 +34,21 @@ defmodule QuranSrs.QuranFixtures do
 
     surah
   end
+
+  @doc """
+  Generate a page.
+  """
+  def page_fixture(attrs \\ %{}) do
+    {:ok, page} =
+      attrs
+      |> Enum.into(%{
+        juz_number: 42,
+        page_number: 42,
+        start_text: "some start_text",
+        mushaf_id: 1
+      })
+      |> QuranSrs.Quran.create_page()
+
+    page
+  end
 end

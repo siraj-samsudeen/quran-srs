@@ -9,10 +9,12 @@ defmodule QuranSrs.Repo.Migrations.SeedMasterData do
     # This data is essential business data that should exist in all environments
     seed_mushafs()
     seed_surahs()
+    seed_pages()
   end
 
   def down do
     # Remove master data in reverse dependency order
+    Repo.delete_all(Quran.Page)
     Repo.delete_all(Quran.Surah)
     Repo.delete_all(Quran.Mushaf)
   end
@@ -35,6 +37,11 @@ defmodule QuranSrs.Repo.Migrations.SeedMasterData do
   defp seed_surahs do
     load_master_data_csv("surahs.csv")
     |> Enum.each(&Quran.create_surah/1)
+  end
+
+  defp seed_pages do
+    load_master_data_csv("pages.csv")
+    |> Enum.each(&Quran.create_page/1)
   end
 
   defp load_master_data_csv(filename) do

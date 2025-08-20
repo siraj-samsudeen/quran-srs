@@ -5,6 +5,7 @@ defmodule QuranSrs.Quran.Mushaf do
   schema "mushafs" do
     field :name, :string
     field :description, :string
+    has_many :pages, QuranSrs.Quran.Page
 
     timestamps(type: :utc_datetime)
   end

@@ -7,6 +7,7 @@ defmodule QuranSrs.MasterDataHealthTest do
       # Verify exact counts (catches duplicates from running migrations twice)
       assert Quran.list_mushafs() |> length() == 2
       assert Quran.list_surahs() |> length() == 114
+      assert Quran.list_pages() |> length() == 604
     end
   end
 end

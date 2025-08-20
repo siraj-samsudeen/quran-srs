@@ -44,5 +44,16 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Added smoke test to check master data health
   - Checks mushafs == 2 and surahs == 114 (catches duplicates)
   - Updated `quran_test.exs` tests to work with master data present
+- feature: Generate Page CRUD with proper mushaf context and clean architecture
+  - Generated initial page CRUD: `mix phx.gen.live MasterData Page pages page_number:integer juz_number:integer start_text:text mushaf_id:references:mushafs --no-scope`
+  - Created proper Ecto associations: Page belongs_to Mushaf, Mushaf has_many Pages
+  - Updated context `quran.ex` to add `list_pages_by_mushaf`
+  - Updated router to nest page routes under mushaf: `/mushafs/:mushaf_id/pages`
+  - Modified all LiveView modules to accept and use mushaf_id parameter from URL
+  - Added pages.csv to `priv/repo/master_data/` (604 pages for Madinah Mushaf)
+  - Consolidated page schema into existing `create_mushafs.exs` migration (logical grouping)
+  - Consolidated page seeding into existing `seed_master_data.exs` migration (proper dependency order)
+  - Added check pages == 604 to master data health check
+  - `mix test` reports all 137 tests
 
 

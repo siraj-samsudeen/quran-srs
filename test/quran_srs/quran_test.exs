@@ -12,7 +12,7 @@ defmodule QuranSrs.QuranTest do
 
     test "list_mushafs/0 returns all mushafs" do
       mushaf = mushaf_fixture()
-      # Test that fixture is included in list (master data from migrations also present)
+      # Master data from migrations also present
       assert mushaf in Quran.list_mushafs()
     end
 
@@ -69,7 +69,7 @@ defmodule QuranSrs.QuranTest do
 
     test "list_surahs/0 returns all surahs" do
       surah = surah_fixture()
-      # Test that fixture is included in list (master data from migrations also present)
+      # Master data from migrations also present
       assert surah in Quran.list_surahs()
     end
 
@@ -116,6 +116,65 @@ defmodule QuranSrs.QuranTest do
     test "change_surah/1 returns a surah changeset" do
       surah = surah_fixture()
       assert %Ecto.Changeset{} = Quran.change_surah(surah)
+    end
+  end
+
+  describe "pages" do
+    alias QuranSrs.Quran.Page
+
+    import QuranSrs.QuranFixtures
+
+    @invalid_attrs %{page_number: nil, juz_number: nil, start_text: nil}
+
+    test "list_pages/0 returns all pages" do
+      page = page_fixture()
+      # Master data from migrations also present
+      assert page in Quran.list_pages()
+    end
+
+    test "get_page!/1 returns the page with given id" do
+      page = page_fixture()
+      assert Quran.get_page!(page.id) == page
+    end
+
+    test "create_page/1 with valid data creates a page" do
+      valid_attrs = %{page_number: 42, juz_number: 42, start_text: "some start_text", mushaf_id: 1}
+
+      assert {:ok, %Page{} = page} = Quran.create_page(valid_attrs)
+      assert page.page_number == 42
+      assert page.juz_number == 42
+      assert page.start_text == "some start_text"
+    end
+
+    test "create_page/1 with invalid data returns error changeset" do
+      assert {:error, %Ecto.Changeset{}} = Quran.create_page(@invalid_attrs)
+    end
+
+    test "update_page/2 with valid data updates the page" do
+      page = page_fixture()
+      update_attrs = %{page_number: 43, juz_number: 43, start_text: "some updated start_text"}
+
+      assert {:ok, %Page{} = page} = Quran.update_page(page, update_attrs)
+      assert page.page_number == 43
+      assert page.juz_number == 43
+      assert page.start_text == "some updated start_text"
+    end
+
+    test "update_page/2 with invalid data returns error changeset" do
+      page = page_fixture()
+      assert {:error, %Ecto.Changeset{}} = Quran.update_page(page, @invalid_attrs)
+      assert page == Quran.get_page!(page.id)
+    end
+
+    test "delete_page/1 deletes the page" do
+      page = page_fixture()
+      assert {:ok, %Page{}} = Quran.delete_page(page)
+      assert_raise Ecto.NoResultsError, fn -> Quran.get_page!(page.id) end
+    end
+
+    test "change_page/1 returns a page changeset" do
+      page = page_fixture()
+      assert %Ecto.Changeset{} = Quran.change_page(page)
     end
   end
 end

@@ -31,6 +31,11 @@ defmodule QuranSrsWeb.Router do
     live "/surahs/new", SurahLive.Form, :new
     live "/surahs/:id", SurahLive.Show, :show
     live "/surahs/:id/edit", SurahLive.Form, :edit
+    
+    live "/mushafs/:mushaf_id/pages", PageLive.Index, :index
+    live "/mushafs/:mushaf_id/pages/new", PageLive.Form, :new
+    live "/mushafs/:mushaf_id/pages/:id", PageLive.Show, :show
+    live "/mushafs/:mushaf_id/pages/:id/edit", PageLive.Form, :edit
   end
 
   # Other scopes may use custom stacks.
