@@ -145,6 +145,7 @@ defmodule QuranSrsWeb.CoreComponents do
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
+  attr :help, :string, default: nil, doc: "help text to display below the input"
   attr :value, :any
 
   attr :type, :string,
@@ -221,6 +222,7 @@ defmodule QuranSrsWeb.CoreComponents do
           {Phoenix.HTML.Form.options_for_select(@options, @value)}
         </select>
       </label>
+      <div :if={@help} class="text-sm text-gray-600 mt-1">{@help}</div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -241,6 +243,7 @@ defmodule QuranSrsWeb.CoreComponents do
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
+      <div :if={@help} class="text-sm text-gray-600 mt-1">{@help}</div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -264,6 +267,7 @@ defmodule QuranSrsWeb.CoreComponents do
           {@rest}
         />
       </label>
+      <div :if={@help} class="text-sm text-gray-600 mt-1">{@help}</div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """

@@ -14,10 +14,38 @@ defmodule QuranSrsWeb.AyahLive.Form do
       </.header>
 
       <.form for={@form} id="ayah-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:surah_id]} type="select" label="Surah" options={@surah_options} />
-        <.input field={@form[:ayah_ref]} type="text" label="Ayah ref" />
-        <.input field={@form[:ayah_number]} type="number" label="Ayah number" />
-        <.input field={@form[:text_arabic]} type="textarea" label="Text arabic" />
+        <.input
+          field={@form[:surah_id]}
+          type="select"
+          label="Surah"
+          options={@surah_options}
+          prompt="Select a surah"
+          help="Select the surah (chapter) this verse belongs to"
+        />
+
+        <.input
+          field={@form[:ayah_ref]}
+          type="text"
+          label="Ayah Reference"
+          placeholder="2:255"
+          help="Format: surah:ayah (e.g. 2:255 for Ayat Al-Kursi)"
+        />
+
+        <.input
+          field={@form[:ayah_number]}
+          type="number"
+          label="Ayah Number"
+          placeholder="1-286"
+          help="Verse number within the selected surah"
+        />
+
+        <.input
+          field={@form[:text_arabic]}
+          type="textarea"
+          label="Arabic Text"
+          placeholder="اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ..."
+          rows="4"
+        />
         <footer>
           <.button phx-disable-with="Saving..." variant="primary">Save Ayah</.button>
           <.button navigate={return_path(@return_to, @ayah)}>Cancel</.button>

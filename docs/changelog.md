@@ -68,5 +68,11 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Updated LiveView show to display surah details
   - Fixed test fixtures to create surah and include surah_id
   - Updated test assertions to handle preloaded associations (can't use == comparison)
-  - Documented Phoenix FK fix pattern in CLAUDE.md for future generators 
+  - Documented Phoenix FK fix pattern in CLAUDE.md for future generators
+- feature: Add help text support to input components
+  - Added `help` attribute to core input component
+  - Displays helpful guidance below input fields
+  - Applied to all input types (text, select, textarea)
+  - Updated Ayah form with helpful examples and format guidance
+  - Help text shows in gray, errors show below in red (no conflict) 
 
