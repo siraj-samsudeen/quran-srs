@@ -650,6 +650,16 @@ def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=No
             hafizs_items.update({"status_id": 4, "mode_id": 2}, hafiz_items_data.id)
         else:
             hafizs_items.update({"status_id": 6, "mode_id": 1}, hafiz_items_data.id)
+    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current interval
+    # normally, the mode_id indicates the mode from the hafiz_items which is the current mode of the page
+    # but in full-cycle mode, we get mode_id as 1 - hence we need to query hafiz_items to see whether this page is in SRS mode
+    elif mode_id == 1:
+        hafiz_items_data = get_hafizs_items(item_id)
+        if hafiz_items_data.mode_id == 5:
+            hafiz_items_data.next_review = add_days_to_date(
+                date, hafiz_items_data.next_interval
+            )
+            hafizs_items.update(hafiz_items_data)
     else:
         # Update the review dates based on the mode -> Recent Review should increment by one and Watch List should increment by 7
         update_review_dates(item_id, mode_id)
