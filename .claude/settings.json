@@ -1,8 +1,6 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      // MCP Tools - Serena (File & Symbol Management)
       "mcp__serena__initial_instructions",
       "mcp__serena__check_onboarding_performed",
       "mcp__serena__onboarding",
@@ -18,11 +16,9 @@
       "mcp__serena__replace_symbol_body",
       "mcp__serena__find_file",
 
-      // MCP Tools - Context7 (Documentation)
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
 
-      // MCP Tools - Playwright (Browser Automation)
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_click",
@@ -31,12 +27,10 @@
       "mcp__playwright__browser_press_key",
       "mcp__playwright__browser_close",
 
-      // MCP Tools - Tidewave (Project Management)
       "mcp__tidewave__get_logs",
       "mcp__tidewave__project_eval",
       "mcp__tidewave__get_docs",
 
-      // Mix - Core Development
       "Bash(mix test:*)",
       "Bash(mix compile)",
       "Bash(mix run:*)",
@@ -44,14 +38,12 @@
       "Bash(mix help:*)",
       "Bash(mix:*)",
 
-      // Mix - Dependencies
       "Bash(mix deps.get:*)",
       "Bash(mix deps.update:*)",
       "Bash(mix deps.compile:*)",
       "Bash(mix archive.install:*)",
       "Bash(mix archive.uninstall:*)",
 
-      // Mix - Database (Ecto)
       "Bash(mix ecto.create:*)",
       "Bash(mix ecto.drop:*)",
       "Bash(mix ecto.migrate:*)",
@@ -59,7 +51,6 @@
       "Bash(mix ecto.gen.migration:*)",
       "Bash(mix ecto.reset:*)",
 
-      // Mix - Phoenix Generators
       "Bash(mix phx.new:*)",
       "Bash(mix phx.server:*)",
       "Bash(mix phx.gen.live:*)",
@@ -67,7 +58,6 @@
       "Bash(mix phx.gen.auth:*)",
       "Bash(mix phx.server &)",
 
-      // System Commands
       "Bash(pkill:*)",
       "Bash(curl:*)",
       "Bash(psql:*)",
@@ -75,7 +65,6 @@
       "Bash(echo $TERM)",
       "Bash(printf:*)",
 
-      // Web Fetching
       "WebFetch(domain:hexdocs.pm)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:localhost)"
