@@ -74,5 +74,7 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Displays helpful guidance below input fields
   - Applied to all input types (text, select, textarea)
   - Updated Ayah form with helpful examples and format guidance
-  - Help text shows in gray, errors show below in red (no conflict) 
+  - Help text shows in gray, errors show below in red (no conflict)
+- feature: Generate Item CRUD
+  - using `mix phx.gen.live` as per data model
 

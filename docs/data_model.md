@@ -18,39 +18,32 @@
 
 ## Master Data Tables
 
+**Note**: All tables include auto-generated fields: `id` (primary key), `inserted_at`, and `updated_at` timestamps.
+
 ### mushafs
 ```
 mushafs:
-  id (PK, integer)
   name (string)
   description (text)
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
 ```
 Stores different Quran layout editions. A mushaf defines how the Quran text is divided into pages (15 lines, 13 lines, etc).
 
 ### surahs
 ```
 surahs:
-  id (PK, integer)
   number (integer)           # 1-114
   name (string)             # Surah name
   total_ayat (integer)      # Total verses in surah
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
 ```
 Stores the 114 universal surahs of the Quran. Surahs exist independently of any mushaf layout.
 
 ### pages
 ```
 pages:
-  id (PK, integer)
   page_number (integer)     # 1-604 (for 15-line mushafs)
   juz_number (integer)      # 1-30 (Para/Juz - 20 pages each)
   start_text (text)         # First words on page for identification
   mushaf_id (FK -> mushafs) # REQUIRED - pages are mushaf-specific
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
 ```
 Stores pages within each mushaf. Page count varies by mushaf layout (604 for 15-line mushafs).
 
@@ -65,50 +58,38 @@ Stores pages within each mushaf. Page count varies by mushaf layout (604 for 15-
 ### ayahs
 ```
 ayahs:
-  id (PK, integer)
   ayah_ref (string, unique)    # e.g., "1:1", "2:255"
   ayah_number (integer)         # Verse number within surah
   text_arabic (text)            # Arabic text of the ayah
   surah_id (FK -> surahs)
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
 ```
 Stores individual verses with unique reference format and Arabic text.
 
 ### items
 ```
 items:
-  id (PK, integer)
-  
-  # Type and scope
+  # Core fields (used by all items)
   item_type (string)            # "page", "partial_page", "surah", "ayah_range"
-  standard (boolean, default: true)  # True for system items, False for user-created
+  title (string)                # Display title
+  start_text (text)             # First words for identification
   
-  # Relationships (NO mushaf_id - see architecture notes above)
+  # Primary relationships (most commonly used)
   page_id (FK -> pages)         # For page/partial_page items (carries mushaf context)
   surah_id (FK -> surahs)       # For surah items AND partial_page (which surah it belongs to)
-  start_ayah_id (FK -> ayahs)   # For ayah_range items
-  end_ayah_id (FK -> ayahs)     # For ayah_range items  
-  end_page_id (FK -> pages)     # For items spanning multiple pages
   
-  # Range boundaries
+  # Partial page fields (frequently used for page-parts)
   start_line (integer)          # For partial pages (e.g., 1 from "1-5")
   end_line (integer)            # For partial pages (e.g., 5 from "1-5")
   part_number (integer)         # For partial pages ordering (1, 2, 3)
   part_title (string)           # Optional text e.g. "Surah Nisa End"
   
-  # Text markers
-  start_text (text)             # First words for identification
-  
-  # Metadata
-  title (string)                # Display title
+  # Rarely used fields
+  start_ayah_id (FK -> ayahs)   # For ayah_range items
+  end_ayah_id (FK -> ayahs)     # For ayah_range items  
+  end_page_id (FK -> pages)     # For items spanning multiple pages
+  end_surah_id (FK -> surahs)   # For pages with 2 surahs (e.g., pg. 106)
   tags (array of strings)       # For categorization
-  
-  # Ownership
-  created_by_user_id (FK -> users)  # For user-created items (standard=false)
-  
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
+  created_by (FK -> users)      # NULL for system items, user_id for user-created items
 ```
 
 **Item Type Requirements:**
@@ -122,25 +103,20 @@ items:
 ### users
 ```
 users:
-  id (PK, integer)
   email (citext, unique)       # Case-insensitive email
   hashed_password (string)
   confirmed_at (utc_datetime)  # Email confirmation timestamp
-  inserted_at (utc_datetime)
-  updated_at (utc_datetime)
 ```
 User accounts with email-based authentication.
 
 ### users_tokens
 ```
 users_tokens:
-  id (PK, integer)
   user_id (FK -> users, on_delete: cascade)
   token (binary)
   context (string)             # "session", "confirm", "reset_password"
   sent_to (string)             # Email address where token was sent
   authenticated_at (utc_datetime)
-  inserted_at (utc_datetime)
 ```
 Manages authentication tokens for sessions, email confirmation, and password resets.
 
@@ -279,7 +255,8 @@ plans (many) → plan_items (many) → items
 - `item_type = "surah"`: requires `surah_id`, `page_id` (starting page)
 - `item_type = "ayah_range"`: requires `start_ayah_id`, optional `end_ayah_id`
 - `item_type = "custom"`: requires `page_id` (starting page)
-- `scope = "user"`: requires `created_by_user_id`
+- User-created items: `created_by` is not null
+- System items: `created_by` is null
 
 #### Item Type Examples
 
@@ -330,7 +307,7 @@ surah_id: 49, item_type: "surah", title: "Al-Hujurat"
 
 
 # User creates custom trouble spot:
-{id: 1001, item_type: "partial_page", scope: "user", page_id: 106, created_by_user_id: 123, start_line: 3, end_line: 5, title: "Difficult verses"}
+{id: 1001, item_type: "partial_page", scope: "user", page_id: 106, created_by: 123, start_line: 3, end_line: 5, title: "Difficult verses"}
 
 ### Days journey
 

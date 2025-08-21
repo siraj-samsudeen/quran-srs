@@ -12,7 +12,8 @@
   - [x] Generate Ayah CRUD with LiveView
   - [x] Fix Ayah FK relationships (surah_id)
   - [ ] Seed Ayah data
-  - [ ] Generate Item CRUD with LiveView and relationships
+  - [x] Generate Item CRUD with LiveView and relationships
+  - [ ] Fix Item FK relationships (multiple FKs)
   - [ ] Seed Item data
 - Migrate master data from FastHTML project using CSVs
 - Create Learner tables (hafiz, hafiz_item)

@@ -75,4 +75,25 @@ defmodule QuranSrs.QuranFixtures do
 
     ayah
   end
+
+  @doc """
+  Generate a item.
+  """
+  def item_fixture(attrs \\ %{}) do
+    {:ok, item} =
+      attrs
+      |> Enum.into(%{
+        end_line: 42,
+        item_type: "some item_type",
+        part_number: 42,
+        part_title: "some part_title",
+        start_line: 42,
+        start_text: "some start_text",
+        tags: ["option1", "option2"],
+        title: "some title"
+      })
+      |> QuranSrs.Quran.create_item()
+
+    item
+  end
 end

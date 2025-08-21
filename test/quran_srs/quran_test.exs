@@ -253,4 +253,72 @@ defmodule QuranSrs.QuranTest do
       assert %Ecto.Changeset{} = Quran.change_ayah(ayah)
     end
   end
+
+  describe "items" do
+    alias QuranSrs.Quran.Item
+
+    import QuranSrs.QuranFixtures
+
+    @invalid_attrs %{title: nil, end_line: nil, item_type: nil, start_text: nil, start_line: nil, part_number: nil, part_title: nil, tags: nil}
+
+    test "list_items/0 returns all items" do
+      item = item_fixture()
+      assert Quran.list_items() == [item]
+    end
+
+    test "get_item!/1 returns the item with given id" do
+      item = item_fixture()
+      assert Quran.get_item!(item.id) == item
+    end
+
+    test "create_item/1 with valid data creates a item" do
+      valid_attrs = %{title: "some title", end_line: 42, item_type: "some item_type", start_text: "some start_text", start_line: 42, part_number: 42, part_title: "some part_title", tags: ["option1", "option2"]}
+
+      assert {:ok, %Item{} = item} = Quran.create_item(valid_attrs)
+      assert item.title == "some title"
+      assert item.end_line == 42
+      assert item.item_type == "some item_type"
+      assert item.start_text == "some start_text"
+      assert item.start_line == 42
+      assert item.part_number == 42
+      assert item.part_title == "some part_title"
+      assert item.tags == ["option1", "option2"]
+    end
+
+    test "create_item/1 with invalid data returns error changeset" do
+      assert {:error, %Ecto.Changeset{}} = Quran.create_item(@invalid_attrs)
+    end
+
+    test "update_item/2 with valid data updates the item" do
+      item = item_fixture()
+      update_attrs = %{title: "some updated title", end_line: 43, item_type: "some updated item_type", start_text: "some updated start_text", start_line: 43, part_number: 43, part_title: "some updated part_title", tags: ["option1"]}
+
+      assert {:ok, %Item{} = item} = Quran.update_item(item, update_attrs)
+      assert item.title == "some updated title"
+      assert item.end_line == 43
+      assert item.item_type == "some updated item_type"
+      assert item.start_text == "some updated start_text"
+      assert item.start_line == 43
+      assert item.part_number == 43
+      assert item.part_title == "some updated part_title"
+      assert item.tags == ["option1"]
+    end
+
+    test "update_item/2 with invalid data returns error changeset" do
+      item = item_fixture()
+      assert {:error, %Ecto.Changeset{}} = Quran.update_item(item, @invalid_attrs)
+      assert item == Quran.get_item!(item.id)
+    end
+
+    test "delete_item/1 deletes the item" do
+      item = item_fixture()
+      assert {:ok, %Item{}} = Quran.delete_item(item)
+      assert_raise Ecto.NoResultsError, fn -> Quran.get_item!(item.id) end
+    end
+
+    test "change_item/1 returns a item changeset" do
+      item = item_fixture()
+      assert %Ecto.Changeset{} = Quran.change_item(item)
+    end
+  end
 end
