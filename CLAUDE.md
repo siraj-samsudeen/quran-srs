@@ -313,3 +313,49 @@ Use domain-driven contexts for this project:
 - Generate under appropriate context from the start
 - Add indexes and validations after initial generation
 - Consider relationships when choosing generation order (generate referenced tables first)
+
+### Phoenix Generator Foreign Key Fix Pattern
+
+**Problem**: When using `mix phx.gen.live` with `:references`, the generator doesn't fully set up foreign key relationships.
+
+**Quick Fix Checklist**:
+1. **Schema**: Change `field :field_id, :id` → `belongs_to :field, Module` (with alias)
+2. **Changeset**: Add FK to both `cast` and `validate_required` 
+3. **Context list/get**: Add `|> preload(:association)` to queries
+4. **Context helper**: Add `list_field_options` returning `[{"Label", id}, ...]`
+5. **Form**: Add `<.input field={@form[:field_id]} type="select" options={@field_options} />`
+6. **Form mount**: Load options with `assign(:field_options, Context.list_field_options())`
+7. **Index**: Show `{item.association.name}` instead of ID
+8. **Show**: Display association details
+9. **Test fixtures**: Include FK in fixture (create associated record first)
+10. **Test assertions**: Compare individual fields instead of full structs (preloading breaks `==`)
+
+**Example for Ayah with Surah FK**:
+```elixir
+# Schema fix
+alias QuranSrs.Quran.Surah
+belongs_to :surah, Surah
+
+# Changeset fix  
+|> cast(attrs, [:ayah_ref, :ayah_number, :text_arabic, :surah_id])
+|> validate_required([:ayah_ref, :ayah_number, :text_arabic, :surah_id])
+
+# Context preload
+Ayah |> preload(:surah) |> Repo.all()
+
+# Context options helper
+def list_surah_options do
+  Surah
+  |> select([s], {s.number, s.name, s.id})
+  |> order_by([s], s.number)
+  |> Repo.all()
+  |> Enum.map(fn {number, name, id} -> {"#{number}. #{name}", id} end)
+end
+
+# Test fix (can't use == with preloaded associations)
+fetched = Context.get_item!(item.id)
+assert fetched.id == item.id
+assert fetched.field == item.field
+```
+- before you write any code, always check AGENTS.md
+- update changelog.md and plan.md when you finish the task

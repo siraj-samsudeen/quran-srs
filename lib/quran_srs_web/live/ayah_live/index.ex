@@ -21,6 +21,7 @@ defmodule QuranSrsWeb.AyahLive.Index do
         rows={@streams.ayahs}
         row_click={fn {_id, ayah} -> JS.navigate(~p"/ayahs/#{ayah}") end}
       >
+        <:col :let={{_id, ayah}} label="Surah">{ayah.surah.number}. {ayah.surah.name}</:col>
         <:col :let={{_id, ayah}} label="Ayah ref">{ayah.ayah_ref}</:col>
         <:col :let={{_id, ayah}} label="Ayah number">{ayah.ayah_number}</:col>
         <:col :let={{_id, ayah}} label="Text arabic">{ayah.text_arabic}</:col>

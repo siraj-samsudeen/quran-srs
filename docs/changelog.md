@@ -58,4 +58,15 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
 - feature: Generate Ayah CRUD
   - using `mix phx.gen.live Quran Ayah ayahs ayah_ref:unique ayah_number:integer text_arabic:text surah_id:references:surahs --no-scope`
   - this does NOT create the FK fields properly and liveviews do not have a way to select the FK field
+- fix: Complete Ayah FK handling for Surah relationship
+  - Fixed schema: changed `field :surah_id, :id` to `belongs_to :surah, Surah`
+  - Updated changeset to include surah_id in cast and validate_required
+  - Added preloading to list_ayahs/0 and get_ayah!/1 context functions
+  - Created list_surah_options/0 helper for dropdown (shows "1. Al-Fatihah" format)
+  - Updated LiveView form to include surah select dropdown
+  - Fixed LiveView index to display surah name instead of ID
+  - Updated LiveView show to display surah details
+  - Fixed test fixtures to create surah and include surah_id
+  - Updated test assertions to handle preloaded associations (can't use == comparison)
+  - Documented Phoenix FK fix pattern in CLAUDE.md for future generators 
 

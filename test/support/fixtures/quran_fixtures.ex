@@ -61,12 +61,15 @@ defmodule QuranSrs.QuranFixtures do
   Generate a ayah.
   """
   def ayah_fixture(attrs \\ %{}) do
+    surah = attrs[:surah] || surah_fixture()
+    
     {:ok, ayah} =
       attrs
       |> Enum.into(%{
         ayah_number: 42,
         ayah_ref: unique_ayah_ayah_ref(),
-        text_arabic: "some text_arabic"
+        text_arabic: "some text_arabic",
+        surah_id: surah.id
       })
       |> QuranSrs.Quran.create_ayah()
 

@@ -313,7 +313,9 @@ defmodule QuranSrs.Quran do
 
   """
   def list_ayahs do
-    Repo.all(Ayah)
+    Ayah
+    |> preload(:surah)
+    |> Repo.all()
   end
 
   @doc """
@@ -330,7 +332,11 @@ defmodule QuranSrs.Quran do
       ** (Ecto.NoResultsError)
 
   """
-  def get_ayah!(id), do: Repo.get!(Ayah, id)
+  def get_ayah!(id) do
+    Ayah
+    |> preload(:surah)
+    |> Repo.get!(id)
+  end
 
   @doc """
   Creates a ayah.
@@ -395,5 +401,24 @@ defmodule QuranSrs.Quran do
   """
   def change_ayah(%Ayah{} = ayah, attrs \\ %{}) do
     Ayah.changeset(ayah, attrs)
+  end
+
+  @doc """
+  Returns a list of surahs for select options with number and name.
+
+  ## Examples
+
+      iex> list_surah_options()
+      [{"1. Al-Fatihah", 1}, {"2. Al-Baqarah", 2}, ...]
+
+  """
+  def list_surah_options do
+    Surah
+    |> select([s], {s.number, s.name, s.id})
+    |> order_by([s], s.number)
+    |> Repo.all()
+    |> Enum.map(fn {number, name, id} -> 
+      {"#{number}. #{name}", id}
+    end)
   end
 end

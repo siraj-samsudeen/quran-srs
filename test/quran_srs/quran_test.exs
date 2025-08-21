@@ -187,21 +187,35 @@ defmodule QuranSrs.QuranTest do
 
     test "list_ayahs/0 returns all ayahs" do
       ayah = ayah_fixture()
-      assert Quran.list_ayahs() == [ayah]
+      ayahs = Quran.list_ayahs()
+      
+      # Can't use == comparison because list_ayahs/0 preloads :surah association
+      assert length(ayahs) == 1
+      [fetched_ayah] = ayahs
+      assert fetched_ayah.id == ayah.id
+      assert fetched_ayah.ayah_ref == ayah.ayah_ref
     end
 
     test "get_ayah!/1 returns the ayah with given id" do
       ayah = ayah_fixture()
-      assert Quran.get_ayah!(ayah.id) == ayah
+      fetched_ayah = Quran.get_ayah!(ayah.id)
+      
+      # Can't use == comparison because get_ayah!/1 preloads :surah association
+      # while the fixture returns ayah without preloaded associations
+      assert fetched_ayah.id == ayah.id
+      assert fetched_ayah.ayah_ref == ayah.ayah_ref
+      assert fetched_ayah.surah_id == ayah.surah_id
     end
 
     test "create_ayah/1 with valid data creates a ayah" do
-      valid_attrs = %{ayah_ref: "some ayah_ref", ayah_number: 42, text_arabic: "some text_arabic"}
+      surah = surah_fixture()
+      valid_attrs = %{ayah_ref: "some ayah_ref", ayah_number: 42, text_arabic: "some text_arabic", surah_id: surah.id}
 
       assert {:ok, %Ayah{} = ayah} = Quran.create_ayah(valid_attrs)
       assert ayah.ayah_ref == "some ayah_ref"
       assert ayah.ayah_number == 42
       assert ayah.text_arabic == "some text_arabic"
+      assert ayah.surah_id == surah.id
     end
 
     test "create_ayah/1 with invalid data returns error changeset" do
@@ -221,7 +235,11 @@ defmodule QuranSrs.QuranTest do
     test "update_ayah/2 with invalid data returns error changeset" do
       ayah = ayah_fixture()
       assert {:error, %Ecto.Changeset{}} = Quran.update_ayah(ayah, @invalid_attrs)
-      assert ayah == Quran.get_ayah!(ayah.id)
+      
+      # Verify the ayah wasn't changed in the database
+      fetched_ayah = Quran.get_ayah!(ayah.id)
+      assert fetched_ayah.ayah_ref == ayah.ayah_ref
+      assert fetched_ayah.ayah_number == ayah.ayah_number
     end
 
     test "delete_ayah/1 deletes the ayah" do

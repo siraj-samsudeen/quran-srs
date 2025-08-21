@@ -21,6 +21,7 @@ defmodule QuranSrsWeb.AyahLive.Show do
       </.header>
 
       <.list>
+        <:item title="Surah">{@ayah.surah.number}. {@ayah.surah.name}</:item>
         <:item title="Ayah ref">{@ayah.ayah_ref}</:item>
         <:item title="Ayah number">{@ayah.ayah_number}</:item>
         <:item title="Text arabic">{@ayah.text_arabic}</:item>

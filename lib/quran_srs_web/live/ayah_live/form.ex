@@ -14,6 +14,7 @@ defmodule QuranSrsWeb.AyahLive.Form do
       </.header>
 
       <.form for={@form} id="ayah-form" phx-change="validate" phx-submit="save">
+        <.input field={@form[:surah_id]} type="select" label="Surah" options={@surah_options} />
         <.input field={@form[:ayah_ref]} type="text" label="Ayah ref" />
         <.input field={@form[:ayah_number]} type="number" label="Ayah number" />
         <.input field={@form[:text_arabic]} type="textarea" label="Text arabic" />
@@ -44,6 +45,7 @@ defmodule QuranSrsWeb.AyahLive.Form do
     |> assign(:page_title, "Edit Ayah")
     |> assign(:ayah, ayah)
     |> assign(:form, to_form(Quran.change_ayah(ayah)))
+    |> assign(:surah_options, Quran.list_surah_options())
   end
 
   defp apply_action(socket, :new, _params) do
@@ -53,6 +55,7 @@ defmodule QuranSrsWeb.AyahLive.Form do
     |> assign(:page_title, "New Ayah")
     |> assign(:ayah, ayah)
     |> assign(:form, to_form(Quran.change_ayah(ayah)))
+    |> assign(:surah_options, Quran.list_surah_options())
   end
 
   @impl true
