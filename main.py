@@ -883,6 +883,14 @@ def make_summary_table(
             )
         )
 
+    def has_revisions_today(item: dict) -> bool:
+        """Check if item has revisions for current mode today."""
+        return bool(
+            revisions(
+                where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']} AND revision_date = '{current_date}'"
+            )
+        )
+
     def has_newly_memorized_for_today(item: dict) -> bool:
         newly_memorized_record = revisions(
             where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
@@ -913,9 +921,7 @@ def make_summary_table(
                 )
             )
         ),
-        "srs": lambda item: (
-            is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
-        ),
+        "srs": lambda item: (is_review_due(item) or has_revisions_today(item)),
         "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
