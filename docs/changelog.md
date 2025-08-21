@@ -55,5 +55,7 @@ and [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
   - Consolidated page seeding into existing `seed_master_data.exs` migration (proper dependency order)
   - Added check pages == 604 to master data health check
   - `mix test` reports all 137 tests
-
+- feature: Generate Ayah CRUD
+  - using `mix phx.gen.live Quran Ayah ayahs ayah_ref:unique ayah_number:integer text_arabic:text surah_id:references:surahs --no-scope`
+  - this does NOT create the FK fields properly and liveviews do not have a way to select the FK field
 

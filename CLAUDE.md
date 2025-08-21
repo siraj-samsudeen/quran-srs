@@ -259,3 +259,57 @@ Following the plan.md todo list:
 - **Functional over imperative**: Prefer pipelines and functional composition
 - **Production-ready patterns**: Think about deployment and scalability from start
 - **Clean abstractions**: Extract helpers when patterns will be repeated
+
+## PHOENIX ARCHITECTURE LEARNINGS
+
+### Context Design Philosophy
+- **Contexts are business boundaries**, not table/schema groupings
+- **Contexts group related business logic**, not just CRUD operations
+- **If schemas frequently query each other**, they belong in the same context
+- **If they share business rules**, they belong in the same context
+
+### Quran SRS Context Structure
+Use domain-driven contexts for this project:
+
+**Quran Context** - Core Quran structure and memorization units:
+- `Quran.Mushaf` - Different Quran layouts (15-line, 13-line, etc.)
+- `Quran.Surah` - The 114 universal surahs
+- `Quran.Page` - Pages within each mushaf (mushaf-dependent)
+- `Quran.Ayah` - Individual verses
+- `Quran.Item` - Memorization units (pages, partial pages, surahs, ayah ranges)
+
+**Accounts Context** - User management and authentication:
+- `Accounts.User` - User accounts
+- `Accounts.UserToken` - Auth tokens
+
+**Learning Context** (future) - Memorization tracking:
+- `Learning.Hafiz` - Memorization profiles
+- `Learning.HafizItem` - Progress tracking
+- `Learning.Revision` - Review history
+- `Learning.Plan` - Memorization plans
+
+### Data Architecture Insights
+
+#### Mushaf-Page-Surah Relationship
+- **Mushafs are layout systems**, not content variations
+- **Surahs are mushaf-independent** - 114 universal surahs across all mushafs
+- **Pages are mushaf-dependent** - cannot exist without mushaf context
+- **Items get mushaf context through pages** when relevant (no direct mushaf_id needed)
+
+#### Juz (Para) System
+- Quran divided into 30 Juz for monthly completion
+- Each Juz = ~20 pages (except Juz 30 with 23 pages)
+- Juz 1: Pages 1-21, Juz 2: Pages 22-41, etc.
+- Page-based but consistent across similar mushafs
+
+#### Item Design Decisions
+- **No mushaf_id in items table** - gets context through page_id when needed
+- **Surah items don't need page_id** - they're mushaf-independent
+- **Partial pages need surah_id** - to identify which surah the partial belongs to
+- **Standard vs user items** - boolean flag instead of scope field
+
+### Generator Best Practices
+- Use `--no-scope` flag for system-wide master data (no user scoping)
+- Generate under appropriate context from the start
+- Add indexes and validations after initial generation
+- Consider relationships when choosing generation order (generate referenced tables first)

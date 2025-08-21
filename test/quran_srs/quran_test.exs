@@ -177,4 +177,62 @@ defmodule QuranSrs.QuranTest do
       assert %Ecto.Changeset{} = Quran.change_page(page)
     end
   end
+
+  describe "ayahs" do
+    alias QuranSrs.Quran.Ayah
+
+    import QuranSrs.QuranFixtures
+
+    @invalid_attrs %{ayah_ref: nil, ayah_number: nil, text_arabic: nil}
+
+    test "list_ayahs/0 returns all ayahs" do
+      ayah = ayah_fixture()
+      assert Quran.list_ayahs() == [ayah]
+    end
+
+    test "get_ayah!/1 returns the ayah with given id" do
+      ayah = ayah_fixture()
+      assert Quran.get_ayah!(ayah.id) == ayah
+    end
+
+    test "create_ayah/1 with valid data creates a ayah" do
+      valid_attrs = %{ayah_ref: "some ayah_ref", ayah_number: 42, text_arabic: "some text_arabic"}
+
+      assert {:ok, %Ayah{} = ayah} = Quran.create_ayah(valid_attrs)
+      assert ayah.ayah_ref == "some ayah_ref"
+      assert ayah.ayah_number == 42
+      assert ayah.text_arabic == "some text_arabic"
+    end
+
+    test "create_ayah/1 with invalid data returns error changeset" do
+      assert {:error, %Ecto.Changeset{}} = Quran.create_ayah(@invalid_attrs)
+    end
+
+    test "update_ayah/2 with valid data updates the ayah" do
+      ayah = ayah_fixture()
+      update_attrs = %{ayah_ref: "some updated ayah_ref", ayah_number: 43, text_arabic: "some updated text_arabic"}
+
+      assert {:ok, %Ayah{} = ayah} = Quran.update_ayah(ayah, update_attrs)
+      assert ayah.ayah_ref == "some updated ayah_ref"
+      assert ayah.ayah_number == 43
+      assert ayah.text_arabic == "some updated text_arabic"
+    end
+
+    test "update_ayah/2 with invalid data returns error changeset" do
+      ayah = ayah_fixture()
+      assert {:error, %Ecto.Changeset{}} = Quran.update_ayah(ayah, @invalid_attrs)
+      assert ayah == Quran.get_ayah!(ayah.id)
+    end
+
+    test "delete_ayah/1 deletes the ayah" do
+      ayah = ayah_fixture()
+      assert {:ok, %Ayah{}} = Quran.delete_ayah(ayah)
+      assert_raise Ecto.NoResultsError, fn -> Quran.get_ayah!(ayah.id) end
+    end
+
+    test "change_ayah/1 returns a ayah changeset" do
+      ayah = ayah_fixture()
+      assert %Ecto.Changeset{} = Quran.change_ayah(ayah)
+    end
+  end
 end

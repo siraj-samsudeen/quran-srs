@@ -51,4 +51,25 @@ defmodule QuranSrs.QuranFixtures do
 
     page
   end
+
+  @doc """
+  Generate a unique ayah ayah_ref.
+  """
+  def unique_ayah_ayah_ref, do: "some ayah_ref#{System.unique_integer([:positive])}"
+
+  @doc """
+  Generate a ayah.
+  """
+  def ayah_fixture(attrs \\ %{}) do
+    {:ok, ayah} =
+      attrs
+      |> Enum.into(%{
+        ayah_number: 42,
+        ayah_ref: unique_ayah_ayah_ref(),
+        text_arabic: "some text_arabic"
+      })
+      |> QuranSrs.Quran.create_ayah()
+
+    ayah
+  end
 end

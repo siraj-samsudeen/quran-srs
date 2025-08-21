@@ -300,4 +300,100 @@ defmodule QuranSrs.Quran do
   def change_page(%Page{} = page, attrs \\ %{}) do
     Page.changeset(page, attrs)
   end
+
+  alias QuranSrs.Quran.Ayah
+
+  @doc """
+  Returns the list of ayahs.
+
+  ## Examples
+
+      iex> list_ayahs()
+      [%Ayah{}, ...]
+
+  """
+  def list_ayahs do
+    Repo.all(Ayah)
+  end
+
+  @doc """
+  Gets a single ayah.
+
+  Raises `Ecto.NoResultsError` if the Ayah does not exist.
+
+  ## Examples
+
+      iex> get_ayah!(123)
+      %Ayah{}
+
+      iex> get_ayah!(456)
+      ** (Ecto.NoResultsError)
+
+  """
+  def get_ayah!(id), do: Repo.get!(Ayah, id)
+
+  @doc """
+  Creates a ayah.
+
+  ## Examples
+
+      iex> create_ayah(%{field: value})
+      {:ok, %Ayah{}}
+
+      iex> create_ayah(%{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def create_ayah(attrs) do
+    %Ayah{}
+    |> Ayah.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a ayah.
+
+  ## Examples
+
+      iex> update_ayah(ayah, %{field: new_value})
+      {:ok, %Ayah{}}
+
+      iex> update_ayah(ayah, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_ayah(%Ayah{} = ayah, attrs) do
+    ayah
+    |> Ayah.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a ayah.
+
+  ## Examples
+
+      iex> delete_ayah(ayah)
+      {:ok, %Ayah{}}
+
+      iex> delete_ayah(ayah)
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def delete_ayah(%Ayah{} = ayah) do
+    Repo.delete(ayah)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking ayah changes.
+
+  ## Examples
+
+      iex> change_ayah(ayah)
+      %Ecto.Changeset{data: %Ayah{}}
+
+  """
+  def change_ayah(%Ayah{} = ayah, attrs \\ %{}) do
+    Ayah.changeset(ayah, attrs)
+  end
 end
