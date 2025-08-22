@@ -1,5 +1,9 @@
 # Git Commit Log
 
+chore: prepare item master data from prod
+  - Took the item data for page, partial_page and surah items - 836 items
+  - Title for pages where partial_pages exist like Page 106 still carries generic title `Item 106` FIXLATER
+
 refactor: Consolidate master data into clean 2-file structure
   - Single migration for all master data schema creation
   - Single migration for seeding all master data from CSV
