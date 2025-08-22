@@ -373,3 +373,4 @@ assert fetched.field == item.field
 ```
 - before you write any code, always check AGENTS.md
 - update changelog.md and plan.md when you finish the task
+- run mix test and mix format before doing commit.

@@ -10,10 +10,12 @@ defmodule QuranSrs.Repo.Migrations.SeedMasterData do
     seed_mushafs()
     seed_surahs()
     seed_pages()
+    seed_items()
   end
 
   def down do
     # Remove master data in reverse dependency order
+    Repo.delete_all(Quran.Item)
     Repo.delete_all(Quran.Page)
     Repo.delete_all(Quran.Surah)
     Repo.delete_all(Quran.Mushaf)
@@ -42,6 +44,11 @@ defmodule QuranSrs.Repo.Migrations.SeedMasterData do
   defp seed_pages do
     load_master_data_csv("pages.csv")
     |> Enum.each(&Quran.create_page/1)
+  end
+
+  defp seed_items do
+    load_master_data_csv("items.csv")
+    |> Enum.each(&Quran.create_item/1)
   end
 
   defp load_master_data_csv(filename) do

@@ -1,5 +1,9 @@
 # Git Commit Log
 
+refactor: Consolidate all master data into single migration
+  - Merged 4 separate migrations into single create_master_data.exs
+  - Updated seed_master_data.exs migration to insert Item masterdata
+
 chore: prepare item master data from prod
   - Took the item data for page, partial_page and surah items - 836 items
   - Title for pages where partial_pages exist like Page 106 still carries generic title `Item 106` FIXLATER
