@@ -1,5 +1,10 @@
 # Git Commit Log
 
+chore: Enhanced seeds with demo user and cross-surah mutashabihat
+  - Created demo user for custom items with created_by_id relationships
+  - Added mutashabihat examples (3 types including some spanning pages)
+  - Divided Page 106 into 4 thematic parts as custom user items
+
 refactor: Consolidate all master data into single migration
   - Merged 4 separate migrations into single create_master_data.exs
   - Updated seed_master_data.exs migration to insert Item masterdata
