@@ -151,7 +151,7 @@ def bulk_edit_view(ids: str, auth):
         ),
         Button(
             "Delete",
-            hx_delete="/revision",
+            hx_delete="/revision/",
             hx_confirm="Are you sure you want to delete these revisions?",
             hx_target="body",
             hx_push_url="true",
@@ -174,7 +174,7 @@ def bulk_edit_view(ids: str, auth):
             ),
             Div(table, cls="uk-overflow-auto"),
             action_buttons,
-            action="/revision",
+            action="/revision/",
             method="POST",
         ),
         active="Revision",
@@ -204,7 +204,7 @@ async def bulk_edit_save(revision_date: str, req, auth):
                     current_date=get_current_date(auth),
                 )
 
-    return RedirectResponse("/revision", status_code=303)
+    return RedirectResponse("/revision/", status_code=303)
 
 
 def parse_page_string(page_str: str):
