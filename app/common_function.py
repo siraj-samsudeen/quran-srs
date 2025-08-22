@@ -444,7 +444,9 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
 
     intervals = get_srs_interval_list(item_id)
     previous_date = srs_start_date
-    current_interval_position = start_interval
+    # Here we are starting the recalculation from the first records last_interval
+    # as the booster pack start_interval may change in future
+    current_interval_position = items_rev_data[0].last_interval
 
     for rev in items_rev_data:
         current_revision_date = rev.revision_date
