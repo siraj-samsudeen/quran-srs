@@ -67,17 +67,31 @@ Based on [Conventional Commits](https://www.conventionalcommits.org/) and [How t
 5. Body explains what and why, not how
 6. Reference issues and PRs in footer when applicable
 
-**Plan Structure:**
-- **plan.md**: Simple todo list for coordination and task tracking
-- **changelog.md**: Document actual changes as they happen (Keep a Changelog format)
+**Documentation Structure:**
+- **plan.md**: High-level milestones and strategic phases (not detailed subtasks)
+- **commitlog.md**: Detailed implementation history with context for Claude Code (reverse chronological order - newest first)
 - **data_model.md**: Living documentation written as Phoenix schema is implemented
 - **vision.md**: Long-term system architecture and philosophy
 
-**Changelog Workflow:**
-- Update changelog AFTER commits are made, not before
-- Document noteworthy changes that impact users/developers
-- Group related commits into meaningful entries
-- Focus on business impact, not just technical details
+**Commit Workflow:**
+- Update commitlog.md with detailed implementation context (newest entries at top)
+- Format: Main commit line (no hyphen), sub-details (with hyphens and indent), blank lines between commits
+- Use commitlog entry as commit message source (remove hyphens from main line)
+- Only update plan.md when planning new high-level phases
+- commitlog.md serves as crucial context for Claude Code to understand patterns and decisions
+- commitlog.md entries must match git log exactly (verified with `git log --oneline`)
+
+**Documentation Workflow Decisions:**
+- Renamed changelog.md to commitlog.md (more accurate - tracks commits, not releases)
+- commitlog.md in reverse chronological order (newest first, like git log)
+- plan.md simplified to high-level milestones only (no detailed subtasks)
+- Reduced maintenance overhead by avoiding duplicate tracking between files
+
+**Ecto Conventions (CRITICAL):**
+- Always respect Ecto naming: `belongs_to :created_by, User` creates `created_by_id` column
+- Never fight conventions with custom foreign_key names unless absolutely necessary
+- Database columns follow `field_name_id` pattern for associations
+- Use proper associations instead of simple field references for better preloading/relationships
 
 **Task Execution Pattern:**
 1. Small step → Do → Test → Update plan & details → Commit
