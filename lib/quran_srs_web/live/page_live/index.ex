@@ -48,7 +48,7 @@ defmodule QuranSrsWeb.PageLive.Index do
     mushaf_id = String.to_integer(mushaf_id)
     mushaf = Quran.get_mushaf!(mushaf_id)
     pages = Quran.list_pages_by_mushaf(mushaf_id)
-    
+
     {:ok,
      socket
      |> assign(:page_title, "Listing Pages - #{mushaf.name}")

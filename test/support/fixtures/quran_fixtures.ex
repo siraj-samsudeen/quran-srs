@@ -62,7 +62,7 @@ defmodule QuranSrs.QuranFixtures do
   """
   def ayah_fixture(attrs \\ %{}) do
     surah = attrs[:surah] || surah_fixture()
-    
+
     {:ok, ayah} =
       attrs
       |> Enum.into(%{

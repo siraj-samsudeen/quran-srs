@@ -417,7 +417,7 @@ defmodule QuranSrs.Quran do
     |> select([s], {s.number, s.name, s.id})
     |> order_by([s], s.number)
     |> Repo.all()
-    |> Enum.map(fn {number, name, id} -> 
+    |> Enum.map(fn {number, name, id} ->
       {"#{number}. #{name}", id}
     end)
   end

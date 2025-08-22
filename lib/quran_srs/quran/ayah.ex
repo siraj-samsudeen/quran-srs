@@ -1,7 +1,7 @@
 defmodule QuranSrs.Quran.Ayah do
   use Ecto.Schema
   import Ecto.Changeset
-  
+
   alias QuranSrs.Quran.Surah
 
   schema "ayahs" do

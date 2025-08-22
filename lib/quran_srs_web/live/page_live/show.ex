@@ -14,7 +14,10 @@ defmodule QuranSrsWeb.PageLive.Show do
           <.button navigate={~p"/mushafs/#{@current_mushaf}/pages"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/mushafs/#{@current_mushaf}/pages/#{@page}/edit?return_to=show"}>
+          <.button
+            variant="primary"
+            navigate={~p"/mushafs/#{@current_mushaf}/pages/#{@page}/edit?return_to=show"}
+          >
             <.icon name="hero-pencil-square" /> Edit page
           </.button>
         </:actions>
@@ -34,7 +37,7 @@ defmodule QuranSrsWeb.PageLive.Show do
     mushaf_id = String.to_integer(mushaf_id)
     mushaf = Quran.get_mushaf!(mushaf_id)
     page = Quran.get_page!(id)
-    
+
     {:ok,
      socket
      |> assign(:page_title, "Show Page - #{mushaf.name}")

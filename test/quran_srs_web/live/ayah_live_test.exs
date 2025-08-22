@@ -5,10 +5,19 @@ defmodule QuranSrsWeb.AyahLiveTest do
   import QuranSrs.QuranFixtures
 
   defp create_attrs_with_surah(surah) do
-    %{ayah_ref: "some ayah_ref", ayah_number: 42, text_arabic: "some text_arabic", surah_id: surah.id}
+    %{
+      ayah_ref: "some ayah_ref",
+      ayah_number: 42,
+      text_arabic: "some text_arabic",
+      surah_id: surah.id
+    }
   end
 
-  @update_attrs %{ayah_ref: "some updated ayah_ref", ayah_number: 43, text_arabic: "some updated text_arabic"}
+  @update_attrs %{
+    ayah_ref: "some updated ayah_ref",
+    ayah_number: 43,
+    text_arabic: "some updated text_arabic"
+  }
   @invalid_attrs %{ayah_ref: nil, ayah_number: nil, text_arabic: nil}
   defp create_ayah(_) do
     ayah = ayah_fixture()
@@ -29,7 +38,7 @@ defmodule QuranSrsWeb.AyahLiveTest do
     test "saves new ayah", %{conn: conn} do
       surah = surah_fixture()
       create_attrs = create_attrs_with_surah(surah)
-      
+
       {:ok, index_live, _html} = live(conn, ~p"/ayahs")
 
       assert {:ok, form_live, _} =

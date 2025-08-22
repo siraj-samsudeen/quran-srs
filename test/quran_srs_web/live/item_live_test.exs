@@ -4,9 +4,36 @@ defmodule QuranSrsWeb.ItemLiveTest do
   import Phoenix.LiveViewTest
   import QuranSrs.QuranFixtures
 
-  @create_attrs %{title: "some title", end_line: 42, item_type: "some item_type", start_text: "some start_text", start_line: 42, part_number: 42, part_title: "some part_title", tags: ["option1", "option2"]}
-  @update_attrs %{title: "some updated title", end_line: 43, item_type: "some updated item_type", start_text: "some updated start_text", start_line: 43, part_number: 43, part_title: "some updated part_title", tags: ["option1"]}
-  @invalid_attrs %{title: nil, end_line: nil, item_type: nil, start_text: nil, start_line: nil, part_number: nil, part_title: nil, tags: []}
+  @create_attrs %{
+    title: "some title",
+    end_line: 42,
+    item_type: "some item_type",
+    start_text: "some start_text",
+    start_line: 42,
+    part_number: 42,
+    part_title: "some part_title",
+    tags: ["option1", "option2"]
+  }
+  @update_attrs %{
+    title: "some updated title",
+    end_line: 43,
+    item_type: "some updated item_type",
+    start_text: "some updated start_text",
+    start_line: 43,
+    part_number: 43,
+    part_title: "some updated part_title",
+    tags: ["option1"]
+  }
+  @invalid_attrs %{
+    title: nil,
+    end_line: nil,
+    item_type: nil,
+    start_text: nil,
+    start_line: nil,
+    part_number: nil,
+    part_title: nil,
+    tags: []
+  }
   defp create_item(_) do
     item = item_fixture()
 

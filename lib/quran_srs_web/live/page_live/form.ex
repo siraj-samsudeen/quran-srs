@@ -79,7 +79,9 @@ defmodule QuranSrsWeb.PageLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, "Page updated successfully")
-         |> push_navigate(to: return_path(socket.assigns.return_to, page, socket.assigns.current_mushaf))}
+         |> push_navigate(
+           to: return_path(socket.assigns.return_to, page, socket.assigns.current_mushaf)
+         )}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
@@ -92,7 +94,9 @@ defmodule QuranSrsWeb.PageLive.Form do
         {:noreply,
          socket
          |> put_flash(:info, "Page created successfully")
-         |> push_navigate(to: return_path(socket.assigns.return_to, page, socket.assigns.current_mushaf))}
+         |> push_navigate(
+           to: return_path(socket.assigns.return_to, page, socket.assigns.current_mushaf)
+         )}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}

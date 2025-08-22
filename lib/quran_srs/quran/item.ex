@@ -25,7 +25,25 @@ defmodule QuranSrs.Quran.Item do
   @doc false
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:item_type, :title, :start_text, :start_line, :end_line, :part_number, :part_title, :tags])
-    |> validate_required([:item_type, :title, :start_text, :start_line, :end_line, :part_number, :part_title, :tags])
+    |> cast(attrs, [
+      :item_type,
+      :title,
+      :start_text,
+      :start_line,
+      :end_line,
+      :part_number,
+      :part_title,
+      :tags
+    ])
+    |> validate_required([
+      :item_type,
+      :title,
+      :start_text,
+      :start_line,
+      :end_line,
+      :part_number,
+      :part_title,
+      :tags
+    ])
   end
 end

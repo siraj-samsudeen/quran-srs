@@ -138,7 +138,12 @@ defmodule QuranSrs.QuranTest do
     end
 
     test "create_page/1 with valid data creates a page" do
-      valid_attrs = %{page_number: 42, juz_number: 42, start_text: "some start_text", mushaf_id: 1}
+      valid_attrs = %{
+        page_number: 42,
+        juz_number: 42,
+        start_text: "some start_text",
+        mushaf_id: 1
+      }
 
       assert {:ok, %Page{} = page} = Quran.create_page(valid_attrs)
       assert page.page_number == 42
@@ -188,7 +193,7 @@ defmodule QuranSrs.QuranTest do
     test "list_ayahs/0 returns all ayahs" do
       ayah = ayah_fixture()
       ayahs = Quran.list_ayahs()
-      
+
       # Can't use == comparison because list_ayahs/0 preloads :surah association
       assert length(ayahs) == 1
       [fetched_ayah] = ayahs
@@ -199,7 +204,7 @@ defmodule QuranSrs.QuranTest do
     test "get_ayah!/1 returns the ayah with given id" do
       ayah = ayah_fixture()
       fetched_ayah = Quran.get_ayah!(ayah.id)
-      
+
       # Can't use == comparison because get_ayah!/1 preloads :surah association
       # while the fixture returns ayah without preloaded associations
       assert fetched_ayah.id == ayah.id
@@ -209,7 +214,13 @@ defmodule QuranSrs.QuranTest do
 
     test "create_ayah/1 with valid data creates a ayah" do
       surah = surah_fixture()
-      valid_attrs = %{ayah_ref: "some ayah_ref", ayah_number: 42, text_arabic: "some text_arabic", surah_id: surah.id}
+
+      valid_attrs = %{
+        ayah_ref: "some ayah_ref",
+        ayah_number: 42,
+        text_arabic: "some text_arabic",
+        surah_id: surah.id
+      }
 
       assert {:ok, %Ayah{} = ayah} = Quran.create_ayah(valid_attrs)
       assert ayah.ayah_ref == "some ayah_ref"
@@ -224,7 +235,12 @@ defmodule QuranSrs.QuranTest do
 
     test "update_ayah/2 with valid data updates the ayah" do
       ayah = ayah_fixture()
-      update_attrs = %{ayah_ref: "some updated ayah_ref", ayah_number: 43, text_arabic: "some updated text_arabic"}
+
+      update_attrs = %{
+        ayah_ref: "some updated ayah_ref",
+        ayah_number: 43,
+        text_arabic: "some updated text_arabic"
+      }
 
       assert {:ok, %Ayah{} = ayah} = Quran.update_ayah(ayah, update_attrs)
       assert ayah.ayah_ref == "some updated ayah_ref"
@@ -235,7 +251,7 @@ defmodule QuranSrs.QuranTest do
     test "update_ayah/2 with invalid data returns error changeset" do
       ayah = ayah_fixture()
       assert {:error, %Ecto.Changeset{}} = Quran.update_ayah(ayah, @invalid_attrs)
-      
+
       # Verify the ayah wasn't changed in the database
       fetched_ayah = Quran.get_ayah!(ayah.id)
       assert fetched_ayah.ayah_ref == ayah.ayah_ref
@@ -259,7 +275,16 @@ defmodule QuranSrs.QuranTest do
 
     import QuranSrs.QuranFixtures
 
-    @invalid_attrs %{title: nil, end_line: nil, item_type: nil, start_text: nil, start_line: nil, part_number: nil, part_title: nil, tags: nil}
+    @invalid_attrs %{
+      title: nil,
+      end_line: nil,
+      item_type: nil,
+      start_text: nil,
+      start_line: nil,
+      part_number: nil,
+      part_title: nil,
+      tags: nil
+    }
 
     test "list_items/0 returns all items" do
       item = item_fixture()
@@ -272,7 +297,16 @@ defmodule QuranSrs.QuranTest do
     end
 
     test "create_item/1 with valid data creates a item" do
-      valid_attrs = %{title: "some title", end_line: 42, item_type: "some item_type", start_text: "some start_text", start_line: 42, part_number: 42, part_title: "some part_title", tags: ["option1", "option2"]}
+      valid_attrs = %{
+        title: "some title",
+        end_line: 42,
+        item_type: "some item_type",
+        start_text: "some start_text",
+        start_line: 42,
+        part_number: 42,
+        part_title: "some part_title",
+        tags: ["option1", "option2"]
+      }
 
       assert {:ok, %Item{} = item} = Quran.create_item(valid_attrs)
       assert item.title == "some title"
@@ -291,7 +325,17 @@ defmodule QuranSrs.QuranTest do
 
     test "update_item/2 with valid data updates the item" do
       item = item_fixture()
-      update_attrs = %{title: "some updated title", end_line: 43, item_type: "some updated item_type", start_text: "some updated start_text", start_line: 43, part_number: 43, part_title: "some updated part_title", tags: ["option1"]}
+
+      update_attrs = %{
+        title: "some updated title",
+        end_line: 43,
+        item_type: "some updated item_type",
+        start_text: "some updated start_text",
+        start_line: 43,
+        part_number: 43,
+        part_title: "some updated part_title",
+        tags: ["option1"]
+      }
 
       assert {:ok, %Item{} = item} = Quran.update_item(item, update_attrs)
       assert item.title == "some updated title"
