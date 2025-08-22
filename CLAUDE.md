@@ -374,3 +374,4 @@ assert fetched.field == item.field
 - before you write any code, always check AGENTS.md
 - update changelog.md and plan.md when you finish the task
 - run mix test and mix format before doing commit.
+- use PhoenixTest for any new tests and write just one test at a time and review with me. do not use LiveViewTest for writing new tests. existing tests are ok to use it.
