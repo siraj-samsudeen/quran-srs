@@ -84,7 +84,7 @@ def warning_toast(sess, msg):
     add_toast(sess, msg, "warning")
 
 
-def main_area(*args, active=None, auth=None):
+def main_area(*args, active=None, auth=None, **kwargs):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href="/")
     hafiz_name = A(
@@ -92,6 +92,9 @@ def main_area(*args, active=None, auth=None):
         href="/users/hafiz_selection",
         method="GET",
     )
+    additional_info = kwargs.get("additional_info")
+    if additional_info:
+        additional_info = " (", additional_info, ")"
     return Title("Quran SRS"), Container(
         Div(
             NavBar(
@@ -116,7 +119,7 @@ def main_area(*args, active=None, auth=None):
                 ),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
-                brand=H3(title, Span(" - "), hafiz_name),
+                brand=H3(title, Span(" - "), hafiz_name, additional_info),
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-50",
@@ -206,6 +209,11 @@ def get_current_date(auth) -> str:
     if current_date is None:
         current_date = hafizs.update(current_date=current_time(), id=auth).current_date
     return current_date
+
+
+def get_daily_capacity(auth):
+    current_hafiz = hafizs[auth]
+    return current_hafiz.daily_capacity
 
 
 def populate_hafizs_items_stat_columns(item_id: int = None):

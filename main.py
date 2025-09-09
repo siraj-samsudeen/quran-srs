@@ -279,6 +279,18 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
+def render_total_ticked_count(auth, target_counts):
+    current_date = get_current_date(auth)
+    today_completed_count = get_page_count(
+        revisions(where=f"revision_date = '{current_date}'")
+    )
+    overall_target_count = sum(target_counts.values())
+    return Span(
+        render_progress_display(today_completed_count, overall_target_count),
+        id="total-ticked-count-footer",
+    )
+
+
 def render_stats_summary_table(auth, target_counts):
     current_date = get_current_date(auth)
     today = current_date
@@ -338,8 +350,10 @@ def render_stats_summary_table(auth, target_counts):
             current_date_description,
             Button(
                 "Close Date",
+                id="close-date-btn",
                 hx_get="/close_date",
                 target_id="current_date_description",
+                hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
         ),
@@ -572,8 +586,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     def get_monthly_target_and_progress():
         current_date = get_current_date(auth)
-        memorized_len = len(hafizs_items(where=f"hafiz_id = {auth} and status_id = 1"))
-        monthly_review_target = round(memorized_len / 30)
+        monthly_review_target = get_daily_capacity(auth) // 2
         monthly_reviews_completed_today = get_page_count(
             revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
         )
@@ -725,12 +738,15 @@ def index(auth, sess, full_cycle_display_count: int = None):
     }
 
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
-
+    total_ticked_count = render_total_ticked_count(
+        auth=auth, target_counts=target_counts
+    )
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
         Div(modal),
         active="Home",
         auth=auth,
+        additional_info=total_ticked_count,
     )
 
 
@@ -1048,7 +1064,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
             + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
@@ -1063,7 +1079,11 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             hx_vals=vals_dict,
             hx_include=f"#rev-{item_id}",
             checked=is_checked,
-            cls=f"{route}_ids",
+            cls=(
+                f"{route}_ids",
+                "add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
+                "disabled:opacity-50",
+            ),
             _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
             data_testid=f"{item_id}-checkbox",
         )
@@ -1100,6 +1120,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             is_label=False,
             rating_dict=custom_rating_dict,
             id=f"rev-{item_id}",
+            cls="update-dropdown",  # This class-name is used to disable the dropdown when closing the date to prevent it from being updated
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
@@ -1178,7 +1199,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 hx_trigger="change",
                                 hx_include=f"#{route}_ratings",
                                 hx_select=f"#{route}_tbody",
-                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header"
+                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
                                 + (
                                     ", #monthly_cycle_link_table, #page"
                                     if is_monthly_review
@@ -1189,6 +1210,8 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 checked=all(is_all_selected),
                                 cls=(
                                     "select_all",
+                                    "bulk-add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
+                                    "disabled:opacity-50",
                                     ("hidden" if mode_id == 5 else None),
                                 ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
