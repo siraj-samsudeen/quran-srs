@@ -208,6 +208,11 @@ def get_current_date(auth) -> str:
     return current_date
 
 
+def get_daily_capacity(auth):
+    current_hafiz = hafizs[auth]
+    return current_hafiz.daily_capacity
+
+
 def populate_hafizs_items_stat_columns(item_id: int = None):
 
     def get_item_id_summary(item_id: int):

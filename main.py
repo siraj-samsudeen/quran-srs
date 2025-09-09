@@ -574,8 +574,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     def get_monthly_target_and_progress():
         current_date = get_current_date(auth)
-        memorized_len = len(hafizs_items(where=f"hafiz_id = {auth} and status_id = 1"))
-        monthly_review_target = round(memorized_len / 30)
+        monthly_review_target = get_daily_capacity(auth) // 2
         monthly_reviews_completed_today = get_page_count(
             revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
         )
