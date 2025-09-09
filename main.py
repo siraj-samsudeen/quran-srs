@@ -279,6 +279,18 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
+def render_total_ticked_count(auth, target_counts):
+    current_date = get_current_date(auth)
+    today_completed_count = get_page_count(
+        revisions(where=f"revision_date = '{current_date}'")
+    )
+    overall_target_count = sum(target_counts.values())
+    return Span(
+        render_progress_display(today_completed_count, overall_target_count),
+        id="total-ticked-count-footer",
+    )
+
+
 def render_stats_summary_table(auth, target_counts):
     current_date = get_current_date(auth)
     today = current_date
@@ -726,12 +738,15 @@ def index(auth, sess, full_cycle_display_count: int = None):
     }
 
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
-
+    total_ticked_count = render_total_ticked_count(
+        auth=auth, target_counts=target_counts
+    )
     return main_area(
         Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
         Div(modal),
         active="Home",
         auth=auth,
+        additional_info=total_ticked_count,
     )
 
 
@@ -1049,7 +1064,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #{route}-header"
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
             + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
@@ -1184,7 +1199,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 hx_trigger="change",
                                 hx_include=f"#{route}_ratings",
                                 hx_select=f"#{route}_tbody",
-                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #{route}-header"
+                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
                                 + (
                                     ", #monthly_cycle_link_table, #page"
                                     if is_monthly_review
