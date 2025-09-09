@@ -338,8 +338,10 @@ def render_stats_summary_table(auth, target_counts):
             current_date_description,
             Button(
                 "Close Date",
+                id="close-date-btn",
                 hx_get="/close_date",
                 target_id="current_date_description",
+                hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
         ),
@@ -1063,7 +1065,11 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             hx_vals=vals_dict,
             hx_include=f"#rev-{item_id}",
             checked=is_checked,
-            cls=f"{route}_ids",
+            cls=(
+                f"{route}_ids",
+                "add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
+                "disabled:opacity-50",
+            ),
             _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
             data_testid=f"{item_id}-checkbox",
         )
@@ -1100,6 +1106,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             is_label=False,
             rating_dict=custom_rating_dict,
             id=f"rev-{item_id}",
+            cls="update-dropdown",  # This class-name is used to disable the dropdown when closing the date to prevent it from being updated
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
@@ -1189,6 +1196,8 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 checked=all(is_all_selected),
                                 cls=(
                                     "select_all",
+                                    "bulk-add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
+                                    "disabled:opacity-50",
                                     ("hidden" if mode_id == 5 else None),
                                 ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
