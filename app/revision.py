@@ -337,22 +337,6 @@ def post(revision_details: Revision):
 def update_revision_rating(rev_id: int, rating: int):
     update_revision_rating_only(rev_id, rating)
 
-    current_revision = revisions[rev_id]
-    item_id = current_revision.item_id
-    if current_revision.mode_id == 5:
-        next_interval = get_interval_based_on_rating(item_id, rating)
-
-        # next_interval column only change based on the rating
-        update_revision_next_interval(rev_id, next_interval)
-
-        current_hafiz_item = get_hafizs_items(item_id)
-        current_hafiz_item.next_interval = next_interval
-        current_hafiz_item.next_review = add_days_to_date(
-            current_revision.revision_date, next_interval
-        )
-        update_hafiz_item(current_hafiz_item)
-    populate_hafizs_items_stat_columns(item_id=item_id)
-
 
 @revision_app.get("/bulk_add")
 def get(

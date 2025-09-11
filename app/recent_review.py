@@ -159,10 +159,7 @@ def recent_review_view(auth):
 
 @recent_review_app.post("/update_status/{item_id}")
 def update_status_for_recent_review(item_id: int, date: str, is_checked: bool = False):
-
-    checkbox_update_logic(
-        mode_id=3, rating=1, item_id=item_id, date=date, is_checked=is_checked
-    )
+    add_revision_record(item_id=item_id, mode_id=3, revision_date=date, rating=1)
     revision_count = get_mode_count(item_id, 3)
 
     if revision_count > 6:

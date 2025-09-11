@@ -589,76 +589,17 @@ def get_interval_based_on_rating(item_id: int, rating: int):
     return rating_intervals[rating + 1]
 
 
-def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
-    conditions = [
-        f"revision_date = '{date}'",
-        f"item_id = {item_id}",
-        f"mode_id = {mode_id}",
-    ]
+def add_revision_record(**kwargs):
+    revisions.insert(**kwargs)
 
-    if plan_id is not None:
-        conditions.append(f"plan_id = {plan_id}")
 
-    qry = " AND ".join(conditions)
-    revisions_data = revisions(where=qry)
-
-    if not revisions_data and is_checked:
-        revision_data = {
-            "revision_date": date,
-            "item_id": item_id,
-            "mode_id": mode_id,
-            "rating": rating,
-        }
-        if plan_id is not None:
-            revision_data["plan_id"] = plan_id
-
-        if mode_id == 5:
-            hafiz_items_data = get_hafizs_items(item_id)
-            end_interval = srs_booster_pack[
-                hafiz_items_data.srs_booster_pack_id
-            ].end_interval
-            revision_data["last_interval"] = hafiz_items_data.next_interval
-            revision_data["current_interval"] = calculate_days_difference(
-                hafiz_items_data.last_review, date
-            )
-            next_interval = get_interval_based_on_rating(item_id, rating)
-            if end_interval > next_interval:
-                revision_data["next_interval"] = next_interval
-
-        revisions.insert(Revision(**revision_data))
-
-    elif revisions_data and not is_checked:
-        revisions.delete(revisions_data[0].id)
-
-    if mode_id == 5:
-        update_hafiz_items_for_srs(
-            item_id=item_id,
-            mode_id=mode_id,
-            current_date=date,
-            rating=rating,
-            is_checked=is_checked,
-        )
-    elif mode_id == 2:
-        hafiz_items_data = get_hafizs_items(item_id)
-        if is_checked:
-            hafizs_items.update({"status_id": 4, "mode_id": 2}, hafiz_items_data.id)
-        else:
-            hafizs_items.update({"status_id": 6, "mode_id": 1}, hafiz_items_data.id)
-    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current interval
-    # normally, the mode_id indicates the mode from the hafiz_items which is the current mode of the page
-    # but in full-cycle mode, we get mode_id as 1 - hence we need to query hafiz_items to see whether this page is in SRS mode
-    elif mode_id == 1:
-        hafiz_items_data = get_hafizs_items(item_id)
-        if hafiz_items_data.mode_id == 5:
-            hafiz_items_data.next_review = add_days_to_date(
-                date, hafiz_items_data.next_interval
-            )
-            hafizs_items.update(hafiz_items_data)
-    else:
-        # Update the review dates based on the mode -> Recent Review should increment by one and Watch List should increment by 7
-        update_review_dates(item_id, mode_id)
-
-    populate_hafizs_items_stat_columns(item_id=item_id)
+def remove_revision_record(item_id, mode_id, date):
+    revision_record = revisions(
+        where=f"item_id = {item_id} AND mode_id = {mode_id} AND revision_date = '{date}'"
+    )
+    if not revision_record:
+        return None
+    revisions.delete(revision_record[0].id)
 
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}

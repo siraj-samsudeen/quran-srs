@@ -1243,14 +1243,17 @@ def update_status_from_index(
     is_checked: bool = False,
     plan_id: int = None,
 ):
-    checkbox_update_logic(
-        mode_id=mode_id,
-        rating=rating,
-        item_id=item_id,
-        date=date,
-        is_checked=is_checked,
-        plan_id=plan_id,
-    )
+    if is_checked:
+        add_revision_record(
+            item_id=item_id,
+            mode_id=mode_id,
+            revision_date=date,
+            rating=rating,
+            plan_id=plan_id,
+        )
+    else:
+        remove_revision_record(item_id=item_id, mode_id=mode_id, date=date)
+
     return RedirectResponse("/", status_code=303)
 
 
@@ -1267,24 +1270,15 @@ def update_multiple_items_from_index(
     for o in zip(item_id, rating, is_checked):
         current_item_id, current_rating, current_is_checked = o
         if not is_select_all:
-            checkbox_update_logic(
-                mode_id=mode_id,
-                rating=current_rating,
+            remove_revision_record(item_id=current_item_id, mode_id=mode_id, date=date)
+        elif not current_is_checked:
+            add_revision_record(
                 item_id=current_item_id,
-                date=date,
-                is_checked=is_select_all,
+                mode_id=mode_id,
+                revision_date=date,
+                rating=current_rating,
                 plan_id=plan_id,
             )
-        else:
-            if not current_is_checked:
-                checkbox_update_logic(
-                    mode_id=mode_id,
-                    rating=current_rating,
-                    item_id=current_item_id,
-                    date=date,
-                    is_checked=is_select_all,
-                    plan_id=plan_id,
-                )
 
     return RedirectResponse("/", status_code=303)
 
