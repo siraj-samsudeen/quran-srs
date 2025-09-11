@@ -1106,19 +1106,9 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             if is_monthly_review:
                 change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
-        # This is to show the interval for srs based on the rating
-        if mode_id == 5:
-            custom_rating_dict = {
-                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked,is_dropdown=True)}",
-                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked,is_dropdown=True)}",
-                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked,is_dropdown=True)}",
-            }
-        else:
-            custom_rating_dict = RATING_MAP
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
             is_label=False,
-            rating_dict=custom_rating_dict,
             id=f"rev-{item_id}",
             cls="update-dropdown",  # This class-name is used to disable the dropdown when closing the date to prevent it from being updated
             hx_trigger="change",

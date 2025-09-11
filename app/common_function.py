@@ -579,30 +579,14 @@ def get_srs_interval_list(item_id: int):
     return interval_list
 
 
-def get_interval_based_on_rating(
-    item_id: int, rating: int, is_edit: bool = False, is_dropdown: bool = False
-):
-
+def get_interval_based_on_rating(item_id: int, rating: int):
     current_hafiz_item = get_hafizs_items(item_id)
-    if is_edit:
-        current_interval = current_hafiz_item.last_interval
-    else:
-        current_interval = current_hafiz_item.next_interval
 
     intervals = get_srs_interval_list(item_id)
     rating_intervals = get_interval_triplet(
-        current_interval=current_interval, interval_list=intervals
+        current_interval=current_hafiz_item.next_interval, interval_list=intervals
     )
-    current_rating_interval = rating_intervals[rating + 1]
-
-    # This logic is to show the user that the item is finished after this record
-    if is_dropdown:
-        end_interval = srs_booster_pack[
-            current_hafiz_item.srs_booster_pack_id
-        ].end_interval
-        if current_rating_interval > end_interval:
-            return "Finished"
-    return current_rating_interval
+    return rating_intervals[rating + 1]
 
 
 def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
@@ -687,9 +671,8 @@ def render_rating(rating: int):
 def rating_dropdown(
     default_mode="1",
     is_label=True,
-    rating_dict=RATING_MAP,
     name="rating",
-    cls="[&>div]:h-8 uk-form-sm w-28",
+    cls="",
     **kwargs,
 ):
     def mk_options(o):
@@ -699,14 +682,14 @@ def rating_dropdown(
 
     return Div(
         fh.Select(
-            map(mk_options, rating_dict.items()),
+            map(mk_options, RATING_MAP.items()),
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls=cls,
+            cls=("[&>div]:h-8 uk-form-sm w-24", cls),
             **kwargs,
         ),
-        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+        cls="max-w-24 outline outline-gray-200 outline-1 rounded-sm",
     )
 
 

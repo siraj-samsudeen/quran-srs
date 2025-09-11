@@ -340,7 +340,7 @@ def update_revision_rating(rev_id: int, rating: int):
     current_revision = revisions[rev_id]
     item_id = current_revision.item_id
     if current_revision.mode_id == 5:
-        next_interval = get_interval_based_on_rating(item_id, rating, is_edit=True)
+        next_interval = get_interval_based_on_rating(item_id, rating)
 
         # next_interval column only change based on the rating
         update_revision_next_interval(rev_id, next_interval)
