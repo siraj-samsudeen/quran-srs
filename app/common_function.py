@@ -525,37 +525,6 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
         current_interval_position = next_interval
 
 
-def update_hafiz_items_for_srs(
-    item_id: int, mode_id: int, current_date: str, rating: int, is_checked: bool
-):
-    if is_checked:
-        latest_revision_date = get_lastest_date(item_id, mode_id)
-        current_hafiz_item = get_hafizs_items(item_id)
-        end_interval = srs_booster_pack[
-            current_hafiz_item.srs_booster_pack_id
-        ].end_interval
-        # TODO: the current_interval is difference between last_review and current_date instead of the last_interval
-        next_interval = get_interval_based_on_rating(item_id, rating)
-        current_hafiz_item.last_interval = current_hafiz_item.next_interval
-        current_hafiz_item.current_interval = calculate_days_difference(
-            current_hafiz_item.last_review, current_date
-        )
-        current_hafiz_item.last_review = latest_revision_date
-
-        if end_interval > next_interval:
-            current_hafiz_item.next_interval = next_interval
-            current_hafiz_item.next_review = add_days_to_date(
-                latest_revision_date, next_interval
-            )
-        else:
-            current_hafiz_item.next_interval = None
-            current_hafiz_item.next_review = None
-
-        hafizs_items.update(current_hafiz_item)
-    else:
-        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
-
-
 def get_srs_interval_list(item_id: int):
     current_hafiz_item = get_hafizs_items(item_id)
     booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]

@@ -750,26 +750,120 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
 
+def update_hafiz_item_for_full_cycle(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    last_review = hafiz_item_details.last_review
+    currrent_date = get_current_date(rev.hafiz_id)
+
+    hafiz_item_details.last_interval = calculate_days_difference(
+        last_review, currrent_date
+    )
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_new_memorization(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    hafiz_item_details.mode_id = 2
+    hafiz_item_details.status_id = 4
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_daily(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+
+    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
+        next_interval = 1
+    else:
+        # If the reps are more than 7 then move it to Weekly reps
+        next_interval = 7
+        hafiz_item_details.mode_id = 4
+
+    # This is one time process, when the page gets recorded in the daily reps for the first time
+    # As it got entered as the `newly memorized`.
+    if hafiz_item_details.mode_id == 2:
+        hafiz_item_details.mode_id = 3
+    hafiz_item_details.last_interval = hafiz_item_details.next_interval
+    hafiz_item_details.next_interval = next_interval
+    hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_weekly(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+
+    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
+        next_interval = 7
+        hafiz_item_details.last_interval = hafiz_item_details.next_interval
+        hafiz_item_details.next_interval = next_interval
+        hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
+    else:
+        # If the reps are more than 7 then move it to full cycle
+        hafiz_item_details.mode_id = 1
+        hafiz_item_details.status_id = 1
+        hafiz_item_details.last_interval = hafiz_item_details.next_interval
+        hafiz_item_details.next_interval = None
+        hafiz_item_details.next_review = None
+        hafiz_item_details.watch_list_graduation_date = current_date
+
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_srs(rev):
+    hafiz_items_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+    srs_pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+    end_interval = srs_pack_details.end_interval
+
+    # Get the intervals for pridicting the next interval
+    intervals = srs_pack_details.interval_days.split(",")
+    intervals = list(map(int, intervals))
+    rating_intervals = get_interval_triplet(
+        current_interval=hafiz_items_details.next_interval, interval_list=intervals
+    )
+    next_interval = rating_intervals[rev.rating + 1]
+
+    hafiz_items_details.last_interval = hafiz_items_details.next_interval
+    if end_interval > next_interval:
+        hafiz_items_details.next_interval = next_interval
+        hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
+    else:
+        hafiz_items_details.mode_id = 1
+        hafiz_items_details.status_id = 1
+        hafiz_items_details.next_interval = None
+        hafiz_items_details.next_review = None
+        hafiz_items_details.srs_booster_pack_id = None
+        hafiz_items_details.srs_start_date = None
+
+    hafizs_items.update(hafiz_items_details)
+
+    # Update the next_interval of the revision record
+    rev.next_interval = next_interval
+    revisions.update(rev, rev.id)
+
+
 @app.get("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
 
-    revision_data = revisions(
-        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4, 5)"
-    )
+    revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
-        # if it is fixed reps and exceeded the limit then graduate the item_id to next level
-        if get_mode_count(rev.item_id, rev.mode_id) > 6 and rev.mode_id != 5:
-            graduate_the_item_id(rev.item_id, rev.mode_id, auth)
-        # if its adaptive reps then and met the condition then it will graduate to the full cycle
+        if rev.mode_id == 1:
+            update_hafiz_item_for_full_cycle(rev)
+        elif rev.mode_id == 2:
+            update_hafiz_item_for_new_memorization(rev)
+        elif rev.mode_id == 3:
+            update_hafiz_item_for_daily(rev)
+        elif rev.mode_id == 4:
+            update_hafiz_item_for_weekly(rev)
         elif rev.mode_id == 5:
-            hafiz_items_details = get_hafizs_items(rev.item_id)
-            pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
-            if hafiz_items_details.next_interval > pack_details.end_interval:
-                graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+            update_hafiz_item_for_srs(rev)
+
+        # update all the non-mode specific columns (including the last_review column)
+        populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
     # TODO: The page should enter into SRS mode before or after updating the current_date?
-    populate_hafizs_items_stat_columns()
     # Get the full-cycle today revised pages which have 2 or more bad streak
     qry = f"""
         SELECT revisions.item_id FROM revisions
@@ -782,11 +876,6 @@ def change_the_current_date(auth):
     # Change the current date to next date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
-
-    # Update the current_interval for the SRS items
-    current_date = get_current_date(auth)
-    for hafiz_item in hafizs_items(where="mode_id = 5"):
-        update_actual_interval(item_id=hafiz_item.item_id, current_date=current_date)
 
     return Redirect("/")
 
