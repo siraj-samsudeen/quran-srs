@@ -1289,10 +1289,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                             if not (is_newly_memorized or is_monthly_review or is_srs)
                             else None
                         ),
-                        (
-                            Th("Next"),
-                            Th("Actual") if is_srs else None,
-                        ),
+                        ((Th("Next"), Th("Actual")) if is_srs else None),
                         Th(
                             CheckboxX(
                                 name="is_select_all",
