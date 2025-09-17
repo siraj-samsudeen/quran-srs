@@ -300,6 +300,18 @@ def get_start_text(item_id):
 ####################### Recent_review, Watch_list and SRS common function #######################
 
 
+def get_next_interval(item_id, rating):
+    hafiz_items_details = get_hafizs_items(item_id)
+    srs_pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+    # Get the intervals for pridicting the next interval
+    intervals = srs_pack_details.interval_days.split(",")
+    intervals = list(map(int, intervals))
+    rating_intervals = get_interval_triplet(
+        current_interval=hafiz_items_details.next_interval, interval_list=intervals
+    )
+    return rating_intervals[rating + 1]
+
+
 def update_actual_interval(item_id, current_date):
     """Update the current_interval in hafizs_items table"""
     current_hafiz_details = get_hafizs_items(item_id)
@@ -525,37 +537,6 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
         current_interval_position = next_interval
 
 
-def update_hafiz_items_for_srs(
-    item_id: int, mode_id: int, current_date: str, rating: int, is_checked: bool
-):
-    if is_checked:
-        latest_revision_date = get_lastest_date(item_id, mode_id)
-        current_hafiz_item = get_hafizs_items(item_id)
-        end_interval = srs_booster_pack[
-            current_hafiz_item.srs_booster_pack_id
-        ].end_interval
-        # TODO: the current_interval is difference between last_review and current_date instead of the last_interval
-        next_interval = get_interval_based_on_rating(item_id, rating)
-        current_hafiz_item.last_interval = current_hafiz_item.next_interval
-        current_hafiz_item.current_interval = calculate_days_difference(
-            current_hafiz_item.last_review, current_date
-        )
-        current_hafiz_item.last_review = latest_revision_date
-
-        if end_interval > next_interval:
-            current_hafiz_item.next_interval = next_interval
-            current_hafiz_item.next_review = add_days_to_date(
-                latest_revision_date, next_interval
-            )
-        else:
-            current_hafiz_item.next_interval = None
-            current_hafiz_item.next_review = None
-
-        hafizs_items.update(current_hafiz_item)
-    else:
-        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
-
-
 def get_srs_interval_list(item_id: int):
     current_hafiz_item = get_hafizs_items(item_id)
     booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
@@ -579,102 +560,27 @@ def get_srs_interval_list(item_id: int):
     return interval_list
 
 
-def get_interval_based_on_rating(
-    item_id: int, rating: int, is_edit: bool = False, is_dropdown: bool = False
-):
-
+def get_interval_based_on_rating(item_id: int, rating: int):
     current_hafiz_item = get_hafizs_items(item_id)
-    if is_edit:
-        current_interval = current_hafiz_item.last_interval
-    else:
-        current_interval = current_hafiz_item.next_interval
 
     intervals = get_srs_interval_list(item_id)
     rating_intervals = get_interval_triplet(
-        current_interval=current_interval, interval_list=intervals
+        current_interval=current_hafiz_item.next_interval, interval_list=intervals
     )
-    current_rating_interval = rating_intervals[rating + 1]
-
-    # This logic is to show the user that the item is finished after this record
-    if is_dropdown:
-        end_interval = srs_booster_pack[
-            current_hafiz_item.srs_booster_pack_id
-        ].end_interval
-        if current_rating_interval > end_interval:
-            return "Finished"
-    return current_rating_interval
+    return rating_intervals[rating + 1]
 
 
-def checkbox_update_logic(mode_id, rating, item_id, date, is_checked, plan_id=None):
-    conditions = [
-        f"revision_date = '{date}'",
-        f"item_id = {item_id}",
-        f"mode_id = {mode_id}",
-    ]
+def add_revision_record(**kwargs):
+    revisions.insert(**kwargs)
 
-    if plan_id is not None:
-        conditions.append(f"plan_id = {plan_id}")
 
-    qry = " AND ".join(conditions)
-    revisions_data = revisions(where=qry)
-
-    if not revisions_data and is_checked:
-        revision_data = {
-            "revision_date": date,
-            "item_id": item_id,
-            "mode_id": mode_id,
-            "rating": rating,
-        }
-        if plan_id is not None:
-            revision_data["plan_id"] = plan_id
-
-        if mode_id == 5:
-            hafiz_items_data = get_hafizs_items(item_id)
-            end_interval = srs_booster_pack[
-                hafiz_items_data.srs_booster_pack_id
-            ].end_interval
-            revision_data["last_interval"] = hafiz_items_data.next_interval
-            revision_data["current_interval"] = calculate_days_difference(
-                hafiz_items_data.last_review, date
-            )
-            next_interval = get_interval_based_on_rating(item_id, rating)
-            if end_interval > next_interval:
-                revision_data["next_interval"] = next_interval
-
-        revisions.insert(Revision(**revision_data))
-
-    elif revisions_data and not is_checked:
-        revisions.delete(revisions_data[0].id)
-
-    if mode_id == 5:
-        update_hafiz_items_for_srs(
-            item_id=item_id,
-            mode_id=mode_id,
-            current_date=date,
-            rating=rating,
-            is_checked=is_checked,
-        )
-    elif mode_id == 2:
-        hafiz_items_data = get_hafizs_items(item_id)
-        if is_checked:
-            hafizs_items.update({"status_id": 4, "mode_id": 2}, hafiz_items_data.id)
-        else:
-            hafizs_items.update({"status_id": 6, "mode_id": 1}, hafiz_items_data.id)
-    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current interval
-    # normally, the mode_id indicates the mode from the hafiz_items which is the current mode of the page
-    # but in full-cycle mode, we get mode_id as 1 - hence we need to query hafiz_items to see whether this page is in SRS mode
-    elif mode_id == 1:
-        hafiz_items_data = get_hafizs_items(item_id)
-        if hafiz_items_data.mode_id == 5:
-            hafiz_items_data.next_review = add_days_to_date(
-                date, hafiz_items_data.next_interval
-            )
-            hafizs_items.update(hafiz_items_data)
-    else:
-        # Update the review dates based on the mode -> Recent Review should increment by one and Watch List should increment by 7
-        update_review_dates(item_id, mode_id)
-
-    populate_hafizs_items_stat_columns(item_id=item_id)
+def remove_revision_record(item_id, mode_id, date):
+    revision_record = revisions(
+        where=f"item_id = {item_id} AND mode_id = {mode_id} AND revision_date = '{date}'"
+    )
+    if not revision_record:
+        return None
+    revisions.delete(revision_record[0].id)
 
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
@@ -687,9 +593,8 @@ def render_rating(rating: int):
 def rating_dropdown(
     default_mode="1",
     is_label=True,
-    rating_dict=RATING_MAP,
     name="rating",
-    cls="[&>div]:h-8 uk-form-sm w-28",
+    cls="",
     **kwargs,
 ):
     def mk_options(o):
@@ -699,14 +604,14 @@ def rating_dropdown(
 
     return Div(
         fh.Select(
-            map(mk_options, rating_dict.items()),
+            map(mk_options, RATING_MAP.items()),
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls=cls,
+            cls=("[&>div]:h-8 uk-form-sm w-24", cls),
             **kwargs,
         ),
-        cls="max-w-28 outline outline-gray-200 outline-1 rounded-sm",
+        cls="max-w-24 outline outline-gray-200 outline-1 rounded-sm",
     )
 
 

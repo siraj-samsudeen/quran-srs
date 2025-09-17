@@ -352,7 +352,8 @@ def render_stats_summary_table(auth, target_counts):
                 "Close Date",
                 id="close-date-btn",
                 hx_get="/close_date",
-                target_id="current_date_description",
+                hx_target="body",
+                hx_push_url="true",
                 hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
                 cls=(ButtonT.default, "px-2 py-3 h-0"),
             ),
@@ -750,26 +751,185 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
 
+def update_hafiz_item_for_full_cycle(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    last_review = hafiz_item_details.last_review
+    currrent_date = get_current_date(rev.hafiz_id)
+
+    hafiz_item_details.last_interval = calculate_days_difference(
+        last_review, currrent_date
+    )
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_new_memorization(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    hafiz_item_details.mode_id = 2
+    hafiz_item_details.status_id = 4
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_daily(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+
+    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
+        next_interval = 1
+    else:
+        # If the reps are more than 7 then move it to Weekly reps
+        next_interval = 7
+        hafiz_item_details.mode_id = 4
+
+    # This is one time process, when the page gets recorded in the daily reps for the first time
+    # As it got entered as the `newly memorized`.
+    if hafiz_item_details.mode_id == 2:
+        hafiz_item_details.mode_id = 3
+    hafiz_item_details.last_interval = hafiz_item_details.next_interval
+    hafiz_item_details.next_interval = next_interval
+    hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_weekly(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+
+    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
+        next_interval = 7
+        hafiz_item_details.last_interval = hafiz_item_details.next_interval
+        hafiz_item_details.next_interval = next_interval
+        hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
+    else:
+        # If the reps are more than 7 then move it to full cycle
+        hafiz_item_details.mode_id = 1
+        hafiz_item_details.status_id = 1
+        hafiz_item_details.last_interval = hafiz_item_details.next_interval
+        hafiz_item_details.next_interval = None
+        hafiz_item_details.next_review = None
+        hafiz_item_details.watch_list_graduation_date = current_date
+
+    hafizs_items.update(hafiz_item_details)
+
+
+def update_hafiz_item_for_srs(rev):
+    hafiz_items_details = get_hafizs_items(rev.item_id)
+    current_date = get_current_date(rev.hafiz_id)
+    end_interval = srs_booster_pack[
+        hafiz_items_details.srs_booster_pack_id
+    ].end_interval
+    next_interval = get_next_interval(item_id=rev.item_id, rating=rev.rating)
+
+    hafiz_items_details.last_interval = hafiz_items_details.next_interval
+    if end_interval > next_interval:
+        hafiz_items_details.next_interval = next_interval
+        hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
+    else:
+        hafiz_items_details.mode_id = 1
+        hafiz_items_details.status_id = 1
+        hafiz_items_details.next_interval = None
+        hafiz_items_details.next_review = None
+        hafiz_items_details.srs_booster_pack_id = None
+        hafiz_items_details.srs_start_date = None
+
+    hafizs_items.update(hafiz_items_details)
+
+    # Update the next_interval of the revision record
+    rev.next_interval = next_interval
+    revisions.update(rev, rev.id)
+
+
 @app.get("/close_date")
+def confirmation_page_for_close_date(auth):
+    current_date = get_current_date(auth)
+
+    # List all the records that are recorded today with the interval details as a table
+    srs_records = db.q(
+        f"""
+    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval, revisions.rating FROM revisions 
+    LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
+    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = 5
+    """
+    )
+
+    def render_srs_records(srs_record):
+        next_interval = get_next_interval(srs_record["item_id"], srs_record["rating"])
+        return Tr(
+            Td(get_page_description(srs_record["item_id"])),
+            Td(srs_record["previous_interval"]),
+            Td(srs_record["actual_interval"]),
+            Td(next_interval),
+            Td(render_rating(srs_record["rating"])),
+        )
+
+    srs_records_table = Table(
+        Thead(
+            Tr(
+                Th("Item Id"),
+                Th("Last Interval"),
+                Th("Actual Interval"),
+                Th("Next Interval"),
+                Th("Rating"),
+            )
+        ),
+        Tbody(*map(render_srs_records, srs_records)),
+    )
+
+    # Confirmation and cancel buttons
+    action_buttons = DivLAligned(
+        Button(
+            "Confirm",
+            hx_post="close_date",
+            hx_target="body",
+            hx_push_url="true",
+            hx_disabled_elt="this",
+            cls=(ButtonT.primary, "p-2"),
+        ),
+        Button(
+            "Cancel",
+            onclick="history.back()",
+            cls=(ButtonT.default, "p-2"),
+        ),
+    )
+
+    header = Div(
+        Strong("Current Date: "),
+        Span(render_date(current_date)),
+    )
+    body = Div(
+        H2("SRS Records"),
+        srs_records_table,
+        cls="uk-overflow-auto space-y-2",
+    )
+    footer = action_buttons
+
+    return main_area(
+        Div(header, body, footer, cls="space-y-4"),
+        active="Home",
+        auth=auth,
+    )
+
+
+@app.post("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
 
-    revision_data = revisions(
-        where=f" revision_date = '{hafiz_data.current_date}' AND mode_id IN (3, 4, 5)"
-    )
+    revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
-        # if it is fixed reps and exceeded the limit then graduate the item_id to next level
-        if get_mode_count(rev.item_id, rev.mode_id) > 6 and rev.mode_id != 5:
-            graduate_the_item_id(rev.item_id, rev.mode_id, auth)
-        # if its adaptive reps then and met the condition then it will graduate to the full cycle
+        if rev.mode_id == 1:
+            update_hafiz_item_for_full_cycle(rev)
+        elif rev.mode_id == 2:
+            update_hafiz_item_for_new_memorization(rev)
+        elif rev.mode_id == 3:
+            update_hafiz_item_for_daily(rev)
+        elif rev.mode_id == 4:
+            update_hafiz_item_for_weekly(rev)
         elif rev.mode_id == 5:
-            hafiz_items_details = get_hafizs_items(rev.item_id)
-            pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
-            if hafiz_items_details.next_interval > pack_details.end_interval:
-                graduate_the_item_id(rev.item_id, rev.mode_id, auth)
+            update_hafiz_item_for_srs(rev)
+
+        # update all the non-mode specific columns (including the last_review column)
+        populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
     # TODO: The page should enter into SRS mode before or after updating the current_date?
-    populate_hafizs_items_stat_columns()
     # Get the full-cycle today revised pages which have 2 or more bad streak
     qry = f"""
         SELECT revisions.item_id FROM revisions
@@ -782,11 +942,6 @@ def change_the_current_date(auth):
     # Change the current date to next date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)
     hafizs.update(hafiz_data)
-
-    # Update the current_interval for the SRS items
-    current_date = get_current_date(auth)
-    for hafiz_item in hafizs_items(where="mode_id = 5"):
-        update_actual_interval(item_id=hafiz_item.item_id, current_date=current_date)
 
     return Redirect("/")
 
@@ -1048,6 +1203,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     is_monthly_review = mode_id == 1
+    is_srs = mode_id == 5
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
@@ -1106,19 +1262,9 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             if is_monthly_review:
                 change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
-        # This is to show the interval for srs based on the rating
-        if mode_id == 5:
-            custom_rating_dict = {
-                "1": f"✅ Good - {get_interval_based_on_rating(item_id=item_id, rating=1, is_edit=is_checked,is_dropdown=True)}",
-                "0": f"😄 Ok - {get_interval_based_on_rating(item_id=item_id, rating=0, is_edit=is_checked,is_dropdown=True)}",
-                "-1": f"❌ Bad - {get_interval_based_on_rating(item_id=item_id, rating=-1, is_edit=is_checked,is_dropdown=True)}",
-            }
-        else:
-            custom_rating_dict = RATING_MAP
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
             is_label=False,
-            rating_dict=custom_rating_dict,
             id=f"rev-{item_id}",
             cls="update-dropdown",  # This class-name is used to disable the dropdown when closing the date to prevent it from being updated
             hx_trigger="change",
@@ -1131,13 +1277,31 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         else:
             rep_denominator = 7
         progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
+
+        if is_srs:
+            hafiz_item_details = get_hafizs_items(item_id)
+            actual_interval = calculate_days_difference(
+                hafiz_item_details.last_review, current_date
+            )
+            extra_srs_columns = (
+                Td(hafiz_item_details.next_interval),
+                Td(actual_interval),
+            )
+        else:
+            extra_srs_columns = ()
+
         return Tr(
             Td(get_page_description(item_id)),
             Td(
                 get_start_text(item_id),
                 cls=TextT.lg,
             ),
-            Td(progress) if not (is_newly_memorized or is_monthly_review) else None,
+            (
+                Td(progress)
+                if not (is_newly_memorized or is_monthly_review or is_srs)
+                else None
+            ),
+            *extra_srs_columns,
             Td(record_btn),
             Td(
                 Form(
@@ -1188,9 +1352,10 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         Th("Start Text", cls="min-w-24"),
                         (
                             Th("Reps")
-                            if not (is_newly_memorized or is_monthly_review)
+                            if not (is_newly_memorized or is_monthly_review or is_srs)
                             else None
                         ),
+                        ((Th("Next"), Th("Actual")) if is_srs else None),
                         Th(
                             CheckboxX(
                                 name="is_select_all",
@@ -1253,14 +1418,17 @@ def update_status_from_index(
     is_checked: bool = False,
     plan_id: int = None,
 ):
-    checkbox_update_logic(
-        mode_id=mode_id,
-        rating=rating,
-        item_id=item_id,
-        date=date,
-        is_checked=is_checked,
-        plan_id=plan_id,
-    )
+    if is_checked:
+        add_revision_record(
+            item_id=item_id,
+            mode_id=mode_id,
+            revision_date=date,
+            rating=rating,
+            plan_id=plan_id,
+        )
+    else:
+        remove_revision_record(item_id=item_id, mode_id=mode_id, date=date)
+
     return RedirectResponse("/", status_code=303)
 
 
@@ -1277,24 +1445,15 @@ def update_multiple_items_from_index(
     for o in zip(item_id, rating, is_checked):
         current_item_id, current_rating, current_is_checked = o
         if not is_select_all:
-            checkbox_update_logic(
-                mode_id=mode_id,
-                rating=current_rating,
+            remove_revision_record(item_id=current_item_id, mode_id=mode_id, date=date)
+        elif not current_is_checked:
+            add_revision_record(
                 item_id=current_item_id,
-                date=date,
-                is_checked=is_select_all,
+                mode_id=mode_id,
+                revision_date=date,
+                rating=current_rating,
                 plan_id=plan_id,
             )
-        else:
-            if not current_is_checked:
-                checkbox_update_logic(
-                    mode_id=mode_id,
-                    rating=current_rating,
-                    item_id=current_item_id,
-                    date=date,
-                    is_checked=is_select_all,
-                    plan_id=plan_id,
-                )
 
     return RedirectResponse("/", status_code=303)
 
