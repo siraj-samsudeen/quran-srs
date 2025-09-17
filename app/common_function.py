@@ -300,6 +300,18 @@ def get_start_text(item_id):
 ####################### Recent_review, Watch_list and SRS common function #######################
 
 
+def get_next_interval(item_id, rating):
+    hafiz_items_details = get_hafizs_items(item_id)
+    srs_pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+    # Get the intervals for pridicting the next interval
+    intervals = srs_pack_details.interval_days.split(",")
+    intervals = list(map(int, intervals))
+    rating_intervals = get_interval_triplet(
+        current_interval=hafiz_items_details.next_interval, interval_list=intervals
+    )
+    return rating_intervals[rating + 1]
+
+
 def update_actual_interval(item_id, current_date):
     """Update the current_interval in hafizs_items table"""
     current_hafiz_details = get_hafizs_items(item_id)
