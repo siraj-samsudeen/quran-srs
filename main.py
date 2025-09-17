@@ -1137,6 +1137,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == 2
     is_monthly_review = mode_id == 1
+    is_srs = mode_id == 5
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
@@ -1210,13 +1211,31 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         else:
             rep_denominator = 7
         progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
+
+        if is_srs:
+            hafiz_item_details = get_hafizs_items(item_id)
+            actual_interval = calculate_days_difference(
+                hafiz_item_details.last_review, current_date
+            )
+            extra_srs_columns = (
+                Td(hafiz_item_details.next_interval),
+                Td(actual_interval),
+            )
+        else:
+            extra_srs_columns = ()
+
         return Tr(
             Td(get_page_description(item_id)),
             Td(
                 get_start_text(item_id),
                 cls=TextT.lg,
             ),
-            Td(progress) if not (is_newly_memorized or is_monthly_review) else None,
+            (
+                Td(progress)
+                if not (is_newly_memorized or is_monthly_review or is_srs)
+                else None
+            ),
+            *extra_srs_columns,
             Td(record_btn),
             Td(
                 Form(
@@ -1267,8 +1286,12 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         Th("Start Text", cls="min-w-24"),
                         (
                             Th("Reps")
-                            if not (is_newly_memorized or is_monthly_review)
+                            if not (is_newly_memorized or is_monthly_review or is_srs)
                             else None
+                        ),
+                        (
+                            Th("Next"),
+                            Th("Actual") if is_srs else None,
                         ),
                         Th(
                             CheckboxX(

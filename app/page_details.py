@@ -191,6 +191,10 @@ def display_page_level_details(auth, item_id: int):
                         value = get_mode_name(value)
                     elif col_name == "status_id":
                         value = statuses[value].name
+                    elif col_name == "current_interval":
+                        value = calculate_days_difference(
+                            hafiz_items_details.last_review, get_current_date(auth)
+                        )
                     else:
                         value = str(value).capitalize()
                     return Tr(
