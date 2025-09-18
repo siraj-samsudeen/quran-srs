@@ -826,6 +826,9 @@ def update_hafiz_item_for_srs(rev):
     else:
         hafiz_items_details.mode_id = 1
         hafiz_items_details.status_id = 1
+        hafiz_items_details.last_interval = calculate_days_difference(
+            hafiz_items_details.last_review, current_date
+        )
         hafiz_items_details.next_interval = None
         hafiz_items_details.next_review = None
         hafiz_items_details.srs_booster_pack_id = None
@@ -845,14 +848,19 @@ def confirmation_page_for_close_date(auth):
     # List all the records that are recorded today with the interval details as a table
     srs_records = db.q(
         f"""
-    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval, revisions.rating FROM revisions 
+    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval,
+    revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
     WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = 5
     """
     )
 
     def render_srs_records(srs_record):
+        pack_details = srs_booster_pack[srs_record["pack_id"]]
+        end_interval = pack_details.end_interval
         next_interval = get_next_interval(srs_record["item_id"], srs_record["rating"])
+        if next_interval > end_interval:
+            next_interval = "Graduation"
         return Tr(
             Td(get_page_description(srs_record["item_id"])),
             Td(srs_record["previous_interval"]),

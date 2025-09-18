@@ -673,6 +673,8 @@ def start_srs(item_id: int, auth):
         current_hafiz_items.mode_id = 5
         current_hafiz_items.status_id = 5
         current_hafiz_items.next_interval = next_interval
+        # this is needed to calculate the next intervals correctly
+        current_hafiz_items.last_review = current_date
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
         hafizs_items.update(current_hafiz_items)
