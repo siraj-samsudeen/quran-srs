@@ -306,6 +306,14 @@ def get_next_interval(item_id, rating):
     # Get the intervals for pridicting the next interval
     intervals = srs_pack_details.interval_days.split(",")
     intervals = list(map(int, intervals))
+    # On Good rating, move the next interval based on the actual interval
+    if rating == 1:
+        last_review = hafiz_items_details.last_review
+        current_date = get_current_date(hafiz_items_details.hafiz_id)
+        interval_to_check = calculate_days_difference(last_review, current_date)
+    else:
+        interval_to_check = hafiz_items_details.next_interval
+
     rating_intervals = get_interval_triplet(
         target_interval=interval_to_check, interval_list=intervals
     )
