@@ -5,6 +5,7 @@ import sqlite3
 import os
 import itertools
 
+
 def flatten_list(list_of_lists):
     return list(itertools.chain(*list_of_lists))
 
@@ -409,35 +410,39 @@ def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
         )
 
 
+def binary_search_less_than(input_list: list[int], target: int) -> int:
+    # initial values
+    left = 0
+    right = len(input_list) - 1
+    possible_answer = {"index": None, "value": None}
+
+    while left <= right:
+        middle = (left + right) // 2
+        middle_value = input_list[middle]
+
+        if middle_value <= target:
+            left = middle + 1
+            possible_answer["index"] = middle
+            possible_answer["value"] = middle_value
+        else:
+            right = middle - 1
+
+    return possible_answer
+
+
 # This function is only used for getting the intervals for the rating in srs mode
-def get_interval_triplet(current_interval, interval_list):
-    """
-    Returns a triplet [left_sibling, lookup_value, right_sibling] based on the current_interval
-    and interval_list.
+def get_interval_triplet(target_interval, interval_list):
+    result = binary_search_less_than(input_list=interval_list, target=target_interval)
+    i = result["index"]
 
-    Args:
-        current_interval: The lookup value (either < min value or present in the list)
-        interval_list: List of intervals (assumed to be sorted)
+    # If the index is None then, it only means that the current interval is less than the first element
+    # in which case we assign the first element index
+    if i is None:
+        i = 0
 
-    Returns:
-        List of three elements: [left_sibling, lookup_value, right_sibling]
-    """
-    if not interval_list:
-        return [current_interval, current_interval, current_interval]
-
-    # Case 1: current_interval < min value of the list
-    if current_interval < interval_list[0]:
-        return [current_interval, current_interval, interval_list[0]]
-
-    # Case 2: current_interval is present in the list
-    for i in range(len(interval_list)):
-        if current_interval == interval_list[i]:
-            left = interval_list[i - 1] if i > 0 else interval_list[i]
-            right = interval_list[i + 1] if i < len(interval_list) - 1 else "Finished"
-            return [left, interval_list[i], right]
-
-    # This shouldn't happen based on the given constraints
-    return [current_interval, current_interval, current_interval]
+    left = interval_list[i - 1] if i > 0 else interval_list[i]
+    right = interval_list[i + 1] if i < len(interval_list) - 1 else interval_list[i]
+    return [left, interval_list[i], right]
 
 
 def render_date(date: str):
