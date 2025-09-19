@@ -306,8 +306,16 @@ def get_next_interval(item_id, rating):
     # Get the intervals for pridicting the next interval
     intervals = srs_pack_details.interval_days.split(",")
     intervals = list(map(int, intervals))
+    # On Good rating, move the next interval based on the actual interval
+    if rating == 1:
+        last_review = hafiz_items_details.last_review
+        current_date = get_current_date(hafiz_items_details.hafiz_id)
+        interval_to_check = calculate_days_difference(last_review, current_date)
+    else:
+        interval_to_check = hafiz_items_details.next_interval
+
     rating_intervals = get_interval_triplet(
-        current_interval=hafiz_items_details.next_interval, interval_list=intervals
+        target_interval=interval_to_check, interval_list=intervals
     )
     return rating_intervals[rating + 1]
 
@@ -479,7 +487,7 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
         # "ok": stay at same position
         # "bad": move backward in sequence
         rating_intervals = get_interval_triplet(
-            current_interval=last_interval, interval_list=intervals
+            target_interval=last_interval, interval_list=intervals
         )
         calculated_next_interval = rating_intervals[rev.rating + 1]
 
@@ -565,7 +573,7 @@ def get_interval_based_on_rating(item_id: int, rating: int):
 
     intervals = get_srs_interval_list(item_id)
     rating_intervals = get_interval_triplet(
-        current_interval=current_hafiz_item.next_interval, interval_list=intervals
+        target_interval=current_hafiz_item.next_interval, interval_list=intervals
     )
     return rating_intervals[rating + 1]
 

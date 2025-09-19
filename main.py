@@ -826,6 +826,9 @@ def update_hafiz_item_for_srs(rev):
     else:
         hafiz_items_details.mode_id = 1
         hafiz_items_details.status_id = 1
+        hafiz_items_details.last_interval = calculate_days_difference(
+            hafiz_items_details.last_review, current_date
+        )
         hafiz_items_details.next_interval = None
         hafiz_items_details.next_review = None
         hafiz_items_details.srs_booster_pack_id = None
@@ -845,14 +848,19 @@ def confirmation_page_for_close_date(auth):
     # List all the records that are recorded today with the interval details as a table
     srs_records = db.q(
         f"""
-    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval, revisions.rating FROM revisions 
+    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval,
+    revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
     WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = 5
     """
     )
 
     def render_srs_records(srs_record):
+        pack_details = srs_booster_pack[srs_record["pack_id"]]
+        end_interval = pack_details.end_interval
         next_interval = get_next_interval(srs_record["item_id"], srs_record["rating"])
+        if next_interval > end_interval:
+            next_interval = "Graduation"
         return Tr(
             Td(get_page_description(srs_record["item_id"])),
             Td(srs_record["previous_interval"]),
@@ -1208,6 +1216,17 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
 
+    # Sort the item_ids by not revised(top) and revised(bottom)
+    records = db.q(
+        f"""
+        SELECT hafizs_items.item_id FROM hafizs_items
+        LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id AND revisions.revision_date = '{current_date}'
+        WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({", ".join(map(str, item_ids))})
+        ORDER BY revisions.item_id, hafizs_items.item_id ASC
+    """
+    )
+    item_ids = [r["item_id"] for r in records]
+
     def render_range_row(item_id: str):
         row_id = f"{route}-row-{item_id}"
         plan_condition = f"AND plan_id = {plan_id}" if is_monthly_review else ""
@@ -1220,7 +1239,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header, {route}_tbody"
             + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
