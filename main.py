@@ -755,6 +755,11 @@ def update_hafiz_item_for_full_cycle(rev):
     hafiz_item_details = get_hafizs_items(rev.item_id)
     last_review = hafiz_item_details.last_review
     currrent_date = get_current_date(rev.hafiz_id)
+    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current next_interval
+    if hafiz_item_details.mode_id == 5:
+        hafiz_item_details.next_review = add_days_to_date(
+            currrent_date, hafiz_item_details.next_interval
+        )
 
     hafiz_item_details.last_interval = calculate_days_difference(
         last_review, currrent_date
