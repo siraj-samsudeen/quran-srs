@@ -321,19 +321,14 @@ def get_next_interval(item_id, rating):
 
 def get_actual_interval(item_id, current_date):
     current_hafiz_details = get_hafizs_items(item_id)
-    if current_hafiz_details.mode_id == 5:
-        latest_srs_record = revisions(
-            where=f"item_id = {item_id} AND mode_id = 5 AND revision_date < '{current_date}'",
-            order_by="revision_date DESC",
-            limit=1,
-        )
-        if latest_srs_record:
-            from_date = latest_srs_record[0].revision_date
-        else:
-            # This is to handle the case where if it is newly added into the SRS
-            from_date = current_hafiz_details.srs_start_date
+    has_srs_records = bool(revisions(where=f"item_id={item_id} and mode_id=5"))
+
+    # This is to handle the case where if it is newly added into the SRS
+    # Is to prevent from graduating on a single record, if it got manually added into srs mode,
+    # In which the `last_review` may not have updated for long time
+    if current_hafiz_details.mode_id == 5 and not has_srs_records:
+        from_date = current_hafiz_details.srs_start_date
     else:
-        # All the other modes uses the last review
         from_date = current_hafiz_details.last_review
 
     return calculate_days_difference(from_date, current_date)
