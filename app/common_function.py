@@ -308,9 +308,8 @@ def get_next_interval(item_id, rating):
     intervals = list(map(int, intervals))
     # On Good rating, move the next interval based on the actual interval
     if rating == 1:
-        last_review = hafiz_items_details.last_review
         current_date = get_current_date(hafiz_items_details.hafiz_id)
-        interval_to_check = calculate_days_difference(last_review, current_date)
+        interval_to_check = get_actual_interval(item_id, current_date)
     else:
         interval_to_check = hafiz_items_details.next_interval
 

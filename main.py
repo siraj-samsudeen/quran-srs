@@ -848,7 +848,7 @@ def confirmation_page_for_close_date(auth):
     # List all the records that are recorded today with the interval details as a table
     srs_records = db.q(
         f"""
-    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, CAST(julianday('{current_date}') - julianday(hafizs_items.last_review) AS INTEGER) AS actual_interval,
+    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval,
     revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
     WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = 5
@@ -864,7 +864,7 @@ def confirmation_page_for_close_date(auth):
         return Tr(
             Td(get_page_description(srs_record["item_id"])),
             Td(srs_record["previous_interval"]),
-            Td(srs_record["actual_interval"]),
+            Td(get_actual_interval(srs_record["item_id"], current_date)),
             Td(next_interval),
             Td(render_rating(srs_record["rating"])),
         )
@@ -1299,9 +1299,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
         if is_srs:
             hafiz_item_details = get_hafizs_items(item_id)
-            actual_interval = calculate_days_difference(
-                hafiz_item_details.last_review, current_date
-            )
+            actual_interval = get_actual_interval(item_id, current_date)
             extra_srs_columns = (
                 Td(hafiz_item_details.next_interval),
                 Td(actual_interval),
