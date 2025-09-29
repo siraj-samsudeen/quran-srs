@@ -1329,6 +1329,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 )
             ),
             id=row_id,
+            hx_preserve="true",
         )
 
     body_rows = list(map(render_range_row, item_ids))
