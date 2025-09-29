@@ -320,23 +320,24 @@ def get_next_interval(item_id, rating):
     return rating_intervals[rating + 1]
 
 
-def update_actual_interval(item_id, current_date):
-    """Update the current_interval in hafizs_items table"""
+def get_actual_interval(item_id, current_date):
     current_hafiz_details = get_hafizs_items(item_id)
     if current_hafiz_details.mode_id == 5:
-
-        # This is to handle the case where if it is newly added into the SRS
-        if revisions(
-            where=f"item_id={current_hafiz_details.item_id} and mode_id={current_hafiz_details.mode_id}"
-        ):
-            last_review = current_hafiz_details.last_review
-        else:
-            last_review = current_hafiz_details.srs_start_date
-
-        current_hafiz_details.current_interval = calculate_days_difference(
-            last_review, current_date
+        latest_srs_record = revisions(
+            where=f"item_id = {item_id} AND mode_id = 5 AND revision_date < '{current_date}'",
+            order_by="revision_date DESC",
+            limit=1,
         )
-        hafizs_items.update(current_hafiz_details)
+        if latest_srs_record:
+            from_date = latest_srs_record[0].revision_date
+        else:
+            # This is to handle the case where if it is newly added into the SRS
+            from_date = current_hafiz_details.srs_start_date
+    else:
+        # All the other modes uses the last review
+        from_date = current_hafiz_details.last_review
+
+    return calculate_days_difference(from_date, current_date)
 
 
 def update_hafizs_items_table(item_id: int, data_to_update: dict):

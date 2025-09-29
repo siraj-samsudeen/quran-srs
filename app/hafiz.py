@@ -14,17 +14,10 @@ hafiz_app, rt = create_app_with_auth()
 
 @hafiz_app.get("/update_stats_column")
 def update_stats_column(req, auth, item_id: int = None):
-    current_date = get_current_date(auth)
-
     if item_id:
         populate_hafizs_items_stat_columns(item_id)
-        update_actual_interval(item_id=item_id, current_date=current_date)
     else:
         populate_hafizs_items_stat_columns()
-        for hafiz_item in hafizs_items(where="mode_id = 5"):
-            update_actual_interval(
-                item_id=hafiz_item.item_id, current_date=current_date
-            )
 
     return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
