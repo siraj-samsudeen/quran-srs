@@ -171,7 +171,9 @@ def display_page_level_details(auth, item_id: int):
             hafiz_items_details = get_hafizs_items(item_id)
             if hafiz_items_details:
                 stat_columns = [
+                    "srs_start_date",
                     "last_review",
+                    "next_review",
                     "status_id",
                     "mode_id",
                     "last_interval",
