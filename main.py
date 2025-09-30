@@ -1334,7 +1334,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 )
             ),
             id=row_id,
-            hx_preserve="true",
         )
 
     body_rows = list(map(render_range_row, item_ids))
@@ -1416,6 +1415,9 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 # initializing the updateSelectAll function to select the selectAll checkboxe.
                 # if all the below checkboxes are selected.
                 x_init="updateSelectAll()",
+                # This is responsible for preserving the scroll position when hx-swap happens, to prevent scroll jump.
+                hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+                hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
             ),
         ),
     )
