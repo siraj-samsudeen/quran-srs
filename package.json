@@ -19,7 +19,7 @@
   },
   "homepage": "https://github.com/Zaseem-BIsquared/quran-srs#readme",
   "devDependencies": {
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^22.14.1"
   }
 }
