@@ -1222,15 +1222,15 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_all_selected = []
 
     # Sort the item_ids by not revised(top) and revised(bottom)
-    records = db.q(
-        f"""
-        SELECT hafizs_items.item_id FROM hafizs_items
-        LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id AND revisions.revision_date = '{current_date}'
-        WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({", ".join(map(str, item_ids))})
-        ORDER BY revisions.item_id, hafizs_items.item_id ASC
-    """
-    )
-    item_ids = [r["item_id"] for r in records]
+    # records = db.q(
+    #     f"""
+    #     SELECT hafizs_items.item_id FROM hafizs_items
+    #     LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id AND revisions.revision_date = '{current_date}'
+    #     WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({", ".join(map(str, item_ids))})
+    #     ORDER BY revisions.item_id, hafizs_items.item_id ASC
+    # """
+    # )
+    # item_ids = [r["item_id"] for r in records]
 
     def render_range_row(item_id: str):
         row_id = f"{route}-row-{item_id}"
@@ -1244,7 +1244,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
             # TODO: make the monthly cycle to only rerender on monthly summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header, {route}_tbody"
+            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
             + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
@@ -1334,6 +1334,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 )
             ),
             id=row_id,
+            cls="bg-green-100" if is_checked else None,
         )
 
     body_rows = list(map(render_range_row, item_ids))
