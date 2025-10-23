@@ -303,15 +303,27 @@ def get_start_text(item_id):
 def get_next_interval(item_id, rating):
     hafiz_items_details = get_hafizs_items(item_id)
     srs_pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
+    next_interval = hafiz_items_details.next_interval
     # Get the intervals for pridicting the next interval
     intervals = srs_pack_details.interval_days.split(",")
     intervals = list(map(int, intervals))
-    # On Good rating, move the next interval based on the actual interval
-    if rating == 1:
-        current_date = get_current_date(hafiz_items_details.hafiz_id)
-        interval_to_check = get_actual_interval(item_id, current_date)
+    # Get the actual interval for next interval calculation
+    current_date = get_current_date(hafiz_items_details.hafiz_id)
+    actual_interval = get_actual_interval(item_id, current_date)
+
+    # Update the actual interval based on the logic
+    # Good -> 100% of the actual interval
+    # Ok -> 50% of the actual interval
+    # Bad -> 25% of the actual interval
+    if rating == 0:
+        updated_actual_interval = round(actual_interval * 0.5)
+    elif rating == -1:
+        updated_actual_interval = round(actual_interval * 0.25)
     else:
-        interval_to_check = hafiz_items_details.next_interval
+        updated_actual_interval = actual_interval
+
+    # Get the highest interval, so that it does not go below the next interval
+    interval_to_check = max(next_interval, updated_actual_interval)
 
     rating_intervals = get_interval_triplet(
         target_interval=interval_to_check, interval_list=intervals
