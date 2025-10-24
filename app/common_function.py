@@ -221,6 +221,21 @@ def get_srs_limit(auth):
     return round(get_daily_capacity(auth) * 0.5)
 
 
+def get_last_added_full_cycle_page(auth):
+    current_date = get_current_date(auth)
+    last_full_cycle_record = db.q(
+        f"""
+        SELECT hafizs_items.page_number FROM revisions
+        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.id AND hafizs_items.hafiz_id = {auth}
+        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_id = 1 AND revisions.hafiz_id = {auth}
+        ORDER BY revisions.revision_date DESC, revisions.item_id DESC
+        LIMIT 1
+    """
+    )
+    if last_full_cycle_record:
+        return last_full_cycle_record[0]["page_number"]
+
+
 def populate_hafizs_items_stat_columns(item_id: int = None):
 
     def get_item_id_summary(item_id: int):

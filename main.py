@@ -1082,7 +1082,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -1109,9 +1109,30 @@ def make_summary_table(
         "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
-    item_ids = list(
-        dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
-    )
+    filtered_records = [i for i in ct if route_conditions[route](i)]
+
+    def get_unique_item_ids(records):
+        return list(dict.fromkeys(record["item_id"] for record in records))
+
+    if route == "srs":
+        srs_limit = get_srs_limit(auth)
+        exclude_start_page = get_last_added_full_cycle_page(auth)
+
+        # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
+        if exclude_start_page is not None:
+            exclude_end_page = exclude_start_page + (srs_limit * 3)
+
+            filtered_records = [
+                record
+                for record in filtered_records
+                if record["page_number"] < exclude_start_page
+                or record["page_number"] > exclude_end_page
+            ]
+
+        item_ids = get_unique_item_ids(filtered_records)[:srs_limit]
+    else:
+        item_ids = get_unique_item_ids(filtered_records)
+
     if route == "monthly_cycle":
         item_ids = get_monthly_review_item_ids(
             auth=auth,
@@ -1120,10 +1141,6 @@ def make_summary_table(
             item_ids=item_ids,
             current_plan_id=plan_id,
         )
-
-    if route == "srs":
-        srs_limit = get_srs_limit(auth)
-        item_ids = item_ids[:srs_limit]
 
     return (
         render_summary_table(
