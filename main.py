@@ -869,7 +869,7 @@ def confirmation_page_for_close_date(auth):
         return Tr(
             Td(get_page_description(srs_record["item_id"])),
             Td(srs_record["previous_interval"]),
-            Td(get_actual_interval(srs_record["item_id"], current_date)),
+            Td(get_actual_interval(srs_record["item_id"])),
             Td(next_interval),
             Td(render_rating(srs_record["rating"])),
         )
@@ -1304,7 +1304,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
         if is_srs:
             hafiz_item_details = get_hafizs_items(item_id)
-            actual_interval = get_actual_interval(item_id, current_date)
+            actual_interval = get_actual_interval(item_id)
             extra_srs_columns = (
                 Td(hafiz_item_details.next_interval),
                 Td(actual_interval),
