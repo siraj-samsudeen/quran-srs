@@ -216,6 +216,11 @@ def get_daily_capacity(auth):
     return current_hafiz.daily_capacity
 
 
+def get_srs_limit(auth):
+    # 50% percentage of daily capacity
+    return round(get_daily_capacity(auth) * 0.5)
+
+
 def populate_hafizs_items_stat_columns(item_id: int = None):
 
     def get_item_id_summary(item_id: int):

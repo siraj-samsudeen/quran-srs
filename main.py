@@ -1121,6 +1121,10 @@ def make_summary_table(
             current_plan_id=plan_id,
         )
 
+    if route == "srs":
+        srs_limit = get_srs_limit(auth)
+        item_ids = item_ids[:srs_limit]
+
     return (
         render_summary_table(
             route=route,
