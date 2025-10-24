@@ -449,3 +449,8 @@ def render_date(date: str):
     if date:
         date = date_to_human_readable(date)
     return date
+
+
+def get_day_from_date(date: str):
+    if date:
+        return datetime.strptime(date, "%Y-%m-%d").day

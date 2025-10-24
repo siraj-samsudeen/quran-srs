@@ -1129,7 +1129,13 @@ def make_summary_table(
                 or record["page_number"] > exclude_end_page
             ]
 
-        item_ids = get_unique_item_ids(filtered_records)[:srs_limit]
+        item_ids = get_unique_item_ids(filtered_records)
+
+        # On a daily basis, This will rotate the items to show (first/last) pages, to ensure that the user can focus on all the pages.
+        if get_day_from_date(current_date) % 2 == 0:
+            item_ids = item_ids[:srs_limit]
+        else:
+            item_ids = item_ids[-srs_limit:]
     else:
         item_ids = get_unique_item_ids(filtered_records)
 
