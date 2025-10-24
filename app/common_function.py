@@ -216,7 +216,7 @@ def get_daily_capacity(auth):
     return current_hafiz.daily_capacity
 
 
-def get_srs_limit(auth):
+def get_srs_daily_limit(auth):
     # 50% percentage of daily capacity
     return round(get_daily_capacity(auth) * 0.5)
 
