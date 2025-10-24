@@ -194,7 +194,7 @@ def display_page_level_details(auth, item_id: int):
                     elif col_name == "status_id":
                         value = statuses[value].name
                     elif col_name == "current_interval":
-                        value = get_actual_interval(item_id, get_current_date(auth))
+                        value = get_actual_interval(item_id)
                     else:
                         value = str(value).capitalize()
                     return Tr(

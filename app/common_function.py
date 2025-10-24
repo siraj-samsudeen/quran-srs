@@ -297,32 +297,56 @@ def get_start_text(item_id):
         return "-"
 
 
-####################### Recent_review, Watch_list and SRS common function #######################
-
-
-def get_next_interval(item_id, rating):
+def get_actual_interval(item_id):
     hafiz_items_details = get_hafizs_items(item_id)
-    srs_pack_details = srs_booster_pack[hafiz_items_details.srs_booster_pack_id]
-    # Get the intervals for pridicting the next interval
-    intervals = srs_pack_details.interval_days.split(",")
+    current_date = get_current_date(hafiz_items_details.hafiz_id)
+
+    last_review = hafiz_items_details.last_review
+    return calculate_days_difference(last_review, current_date)
+
+
+def update_interval_based_on_rating(actual_interval, rating):
+    # Good -> 100% of the actual interval
+    # Ok -> 50% of the actual interval
+    # Bad -> 35% of the actual interval
+    rating_multipliers = {1: 1, 0: 0.5, -1: 0.35}
+    return round(actual_interval * rating_multipliers[rating])
+
+
+def get_planned_next_interval(item_id):
+    return get_hafizs_items(item_id).next_interval
+
+
+def get_intervals_for_pack(srs_booster_pack_id):
+    booster_pack_details = srs_booster_pack[srs_booster_pack_id]
+    intervals = booster_pack_details.interval_days.split(",")
     intervals = list(map(int, intervals))
-    # On Good rating, move the next interval based on the actual interval
-    if rating == 1:
-        current_date = get_current_date(hafiz_items_details.hafiz_id)
-        interval_to_check = get_actual_interval(item_id, current_date)
-    else:
-        interval_to_check = hafiz_items_details.next_interval
+    return intervals
+
+
+def get_next_interval_based_on_rating(item_id, current_interval, rating):
+    interval_list = get_intervals_for_pack(
+        get_hafizs_items(item_id).srs_booster_pack_id
+    )
 
     rating_intervals = get_interval_triplet(
-        target_interval=interval_to_check, interval_list=intervals
+        target_interval=current_interval,
+        interval_list=interval_list,
     )
     return rating_intervals[rating + 1]
 
 
-def get_actual_interval(item_id, current_date):
-    current_hafiz_details = get_hafizs_items(item_id)
-    last_review = current_hafiz_details.last_review
-    return calculate_days_difference(last_review, current_date)
+####################### Recent_review, Watch_list and SRS common function #######################
+
+
+def get_next_interval(item_id, rating):
+    actual_interval = get_actual_interval(item_id)
+    actual_interval = update_interval_based_on_rating(actual_interval, rating)
+
+    # we do NOT want to drop below the last planned interval
+    current_interval = max(get_planned_next_interval(item_id), actual_interval)
+
+    return get_next_interval_based_on_rating(item_id, current_interval, rating)
 
 
 def update_hafizs_items_table(item_id: int, data_to_update: dict):
