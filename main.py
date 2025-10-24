@@ -1082,7 +1082,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -1109,15 +1109,42 @@ def make_summary_table(
         "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
-    recent_items = list(
-        dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
-    )
+    filtered_records = [i for i in ct if route_conditions[route](i)]
+
+    def get_unique_item_ids(records):
+        return list(dict.fromkeys(record["item_id"] for record in records))
+
+    if route == "srs":
+        srs_daily_limit = get_srs_daily_limit(auth)
+        exclude_start_page = get_last_added_full_cycle_page(auth)
+
+        # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
+        if exclude_start_page is not None:
+            exclude_end_page = exclude_start_page + (srs_daily_limit * 3)
+
+            filtered_records = [
+                record
+                for record in filtered_records
+                if record["page_number"] < exclude_start_page
+                or record["page_number"] > exclude_end_page
+            ]
+
+        item_ids = get_unique_item_ids(filtered_records)
+
+        # On a daily basis, This will rotate the items to show (first/last) pages, to ensure that the user can focus on all the pages.
+        if get_day_from_date(current_date) % 2 == 0:
+            item_ids = item_ids[:srs_daily_limit]
+        else:
+            item_ids = item_ids[-srs_daily_limit:]
+    else:
+        item_ids = get_unique_item_ids(filtered_records)
+
     if route == "monthly_cycle":
-        recent_items = get_monthly_review_item_ids(
+        item_ids = get_monthly_review_item_ids(
             auth=auth,
             total_display_count=total_display_count,
             ct=ct,
-            recent_items=recent_items,
+            item_ids=item_ids,
             current_plan_id=plan_id,
         )
 
@@ -1126,15 +1153,15 @@ def make_summary_table(
             route=route,
             auth=auth,
             mode_ids=mode_ids,
-            item_ids=recent_items,
+            item_ids=item_ids,
             plan_id=plan_id,
         ),
-        recent_items,
+        item_ids,
     )
 
 
 def get_monthly_review_item_ids(
-    auth, total_display_count, ct, recent_items, current_plan_id
+    auth, total_display_count, ct, item_ids, current_plan_id
 ):
     current_date = get_current_date(auth)
 
@@ -1162,7 +1189,7 @@ def get_monthly_review_item_ids(
         # eliminate items that are already revisioned in the current plan_id
         eligible_item_ids = [
             i
-            for i in recent_items
+            for i in item_ids
             if not revisions(
                 where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
             )
@@ -1200,8 +1227,8 @@ def get_monthly_review_item_ids(
         )
     )
 
-    recent_items = sorted(item_ids + today_revisioned_items)
-    return recent_items
+    item_ids = sorted(item_ids + today_revisioned_items)
+    return item_ids
 
 
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
