@@ -1302,16 +1302,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             rep_denominator = 7
         progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
 
-        if is_srs:
-            hafiz_item_details = get_hafizs_items(item_id)
-            actual_interval = get_actual_interval(item_id)
-            extra_srs_columns = (
-                Td(hafiz_item_details.next_interval),
-                Td(actual_interval),
-            )
-        else:
-            extra_srs_columns = ()
-
         return Tr(
             Td(get_page_description(item_id)),
             Td(
@@ -1323,7 +1313,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 if not (is_newly_memorized or is_monthly_review or is_srs)
                 else None
             ),
-            *extra_srs_columns,
             Td(record_btn),
             Td(
                 Form(
@@ -1378,7 +1367,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                             if not (is_newly_memorized or is_monthly_review or is_srs)
                             else None
                         ),
-                        ((Th("Next"), Th("Actual")) if is_srs else None),
                         Th(
                             CheckboxX(
                                 name="is_select_all",
