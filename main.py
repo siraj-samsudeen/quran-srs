@@ -1109,15 +1109,15 @@ def make_summary_table(
         "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
-    recent_items = list(
+    item_ids = list(
         dict.fromkeys(i["item_id"] for i in ct if route_conditions[route](i))
     )
     if route == "monthly_cycle":
-        recent_items = get_monthly_review_item_ids(
+        item_ids = get_monthly_review_item_ids(
             auth=auth,
             total_display_count=total_display_count,
             ct=ct,
-            recent_items=recent_items,
+            item_ids=item_ids,
             current_plan_id=plan_id,
         )
 
@@ -1126,15 +1126,15 @@ def make_summary_table(
             route=route,
             auth=auth,
             mode_ids=mode_ids,
-            item_ids=recent_items,
+            item_ids=item_ids,
             plan_id=plan_id,
         ),
-        recent_items,
+        item_ids,
     )
 
 
 def get_monthly_review_item_ids(
-    auth, total_display_count, ct, recent_items, current_plan_id
+    auth, total_display_count, ct, item_ids, current_plan_id
 ):
     current_date = get_current_date(auth)
 
@@ -1162,7 +1162,7 @@ def get_monthly_review_item_ids(
         # eliminate items that are already revisioned in the current plan_id
         eligible_item_ids = [
             i
-            for i in recent_items
+            for i in item_ids
             if not revisions(
                 where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
             )
@@ -1200,8 +1200,8 @@ def get_monthly_review_item_ids(
         )
     )
 
-    recent_items = sorted(item_ids + today_revisioned_items)
-    return recent_items
+    item_ids = sorted(item_ids + today_revisioned_items)
+    return item_ids
 
 
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
