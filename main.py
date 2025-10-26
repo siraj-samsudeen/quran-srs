@@ -447,9 +447,7 @@ def custom_entry_inputs(auth, plan_id):
         action="/revision/entry",
         method="POST",
     )
-    return Div(
-        entry_buttons, cls="flex-wrap gap-4 min-w-72 m-4", id="custom_entry_link"
-    )
+    return Div(entry_buttons, cls="flex-wrap gap-4 min-w-72", id="custom_entry_link")
 
 
 def get_next_input_page(next_item_id):
