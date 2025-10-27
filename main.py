@@ -874,7 +874,7 @@ def confirmation_page_for_close_date(auth):
     SELECT revisions.item_id, hafizs_items.next_interval as previous_interval,
     revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
-    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = {SRS_MODE_ID}
+    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = {SRS_MODE_ID} AND revisions.hafiz_id = {auth}
     """
     )
 
