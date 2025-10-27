@@ -20,6 +20,6 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 
 ### Frontend Assets
 - **Tailwind CSS**: Configuration in `tailwind.config.js` (minimal setup)
-- **JavaScript**: Static files in `public/` directory (script.js, watch_list_logic.js)
+- **JavaScript**: Static files in `public/` directory (script.js)
 
 [... rest of the existing content remains unchanged ...]

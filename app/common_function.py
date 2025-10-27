@@ -357,7 +357,7 @@ def get_next_interval_based_on_rating(item_id, current_interval, rating):
     return rating_intervals[rating + 1]
 
 
-####################### Watch_list and SRS common function #######################
+####################### SRS common function #######################
 
 
 def get_next_interval(item_id, rating):
@@ -368,95 +368,6 @@ def get_next_interval(item_id, rating):
     current_interval = max(get_planned_next_interval(item_id), actual_interval)
 
     return get_next_interval_based_on_rating(item_id, current_interval, rating)
-
-
-def update_hafizs_items_table(item_id: int, data_to_update: dict):
-    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-
-    if current_hafiz_items:
-        hafizs_items.update(data_to_update, current_hafiz_items[0].id)
-
-
-def get_lastest_date(item_id: int, mode_id: int):
-    if mode_id == 3:
-        mode_ids = ("2", "3")
-    elif mode_id == 4:
-        mode_ids = ("3", "4")
-    elif mode_id == 5:
-        mode_ids = "5"
-    else:
-        return None
-
-    last_reviewed = revisions(
-        where=f"item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)})",
-        order_by="revision_date DESC",
-        limit=1,
-    )
-
-    if last_reviewed:
-        return last_reviewed[0].revision_date
-    return None
-
-
-def update_review_dates(item_id: int, mode_id: int):
-    if mode_id == 3:
-        increment_day = 1
-    elif mode_id == 4:
-        increment_day = 7
-    else:
-        return None
-
-    latest_revision_date = get_lastest_date(item_id, mode_id)
-
-    current_hafiz_item = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_item:
-        current_hafiz_item = current_hafiz_item[0]
-        # To update the status of hafizs_items table if it is newly memorized
-        if current_hafiz_item.mode_id == 2:
-            current_hafiz_item.mode_id = 3
-        current_hafiz_item.last_review = latest_revision_date
-        current_hafiz_item.next_review = add_days_to_date(
-            latest_revision_date, increment_day
-        )
-        hafizs_items.update(current_hafiz_item)
-
-
-def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
-    last_review_date = get_lastest_date(item_id, mode_id)
-    watch_list = {
-        "status_id": 4,
-        "mode_id": 4,
-        "last_review": last_review_date,
-        "next_review": add_days_to_date(last_review_date, 7),
-        "watch_list_graduation_date": None,
-    }
-    memorized = {
-        "status_id": 1,
-        "mode_id": 1,
-        "last_review": None,
-        "next_review": None,
-        "watch_list_graduation_date": get_current_date(auth),
-    }
-    srs = {
-        "status_id": 1,
-        "mode_id": 1,
-        "last_review": last_review_date,
-        "next_review": None,
-        "last_interval": None,
-        "current_interval": None,
-        "next_interval": None,
-        "srs_booster_pack_id": None,
-        "srs_start_date": None,
-    }
-
-    if mode_id == 4:
-        data_to_update = memorized if checked else watch_list
-    elif mode_id == 5:
-        data_to_update = srs
-    else:
-        return None
-
-    update_hafizs_items_table(item_id, data_to_update)
 
 
 def recalculate_intervals_on_srs_records(item_id: int, current_date: str):

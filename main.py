@@ -7,7 +7,6 @@ from collections import defaultdict
 from app.users_controller import users_app
 from app.revision import revision_app
 from app.new_memorization import new_memorization_app
-from app.watch_list import watch_list_app
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
@@ -32,7 +31,6 @@ app, rt = create_app_with_auth(
         Mount("/users", users_app, name="users"),
         Mount("/revision", revision_app, name="revision"),
         Mount("/new_memorization", new_memorization_app, name="new_memorization"),
-        Mount("/watch_list", watch_list_app, name="watch_list"),
         Mount("/admin", admin_app, name="admin"),
         Mount("/page_details", page_details_app, name="page_details"),
         Mount("/profile", profile_app, name="profile"),
@@ -1226,6 +1224,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     mode_id_mapping = {
         "monthly_cycle": 1,
         "new_memorization": 2,
+        "recent_review": 3,
         "watch_list": 4,
         "srs": 5,
     }
@@ -1363,12 +1362,12 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             Div(
                 (
                     A(
-                        "Record",
+                        "Go to Details",
                         href=f"/{route}",
                         hx_boost="false",
                         cls=(AT.classic, TextPresets.bold_sm, "float-right"),
                     )
-                    if route not in ["monthly_cycle", "srs"]
+                    if route == "new_memorization"
                     else None
                 ),
                 cls="w-full",
