@@ -166,7 +166,7 @@ def get_page_description(
     else:
         page, description = item_description.split(" ", maxsplit=1)
     return A(
-        Span(page, cls=TextPresets.bold_sm),
+        Span(page, cls=TextPresets.bold_lg),
         Br(),
         Span(description),
         href=(f"/page_details/{item_id}" if not link else link),
