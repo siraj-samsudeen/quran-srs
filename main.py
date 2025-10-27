@@ -943,11 +943,11 @@ def change_the_current_date(auth):
         populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
     # TODO: The page should enter into SRS mode before or after updating the current_date?
-    # Get the full-cycle today revised pages which have 2 or more bad streak
+    # Get the full-cycle today revised pages which have 1 or more bad streak
     qry = f"""
         SELECT revisions.item_id FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.bad_streak >= 2 AND revisions.mode_id = 1 AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{hafiz_data.current_date}'
+        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_id = 1 AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{hafiz_data.current_date}'
     """
     for items in db.q(qry):
         start_srs(items["item_id"], auth)
