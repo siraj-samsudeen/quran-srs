@@ -1,4 +1,4 @@
-from globals import *
+# from globals import *
 from app.common_function import *
 
 REP_MODES_CONFIG = {
