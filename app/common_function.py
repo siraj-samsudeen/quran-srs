@@ -357,7 +357,7 @@ def get_next_interval_based_on_rating(item_id, current_interval, rating):
     return rating_intervals[rating + 1]
 
 
-####################### Recent_review, Watch_list and SRS common function #######################
+####################### Watch_list and SRS common function #######################
 
 
 def get_next_interval(item_id, rating):
@@ -423,11 +423,6 @@ def update_review_dates(item_id: int, mode_id: int):
 
 def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = True):
     last_review_date = get_lastest_date(item_id, mode_id)
-    recent_review = {
-        "mode_id": 3,
-        "last_review": last_review_date,
-        "next_review": add_days_to_date(last_review_date, 1),
-    }
     watch_list = {
         "status_id": 4,
         "mode_id": 4,
@@ -454,9 +449,7 @@ def graduate_the_item_id(item_id: int, mode_id: int, auth: int, checked: bool = 
         "srs_start_date": None,
     }
 
-    if mode_id == 3:
-        data_to_update = watch_list if checked else recent_review
-    elif mode_id == 4:
+    if mode_id == 4:
         data_to_update = memorized if checked else watch_list
     elif mode_id == 5:
         data_to_update = srs
