@@ -661,17 +661,17 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
     ############################# END ################################
 
-    recent_review_table, recent_review_items = make_summary_table(
-        mode_ids=["2", "3"], route="recent_review", auth=auth
+    daily_reps_table, daily_reps_items = make_summary_table(
+        mode_ids=["2", "3"], route="daily_reps", auth=auth
     )
 
-    recent_review_target = get_page_count(item_ids=recent_review_items)
+    daily_reps_target = get_page_count(item_ids=daily_reps_items)
 
     # Include mode_id=1 as well so that graduated watch list items are included
-    watch_list_table, watch_list_items = make_summary_table(
-        mode_ids=["4", "1"], route="watch_list", auth=auth
+    weekly_reps_table, weekly_reps_items = make_summary_table(
+        mode_ids=["4", "1"], route="weekly_reps", auth=auth
     )
-    watch_list_target = get_page_count(item_ids=watch_list_items)
+    weekly_reps_target = get_page_count(item_ids=weekly_reps_items)
 
     new_memorization_table, new_memorization_items = (
         make_new_memorization_summary_table(
@@ -705,8 +705,8 @@ def index(auth, sess, full_cycle_display_count: int = None):
     tables_dict = {
         modes[1].name: overall_table if not (plan_id is None) else None,
         modes[2].name: new_memorization_table,
-        modes[3].name: recent_review_table,
-        modes[4].name: watch_list_table,
+        modes[3].name: daily_reps_table,
+        modes[4].name: weekly_reps_table,
         modes[5].name: srs_table,
     }
 
@@ -721,8 +721,8 @@ def index(auth, sess, full_cycle_display_count: int = None):
     target_counts = {
         1: monthly_review_target,
         2: new_memorization_target,
-        3: recent_review_target,
-        4: watch_list_target,
+        3: daily_reps_target,
+        4: weekly_reps_target,
         5: srs_target,
     }
 
@@ -799,7 +799,6 @@ def update_hafiz_item_for_weekly(rev):
         hafiz_item_details.last_interval = hafiz_item_details.next_interval
         hafiz_item_details.next_interval = None
         hafiz_item_details.next_review = None
-        hafiz_item_details.watch_list_graduation_date = current_date
 
     hafizs_items.update(hafiz_item_details)
 
@@ -1003,10 +1002,10 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
         unmemorized_items = get_next_unmemorized_page_items(
             last_newly_memorized_item_id
         )
-    recent_newly_memorized_items = get_today_memorized_item_ids()
+    daily_reps_newly_memorized_items = get_today_memorized_item_ids()
 
     new_memorization_items = sorted(
-        set(unmemorized_items + recent_newly_memorized_items)
+        set(unmemorized_items + daily_reps_newly_memorized_items)
     )
     return (
         render_summary_table(
@@ -1035,10 +1034,10 @@ def make_summary_table(
     def is_reviewed_today(item: dict) -> bool:
         return item["last_review"] == current_date
 
-    def has_recent_mode_id(item: dict) -> bool:
+    def has_daily_reps_mode_id(item: dict) -> bool:
         return item["mode_id"] == 3
 
-    def has_watchlist_mode_id(item: dict) -> bool:
+    def has_weekly_reps_mode_id(item: dict) -> bool:
         return item["mode_id"] == 4
 
     def has_memorized(item: dict) -> bool:
@@ -1070,7 +1069,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.watch_list_graduation_date, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -1079,18 +1078,14 @@ def make_summary_table(
 
     # Route-specific condition builders
     route_conditions = {
-        "recent_review": lambda item: (
+        "daily_reps": lambda item: (
             (is_review_due(item) and not has_newly_memorized_for_today(item))
-            or (is_reviewed_today(item) and has_recent_mode_id(item))
+            or (is_reviewed_today(item) and has_daily_reps_mode_id(item))
         ),
-        "watch_list": lambda item: (
-            item["watch_list_graduation_date"] == current_date
-            or (
-                has_watchlist_mode_id(item)
-                and (
-                    is_review_due(item)
-                    or (is_reviewed_today(item) and has_revisions(item))
-                )
+        "weekly_reps": lambda item: (
+            has_weekly_reps_mode_id(item)
+            and (
+                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
             )
         ),
         "srs": lambda item: (is_review_due(item) or has_revisions_today(item)),
@@ -1224,8 +1219,8 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     mode_id_mapping = {
         "monthly_cycle": 1,
         "new_memorization": 2,
-        "recent_review": 3,
-        "watch_list": 4,
+        "daily_reps": 3,
+        "weekly_reps": 4,
         "srs": 5,
     }
     mode_id = mode_id_mapping[route]
