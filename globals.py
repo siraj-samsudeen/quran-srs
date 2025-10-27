@@ -7,6 +7,13 @@ from fastmigrate.core import (
     _set_db_version,
 )
 
+# Mode IDs
+FULL_CYCLE_MODE_ID = 1
+NEW_MEMORIZATION_MODE_ID = 2
+DAILY_REPS_MODE_ID = 3
+WEEKLY_REPS_MODE_ID = 4
+SRS_MODE_ID = 5
+
 
 def create_and_migrate_db(db_path):
     migrations_dir = "migrations/"
