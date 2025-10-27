@@ -163,8 +163,12 @@ def get_page_description(
 
     if not is_link:
         return Span(item_description)
+    else:
+        page, description = item_description.split(" ", maxsplit=1)
     return A(
-        Span(item_description),
+        Span(page, cls=TextPresets.bold_sm),
+        Br(),
+        Span(description),
         href=(f"/page_details/{item_id}" if not link else link),
         cls=AT.classic,
     )
@@ -648,7 +652,7 @@ def rating_dropdown(
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls=("[&>div]:h-8 uk-form-sm", cls),
+            cls=cls,
             **kwargs,
         ),
         cls="rounded-sm",
