@@ -94,6 +94,9 @@ def bulk_edit_redirect(ids: List[str]):
 def bulk_edit_view(ids: str, auth):
     ids = ids.split(",")
 
+    # Sort the ids based on the page number
+    ids.sort(key=lambda id: get_page_number(revisions[id].item_id))
+
     # Get the default values from the first selected revision
     first_revision = revisions[ids[0]]
 
