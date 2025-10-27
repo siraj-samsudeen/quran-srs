@@ -25,6 +25,26 @@ DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
 
+# Mode IDs
+FULL_CYCLE_MODE_ID = 1
+NEW_MEMORIZATION_MODE_ID = 2
+DAILY_REPS_MODE_ID = 3
+WEEKLY_REPS_MODE_ID = 4
+SRS_MODE_ID = 5
+
+REP_MODES_CONFIG = {
+    DAILY_REPS_MODE_ID: {
+        "interval": 1,
+        "threshold": 7,
+        "next_mode_id": WEEKLY_REPS_MODE_ID,
+    },  # Daily -> Weekly
+    WEEKLY_REPS_MODE_ID: {
+        "interval": 7,
+        "threshold": 7,
+        "next_mode_id": FULL_CYCLE_MODE_ID,
+    },  # Weekly -> Full Cycle
+}
+
 
 app, rt = create_app_with_auth(
     routes=[
@@ -381,7 +401,9 @@ def custom_entry_inputs(auth, plan_id):
     This function is used to retain the input values in the form and display the custom entry inputs
     """
     # Get last added item or start from beginning
-    revision_data = revisions(where=f"mode_id = 1 AND plan_id = {plan_id}")
+    revision_data = revisions(
+        where=f"mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {plan_id}"
+    )
     if revision_data:
         last_added_item_id = revision_data[-1].item_id
     else:
@@ -467,7 +489,7 @@ def get_next_input_page(next_item_id):
 def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
-    seq_id = "1"
+    seq_id = str(FULL_CYCLE_MODE_ID)
 
     unique_seq_plan_id = [
         i.id for i in plans(where="completed <> 1", order_by="id DESC")
@@ -485,7 +507,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             [
                 r.item_id
                 for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}'"
+                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}''"
                 )
             ]
         )
@@ -615,7 +637,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
     monthly_cycle_table, monthly_cycle_items = make_summary_table(
-        mode_ids=["1", "5"],
+        mode_ids=[str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
         route="monthly_cycle",
         auth=auth,
         total_display_count=total_display_count,
@@ -662,25 +684,33 @@ def index(auth, sess, full_cycle_display_count: int = None):
     ############################# END ################################
 
     daily_reps_table, daily_reps_items = make_summary_table(
-        mode_ids=["2", "3"], route="daily_reps", auth=auth
+        mode_ids=[str(NEW_MEMORIZATION_MODE_ID), str(DAILY_REPS_MODE_ID)],
+        route="daily_reps",
+        auth=auth,
     )
 
     daily_reps_target = get_page_count(item_ids=daily_reps_items)
 
     # Include mode_id=1 as well so that graduated watch list items are included
     weekly_reps_table, weekly_reps_items = make_summary_table(
-        mode_ids=["4", "1"], route="weekly_reps", auth=auth
+        mode_ids=[str(WEEKLY_REPS_MODE_ID), str(FULL_CYCLE_MODE_ID)],
+        route="weekly_reps",
+        auth=auth,
     )
     weekly_reps_target = get_page_count(item_ids=weekly_reps_items)
 
     new_memorization_table, new_memorization_items = (
         make_new_memorization_summary_table(
-            mode_ids=["2"], route="new_memorization", auth=auth
+            mode_ids=[str(NEW_MEMORIZATION_MODE_ID)],
+            route="new_memorization",
+            auth=auth,
         )
     )
     new_memorization_target = get_page_count(item_ids=new_memorization_items)
 
-    srs_table, srs_items = make_summary_table(mode_ids=["5"], route="srs", auth=auth)
+    srs_table, srs_items = make_summary_table(
+        mode_ids=[str(SRS_MODE_ID)], route="srs", auth=auth
+    )
 
     srs_target = get_page_count(item_ids=srs_items)
 
@@ -703,11 +733,13 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
     tables_dict = {
-        modes[1].name: overall_table if not (plan_id is None) else None,
-        modes[2].name: new_memorization_table,
-        modes[3].name: daily_reps_table,
-        modes[4].name: weekly_reps_table,
-        modes[5].name: srs_table,
+        modes[FULL_CYCLE_MODE_ID].name: (
+            overall_table if not (plan_id is None) else None
+        ),
+        modes[NEW_MEMORIZATION_MODE_ID].name: new_memorization_table,
+        modes[DAILY_REPS_MODE_ID].name: daily_reps_table,
+        modes[WEEKLY_REPS_MODE_ID].name: weekly_reps_table,
+        modes[SRS_MODE_ID].name: srs_table,
     }
 
     # Dynamically sort the table order based on the mode name
@@ -719,11 +751,11 @@ def index(auth, sess, full_cycle_display_count: int = None):
     # if the table has no records then exclude them from the tables list
     tables = [_table for _table in tables if _table is not None]
     target_counts = {
-        1: monthly_review_target,
-        2: new_memorization_target,
-        3: daily_reps_target,
-        4: weekly_reps_target,
-        5: srs_target,
+        FULL_CYCLE_MODE_ID: monthly_review_target,
+        NEW_MEMORIZATION_MODE_ID: new_memorization_target,
+        DAILY_REPS_MODE_ID: daily_reps_target,
+        WEEKLY_REPS_MODE_ID: weekly_reps_target,
+        SRS_MODE_ID: srs_target,
     }
 
     stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
@@ -744,7 +776,7 @@ def update_hafiz_item_for_full_cycle(rev):
     last_review = hafiz_item_details.last_review
     currrent_date = get_current_date(rev.hafiz_id)
     # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current next_interval
-    if hafiz_item_details.mode_id == 5:
+    if hafiz_item_details.mode_id == SRS_MODE_ID:
         hafiz_item_details.next_review = add_days_to_date(
             currrent_date, hafiz_item_details.next_interval
         )
@@ -757,50 +789,49 @@ def update_hafiz_item_for_full_cycle(rev):
 
 def update_hafiz_item_for_new_memorization(rev):
     hafiz_item_details = get_hafizs_items(rev.item_id)
-    hafiz_item_details.mode_id = 2
+    hafiz_item_details.mode_id = DAILY_REPS_MODE_ID
     hafiz_item_details.status_id = 4
     hafizs_items.update(hafiz_item_details)
 
 
-def update_hafiz_item_for_daily(rev):
-    hafiz_item_details = get_hafizs_items(rev.item_id)
+def update_rep_item(rev):
+    # This function handles all rep-based modes (Daily, Weekly, etc.)
+    config = REP_MODES_CONFIG.get(rev.mode_id)
+    if not config:
+        return  # Not a rep mode we can handle
+
+    hafiz_item = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)
 
-    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
-        next_interval = 1
+    # Special case: Promote from 'New Memorization' to 'Daily'
+    if hafiz_item.mode_id == NEW_MEMORIZATION_MODE_ID:
+        hafiz_item.mode_id = DAILY_REPS_MODE_ID
+
+    # Check if the item is ready to graduate
+    if get_mode_count(rev.item_id, rev.mode_id) < config["threshold"]:
+        # Keep in current mode, just update next review date
+        hafiz_item.last_interval = hafiz_item.next_interval
+        hafiz_item.next_interval = config["interval"]
+        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
     else:
-        # If the reps are more than 7 then move it to Weekly reps
-        next_interval = 7
-        hafiz_item_details.mode_id = 4
+        # Graduate to the next mode
+        hafiz_item.mode_id = config["next_mode_id"]
+        if config["next_mode_id"] == FULL_CYCLE_MODE_ID:  # Graduating to Full Cycle
+            # Reset intervals for Full Cycle
+            hafiz_item.status_id = 1
+            hafiz_item.last_interval = hafiz_item.next_interval
+            hafiz_item.next_interval = None
+            hafiz_item.next_review = None
+        else:
+            # Graduate to the next rep mode (e.g., Daily -> Weekly)
+            next_config = REP_MODES_CONFIG[config["next_mode_id"]]
+            hafiz_item.last_interval = hafiz_item.next_interval
+            hafiz_item.next_interval = next_config["interval"]
+            hafiz_item.next_review = add_days_to_date(
+                current_date, next_config["interval"]
+            )
 
-    # This is one time process, when the page gets recorded in the daily reps for the first time
-    # As it got entered as the `newly memorized`.
-    if hafiz_item_details.mode_id == 2:
-        hafiz_item_details.mode_id = 3
-    hafiz_item_details.last_interval = hafiz_item_details.next_interval
-    hafiz_item_details.next_interval = next_interval
-    hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
-    hafizs_items.update(hafiz_item_details)
-
-
-def update_hafiz_item_for_weekly(rev):
-    hafiz_item_details = get_hafizs_items(rev.item_id)
-    current_date = get_current_date(rev.hafiz_id)
-
-    if get_mode_count(item_id=rev.item_id, mode_id=rev.mode_id) < 7:
-        next_interval = 7
-        hafiz_item_details.last_interval = hafiz_item_details.next_interval
-        hafiz_item_details.next_interval = next_interval
-        hafiz_item_details.next_review = add_days_to_date(current_date, next_interval)
-    else:
-        # If the reps are more than 7 then move it to full cycle
-        hafiz_item_details.mode_id = 1
-        hafiz_item_details.status_id = 1
-        hafiz_item_details.last_interval = hafiz_item_details.next_interval
-        hafiz_item_details.next_interval = None
-        hafiz_item_details.next_review = None
-
-    hafizs_items.update(hafiz_item_details)
+    hafizs_items.update(hafiz_item)
 
 
 def update_hafiz_item_for_srs(rev):
@@ -816,7 +847,7 @@ def update_hafiz_item_for_srs(rev):
         hafiz_items_details.next_interval = next_interval
         hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
     else:
-        hafiz_items_details.mode_id = 1
+        hafiz_items_details.mode_id = FULL_CYCLE_MODE_ID
         hafiz_items_details.status_id = 1
         hafiz_items_details.last_interval = calculate_days_difference(
             hafiz_items_details.last_review, current_date
@@ -843,7 +874,7 @@ def confirmation_page_for_close_date(auth):
     SELECT revisions.item_id, hafizs_items.next_interval as previous_interval,
     revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
-    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = 5
+    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = {SRS_MODE_ID}
     """
     )
 
@@ -915,15 +946,13 @@ def change_the_current_date(auth):
 
     revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
-        if rev.mode_id == 1:
+        if rev.mode_id == FULL_CYCLE_MODE_ID:
             update_hafiz_item_for_full_cycle(rev)
-        elif rev.mode_id == 2:
+        elif rev.mode_id == NEW_MEMORIZATION_MODE_ID:
             update_hafiz_item_for_new_memorization(rev)
-        elif rev.mode_id == 3:
-            update_hafiz_item_for_daily(rev)
-        elif rev.mode_id == 4:
-            update_hafiz_item_for_weekly(rev)
-        elif rev.mode_id == 5:
+        elif rev.mode_id in REP_MODES_CONFIG:
+            update_rep_item(rev)
+        elif rev.mode_id == SRS_MODE_ID:
             update_hafiz_item_for_srs(rev)
 
         # update all the non-mode specific columns (including the last_review column)
@@ -934,7 +963,7 @@ def change_the_current_date(auth):
     qry = f"""
         SELECT revisions.item_id FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_id = 1 AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{hafiz_data.current_date}'
+        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_id = {FULL_CYCLE_MODE_ID} AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{hafiz_data.current_date}'
     """
     for items in db.q(qry):
         start_srs(items["item_id"], auth)
@@ -956,7 +985,7 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
 
     def get_last_memorized_item_id():
         result = revisions(
-            where=f"hafiz_id = {auth} AND mode_id = 2",
+            where=f"hafiz_id = {auth} AND mode_id = {NEW_MEMORIZATION_MODE_ID}",
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
@@ -966,7 +995,7 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
         qry = f"""
             SELECT items.page_id AS page_number FROM revisions
             JOIN items ON revisions.item_id = items.id 
-            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = 2 AND revisions.revision_date = '{current_date}'
+            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = {NEW_MEMORIZATION_MODE_ID} AND revisions.revision_date = '{current_date}'
             ORDER BY revisions.id DESC;
         """
         result = db.q(qry)
@@ -990,7 +1019,9 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
         return [i["item_id"] for i in grouped[first_page] if i]
 
     def get_today_memorized_item_ids():
-        result = revisions(where=f"mode_id = 2 AND revision_date = '{current_date}'")
+        result = revisions(
+            where=f"mode_id = {NEW_MEMORIZATION_MODE_ID} AND revision_date = '{current_date}'"
+        )
         return [i.item_id for i in result]
 
     today_page_id = get_last_newly_memorized_page_for_today()
@@ -1034,11 +1065,8 @@ def make_summary_table(
     def is_reviewed_today(item: dict) -> bool:
         return item["last_review"] == current_date
 
-    def has_daily_reps_mode_id(item: dict) -> bool:
-        return item["mode_id"] == 3
-
-    def has_weekly_reps_mode_id(item: dict) -> bool:
-        return item["mode_id"] == 4
+    def has_mode_id(item: dict, mode_id: int) -> bool:
+        return item["mode_id"] == mode_id
 
     def has_memorized(item: dict) -> bool:
         return item["status_id"] == 1
@@ -1064,14 +1092,14 @@ def make_summary_table(
 
     def has_newly_memorized_for_today(item: dict) -> bool:
         newly_memorized_record = revisions(
-            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = 2"
+            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {NEW_MEMORIZATION_MODE_ID}"
         )
         return len(newly_memorized_record) == 1
 
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
-        WHERE hafizs_items.mode_id IN ({", ".join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
+        WHERE hafizs_items.mode_id IN ({', '.join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
     """
     ct = db.q(qry)
@@ -1080,10 +1108,10 @@ def make_summary_table(
     route_conditions = {
         "daily_reps": lambda item: (
             (is_review_due(item) and not has_newly_memorized_for_today(item))
-            or (is_reviewed_today(item) and has_daily_reps_mode_id(item))
+            or (is_reviewed_today(item) and has_mode_id(item, DAILY_REPS_MODE_ID))
         ),
         "weekly_reps": lambda item: (
-            has_weekly_reps_mode_id(item)
+            has_mode_id(item, WEEKLY_REPS_MODE_ID)
             and (
                 is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
             )
@@ -1166,7 +1194,7 @@ def get_monthly_review_item_ids(
             return []
 
     def has_monthly_cycle_mode_id(item: dict) -> bool:
-        return item["mode_id"] == 1
+        return item["mode_id"] == FULL_CYCLE_MODE_ID
 
     if current_plan_id is not None:
         # eliminate items that are already revisioned in the current plan_id
@@ -1174,12 +1202,12 @@ def get_monthly_review_item_ids(
             i
             for i in item_ids
             if not revisions(
-                where=f"item_id = {i} AND mode_id = 1 AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+                where=f"item_id = {i} AND mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
             )
         ]
         # TODO: handle the new user that not have any revision/plan_id
         last_added_revision = revisions(
-            where=f"revision_date <> '{current_date}' AND mode_id = 1 AND plan_id = {current_plan_id}",
+            where=f"revision_date <> '{current_date}' AND mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {current_plan_id}",
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
@@ -1217,16 +1245,16 @@ def get_monthly_review_item_ids(
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_accordion = route != "monthly_cycle"
     mode_id_mapping = {
-        "monthly_cycle": 1,
-        "new_memorization": 2,
-        "daily_reps": 3,
-        "weekly_reps": 4,
-        "srs": 5,
+        "monthly_cycle": FULL_CYCLE_MODE_ID,
+        "new_memorization": NEW_MEMORIZATION_MODE_ID,
+        "daily_reps": DAILY_REPS_MODE_ID,
+        "weekly_reps": WEEKLY_REPS_MODE_ID,
+        "srs": SRS_MODE_ID,
     }
     mode_id = mode_id_mapping[route]
-    is_newly_memorized = mode_id == 2
-    is_monthly_review = mode_id == 1
-    is_srs = mode_id == 5
+    is_newly_memorized = mode_id == NEW_MEMORIZATION_MODE_ID
+    is_monthly_review = mode_id == FULL_CYCLE_MODE_ID
+    is_srs = mode_id == SRS_MODE_ID
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
     is_all_selected = []
@@ -1236,7 +1264,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     #     f"""
     #     SELECT hafizs_items.item_id FROM hafizs_items
     #     LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id AND revisions.revision_date = '{current_date}'
-    #     WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({", ".join(map(str, item_ids))})
+    #     WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({', '.join(map(str, item_ids))})
     #     ORDER BY revisions.item_id, hafizs_items.item_id ASC
     # """
     # )
@@ -1246,7 +1274,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         row_id = f"{route}-row-{item_id}"
         plan_condition = f"AND plan_id = {plan_id}" if is_monthly_review else ""
         current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({", ".join(mode_ids)}) {plan_condition}"
+            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({', '.join(mode_ids)}) {plan_condition}"
         )
         is_checked = len(current_revision_data) != 0
         is_all_selected.append(is_checked)
@@ -1306,7 +1334,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         )
 
         revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
-        if mode_id == 5:
+        if mode_id == SRS_MODE_ID:
             rep_denominator = len(get_srs_interval_list(item_id))
         else:
             rep_denominator = 7
@@ -1398,7 +1426,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                     "select_all",
                                     "bulk-add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
                                     "disabled:opacity-50",
-                                    ("hidden" if mode_id == 5 else None),
+                                    ("hidden" if mode_id == SRS_MODE_ID else None),
                                 ),
                                 x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
                             )
