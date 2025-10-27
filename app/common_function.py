@@ -58,13 +58,14 @@ hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
+style_css = Link(rel="stylesheet", href="/public/css/style.css")
 
 
 # Create sub-apps with the beforeware
 def create_app_with_auth(**kwargs):
     app, rt = fast_app(
         before=[user_bware, hafiz_bware],
-        hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header),
+        hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header, style_css),
         bodykw={"hx-boost": "true"},
         **kwargs,
     )
@@ -120,13 +121,14 @@ def main_area(*args, active=None, auth=None, **kwargs):
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
                 brand=H3(title, Span(" - "), hafiz_name, additional_info),
+                cls="py-3",
             ),
             DividerLine(y_space=0),
             cls="bg-white sticky top-0 z-50",
             hx_boost="false",
         ),
-        Main(*args, cls="p-4", id="main") if args else None,
-        cls=ContainerT.xl,
+        Main(*args, id="main") if args else None,
+        cls=(ContainerT.xl, "px-0.5"),
     )
 
 
@@ -161,8 +163,12 @@ def get_page_description(
 
     if not is_link:
         return Span(item_description)
+    else:
+        page, description = item_description.split(" ", maxsplit=1)
     return A(
-        Span(item_description),
+        Span(page, cls=TextPresets.bold_sm),
+        Br(),
+        Span(description),
         href=(f"/page_details/{item_id}" if not link else link),
         cls=AT.classic,
     )
@@ -646,10 +652,10 @@ def rating_dropdown(
             label=("Rating" if is_label else None),
             name=name,
             select_kwargs={"name": name},
-            cls=("[&>div]:h-8 uk-form-sm w-24", cls),
+            cls=cls,
             **kwargs,
         ),
-        cls="max-w-24 outline outline-gray-200 outline-1 rounded-sm",
+        cls="rounded-sm",
     )
 
 
