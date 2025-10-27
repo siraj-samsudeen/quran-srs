@@ -113,11 +113,6 @@ def main_area(*args, active=None, auth=None, **kwargs):
                 A("Revision", href="/revision", cls=is_active("Revision")),
                 A("Tables", href="/admin/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
-                A(
-                    "SRS",
-                    href="/srs",
-                    cls=is_active("SRS"),
-                ),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
                 brand=H3(title, Span(" - "), hafiz_name, additional_info),

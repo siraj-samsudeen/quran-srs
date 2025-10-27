@@ -9,7 +9,6 @@ from app.revision import revision_app
 from app.new_memorization import new_memorization_app
 from app.recent_review import recent_review_app
 from app.watch_list import watch_list_app
-from app.srs import srs_app
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
@@ -36,7 +35,6 @@ app, rt = create_app_with_auth(
         Mount("/new_memorization", new_memorization_app, name="new_memorization"),
         Mount("/recent_review", recent_review_app, name="recent_review"),
         Mount("/watch_list", watch_list_app, name="watch_list"),
-        Mount("/srs", srs_app, name="srs"),
         Mount("/admin", admin_app, name="admin"),
         Mount("/page_details", page_details_app, name="page_details"),
         Mount("/profile", profile_app, name="profile"),
@@ -1377,7 +1375,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         hx_boost="false",
                         cls=(AT.classic, TextPresets.bold_sm, "float-right"),
                     )
-                    if route != "monthly_cycle"
+                    if route not in ["monthly_cycle", "srs"]
                     else None
                 ),
                 cls="w-full",
