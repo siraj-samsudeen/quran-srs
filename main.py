@@ -507,7 +507,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             [
                 r.item_id
                 for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}''"
+                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}'"
                 )
             ]
         )
