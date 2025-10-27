@@ -323,6 +323,8 @@ def get_actual_interval(item_id):
     current_date = get_current_date(hafiz_items_details.hafiz_id)
 
     last_review = hafiz_items_details.last_review
+    if not last_review:
+        return None
     return calculate_days_difference(last_review, current_date)
 
 
@@ -362,10 +364,16 @@ def get_next_interval_based_on_rating(item_id, current_interval, rating):
 
 def get_next_interval(item_id, rating):
     actual_interval = get_actual_interval(item_id)
+    if not actual_interval:
+        return None
+
     actual_interval = update_interval_based_on_rating(actual_interval, rating)
 
-    # we do NOT want to drop below the last planned interval
-    current_interval = max(get_planned_next_interval(item_id), actual_interval)
+    planned_interval = get_planned_next_interval(item_id)
+    if not planned_interval:
+        return None
+
+    current_interval = max(planned_interval, actual_interval)
 
     return get_next_interval_based_on_rating(item_id, current_interval, rating)
 
