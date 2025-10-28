@@ -107,6 +107,11 @@ def main_area(*args, active=None, auth=None):
                     href="/page_details",
                     cls=is_active("Page Details"),
                 ),
+                A(
+                    "New Memorization",
+                    href="/new_memorization",
+                    cls=is_active("New Memorization"),
+                ),
                 A("Revision", href="/revision", cls=is_active("Revision")),
                 A("Tables", href="/admin/tables", cls=is_active("Tables")),
                 A("Report", href="/report", cls=is_active("Report")),
@@ -927,19 +932,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
     render_output = (
         Div(
-            Div(
-                (
-                    A(
-                        "Go to Details",
-                        href=f"/{route}",
-                        hx_boost="false",
-                        cls=(AT.classic, TextPresets.bold_sm, "float-right"),
-                    )
-                    if route == "new_memorization"
-                    else None
-                ),
-                cls="w-full",
-            ),
             Table(
                 Thead(
                     Tr(

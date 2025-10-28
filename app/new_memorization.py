@@ -190,6 +190,72 @@ def render_row_based_on_type(
     )
 
 
+def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
+    current_date = get_current_date(auth)
+
+    def get_last_memorized_item_id():
+        result = revisions(
+            where=f"hafiz_id = {auth} AND mode_id = {NEW_MEMORIZATION_MODE_ID}",
+            order_by="revision_date DESC, id DESC",
+            limit=1,
+        )
+        return result[0].item_id if result else 0
+
+    def get_last_newly_memorized_page_for_today():
+        qry = f"""
+            SELECT items.page_id AS page_number FROM revisions
+            JOIN items ON revisions.item_id = items.id 
+            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = {NEW_MEMORIZATION_MODE_ID} AND revisions.revision_date = '{current_date}'
+            ORDER BY revisions.id DESC;
+        """
+        result = db.q(qry)
+        return result[0]["page_number"] if result else None
+
+    def get_not_memorized_item_ids(page_id):
+        result = hafizs_items(where=f"page_number = {page_id} AND status_id = 6")
+        return [i.item_id for i in result]
+
+    def get_next_unmemorized_page_items(item_id):
+        qry = f"""
+            SELECT items.id AS item_id, items.page_id AS page_number FROM items
+            LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+            WHERE hafizs_items.status_id = 6 AND items.active != 0 AND items.id > {item_id}
+       """
+        ct = db.q(qry)
+        grouped = group_by_type(ct, "page")
+        if not grouped:
+            return []
+        first_page = next(iter(grouped))
+        return [i["item_id"] for i in grouped[first_page] if i]
+
+    def get_today_memorized_item_ids():
+        result = revisions(
+            where=f"mode_id = {NEW_MEMORIZATION_MODE_ID} AND revision_date = '{current_date}'"
+        )
+        return [i.item_id for i in result]
+
+    today_page_id = get_last_newly_memorized_page_for_today()
+    # If there are no newly memorized revisions for today, then get the closest unmemorized items to display
+    if today_page_id:
+        unmemorized_items = get_not_memorized_item_ids(today_page_id)
+    else:
+        last_newly_memorized_item_id = get_last_memorized_item_id()
+        unmemorized_items = get_next_unmemorized_page_items(
+            last_newly_memorized_item_id
+        )
+    daily_reps_newly_memorized_items = get_today_memorized_item_ids()
+
+    new_memorization_items = sorted(
+        set(unmemorized_items + daily_reps_newly_memorized_items)
+    )
+    return render_summary_table(
+        route=route,
+        auth=auth,
+        mode_ids=mode_ids,
+        item_ids=new_memorization_items,
+    )
+
+
 @new_memorization_app.post("/update_as_newly_memorized/{item_id}")
 def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
@@ -365,7 +431,7 @@ def new_memorization(auth, current_type: str):
             "hx_select": f"#recently_memorized_table",
             "hx_target": f"#recently_memorized_table",
             "hx_swap": "outerHTML",
-            "hx_select_oob": "#new_memorization_table",
+            "hx_select_oob": "#not_memorization_table",
         }
         return Tr(
             Td(get_page_description(records[0]["item_id"])),
@@ -413,10 +479,16 @@ def new_memorization(auth, current_type: str):
         ),
         cls="uk-overflow-auto h-[25vh] p-4",
     )
-
+    # New Memorization entry table same as the one on home page
+    # new_memorization_table = get_new_memorization_table(
+    #     mode_ids=[str(NEW_MEMORIZATION_MODE_ID)],
+    #     route="new_memorization",
+    #     auth=auth,
+    # )
     return main_area(
         H1("New Memorization", cls="uk-text-center"),
         Div(
+            # Accordion(new_memorization_table, animation=True),
             Div(
                 H4("Recently Memorized Pages"),
                 recent_newly_memorized_table,
@@ -432,12 +504,12 @@ def new_memorization(auth, current_type: str):
                     ),
                 ),
                 not_memorized_table,
-                id="new_memorization_table",
+                id="not_memorization_table",
             ),
             cls="space-y-4",
         ),
         Div(modal),
-        active="Home",
+        active="New Memorization",
         auth=auth,
     )
 
