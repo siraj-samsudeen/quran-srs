@@ -374,71 +374,7 @@ def get_next_input_page(next_item_id):
 def index(auth, sess, full_cycle_display_count: int = None):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
-    seq_id = str(FULL_CYCLE_MODE_ID)
-
-    unique_seq_plan_id = [
-        i.id for i in plans(where="completed <> 1", order_by="id DESC")
-    ]
-
-    if unique_seq_plan_id and not len(unique_seq_plan_id) > 1:
-        plan_id = unique_seq_plan_id[0]
-    else:
-        plan_id = None
-
-    if plan_id is None:
-        items_gaps_with_limit = []
-    else:
-        current_plan_item_ids = sorted(
-            [
-                r.item_id
-                for r in revisions(
-                    where=f"mode_id = '{seq_id}' AND plan_id = '{unique_seq_plan_id[0]}'"
-                )
-            ]
-        )
-        memorized_and_srs_item_ids = [
-            i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
-        ]
-        # this will return the gap of the current_plan_item_ids based on the master(items_id)
-        items_gaps_with_limit = find_gaps(
-            current_plan_item_ids, memorized_and_srs_item_ids
-        )
-
-    def render_overall_row(o: tuple):
-        last_added_item_id, upper_limit = o
-        # This is to set a upper limit for the bulk entry, if there are gaps in between
-        # to avoid adding records for already added items
-        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
-
-        next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
-
-        if next_item_id is None:
-            next_page = "No further page"
-            action_buttons = None
-        else:
-            next_page = get_page_description(next_item_id)
-            action_buttons = DivLAligned(
-                Button(
-                    "Bulk",
-                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
-                    hx_target="body",
-                    hx_push_url="true",
-                    cls=(ButtonT.default, "p-2"),
-                ),
-                Button(
-                    "Single",
-                    hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
-                    hx_target="body",
-                    hx_push_url="true",
-                    cls=(ButtonT.default, "p-2"),
-                ),
-                cls=("gap-3", FlexT.wrap),
-            )
-
-        return Tr(
-            Td(next_page),
-            Td(action_buttons),
-        )
+    plan_id = get_current_plan_id()
 
     ############################ full Cycle ################################
 
@@ -491,23 +427,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
         DivHStacked(
             *[create_count_button(count) for count in [1, 2, 3, 5]],
             cls=(FlexT.center, "gap-2"),
-        ),
-        Div(
-            (
-                Table(
-                    Thead(
-                        Tr(
-                            Th("Next"),
-                            Th("Entry"),
-                        )
-                    ),
-                    Tbody(*map(render_overall_row, items_gaps_with_limit)),
-                    id="full_cycle_link_table",
-                )
-                if len(items_gaps_with_limit) > 0
-                else Div(id="full_cycle_link_table")
-            ),
-            custom_entry_inputs(auth, plan_id) if plan_id else None,
         ),
         open=True,
         div_kwargs={"data-testid": "full-cycle-summary-table-area"},
@@ -695,6 +614,90 @@ def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
         auth=auth,
         mode_ids=mode_ids,
         item_ids=new_memorization_items,
+    )
+
+
+@app.get("/custom")
+def custom_full_cycle_entry_view(auth):
+    plan_id = get_current_plan_id()
+
+    if plan_id is None:
+        items_gaps_with_limit = []
+    else:
+        current_plan_item_ids = sorted(
+            [
+                r.item_id
+                for r in revisions(
+                    where=f"mode_id = '{FULL_CYCLE_MODE_ID}' AND plan_id = '{plan_id}'"
+                )
+            ]
+        )
+        memorized_and_srs_item_ids = [
+            i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+        ]
+        # this will return the gap of the current_plan_item_ids based on the master(items_id)
+        items_gaps_with_limit = find_gaps(
+            current_plan_item_ids, memorized_and_srs_item_ids
+        )
+
+    def render_overall_row(o: tuple):
+        last_added_item_id, upper_limit = o
+        # This is to set a upper limit for the bulk entry, if there are gaps in between
+        # to avoid adding records for already added items
+        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
+
+        next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
+
+        if next_item_id is None:
+            next_page = "No further page"
+            action_buttons = None
+        else:
+            next_page = get_page_description(next_item_id)
+            action_buttons = DivLAligned(
+                Button(
+                    "Bulk",
+                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=(ButtonT.default, "p-2"),
+                ),
+                Button(
+                    "Single",
+                    hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
+                    hx_target="body",
+                    hx_push_url="true",
+                    cls=(ButtonT.default, "p-2"),
+                ),
+                cls=("gap-3", FlexT.wrap),
+            )
+
+        return Tr(
+            Td(next_page),
+            Td(action_buttons),
+        )
+
+    return main_area(
+        Div(
+            H2("Custom Full Cycle Entry"),
+            (
+                Table(
+                    Thead(
+                        Tr(
+                            Th("Next"),
+                            Th("Entry"),
+                        )
+                    ),
+                    Tbody(*map(render_overall_row, items_gaps_with_limit)),
+                    id="full_cycle_link_table",
+                )
+                if len(items_gaps_with_limit) > 0
+                else Div(id="full_cycle_link_table")
+            ),
+            custom_entry_inputs(auth, plan_id),
+            cls="space-y-2",
+        ),
+        active="Custom",
+        auth=auth,
     )
 
 

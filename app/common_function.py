@@ -687,6 +687,16 @@ def delete_hafiz(hafiz_id: int):
     hafizs.delete(hafiz_id)
 
 
+def get_current_plan_id():
+    unique_seq_plan_id = [
+        i.id for i in plans(where="completed <> 1", order_by="id DESC")
+    ]
+
+    if unique_seq_plan_id and not len(unique_seq_plan_id) > 1:
+        return unique_seq_plan_id[0]
+    return None
+
+
 def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
     total_count = 0
     if item_ids:
