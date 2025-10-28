@@ -653,24 +653,16 @@ def index(auth, sess, full_cycle_display_count: int = None):
         id="modal",
     )
 
-    tables_dict = {
-        modes[FULL_CYCLE_MODE_ID].name: (
-            overall_table if not (plan_id is None) else None
-        ),
-        modes[NEW_MEMORIZATION_MODE_ID].name: new_memorization_table,
-        modes[DAILY_REPS_MODE_ID].name: daily_reps_table,
-        modes[WEEKLY_REPS_MODE_ID].name: weekly_reps_table,
-        modes[SRS_MODE_ID].name: srs_table,
-    }
+    mode_tables = [
+        (overall_table if plan_id else None),
+        new_memorization_table,
+        daily_reps_table,
+        weekly_reps_table,
+        srs_table,
+    ]
 
-    # Dynamically sort the table order based on the mode name
-    tables_dict = dict(
-        sorted(tables_dict.items(), key=lambda x: int(x[0].split(". ")[0]))
-    )
-
-    tables = tables_dict.values()
     # if the table has no records then exclude them from the tables list
-    tables = [_table for _table in tables if _table is not None]
+    mode_tables = [_table for _table in mode_tables if _table is not None]
     target_counts = {
         FULL_CYCLE_MODE_ID: monthly_review_target,
         NEW_MEMORIZATION_MODE_ID: new_memorization_target,
@@ -684,7 +676,11 @@ def index(auth, sess, full_cycle_display_count: int = None):
         auth=auth, target_counts=target_counts
     )
     return main_area(
-        Div(stat_table, Divider(), Accordion(*tables, multiple=True, animation=True)),
+        Div(
+            stat_table,
+            Divider(),
+            Accordion(*mode_tables, multiple=True, animation=True),
+        ),
         Div(modal),
         active="Home",
         auth=auth,
