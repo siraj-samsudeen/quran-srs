@@ -14,7 +14,7 @@ from app.hafiz import hafiz_app
 from app.common_function import *
 from globals import *
 from app.fixed_reps import *
-from app.flexible_reps import *
+from app.srs_reps import *
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {
