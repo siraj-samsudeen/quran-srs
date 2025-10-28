@@ -229,19 +229,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
-def render_total_ticked_count(auth, target_counts):
-    current_date = get_current_date(auth)
-    today_completed_count = get_page_count(
-        revisions(where=f"revision_date = '{current_date}'")
-    )
-    overall_target_count = sum(target_counts.values())
-    return Span(
-        render_progress_display(today_completed_count, overall_target_count),
-        id="total-ticked-count-footer",
-    )
-
-
-def render_stats_summary_table(auth, target_counts):
+def create_stat_table(auth):
     current_date = get_current_date(auth)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
@@ -258,43 +246,22 @@ def render_stats_summary_table(auth, target_counts):
     mode_ids = [mode.id for mode in modes()]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
-    def render_count(mode_id, revision_date, is_link=True, show_dash_for_zero=False):
+    def render_count(mode_id, revision_date):
         count, item_ids = get_revision_data(mode_id, revision_date)
 
         if count == 0:
-            if show_dash_for_zero:
-                return "-", ""
-            else:
-                return 0, ""
+            return "-"
 
-        if is_link:
-            return create_count_link(count, item_ids)
-        else:
-            return count, item_ids
+        return create_count_link(count, item_ids)
 
     def render_stat_rows(current_mode_id):
-        today_count, today_item_ids = render_count(
-            current_mode_id, today, is_link=False
-        )
-        today_target = (
-            target_counts[current_mode_id]
-            if current_mode_id in target_counts.keys()
-            else 0
-        )
-        progress_display = render_progress_display(
-            today_count, today_target, today_item_ids
-        )
-        yesterday_display = render_count(
-            current_mode_id, yesterday, is_link=True, show_dash_for_zero=True
-        )
         return Tr(
             Td(f"{modes[current_mode_id].name}"),
-            Td(progress_display),
-            Td(yesterday_display),
+            Td(render_count(current_mode_id, today)),
+            Td(render_count(current_mode_id, yesterday)),
             id=f"stat-row-{current_mode_id}",
         )
 
-    overall_target_count = sum(target_counts.values())
     return Div(
         DivLAligned(
             current_date_description,
@@ -322,11 +289,7 @@ def render_stats_summary_table(auth, target_counts):
             Tfoot(
                 Tr(
                     Td("Total"),
-                    Td(
-                        render_progress_display(
-                            today_completed_count, overall_target_count
-                        )
-                    ),
+                    Td(today_completed_count),
                     Td(yesterday_completed_count),
                     cls="[&>*]:font-bold",
                     id="total_row",
@@ -535,14 +498,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
         description = None
     ############################ Monthly Cycle ################################
 
-    def get_monthly_target_and_progress():
-        current_date = get_current_date(auth)
-        monthly_review_target = get_daily_capacity(auth) // 2
-        monthly_reviews_completed_today = get_page_count(
-            revisions(where=f"mode_id = '1' and revision_date='{current_date}'")
-        )
-        return monthly_review_target, monthly_reviews_completed_today
-
     def get_extra_page_display_count(sess, auth, current_date):
         sess_data = sess.get("full_cycle_display_count_details", {})
         # Check if session data is valid for current user and date
@@ -576,23 +531,16 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
-    monthly_cycle_table, monthly_cycle_items = make_summary_table(
+    monthly_cycle_table = make_summary_table(
         mode_ids=[str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
         route="monthly_cycle",
         auth=auth,
         total_display_count=total_display_count,
         plan_id=plan_id,
     )
-    monthly_review_target, monthly_reviews_completed_today = (
-        get_monthly_target_and_progress()
-    )
-    monthly_progress_display = render_progress_display(
-        monthly_reviews_completed_today, monthly_review_target
-    )
     overall_table = AccordionItem(
         Span(
-            f"{modes[1].name} - ",
-            monthly_progress_display,
+            modes[1].name,
             id=f"monthly_cycle-header",
         ),
         monthly_cycle_table,
@@ -623,17 +571,23 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
     ############################# END ################################
 
-    daily_reps_table, daily_reps_target = get_daily_reps_table(auth)
-    weekly_reps_table, weekly_reps_target = get_weekly_reps_table(auth)
-    srs_table, srs_target = get_srs_table(auth)
-    new_memorization_table, new_memorization_items = (
-        make_new_memorization_summary_table(
-            mode_ids=[str(NEW_MEMORIZATION_MODE_ID)],
-            route="new_memorization",
-            auth=auth,
-        )
+    daily_reps_table = get_reps_table(
+        mode_ids=[NEW_MEMORIZATION_MODE_ID, DAILY_REPS_MODE_ID],
+        route="daily_reps",
+        auth=auth,
     )
-    new_memorization_target = get_page_count(item_ids=new_memorization_items)
+    weekly_reps_table = get_reps_table(
+        mode_ids=[WEEKLY_REPS_MODE_ID, FULL_CYCLE_MODE_ID],
+        route="weekly_reps",
+        auth=auth,
+    )
+    srs_table = get_reps_table(mode_ids=[SRS_MODE_ID], route="srs", auth=auth)
+
+    new_memorization_table = get_new_memorization_table(
+        mode_ids=[str(NEW_MEMORIZATION_MODE_ID)],
+        route="new_memorization",
+        auth=auth,
+    )
 
     modal = ModalContainer(
         ModalDialog(
@@ -663,18 +617,8 @@ def index(auth, sess, full_cycle_display_count: int = None):
 
     # if the table has no records then exclude them from the tables list
     mode_tables = [_table for _table in mode_tables if _table is not None]
-    target_counts = {
-        FULL_CYCLE_MODE_ID: monthly_review_target,
-        NEW_MEMORIZATION_MODE_ID: new_memorization_target,
-        DAILY_REPS_MODE_ID: daily_reps_target,
-        WEEKLY_REPS_MODE_ID: weekly_reps_target,
-        SRS_MODE_ID: srs_target,
-    }
 
-    stat_table = render_stats_summary_table(auth=auth, target_counts=target_counts)
-    total_ticked_count = render_total_ticked_count(
-        auth=auth, target_counts=target_counts
-    )
+    stat_table = create_stat_table(auth=auth)
     return main_area(
         Div(
             stat_table,
@@ -684,7 +628,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
         Div(modal),
         active="Home",
         auth=auth,
-        additional_info=total_ticked_count,
     )
 
 
@@ -746,7 +689,7 @@ def datewise_summary_table_view(auth):
     return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
-def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: str):
+def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
     current_date = get_current_date(auth)
 
     def get_last_memorized_item_id():
@@ -804,14 +747,11 @@ def make_new_memorization_summary_table(auth: str, mode_ids: list[str], route: s
     new_memorization_items = sorted(
         set(unmemorized_items + daily_reps_newly_memorized_items)
     )
-    return (
-        render_summary_table(
-            route=route,
-            auth=auth,
-            mode_ids=mode_ids,
-            item_ids=new_memorization_items,
-        ),
-        new_memorization_items,
+    return render_summary_table(
+        route=route,
+        auth=auth,
+        mode_ids=mode_ids,
+        item_ids=new_memorization_items,
     )
 
 

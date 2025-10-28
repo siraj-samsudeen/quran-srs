@@ -1,16 +1,6 @@
 from app.common_function import *
 
 
-def get_srs_table(auth):
-    srs_table, srs_items = make_summary_table(
-        mode_ids=[str(SRS_MODE_ID)], route="srs", auth=auth
-    )
-
-    srs_target = get_page_count(item_ids=srs_items)
-
-    return srs_table, srs_target
-
-
 def update_hafiz_item_for_srs(rev):
     hafiz_items_details = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)

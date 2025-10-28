@@ -84,7 +84,7 @@ def warning_toast(sess, msg):
     add_toast(sess, msg, "warning")
 
 
-def main_area(*args, active=None, auth=None, **kwargs):
+def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href="/")
     hafiz_name = A(
@@ -92,9 +92,6 @@ def main_area(*args, active=None, auth=None, **kwargs):
         href="/users/hafiz_selection",
         method="GET",
     )
-    additional_info = kwargs.get("additional_info")
-    if additional_info:
-        additional_info = " (", additional_info, ")"
     return Title("Quran SRS"), Container(
         Div(
             NavBar(
@@ -114,7 +111,7 @@ def main_area(*args, active=None, auth=None, **kwargs):
                 A("Report", href="/report", cls=is_active("Report")),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
-                brand=H3(title, Span(" - "), hafiz_name, additional_info),
+                brand=H3(title, Span(" - "), hafiz_name),
                 cls="py-3",
             ),
             DividerLine(y_space=0),
@@ -788,20 +785,6 @@ def create_count_link(count: int, rev_ids: str):
     )
 
 
-def render_progress_display(current_count: int, target_count: int, rev_ids: str = ""):
-    target_count = format_number(target_count)
-    current_count = format_number(current_count)
-    base_link = create_count_link(current_count, rev_ids)
-    if current_count == 0 and target_count == 0:
-        return "-"
-    elif current_count == target_count:
-        return (base_link, " ✔️")
-    elif current_count > target_count:
-        return (base_link, f" / {target_count}", " ✔️")
-    else:
-        return (base_link, f" / {target_count}")
-
-
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_accordion = route != "monthly_cycle"
     mode_id_mapping = {
@@ -925,11 +908,6 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         )
 
     body_rows = list(map(render_range_row, item_ids))
-    target_page_count = get_page_count(item_ids=item_ids)
-    progress_page_count = get_page_count(
-        revisions(where=f"mode_id = {mode_id} and revision_date = '{current_date}'")
-    )
-    summary_count = render_progress_display(progress_page_count, target_page_count)
     if not body_rows:
         return None
 
@@ -1010,7 +988,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     )
     return (
         AccordionItem(
-            Span(f"{modes[mode_id].name} - ", summary_count, id=f"{route}-header"),
+            Span(modes[mode_id].name, id=f"{route}-header"),
             render_output,
             open=(not all(is_all_selected)),
         )
@@ -1129,13 +1107,20 @@ def make_summary_table(
             current_plan_id=plan_id,
         )
 
-    return (
-        render_summary_table(
-            route=route,
-            auth=auth,
-            mode_ids=mode_ids,
-            item_ids=item_ids,
-            plan_id=plan_id,
-        ),
-        item_ids,
+    return render_summary_table(
+        route=route,
+        auth=auth,
+        mode_ids=mode_ids,
+        item_ids=item_ids,
+        plan_id=plan_id,
+    )
+
+
+# This funtion is to convert the mode ids to string
+def get_reps_table(mode_ids, route, auth):
+    """Helper to get table and target count for rep modes."""
+    return make_summary_table(
+        mode_ids=[str(mid) for mid in mode_ids],
+        route=route,
+        auth=auth,
     )
