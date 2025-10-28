@@ -571,24 +571,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
         auth=auth,
     )
 
-    modal = ModalContainer(
-        ModalDialog(
-            ModalHeader(
-                ModalTitle(id="modal-title"),
-                P(cls=TextPresets.muted_sm, id="modal-description"),
-                ModalCloseButton(),
-                cls="space-y-3",
-            ),
-            ModalBody(
-                Div(id="modal-body"),
-                data_uk_overflow_auto=True,
-            ),
-            ModalFooter(),
-            cls="uk-margin-auto-vertical",
-        ),
-        id="modal",
-    )
-
     mode_tables = [
         (overall_table if plan_id else None),
         new_memorization_table,
@@ -618,7 +600,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             header,
             Accordion(*mode_tables, multiple=True, animation=True),
         ),
-        Div(modal),
         active="Home",
         auth=auth,
     )
