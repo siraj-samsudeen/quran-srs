@@ -4,6 +4,7 @@ from monsterui.all import *
 from utils import *
 from collections import defaultdict
 from globals import *
+import math
 
 
 def user_auth(req, sess):
@@ -215,7 +216,12 @@ def get_daily_capacity(auth):
 
 def get_srs_daily_limit(auth):
     # 50% percentage of daily capacity
-    return round(get_daily_capacity(auth) * 0.5)
+    return math.ceil(get_daily_capacity(auth) * 0.5)
+
+
+def get_full_cycle_daily_limit(auth):
+    # 50% percentage of daily capacity
+    return math.ceil(get_daily_capacity(auth) * 0.5)
 
 
 def get_last_added_full_cycle_page(auth):
@@ -655,11 +661,6 @@ def get_unrevised_memorized_item_ids(auth, plan_id):
 
 def get_last_item_id():
     return items(where="active = 1", order_by="id DESC")[0].id
-
-
-def get_display_count(auth):
-    current_hafiz = hafizs[auth]
-    return current_hafiz.display_count
 
 
 def get_juz_name(page_id=None, item_id=None):

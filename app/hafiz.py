@@ -42,7 +42,6 @@ def settings_page(auth):
         render_field("Name", "text"),
         render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
-        render_field("Display Count", "number", min=1),
         DivHStacked(
             Button("Update", type="submit", cls=ButtonT.primary),
             Button(
@@ -68,9 +67,6 @@ def settings_page(auth):
 
 @hafiz_app.post("/settings")
 def update_setings(auth, hafiz_data: Hafiz):
-    display_count = hafiz_data.display_count
-    if not display_count or display_count < 0:
-        hafiz_data.display_count = get_display_count(auth)
 
     hafizs.update(
         hafiz_data,

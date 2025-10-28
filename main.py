@@ -409,7 +409,9 @@ def index(auth, sess, full_cycle_display_count: int = None):
             hx_swap="outerHTML",
         )
 
-    total_display_count = get_display_count(auth) + update_extra_page_display_count()
+    total_display_count = (
+        get_full_cycle_daily_limit(auth) + update_extra_page_display_count()
+    )
 
     full_cycle_table = make_summary_table(
         mode_ids=[str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
