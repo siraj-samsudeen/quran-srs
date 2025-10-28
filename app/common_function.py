@@ -21,7 +21,7 @@ def user_auth(req, sess):
 
 user_bware = Beforeware(
     user_auth,
-    skip=["/users/login", "/users/signup", "/users/logout"],
+    skip=["/users/login", "/users/logout"],
 )
 
 
@@ -46,7 +46,6 @@ hafiz_bware = Beforeware(
     hafiz_auth,
     skip=[
         "/users/login",
-        "/users/signup",
         "/users/logout",
         r"/users/\d+$",  # for deleting the user
         "/users/hafiz_selection",
