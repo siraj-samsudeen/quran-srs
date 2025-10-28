@@ -448,11 +448,11 @@ def load_descendant_items_for_profile(
 
 
 def resolve_update_data(current_item, selected_status_id):
-    if current_item.mode_id in (3, 4):
+    if current_item.mode_id in (DAILY_REPS_MODE_ID, WEEKLY_REPS_MODE_ID):
         return {"status_id": selected_status_id}
     if selected_status_id == 4:
-        return {"status_id": selected_status_id, "mode_id": 2}
-    return {"status_id": selected_status_id, "mode_id": 1}
+        return {"status_id": selected_status_id, "mode_id": NEW_MEMORIZATION_MODE_ID}
+    return {"status_id": selected_status_id, "mode_id": FULL_CYCLE_MODE_ID}
 
 
 # TODO: Check whether this route being used or not
@@ -506,7 +506,7 @@ def profile_page_status_update(
                 item_id=item_id,
                 revision_date=get_current_date(auth),
                 rating=DEFAULT_RATINGS.get("new_memorization"),
-                mode_id=2,
+                mode_id=NEW_MEMORIZATION_MODE_ID,
             )
     referer = req.headers.get("referer", "/")
     return RedirectResponse(referer, status_code=303)
@@ -548,7 +548,7 @@ async def profile_page_custom_status_update(
                 item_id=item_id,
                 revision_date=get_current_date(auth),
                 rating=DEFAULT_RATINGS.get("new_memorization"),
-                mode_id=2,
+                mode_id=NEW_MEMORIZATION_MODE_ID,
             )
 
     query_string = f"?status={status}&" if status else "?"

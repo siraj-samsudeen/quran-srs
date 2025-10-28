@@ -6,7 +6,7 @@ from globals import *
 def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):
     """Update statistics and intervals for revision items"""
     populate_hafizs_items_stat_columns(item_id=item_id)
-    if mode_id == 5:
+    if mode_id == SRS_MODE_ID:
         recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 

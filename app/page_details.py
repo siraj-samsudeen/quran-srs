@@ -258,7 +258,7 @@ def display_page_level_details(auth, item_id: int):
         # determine table visibility
         has_data = len(data) > 0
         # This is to render the srs table different from others
-        if len(mode_ids) == 1 and 5 in mode_ids:
+        if len(mode_ids) == 1 and SRS_MODE_ID in mode_ids:
             cols = [
                 "s_no",
                 "revision_date",

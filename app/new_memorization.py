@@ -63,7 +63,7 @@ def render_new_memorization_checkbox(
         )
     else:
         current_revision_data = revisions(
-            where=f"item_id = {item_id} AND mode_id = 2 AND hafiz_id = {auth};"
+            where=f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID} AND hafiz_id = {auth};"
         )
         check_form = Form(
             LabelCheckboxX(
@@ -194,7 +194,7 @@ def render_row_based_on_type(
 def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
 ):
-    qry = f"item_id = {item_id} AND mode_id = 2;"
+    qry = f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID};"
     revisions_data = revisions(where=qry)
     current_date = get_current_date(auth)
     if not revisions_data and is_checked:
@@ -205,7 +205,7 @@ def update_status_as_newly_memorized(
             rating=(
                 DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
             ),
-            mode_id=2,
+            mode_id=NEW_MEMORIZATION_MODE_ID,
         )
         try:
             hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
@@ -217,7 +217,7 @@ def update_status_as_newly_memorized(
         hafizs_items.update(
             {
                 "status_id": 4,
-                "mode_id": 2,
+                "mode_id": NEW_MEMORIZATION_MODE_ID,
             },
             hafizs_items_id,
         )
@@ -227,7 +227,7 @@ def update_status_as_newly_memorized(
             where=f"item_id = {item_id} AND hafiz_id= {auth}"
         )[0]
         hafizs_items_data.status_id = 6
-        hafizs_items_data.mode_id = 1
+        hafizs_items_data.mode_id = FULL_CYCLE_MODE_ID
         hafizs_items.update(hafizs_items_data)
 
     populate_hafizs_items_stat_columns(item_id=item_id)
@@ -249,7 +249,7 @@ def bulk_update_status_as_newly_memorized(
             rating=(
                 DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
             ),
-            mode_id=2,
+            mode_id=NEW_MEMORIZATION_MODE_ID,
         )
 
         try:
@@ -262,7 +262,7 @@ def bulk_update_status_as_newly_memorized(
         hafizs_items.update(
             {
                 "status_id": 4,
-                "mode_id": 2,
+                "mode_id": NEW_MEMORIZATION_MODE_ID,
             },
             hafizs_items_id,
         )
@@ -273,14 +273,14 @@ def bulk_update_status_as_newly_memorized(
 
 @new_memorization_app.delete("/update_as_newly_memorized/{item_id}")
 def delete(auth, request, item_id: str):
-    qry = f"item_id = {item_id} AND mode_id = 2;"
+    qry = f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID};"
     revisions_data = revisions(where=qry)
     revisions.delete(revisions_data[0].id)
     hafizs_items_data = hafizs_items(where=f"item_id = {item_id} AND hafiz_id= {auth}")[
         0
     ]
     hafizs_items_data.status_id = 6
-    hafizs_items_data.mode_id = 1
+    hafizs_items_data.mode_id = FULL_CYCLE_MODE_ID
     hafizs_items.update(hafizs_items_data)
     populate_hafizs_items_stat_columns(item_id=item_id)
 
@@ -336,7 +336,7 @@ def new_memorization(auth, current_type: str):
     )
 
     where_query = f"""
-    revisions.mode_id = 2 AND revisions.hafiz_id = {auth} AND items.active != 0 
+    revisions.mode_id = {NEW_MEMORIZATION_MODE_ID} AND revisions.hafiz_id = {auth} AND items.active != 0 
     ORDER BY revisions.revision_date DESC, revisions.id DESC 
     LIMIT 10;
     """

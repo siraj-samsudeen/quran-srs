@@ -89,7 +89,7 @@ def populate_hafiz_items(hafiz_id: int):
                 item_id=missing_item_id,
                 page_number=get_page_number(missing_item_id),
                 status_id=6,  # Initially we set `Not Memorized` for all records.
-                mode_id=1,  # TODO: Confirm that mode_id=1 is appropriate here.
+                mode_id=FULL_CYCLE_MODE_ID,  # TODO: Confirm that full cycle mode is appropriate here.
                 # Missing items are currently assumed to belong to the "full-cycle" mode.
             )
 

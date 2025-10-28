@@ -313,7 +313,7 @@ def post(revision_details: Revision):
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    revision_details.mode_id = 1
+    revision_details.mode_id = FULL_CYCLE_MODE_ID
 
     item_id = revision_details.item_id
 
@@ -585,7 +585,7 @@ async def post(
                         rating=int(value),
                         hafiz_id=auth,
                         revision_date=revision_date,
-                        mode_id=1,
+                        mode_id=FULL_CYCLE_MODE_ID,
                         plan_id=plan_id,
                     )
                 )

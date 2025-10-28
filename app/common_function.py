@@ -227,7 +227,7 @@ def get_last_added_full_cycle_page(auth):
         f"""
         SELECT hafizs_items.page_number FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.id AND hafizs_items.hafiz_id = {auth}
-        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_id = 1 AND revisions.hafiz_id = {auth}
+        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_id = {FULL_CYCLE_MODE_ID} AND revisions.hafiz_id = {auth}
         ORDER BY revisions.revision_date DESC, revisions.item_id DESC
         LIMIT 1
     """
@@ -395,7 +395,7 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
     end_interval = srs_pack_details.end_interval
 
     items_rev_data = revisions(
-        where=f"item_id = {item_id} AND mode_id = 5 AND revision_date >= '{srs_start_date}'",
+        where=f"item_id = {item_id} AND mode_id = {SRS_MODE_ID} AND revision_date >= '{srs_start_date}'",
         order_by="revision_date ASC",
     )
 
@@ -612,7 +612,7 @@ def start_srs(item_id: int, auth):
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.srs_booster_pack_id = srs_booster_id
-        current_hafiz_items.mode_id = 5
+        current_hafiz_items.mode_id = SRS_MODE_ID
         current_hafiz_items.status_id = 5
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
