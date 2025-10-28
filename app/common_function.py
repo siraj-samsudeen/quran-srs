@@ -1124,3 +1124,11 @@ def get_reps_table(mode_ids, route, auth):
         route=route,
         auth=auth,
     )
+
+
+def render_current_date(auth):
+    current_date = get_current_date(auth)
+    return P(
+        Span("System Date: ", cls=TextPresets.bold_lg),
+        Span(date_to_human_readable(current_date), id="current_date_description"),
+    )

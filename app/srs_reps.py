@@ -100,19 +100,9 @@ def display_srs_pages_recorded_today(auth):
         ),
     )
 
-    header = Div(
-        Strong("Current Date: "),
-        Span(render_date(current_date)),
-    )
-    body = Div(
+    return Div(
         H2("SRS Records"),
         srs_records_table,
+        action_buttons,
         cls="uk-overflow-auto space-y-2",
-    )
-    footer = action_buttons
-
-    return main_area(
-        Div(header, body, footer, cls="space-y-4"),
-        active="Home",
-        auth=auth,
     )

@@ -239,10 +239,6 @@ def create_stat_table(auth):
     yesterday_completed_count = get_page_count(
         revisions(where=f"revision_date = '{yesterday}'")
     )
-    current_date_description = P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), id="current_date_description"),
-    )
     mode_ids = [mode.id for mode in modes()]
     sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
@@ -262,38 +258,24 @@ def create_stat_table(auth):
             id=f"stat-row-{current_mode_id}",
         )
 
-    return Div(
-        DivLAligned(
-            current_date_description,
-            Button(
-                "Close Date",
-                id="close-date-btn",
-                hx_get="/close_date",
-                hx_target="body",
-                hx_push_url="true",
-                hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
-                cls=(ButtonT.default, "px-2 py-3 h-0"),
-            ),
+    return Table(
+        Thead(
+            Tr(
+                Th("Modes"),
+                Th("Today"),
+                Th("Yesterday"),
+            )
         ),
-        Table(
-            Thead(
-                Tr(
-                    Th("Modes"),
-                    Th("Today"),
-                    Th("Yesterday"),
-                )
-            ),
-            Tbody(
-                *map(render_stat_rows, sorted_mode_ids),
-            ),
-            Tfoot(
-                Tr(
-                    Td("Total"),
-                    Td(today_completed_count),
-                    Td(yesterday_completed_count),
-                    cls="[&>*]:font-bold",
-                    id="total_row",
-                ),
+        Tbody(
+            *map(render_stat_rows, sorted_mode_ids),
+        ),
+        Tfoot(
+            Tr(
+                Td("Total"),
+                Td(today_completed_count),
+                Td(yesterday_completed_count),
+                cls="[&>*]:font-bold",
+                id="total_row",
             ),
         ),
     )
@@ -618,11 +600,22 @@ def index(auth, sess, full_cycle_display_count: int = None):
     # if the table has no records then exclude them from the tables list
     mode_tables = [_table for _table in mode_tables if _table is not None]
 
-    stat_table = create_stat_table(auth=auth)
+    # Contains the date and close button
+    header = DivLAligned(
+        render_current_date(auth),
+        Button(
+            "Close Date",
+            id="close-date-btn",
+            hx_get="/close_date",
+            hx_target="body",
+            hx_push_url="true",
+            hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
+            cls=(ButtonT.default, "px-2 py-3 h-0"),
+        ),
+    )
     return main_area(
         Div(
-            stat_table,
-            Divider(),
+            header,
             Accordion(*mode_tables, multiple=True, animation=True),
         ),
         Div(modal),
@@ -653,8 +646,16 @@ def update_hafiz_item_for_new_memorization(rev):
 
 
 @app.get("/close_date")
-def confirmation_page_for_close_date_route(auth):
-    return display_srs_pages_recorded_today(auth)
+def close_date_confirmation_page(auth):
+    header = render_current_date(auth)
+    return main_area(
+        header,
+        create_stat_table(auth),
+        DividerLine(),
+        display_srs_pages_recorded_today(auth),
+        active="Home",
+        auth=auth,
+    )
 
 
 @app.post("/close_date")
