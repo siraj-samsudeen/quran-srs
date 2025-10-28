@@ -14,6 +14,8 @@ DAILY_REPS_MODE_ID = 3
 WEEKLY_REPS_MODE_ID = 4
 SRS_MODE_ID = 5
 
+# Status ID
+STATUS_MEMORIZED_ID = 1
 
 def create_and_migrate_db(db_path):
     migrations_dir = "migrations/"

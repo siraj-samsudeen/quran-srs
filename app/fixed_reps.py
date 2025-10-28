@@ -1,4 +1,3 @@
-# from globals import *
 from app.common_function import *
 
 REP_MODES_CONFIG = {
@@ -15,28 +14,34 @@ REP_MODES_CONFIG = {
 }
 
 
-def get_daily_reps_table(auth):
-    daily_reps_table, daily_reps_items = make_summary_table(
-        mode_ids=[str(NEW_MEMORIZATION_MODE_ID), str(DAILY_REPS_MODE_ID)],
-        route="daily_reps",
+def set_next_review(hafiz_item, interval, current_date):
+    """Set next interval and review date for a hafiz item."""
+    hafiz_item.next_interval = interval
+    hafiz_item.next_review = add_days_to_date(current_date, interval)
+
+
+def get_reps_table_with_target(mode_ids, route, auth):
+    """Helper to get table and target count for rep modes."""
+    table, items = make_summary_table(
+        mode_ids=[str(mid) for mid in mode_ids],
+        route=route,
         auth=auth,
     )
+    target = get_page_count(item_ids=items)
+    return table, target
 
-    daily_reps_target = get_page_count(item_ids=daily_reps_items)
 
-    return daily_reps_table, daily_reps_target
+def get_daily_reps_table(auth):
+    return get_reps_table_with_target(
+        [NEW_MEMORIZATION_MODE_ID, DAILY_REPS_MODE_ID], "daily_reps", auth
+    )
 
 
 def get_weekly_reps_table(auth):
     # Include mode_id=1 as well so that graduated watch list items are included
-    weekly_reps_table, weekly_reps_items = make_summary_table(
-        mode_ids=[str(WEEKLY_REPS_MODE_ID), str(FULL_CYCLE_MODE_ID)],
-        route="weekly_reps",
-        auth=auth,
+    return get_reps_table_with_target(
+        [WEEKLY_REPS_MODE_ID, FULL_CYCLE_MODE_ID], "weekly_reps", auth
     )
-    weekly_reps_target = get_page_count(item_ids=weekly_reps_items)
-
-    return weekly_reps_table, weekly_reps_target
 
 
 def update_rep_item(rev):
@@ -52,28 +57,23 @@ def update_rep_item(rev):
     if hafiz_item.mode_id == NEW_MEMORIZATION_MODE_ID:
         hafiz_item.mode_id = DAILY_REPS_MODE_ID
 
+    hafiz_item.last_interval = hafiz_item.next_interval
+
     # Check if the item is ready to graduate
     if get_mode_count(rev.item_id, rev.mode_id) < config["threshold"]:
         # Keep in current mode, just update next review date
-        hafiz_item.last_interval = hafiz_item.next_interval
-        hafiz_item.next_interval = config["interval"]
-        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
+        set_next_review(hafiz_item, config["interval"], current_date)
     else:
         # Graduate to the next mode
         hafiz_item.mode_id = config["next_mode_id"]
-        if config["next_mode_id"] == FULL_CYCLE_MODE_ID:  # Graduating to Full Cycle
+        if config["next_mode_id"] == FULL_CYCLE_MODE_ID:
             # Reset intervals for Full Cycle
-            hafiz_item.status_id = 1
-            hafiz_item.last_interval = hafiz_item.next_interval
+            hafiz_item.status_id = STATUS_MEMORIZED_ID
             hafiz_item.next_interval = None
             hafiz_item.next_review = None
         else:
             # Graduate to the next rep mode (e.g., Daily -> Weekly)
             next_config = REP_MODES_CONFIG[config["next_mode_id"]]
-            hafiz_item.last_interval = hafiz_item.next_interval
-            hafiz_item.next_interval = next_config["interval"]
-            hafiz_item.next_review = add_days_to_date(
-                current_date, next_config["interval"]
-            )
+            set_next_review(hafiz_item, next_config["interval"], current_date)
 
     hafizs_items.update(hafiz_item)
