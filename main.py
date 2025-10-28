@@ -440,44 +440,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             Td(action_buttons),
         )
 
-    if plan_id:
-        current_plans_revision_date = revisions(
-            where=f"plan_id = {plan_id} AND mode_id = {seq_id}",
-            order_by="revision_date ASC",
-        )
-
-        if current_plans_revision_date:
-            unique_pages = list(
-                set([get_page_number(i.item_id) for i in current_plans_revision_date])
-            )
-            total_pages = len(unique_pages)
-
-            first_date = current_plans_revision_date[0].revision_date
-
-            # When adding a record for the first time, total_days will be 0
-            if first_date == current_date:
-                total_days = 1
-            else:
-                total_days = calculate_days_difference(first_date, current_date)
-
-            average_pages = total_pages / total_days
-            average_pages = (
-                int(average_pages)
-                if average_pages.is_integer()
-                else round(average_pages, 1)
-            )
-
-            description = P(
-                f"{total_pages} pages in {total_days} days => ",
-                Span(average_pages, cls=TextT.bold),
-                " pages per day",
-                cls=TextPresets.muted_sm,
-            )
-
-        else:
-            description = None
-    else:
-        description = None
     ############################ full Cycle ################################
 
     def get_extra_page_display_count(sess, auth, current_date):
@@ -531,7 +493,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
             cls=(FlexT.center, "gap-2"),
         ),
         Div(
-            description,
             (
                 Table(
                     Thead(
