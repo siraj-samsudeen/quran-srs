@@ -702,9 +702,7 @@ def update_hafiz_item_for_full_cycle(rev):
             currrent_date, hafiz_item_details.next_interval
         )
 
-    hafiz_item_details.last_interval = calculate_days_difference(
-        last_review, currrent_date
-    )
+    hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
     hafizs_items.update(hafiz_item_details)
 
 
