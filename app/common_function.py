@@ -704,9 +704,7 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
-def get_monthly_review_item_ids(
-    auth, total_display_count, ct, item_ids, current_plan_id
-):
+def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_plan_id):
     current_date = get_current_date(auth)
 
     def has_revisions_today(item: dict) -> bool:
@@ -726,7 +724,7 @@ def get_monthly_review_item_ids(
         except ValueError:
             return []
 
-    def has_monthly_cycle_mode_id(item: dict) -> bool:
+    def has_full_cycle_mode_id(item: dict) -> bool:
         return item["mode_id"] == FULL_CYCLE_MODE_ID
 
     if current_plan_id is not None:
@@ -759,16 +757,14 @@ def get_monthly_review_item_ids(
 
     # take today revision data that are not in today's target (item_ids)
     display_conditions = {
-        "monthly_cycle": lambda item: (
-            has_monthly_cycle_mode_id(item)
+        "full_cycle": lambda item: (
+            has_full_cycle_mode_id(item)
             and has_revisions_today(item)
             and item["item_id"] not in item_ids
         )
     }
     today_revisioned_items = list(
-        dict.fromkeys(
-            i["item_id"] for i in ct if display_conditions["monthly_cycle"](i)
-        )
+        dict.fromkeys(i["item_id"] for i in ct if display_conditions["full_cycle"](i))
     )
 
     item_ids = sorted(item_ids + today_revisioned_items)
@@ -786,9 +782,9 @@ def create_count_link(count: int, rev_ids: str):
 
 
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
-    is_accordion = route != "monthly_cycle"
+    is_accordion = route != "full_cycle"
     mode_id_mapping = {
-        "monthly_cycle": FULL_CYCLE_MODE_ID,
+        "full_cycle": FULL_CYCLE_MODE_ID,
         "new_memorization": NEW_MEMORIZATION_MODE_ID,
         "daily_reps": DAILY_REPS_MODE_ID,
         "weekly_reps": WEEKLY_REPS_MODE_ID,
@@ -796,7 +792,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     }
     mode_id = mode_id_mapping[route]
     is_newly_memorized = mode_id == NEW_MEMORIZATION_MODE_ID
-    is_monthly_review = mode_id == FULL_CYCLE_MODE_ID
+    is_full_review = mode_id == FULL_CYCLE_MODE_ID
     is_srs = mode_id == SRS_MODE_ID
     current_date = get_current_date(auth)
     # This list is to close the accordian, if all the checkboxes are selected
@@ -815,7 +811,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
     def render_range_row(item_id: str):
         row_id = f"{route}-row-{item_id}"
-        plan_condition = f"AND plan_id = {plan_id}" if is_monthly_review else ""
+        plan_condition = f"AND plan_id = {plan_id}" if is_full_review else ""
         current_revision_data = revisions(
             where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({', '.join(mode_ids)}) {plan_condition}"
         )
@@ -824,14 +820,14 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         checkbox_hx_attrs = {
             "hx_post": f"/add/{item_id}",
             "hx_select": f"#{row_id}",
-            # TODO: make the monthly cycle to only rerender on monthly summary table
+            # TODO: make the full cycle to only rerender on full summary table
             "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
-            + (", #monthly_cycle_link_table, #page" if is_monthly_review else ""),
+            + (", #full_cycle_link_table, #page" if is_full_review else ""),
             "hx_target": f"#{row_id}",
             "hx_swap": "outerHTML",
         }
         vals_dict = {"date": current_date, "mode_id": mode_id}
-        if is_monthly_review:
+        if is_full_review:
             vals_dict["plan_id"] = plan_id
         record_btn = CheckboxX(
             name=f"is_checked",
@@ -864,7 +860,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 "mode_id": mode_id,
                 "is_checked": True,
             }
-            if is_monthly_review:
+            if is_full_review:
                 change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
         rating_dropdown_input = rating_dropdown(
@@ -891,7 +887,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             ),
             (
                 Td(progress)
-                if not (is_newly_memorized or is_monthly_review or is_srs)
+                if not (is_newly_memorized or is_full_review or is_srs)
                 else None
             ),
             Td(record_btn),
@@ -915,7 +911,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         "mode_id": mode_id,
         "date": current_date,
     }
-    if is_monthly_review:
+    if is_full_review:
         select_all_vals["plan_id"] = plan_id
 
     render_output = (
@@ -940,7 +936,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         Th("Start Text", cls="min-w-24"),
                         (
                             Th("Reps")
-                            if not (is_newly_memorized or is_monthly_review or is_srs)
+                            if not (is_newly_memorized or is_full_review or is_srs)
                             else None
                         ),
                         Th(
@@ -953,8 +949,8 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                                 hx_select=f"#{route}_tbody",
                                 hx_select_oob=f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
                                 + (
-                                    ", #monthly_cycle_link_table, #page"
-                                    if is_monthly_review
+                                    ", #full_cycle_link_table, #page"
+                                    if is_full_review
                                     else ""
                                 ),
                                 hx_target=f"#{route}_tbody",
@@ -1065,7 +1061,7 @@ def make_summary_table(
             )
         ),
         "srs": lambda item: (is_review_due(item) or has_revisions_today(item)),
-        "monthly_cycle": lambda item: (has_memorized(item) or is_srs(item)),
+        "full_cycle": lambda item: (has_memorized(item) or is_srs(item)),
     }
 
     filtered_records = [i for i in ct if route_conditions[route](i)]
@@ -1098,8 +1094,8 @@ def make_summary_table(
     else:
         item_ids = get_unique_item_ids(filtered_records)
 
-    if route == "monthly_cycle":
-        item_ids = get_monthly_review_item_ids(
+    if route == "full_cycle":
+        item_ids = get_full_review_item_ids(
             auth=auth,
             total_display_count=total_display_count,
             ct=ct,

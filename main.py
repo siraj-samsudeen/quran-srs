@@ -478,7 +478,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
             description = None
     else:
         description = None
-    ############################ Monthly Cycle ################################
+    ############################ full Cycle ################################
 
     def get_extra_page_display_count(sess, auth, current_date):
         sess_data = sess.get("full_cycle_display_count_details", {})
@@ -506,16 +506,16 @@ def index(auth, sess, full_cycle_display_count: int = None):
         return Button(
             f"+{count}",
             hx_get=f"/?full_cycle_display_count={count}",
-            hx_select="#monthly_cycle_summary_table",
-            hx_target="#monthly_cycle_summary_table",
+            hx_select="#full_cycle_summary_table",
+            hx_target="#full_cycle_summary_table",
             hx_swap="outerHTML",
         )
 
     total_display_count = get_display_count(auth) + update_extra_page_display_count()
 
-    monthly_cycle_table = make_summary_table(
+    full_cycle_table = make_summary_table(
         mode_ids=[str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
-        route="monthly_cycle",
+        route="full_cycle",
         auth=auth,
         total_display_count=total_display_count,
         plan_id=plan_id,
@@ -523,9 +523,9 @@ def index(auth, sess, full_cycle_display_count: int = None):
     overall_table = AccordionItem(
         Span(
             modes[1].name,
-            id=f"monthly_cycle-header",
+            id=f"full_cycle-header",
         ),
-        monthly_cycle_table,
+        full_cycle_table,
         DivHStacked(
             *[create_count_button(count) for count in [1, 2, 3, 5]],
             cls=(FlexT.center, "gap-2"),
@@ -541,15 +541,15 @@ def index(auth, sess, full_cycle_display_count: int = None):
                         )
                     ),
                     Tbody(*map(render_overall_row, items_gaps_with_limit)),
-                    id="monthly_cycle_link_table",
+                    id="full_cycle_link_table",
                 )
                 if len(items_gaps_with_limit) > 0
-                else Div(id="monthly_cycle_link_table")
+                else Div(id="full_cycle_link_table")
             ),
             custom_entry_inputs(auth, plan_id) if plan_id else None,
         ),
         open=True,
-        div_kwargs={"data-testid": "monthly-cycle-summary-table-area"},
+        div_kwargs={"data-testid": "full-cycle-summary-table-area"},
     )
     ############################# END ################################
 
