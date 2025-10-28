@@ -37,13 +37,13 @@ def post(login: Login, sess):
     return hafizs_selection_redir
 
 
-@rt("/signup")
+# @rt("/signup")
 def get(sess):
     """Display signup form"""
     return render_signup_form()
 
 
-@rt("/signup")
+# @rt("/signup")
 def post(user: User, confirm_password: str, sess):
     """Process signup form submission"""
     # Check if passwords match

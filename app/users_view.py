@@ -31,10 +31,10 @@ def render_login_form():
             action="/users/login",
             method="post",
         ),
-        P(
-            "Don't have an account? ",
-            A("Register", href="/users/signup", cls=TextT.primary),
-        ),
+        # P(
+        #     "Don't have an account? ",
+        #     A("Register", href="/users/signup", cls=TextT.primary),
+        # ),
         cls="space-y-6",
     )
 
