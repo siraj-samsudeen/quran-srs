@@ -174,7 +174,7 @@ def display_page_level_details(auth, item_id: int):
                     "srs_start_date",
                     "last_review",
                     "next_review",
-                    "status_id",
+                    "memorized",
                     "mode_id",
                     "last_interval",
                     "current_interval",
@@ -191,8 +191,8 @@ def display_page_level_details(auth, item_id: int):
                     value = hafiz_items_details.__dict__[col_name]
                     if col_name == "mode_id":
                         value = get_mode_name(value)
-                    elif col_name == "status_id":
-                        value = statuses[value].name
+                    elif col_name == "memorized":
+                        value = "Yes" if value else "No"
                     elif col_name == "current_interval":
                         value = get_actual_interval(item_id)
                     else:

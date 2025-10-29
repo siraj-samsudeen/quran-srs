@@ -76,11 +76,6 @@ def get_hafiz_item_by_item_id(item_id: int):
     return hafizs_items(where=f"item_id = {item_id}")[0]
 
 
-def update_hafiz_item_status(hafiz_item_id: int, status_id: int):
-    """Update hafiz item status"""
-    return hafizs_items.update({"status_id": status_id}, hafiz_item_id)
-
-
 def update_hafiz_item(hafiz_item: Hafiz_Items):
     """Update hafiz item record"""
     return hafizs_items.update(hafiz_item)

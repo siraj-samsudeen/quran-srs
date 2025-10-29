@@ -90,7 +90,6 @@ def start_srs(item_id: int, auth):
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
         current_hafiz_items.mode_id = SRS_MODE_ID
-        current_hafiz_items.status_id = 5
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date

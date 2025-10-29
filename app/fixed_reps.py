@@ -40,7 +40,7 @@ def update_rep_item(rev):
         hafiz_item.mode_id = config["next_mode_id"]
         if config["next_mode_id"] == FULL_CYCLE_MODE_ID:
             # Reset intervals for Full Cycle
-            hafiz_item.status_id = STATUS_MEMORIZED_ID
+            hafiz_item.memorized = True
             hafiz_item.next_interval = None
             hafiz_item.next_review = None
         else:

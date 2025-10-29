@@ -191,12 +191,13 @@ def group_by_type(data, current_type, feild=None):
 
 
 def get_not_memorized_records(auth, custom_where=None):
-    default = "hafizs_items.status_id = 6 AND items.active != 0"
+    # The page is not started, if it is not memorized and mode the is full cycle (as it is the default mode)
+    default = f"hafizs_items.memorized = 0 AND hafizs_items.mode_id = {FULL_CYCLE_MODE_ID} AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
     not_memorized_tb = f"""
         SELECT items.id, items.surah_id, items.surah_name,
-        hafizs_items.item_id, hafizs_items.status_id, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
+        hafizs_items.item_id, hafizs_items.memorized, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
         FROM items 
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         LEFT JOIN pages ON items.page_id = pages.id
@@ -246,7 +247,7 @@ def get_last_added_full_cycle_page(auth):
 
 def find_next_memorized_item_id(item_id):
     memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+        i.item_id for i in hafizs_items(where="memorized = 1")
     ]
     return find_next_greater(memorized_and_srs_item_ids, item_id)
 
@@ -449,7 +450,7 @@ def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]
@@ -795,10 +796,7 @@ def make_summary_table(
         return item["mode_id"] == mode_id
 
     def has_memorized(item: dict) -> bool:
-        return item["status_id"] == 1
-
-    def is_srs(item: dict) -> bool:
-        return item["status_id"] == 5
+        return item["memorized"]
 
     def has_revisions(item: dict) -> bool:
         """Check if item has revisions for current mode."""
@@ -823,7 +821,7 @@ def make_summary_table(
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.status_id, hafizs_items.page_number FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
         WHERE hafizs_items.mode_id IN ({', '.join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -843,7 +841,7 @@ def make_summary_table(
             )
         ),
         "srs": lambda item: (is_review_due(item) or has_revisions_today(item)),
-        "full_cycle": lambda item: (has_memorized(item) or is_srs(item)),
+        "full_cycle": lambda item: has_memorized(item),
     }
 
     filtered_records = [i for i in ct if route_conditions[route](i)]

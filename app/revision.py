@@ -237,7 +237,7 @@ def parse_page_string(page_str: str):
 
 def validate_page_revision(sess, item_id, page, plan_id):
     """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
-    if not hafizs_items(where=f"item_id = {item_id} AND status_id IN (1, 5)"):
+    if not hafizs_items(where=f"item_id = {item_id} AND memorized = 1"):
         error_toast(sess, f"Given page '{page}' is not yet memorized!")
         return False
     if revisions(where=f"item_id = {item_id} AND plan_id = {plan_id}"):
@@ -397,7 +397,7 @@ def get(
         SELECT hafizs_items.item_id, hafizs_items.page_number
         FROM hafizs_items
         LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.status_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
         ORDER BY hafizs_items.page_number ASC
         LIMIT {length};
         """

@@ -14,9 +14,6 @@ DAILY_REPS_MODE_ID = 3
 WEEKLY_REPS_MODE_ID = 4
 SRS_MODE_ID = 5
 
-# Status ID
-STATUS_MEMORIZED_ID = 1
-
 
 def create_and_migrate_db(db_path):
     migrations_dir = "migrations/"
@@ -62,7 +59,6 @@ modes = db.t.modes
 pages = db.t.pages
 plans = db.t.plans
 revisions = db.t.revisions
-statuses = db.t.statuses
 surahs = db.t.surahs
 users = db.t.users
 
@@ -75,7 +71,6 @@ users = db.t.users
     Page,
     Plan,
     Revision,
-    Status,
     Surah,
     User,
 ) = (
@@ -87,7 +82,6 @@ users = db.t.users
     pages.dataclass(),
     plans.dataclass(),
     revisions.dataclass(),
-    statuses.dataclass(),
     surahs.dataclass(),
     users.dataclass(),
 )
