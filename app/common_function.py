@@ -244,6 +244,13 @@ def get_last_added_full_cycle_page(auth):
         return last_full_cycle_record[0]["page_number"]
 
 
+def find_next_memorized_item_id(item_id):
+    memorized_and_srs_item_ids = [
+        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
+    ]
+    return find_next_greater(memorized_and_srs_item_ids, item_id)
+
+
 def populate_hafizs_items_stat_columns(item_id: int = None):
 
     def get_item_id_summary(item_id: int):

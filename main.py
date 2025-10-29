@@ -16,7 +16,6 @@ from app.common_function import *
 from globals import *
 from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps import (
-    find_next_memorized_srs_item_id,
     display_srs_pages_recorded_today,
     update_hafiz_item_for_srs,
     start_srs_for_bad_streak_items,
@@ -304,7 +303,7 @@ def custom_entry_inputs(auth, plan_id):
             start_page = 2
         last_added_item_id = items(where=f"page_id = {start_page}")[0].page_id - 1
 
-    next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
+    next_item_id = find_next_memorized_item_id(last_added_item_id)
 
     if next_item_id and revisions(
         where=f"item_id = {next_item_id} AND plan_id = {plan_id}"
@@ -574,7 +573,7 @@ def custom_full_cycle_entry_view(auth):
         # to avoid adding records for already added items
         upper_limit = get_last_item_id() if upper_limit is None else upper_limit
 
-        next_item_id = find_next_memorized_srs_item_id(last_added_item_id)
+        next_item_id = find_next_memorized_item_id(last_added_item_id)
 
         if next_item_id is None:
             next_page = "No further page"

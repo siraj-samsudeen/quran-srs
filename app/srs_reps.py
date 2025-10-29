@@ -97,13 +97,6 @@ def start_srs(item_id: int, auth):
         hafizs_items.update(current_hafiz_items)
 
 
-def find_next_memorized_srs_item_id(item_id):
-    memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
-    ]
-    return find_next_greater(memorized_and_srs_item_ids, item_id)
-
-
 def get_actual_interval(item_id):
     hafiz_items_details = get_hafizs_items(item_id)
     current_date = get_current_date(hafiz_items_details.hafiz_id)
@@ -266,7 +259,7 @@ def update_hafiz_item_for_srs(rev):
         hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
     else:
         hafiz_items_details.mode_id = FULL_CYCLE_MODE_ID
-        hafiz_items_details.status_id = 1
+        hafiz_items_details.memorized = True
         hafiz_items_details.last_interval = calculate_days_difference(
             hafiz_items_details.last_review, current_date
         )
