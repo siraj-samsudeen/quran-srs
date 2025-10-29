@@ -9,6 +9,38 @@ from app.common_function import (
     render_rating,
 )
 
+# SRS Intervals
+SRS_START_INTERVAL = 7
+SRS_END_INTERVAL = 99
+SRS_INTERVALS = [
+    2,
+    3,
+    5,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+    43,
+    47,
+    53,
+    59,
+    61,
+    67,
+    71,
+    73,
+    79,
+    83,
+    89,
+    97,
+    101,
+]
+
 
 ## SRS specific utils ##
 def binary_search_less_than(input_list: list[int], target: int) -> int:
@@ -51,16 +83,12 @@ def get_interval_triplet(target_interval, interval_list):
 
 def start_srs(item_id: int, auth):
     current_date = get_current_date(auth)
-    # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
-    booster_pack_details = srs_booster_pack[1]
-    srs_booster_id = booster_pack_details.id
-    next_interval = booster_pack_details.start_interval
+    next_interval = SRS_START_INTERVAL
     next_review_date = add_days_to_date(current_date, next_interval)
 
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
-        current_hafiz_items.srs_booster_pack_id = srs_booster_id
         current_hafiz_items.mode_id = SRS_MODE_ID
         current_hafiz_items.status_id = 5
         current_hafiz_items.next_interval = next_interval
@@ -98,21 +126,10 @@ def get_planned_next_interval(item_id):
     return get_hafizs_items(item_id).next_interval
 
 
-def get_intervals_for_pack(srs_booster_pack_id):
-    booster_pack_details = srs_booster_pack[srs_booster_pack_id]
-    intervals = booster_pack_details.interval_days.split(",")
-    intervals = list(map(int, intervals))
-    return intervals
-
-
-def get_next_interval_based_on_rating(item_id, current_interval, rating):
-    interval_list = get_intervals_for_pack(
-        get_hafizs_items(item_id).srs_booster_pack_id
-    )
-
+def get_next_interval_based_on_rating(current_interval, rating):
     rating_intervals = get_interval_triplet(
         target_interval=current_interval,
-        interval_list=interval_list,
+        interval_list=SRS_INTERVALS,
     )
     return rating_intervals[rating + 1]
 
@@ -133,7 +150,7 @@ def get_next_interval(item_id, rating):
 
     current_interval = max(planned_interval, actual_interval)
 
-    return get_next_interval_based_on_rating(item_id, current_interval, rating)
+    return get_next_interval_based_on_rating(current_interval, rating)
 
 
 def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
@@ -146,13 +163,6 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
     hafiz_item_details = get_hafizs_items(item_id)
     srs_start_date = hafiz_item_details.srs_start_date
 
-    # Here we are taking the start_interval
-    # as we want the start_interval as the starting point, when looping through all the records
-    booster_id = hafiz_item_details.srs_booster_pack_id
-    srs_pack_details = srs_booster_pack[booster_id]
-    start_interval = srs_pack_details.start_interval
-    end_interval = srs_pack_details.end_interval
-
     items_rev_data = revisions(
         where=f"item_id = {item_id} AND mode_id = {SRS_MODE_ID} AND revision_date >= '{srs_start_date}'",
         order_by="revision_date ASC",
@@ -160,9 +170,9 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
 
     # If no records, reset to initial state (Either deleted all records or not even started)
     if not items_rev_data:
-        hafiz_item_details.next_interval = start_interval
+        hafiz_item_details.next_interval = SRS_START_INTERVAL
         hafiz_item_details.next_review = add_days_to_date(
-            srs_start_date, start_interval
+            srs_start_date, SRS_START_INTERVAL
         )
         hafiz_item_details.last_interval = None
         hafiz_item_details.current_interval = calculate_days_difference(
@@ -171,10 +181,9 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
         hafizs_items.update(hafiz_item_details)
         return None
 
-    intervals = get_intervals_for_pack(booster_id)
     previous_date = srs_start_date
     # Here we are starting the recalculation from the first records last_interval
-    # as the booster pack start_interval may change in future
+    # as the SRS_START_INTERVAL may change in future
     current_interval_position = items_rev_data[0].last_interval
 
     for rev in items_rev_data:
@@ -188,11 +197,11 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
         # "ok": stay at same position
         # "bad": move backward in sequence
         rating_intervals = get_interval_triplet(
-            target_interval=last_interval, interval_list=intervals
+            target_interval=last_interval, interval_list=SRS_INTERVALS
         )
         calculated_next_interval = rating_intervals[rev.rating + 1]
 
-        if calculated_next_interval > end_interval:
+        if calculated_next_interval > SRS_END_INTERVAL:
             # Graduation logic
             next_interval = None
 
@@ -249,13 +258,10 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
 def update_hafiz_item_for_srs(rev):
     hafiz_items_details = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)
-    end_interval = srs_booster_pack[
-        hafiz_items_details.srs_booster_pack_id
-    ].end_interval
     next_interval = get_next_interval(item_id=rev.item_id, rating=rev.rating)
 
     hafiz_items_details.last_interval = hafiz_items_details.next_interval
-    if end_interval > next_interval:
+    if SRS_END_INTERVAL > next_interval:
         hafiz_items_details.next_interval = next_interval
         hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
     else:
@@ -266,7 +272,6 @@ def update_hafiz_item_for_srs(rev):
         )
         hafiz_items_details.next_interval = None
         hafiz_items_details.next_review = None
-        hafiz_items_details.srs_booster_pack_id = None
         hafiz_items_details.srs_start_date = None
 
     hafizs_items.update(hafiz_items_details)
@@ -294,18 +299,15 @@ def display_srs_pages_recorded_today(auth):
     # List all the records that are recorded today with the interval details as a table
     srs_records = db.q(
         f"""
-    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval,
-    revisions.rating, hafizs_items.srs_booster_pack_id as pack_id FROM revisions 
+    SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, revisions.rating FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
     WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = {SRS_MODE_ID} AND revisions.hafiz_id = {auth}
     """
     )
 
     def render_srs_records(srs_record):
-        pack_details = srs_booster_pack[srs_record["pack_id"]]
-        end_interval = pack_details.end_interval
         next_interval = get_next_interval(srs_record["item_id"], srs_record["rating"])
-        if next_interval > end_interval:
+        if next_interval > SRS_END_INTERVAL:
             next_interval = "Graduation"
         return Tr(
             Td(get_page_description(srs_record["item_id"])),

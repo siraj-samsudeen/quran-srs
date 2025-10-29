@@ -17,6 +17,7 @@ SRS_MODE_ID = 5
 # Status ID
 STATUS_MEMORIZED_ID = 1
 
+
 def create_and_migrate_db(db_path):
     migrations_dir = "migrations/"
     try:
@@ -53,7 +54,6 @@ create_and_migrate_db(DB_PATH)
 db = get_database_connection()
 
 
-booster_pack = db.t.booster_pack
 hafizs = db.t.hafizs
 hafizs_items = db.t.hafizs_items
 hafizs_users = db.t.hafizs_users
@@ -62,13 +62,11 @@ modes = db.t.modes
 pages = db.t.pages
 plans = db.t.plans
 revisions = db.t.revisions
-srs_booster_pack = db.t.srs_booster_pack
 statuses = db.t.statuses
 surahs = db.t.surahs
 users = db.t.users
 
 (
-    Booster_Pack,
     Hafiz,
     Hafiz_Items,
     Hafiz_Users,
@@ -77,12 +75,10 @@ users = db.t.users
     Page,
     Plan,
     Revision,
-    SRS_Booster_Pack,
     Status,
     Surah,
     User,
 ) = (
-    booster_pack.dataclass(),
     hafizs.dataclass(),
     hafizs_items.dataclass(),
     hafizs_users.dataclass(),
@@ -91,7 +87,6 @@ users = db.t.users
     pages.dataclass(),
     plans.dataclass(),
     revisions.dataclass(),
-    srs_booster_pack.dataclass(),
     statuses.dataclass(),
     surahs.dataclass(),
     users.dataclass(),
