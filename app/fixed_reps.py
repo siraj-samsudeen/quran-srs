@@ -29,10 +29,6 @@ def update_rep_item(rev):
     hafiz_item = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)
 
-    # Special case: Promote from 'New Memorization' to 'Daily'
-    if hafiz_item.mode_id == NEW_MEMORIZATION_MODE_ID:
-        hafiz_item.mode_id = DAILY_REPS_MODE_ID
-
     hafiz_item.last_interval = hafiz_item.next_interval
 
     # Check if the item is ready to graduate
