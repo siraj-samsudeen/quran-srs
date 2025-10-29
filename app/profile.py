@@ -11,22 +11,28 @@ DEFAULT_RATINGS = {
 profile_app, rt = create_app_with_auth()
 
 
-def status_dropdown(current_status_id):
-    current_status = statuses[current_status_id].name
-    name_to_id = {status.name: status.id for status in statuses()}
+def memorized_checkbox(items):
+    if not items:
+        status = False
+    else:
+        num_memorized = sum(item.get("memorized", 0) for item in items)
+        total_items = len(items)
 
-    def render_options(status):
-        status_id = name_to_id[status]
-        return fh.Option(
-            status,
-            value=status_id,
-            selected=(status == current_status),
-        )
+        if num_memorized == total_items:
+            status = True
+        elif num_memorized == 0:
+            status = False
+        else:
+            status = None  # Indeterminate
 
-    return fh.Select(
-        map(render_options, [status.name for status in statuses()]),
-        name="selected_status_id",
-        style="margin: 0px 12px 12px 0px !important;",
+    return CheckboxX(
+        name="selected_memorized_status",
+        checked=status,
+        cls=(
+            "bg-[image:var(--uk-form-checkbox-image-indeterminate)]"
+            if status is None
+            else ""
+        ),
     )
 
 
@@ -47,18 +53,16 @@ def render_type_description(list, _type=""):
 
 
 @profile_app.get("/{current_type}")
-def show_page_status(current_type: str, auth, sess, status: str = ""):
-    status_id = None  # Initially we did't apply filter
-    if status == "strong":
-        status_id = 1
-    elif status == "new_memorization":
-        status_id = 4
-    elif status == "not_started":
-        status_id = 6
+def show_page_status(current_type: str, auth, status: str = ""):
+    memorized_filter = None  # Initially we didn't apply filter
+    if status == "memorized":
+        memorized_filter = True
+    elif status == "not_memorized":
+        memorized_filter = False
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
-        status_value = records[0]["status_id"]
-        if status_id and status_id != status_value:
+        memorized_value = records[0]["memorized"]
+        if memorized_filter is not None and memorized_filter != memorized_value:
             return None
 
         _surahs = sorted({r["surah_id"] for r in records})
@@ -86,12 +90,12 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         )
         item_length = 1
 
-        status_filter = f"status_id = {status_value}"
+        memorized_filter_str = f"memorized = {memorized_value}"
 
         if current_type == "page":
             where_clause = f"page_number={type_number} and hafiz_id={auth}"
             if status:
-                where_clause += f" and {status_filter}"
+                where_clause += f" and {memorized_filter_str}"
             item_length = len(hafizs_items(where=where_clause) or [])
 
         elif current_type in ("surah", "juz"):
@@ -101,7 +105,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
                     item_id_list = ",".join(str(i["id"]) for i in item_ids)
                     where_clause = f"item_id IN ({item_id_list}) and hafiz_id={auth}"
                     if status:
-                        where_clause += f" and {status_filter}"
+                        where_clause += f" and {memorized_filter_str}"
                     item_length = len(hafizs_items(where=where_clause) or [])
 
         show_customize_button = item_length > 1
@@ -112,7 +116,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             Td(
                 Form(
                     Hidden(name="filter_status", value=status),
-                    status_dropdown(status_value),
+                    memorized_checkbox(records),
                     hx_post=f"/profile/update_status/{current_type}/{type_number}",
                     hx_target=f"#{current_type}-{type_number}",
                     hx_select=f"#{current_type}-{type_number}",
@@ -154,15 +158,15 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
             cls=("uk-active" if _type == current_type else None),
         )
 
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status_id FROM items 
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.memorized FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0;"""
-    if status in [1, 4, 6]:
-        status_condition = f" AND hafizs_items.status_id = {status}"
+    if status in ["memorized", "not_memorized"]:
+        memorized_condition = f" AND hafizs_items.memorized = {memorized_filter}"
     else:
-        status_condition = ""
-    query_with_status = qry.replace(";", f" {status_condition};")
+        memorized_condition = ""
+    query_with_status = qry.replace(";", f" {memorized_condition};")
 
     qry_data = db.q(query_with_status if status else qry)
 
@@ -192,7 +196,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
         P("Status Filter:", cls=TextPresets.muted_sm),
         *map(
             render_filter_btn,
-            ["Strong", "Not Started", "New Memorization"],
+            ["Memorized", "Not Memorized"],
         ),
         (
             Label(
@@ -216,7 +220,7 @@ def show_page_status(current_type: str, auth, sess, status: str = ""):
     for item in unfiltered_data:
         page = item["page_number"]
         page_stats[page]["total"] += 1
-        if item["status_id"] == 1:
+        if item["memorized"]:
             page_stats[page]["memorized"] += 1
 
     total_memorized_pages = 0
@@ -317,13 +321,11 @@ def load_descendant_items_for_profile(
     auth,
     status: str = None,
 ):
-    status_id = 1
-    if status == "strong":
-        status_id = 1
-    elif status == "new_memorization":
-        status_id = 4
-    elif status == "not_started":
-        status_id = 6
+    memorized_filter = None
+    if status == "memorized":
+        memorized_filter = True
+    elif status == "not_memorized":
+        memorized_filter = False
 
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
@@ -333,18 +335,17 @@ def load_descendant_items_for_profile(
         condition = f"pages.page_number = {type_number}"
     else:
         return "Invalid current_type"
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.status_id FROM items 
+    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.memorized FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
                           WHERE items.active != 0 AND {condition};"""
 
-    status_condition = f"AND hafizs_items.status_id = {status_id}" if status else ""
-    if status is not None:
-        qry = qry.replace(";", f" {status_condition};")
+    if memorized_filter is not None:
+        qry = qry.replace(";", f" AND hafizs_items.memorized = {memorized_filter};")
     ct = db.q(qry)
 
     def render_row(record):
-        current_status_id = record["status_id"] or 6
+        current_memorized_status = record["memorized"]
         current_id = record["id"]
         return Tr(
             Td(
@@ -353,6 +354,7 @@ def load_descendant_items_for_profile(
                 CheckboxX(
                     name=f"id-{current_id}",
                     value="1",
+                    checked=current_memorized_status,
                     cls="partial_rows",  # Alpine js reference
                     _at_click="handleCheckboxClick($event)",
                 ),
@@ -360,7 +362,7 @@ def load_descendant_items_for_profile(
             Td(record["page_number"]),
             Td(surahs[record["surah_id"]].name),
             Td(f"Juz {record['juz_number']}"),
-            Td(statuses[current_status_id].name),
+            Td("Memorized" if current_memorized_status else "Not Memorized"),
         )
 
     table = Table(
@@ -385,10 +387,6 @@ def load_descendant_items_for_profile(
         ),
         x_init="updateSelectAll()",
         id="filtered-table",
-    )
-    modal_level_dd = Div(
-        status_dropdown(status_id),
-        id="my-modal-body",
     )
     base = f"/profile/custom_status_update/{current_type}"
     if type_number is not None:
@@ -425,7 +423,6 @@ def load_descendant_items_for_profile(
             cls=TextPresets.muted_lg,
         ),
         Div(
-            modal_level_dd,
             update_button(
                 label="Update and Close",
                 value="close",
@@ -447,67 +444,26 @@ def load_descendant_items_for_profile(
     )
 
 
-def resolve_update_data(current_item, selected_status_id):
-    if current_item.mode_id in (DAILY_REPS_MODE_ID, WEEKLY_REPS_MODE_ID):
-        return {"status_id": selected_status_id}
-    if selected_status_id == 4:
-        return {"status_id": selected_status_id, "mode_id": NEW_MEMORIZATION_MODE_ID}
-    return {"status_id": selected_status_id, "mode_id": FULL_CYCLE_MODE_ID}
-
-
-# TODO: Check whether this route being used or not
-@profile_app.post("/update_checkbox/{current_type}/{type_number}/{filter_status}")
-async def update_status(current_type: str, type_number: int, filter_status: str, auth):
-    existing_status = filter_status
-    qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
-                          LEFT JOIN pages ON items.page_id = pages.id
-                          WHERE items.active != 0;"""
-    ct = db.q(qry)
-    grouped = group_by_type(ct, current_type, feild="id")
-    for item_id in grouped[type_number]:
-        current_record = hafizs_items(
-            where=f"item_id = {item_id} and hafiz_id = {auth}"
-        )[0]
-        if existing_status == 1:
-            set_status = 6
-        elif existing_status == 6:
-            set_status = 1
-        else:
-            set_status = current_record.status_id
-        current_record.status_id = set_status
-        hafizs_items.update(current_record)
-    query_string = f"?status={filter_status}&" if filter_status else ""
-    return RedirectResponse(f"/profile/{current_type}/{query_string}", status_code=303)
-
-
 @profile_app.post("/update_status/{current_type}/{type_number}")
 def profile_page_status_update(
     current_type: str,
     type_number: int,
     req: Request,
-    selected_status_id: int,
     auth,
+    selected_memorized_status: str = "off",
 ):
+    selected_memorized_status = selected_memorized_status == "on"
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number FROM items 
                           LEFT JOIN pages ON items.page_id = pages.id
                           WHERE items.active != 0;"""
     ct = db.q(qry)
-    is_newly_memorized = selected_status_id == 4
+    is_newly_memorized = selected_memorized_status == False
     grouped = group_by_type(ct, current_type, feild="id")
 
     for item_id in grouped[type_number]:
         current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
         current_item = current_item[0]
-        update_data = resolve_update_data(current_item, selected_status_id)
-        hafizs_items.update(update_data, current_item.id)
-        if is_newly_memorized:
-            revisions.insert(
-                hafiz_id=auth,
-                item_id=item_id,
-                revision_date=get_current_date(auth),
-                rating=DEFAULT_RATINGS.get("new_memorization"),
-                mode_id=NEW_MEMORIZATION_MODE_ID,
-            )
+        hafizs_items.update({"memorized": selected_memorized_status}, current_item.id)
     referer = req.headers.get("referer", "/")
     return RedirectResponse(referer, status_code=303)
 
@@ -525,31 +481,39 @@ async def profile_page_custom_status_update(
     status: str = None,
 ):
     form_data = await req.form()
-    selected_status_id = int(form_data.get("selected_status_id"))
-    is_newly_memorized = selected_status_id == 4
-    for id_str, check in form_data.items():
-        if not id_str.startswith("id-"):
-            continue
-        try:
-            item_id = int(id_str.split("-")[1])
-        except (IndexError, ValueError):
-            continue
 
-        if check != "1":
-            continue  # Skip unchecked checkboxes
+    item_statuses = {}
+    for key in form_data:
+        if key.startswith("id-"):
+            try:
+                item_id = int(key.split("-")[1])
+                status_val = form_data.get(key) == "1"
+                item_statuses[item_id] = status_val
+            except (IndexError, ValueError):
+                continue
 
-        current_item = hafizs_items(where=f"item_id = {item_id} and hafiz_id = {auth}")
-        current_item = current_item[0]
-        update_data = resolve_update_data(current_item, selected_status_id)
-        hafizs_items.update(update_data, current_item.id)
-        if is_newly_memorized:
-            revisions.insert(
-                hafiz_id=auth,
-                item_id=item_id,
-                revision_date=get_current_date(auth),
-                rating=DEFAULT_RATINGS.get("new_memorization"),
-                mode_id=NEW_MEMORIZATION_MODE_ID,
+    for item_id, new_memorized_status in item_statuses.items():
+        current_item_list = hafizs_items(
+            where=f"item_id = {item_id} and hafiz_id = {auth}"
+        )
+
+        current_memorized_status = None
+        hafiz_item_id = None
+        if current_item_list:
+            current_item = current_item_list[0]
+            current_memorized_status = current_item.memorized
+            hafiz_item_id = current_item.id
+
+        if new_memorized_status == current_memorized_status:
+            continue  # No change
+
+        if hafiz_item_id is None:
+            # It doesn't exist, so we should create it.
+            hafizs_items.insert(
+                item_id=item_id, hafiz_id=auth, memorized=new_memorized_status
             )
+        else:
+            hafizs_items.update({"memorized": new_memorized_status}, hafiz_item_id)
 
     query_string = f"?status={status}&" if status else "?"
     query_string += (
