@@ -6,7 +6,10 @@ import pandas as pd
 from collections import defaultdict
 from app.users_controller import users_app
 from app.revision import revision_app
-from app.new_memorization import new_memorization_app
+from app.new_memorization import (
+    new_memorization_app,
+    update_hafiz_item_for_new_memorization,
+)
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
@@ -491,13 +494,6 @@ def update_hafiz_item_for_full_cycle(rev):
         )
 
     hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
-    hafizs_items.update(hafiz_item_details)
-
-
-def update_hafiz_item_for_new_memorization(rev):
-    hafiz_item_details = get_hafizs_items(rev.item_id)
-    hafiz_item_details.mode_id = DAILY_REPS_MODE_ID
-    hafiz_item_details.status_id = 4
     hafizs_items.update(hafiz_item_details)
 
 

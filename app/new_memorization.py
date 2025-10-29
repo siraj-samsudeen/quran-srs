@@ -12,6 +12,13 @@ DEFAULT_RATINGS = {
 new_memorization_app, rt = create_app_with_auth()
 
 
+def update_hafiz_item_for_new_memorization(rev):
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+    hafiz_item_details.mode_id = DAILY_REPS_MODE_ID
+    hafiz_item_details.status_id = 4
+    hafizs_items.update(hafiz_item_details)
+
+
 def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
     not_memorized = get_not_memorized_records(auth)
     grouped_by_item_id = group_by_type(not_memorized, "id")
@@ -274,29 +281,13 @@ def update_status_as_newly_memorized(
             mode_id=NEW_MEMORIZATION_MODE_ID,
         )
         try:
-            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+            hafizs_items(where=f"item_id = {item_id}")[0]
         except IndexError:
             hafizs_items.insert(
                 Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
             )
-        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-        hafizs_items.update(
-            {
-                "status_id": 4,
-                "mode_id": NEW_MEMORIZATION_MODE_ID,
-            },
-            hafizs_items_id,
-        )
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
-        hafizs_items_data = hafizs_items(
-            where=f"item_id = {item_id} AND hafiz_id= {auth}"
-        )[0]
-        hafizs_items_data.status_id = 6
-        hafizs_items_data.mode_id = FULL_CYCLE_MODE_ID
-        hafizs_items.update(hafizs_items_data)
-
-    populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return RedirectResponse(referer, status_code=303)
 
@@ -319,20 +310,11 @@ def bulk_update_status_as_newly_memorized(
         )
 
         try:
-            hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0]
+            hafizs_items(where=f"item_id = {item_id}")[0]
         except IndexError:
             hafizs_items.insert(
                 Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
             )
-        hafizs_items_id = hafizs_items(where=f"item_id = {item_id}")[0].id
-        hafizs_items.update(
-            {
-                "status_id": 4,
-                "mode_id": NEW_MEMORIZATION_MODE_ID,
-            },
-            hafizs_items_id,
-        )
-        populate_hafizs_items_stat_columns(item_id=item_id)
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -342,13 +324,6 @@ def delete(auth, request, item_id: str):
     qry = f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID};"
     revisions_data = revisions(where=qry)
     revisions.delete(revisions_data[0].id)
-    hafizs_items_data = hafizs_items(where=f"item_id = {item_id} AND hafiz_id= {auth}")[
-        0
-    ]
-    hafizs_items_data.status_id = 6
-    hafizs_items_data.mode_id = FULL_CYCLE_MODE_ID
-    hafizs_items.update(hafizs_items_data)
-    populate_hafizs_items_stat_columns(item_id=item_id)
 
     referer = request.headers.get("Referer")
     return Redirect(referer)
