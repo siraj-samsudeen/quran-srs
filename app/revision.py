@@ -5,6 +5,7 @@ from app.common_function import *
 from app.revision_view import *
 from app.revision_model import *
 from globals import *
+from app.srs_reps import find_next_memorized_srs_item_id
 
 revision_app, rt = create_app_with_auth()
 

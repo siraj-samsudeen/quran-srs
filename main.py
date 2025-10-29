@@ -1,9 +1,7 @@
 from fasthtml.common import *
-import fasthtml.common as fh
 from monsterui.all import *
 from utils import *
 import pandas as pd
-from collections import defaultdict
 from app.users_controller import users_app
 from app.revision import revision_app
 from app.new_memorization import (
@@ -16,8 +14,13 @@ from app.profile import profile_app
 from app.hafiz import hafiz_app
 from app.common_function import *
 from globals import *
-from app.fixed_reps import *
-from app.srs_reps import *
+from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
+from app.srs_reps import (
+    find_next_memorized_srs_item_id,
+    display_srs_pages_recorded_today,
+    update_hafiz_item_for_srs,
+    start_srs_for_bad_streak_items,
+)
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 OPTION_MAP = {

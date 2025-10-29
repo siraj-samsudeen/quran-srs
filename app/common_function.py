@@ -335,197 +335,8 @@ def get_actual_interval(item_id):
     return calculate_days_difference(last_review, current_date)
 
 
-def update_interval_based_on_rating(actual_interval, rating):
-    # Good -> 100% of the actual interval
-    # Ok -> 50% of the actual interval
-    # Bad -> 35% of the actual interval
-    rating_multipliers = {1: 1, 0: 0.5, -1: 0.35}
-    return round(actual_interval * rating_multipliers[rating])
-
-
 def get_planned_next_interval(item_id):
     return get_hafizs_items(item_id).next_interval
-
-
-def get_intervals_for_pack(srs_booster_pack_id):
-    booster_pack_details = srs_booster_pack[srs_booster_pack_id]
-    intervals = booster_pack_details.interval_days.split(",")
-    intervals = list(map(int, intervals))
-    return intervals
-
-
-def get_next_interval_based_on_rating(item_id, current_interval, rating):
-    interval_list = get_intervals_for_pack(
-        get_hafizs_items(item_id).srs_booster_pack_id
-    )
-
-    rating_intervals = get_interval_triplet(
-        target_interval=current_interval,
-        interval_list=interval_list,
-    )
-    return rating_intervals[rating + 1]
-
-
-####################### SRS common function #######################
-
-
-def get_next_interval(item_id, rating):
-    actual_interval = get_actual_interval(item_id)
-    if not actual_interval:
-        return None
-
-    actual_interval = update_interval_based_on_rating(actual_interval, rating)
-
-    planned_interval = get_planned_next_interval(item_id)
-    if not planned_interval:
-        return None
-
-    current_interval = max(planned_interval, actual_interval)
-
-    return get_next_interval_based_on_rating(item_id, current_interval, rating)
-
-
-def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
-    """
-    Recalculates SRS (Spaced Repetition System) intervals for a specific item based on its revision history.
-        - Handles initial state when no revision records are found
-        - Calculates intervals based on previous revision dates and ratings
-        - Updates item's next review interval and date dynamically
-    """
-    hafiz_item_details = get_hafizs_items(item_id)
-    srs_start_date = hafiz_item_details.srs_start_date
-
-    # Here we are taking the start_interval
-    # as we want the start_interval as the starting point, when looping through all the records
-    booster_id = hafiz_item_details.srs_booster_pack_id
-    srs_pack_details = srs_booster_pack[booster_id]
-    start_interval = srs_pack_details.start_interval
-    end_interval = srs_pack_details.end_interval
-
-    items_rev_data = revisions(
-        where=f"item_id = {item_id} AND mode_id = {SRS_MODE_ID} AND revision_date >= '{srs_start_date}'",
-        order_by="revision_date ASC",
-    )
-
-    # If no records, reset to initial state (Either deleted all records or not even started)
-    if not items_rev_data:
-        hafiz_item_details.next_interval = start_interval
-        hafiz_item_details.next_review = add_days_to_date(
-            srs_start_date, start_interval
-        )
-        hafiz_item_details.last_interval = None
-        hafiz_item_details.current_interval = calculate_days_difference(
-            srs_start_date, current_date
-        )
-        hafizs_items.update(hafiz_item_details)
-        return None
-
-    intervals = get_srs_interval_list(item_id)
-    previous_date = srs_start_date
-    # Here we are starting the recalculation from the first records last_interval
-    # as the booster pack start_interval may change in future
-    current_interval_position = items_rev_data[0].last_interval
-
-    for rev in items_rev_data:
-        current_revision_date = rev.revision_date
-        current_interval = calculate_days_difference(
-            previous_date, current_revision_date
-        )
-        last_interval = current_interval_position
-
-        # "good": move forward in sequence
-        # "ok": stay at same position
-        # "bad": move backward in sequence
-        rating_intervals = get_interval_triplet(
-            target_interval=last_interval, interval_list=intervals
-        )
-        calculated_next_interval = rating_intervals[rev.rating + 1]
-
-        if calculated_next_interval > end_interval:
-            # Graduation logic
-            next_interval = None
-
-            data_to_update = {
-                "last_interval": last_interval,
-                "current_interval": current_interval,
-                "next_interval": next_interval,
-            }
-            revisions.update(data_to_update, rev.id)
-
-            final_data = {
-                "last_review": current_revision_date,
-                "last_interval": last_interval,
-                "current_interval": calculate_days_difference(
-                    current_revision_date, current_date
-                ),
-                "next_interval": next_interval,
-                "next_review": None,
-            }
-            hafizs_items.update(final_data, hafiz_item_details.id)
-            break  # Exit - no more processing needed
-        else:
-            # Normal progression
-            next_interval = calculated_next_interval
-
-            data_to_update = {
-                "last_interval": last_interval,
-                "current_interval": current_interval,
-                "next_interval": next_interval,
-            }
-            revisions.update(data_to_update, rev.id)
-
-            # Handle final revision if this is the last one
-            if rev.id == items_rev_data[-1].id:
-                final_data = {
-                    "last_review": current_revision_date,
-                    "last_interval": last_interval,
-                    "current_interval": calculate_days_difference(
-                        current_revision_date, current_date
-                    ),
-                    "next_interval": next_interval,
-                    "next_review": add_days_to_date(
-                        current_revision_date, next_interval
-                    ),
-                }
-                hafizs_items.update(final_data, hafiz_item_details.id)
-                break
-
-        # Prepare for the next iteration
-        previous_date = current_revision_date
-        current_interval_position = next_interval
-
-
-def get_srs_interval_list(item_id: int):
-    current_hafiz_item = get_hafizs_items(item_id)
-    booster_pack_details = srs_booster_pack[current_hafiz_item.srs_booster_pack_id]
-    end_interval = booster_pack_details.end_interval
-
-    booster_pack_intervals = booster_pack_details.interval_days.split(",")
-    booster_pack_intervals = list(map(int, booster_pack_intervals))
-
-    # To only get the intervals for this booster pack, as it contains more intervals than necessary
-    interval_list = [
-        interval for interval in booster_pack_intervals if interval < end_interval
-    ]
-    # And also get the next greater interval if it exists, for graduation logic
-    first_greater = next(
-        (interval for interval in booster_pack_intervals if interval >= end_interval),
-        None,
-    )
-    if first_greater is not None:
-        interval_list.append(first_greater)
-
-    return interval_list
-
-
-def get_interval_based_on_rating(item_id: int, rating: int):
-    current_hafiz_item = get_hafizs_items(item_id)
-
-    intervals = get_srs_interval_list(item_id)
-    rating_intervals = get_interval_triplet(
-        target_interval=current_hafiz_item.next_interval, interval_list=intervals
-    )
-    return rating_intervals[rating + 1]
 
 
 def add_revision_record(**kwargs):
@@ -608,26 +419,6 @@ def rating_radio(
     return Div(label, *options, cls=outer_cls)
 
 
-def start_srs(item_id: int, auth):
-    current_date = get_current_date(auth)
-    # TODO: Currently this only takes the first booster pack from the srs_booster_pack table
-    booster_pack_details = srs_booster_pack[1]
-    srs_booster_id = booster_pack_details.id
-    next_interval = booster_pack_details.start_interval
-    next_review_date = add_days_to_date(current_date, next_interval)
-
-    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_items:
-        current_hafiz_items = current_hafiz_items[0]
-        current_hafiz_items.srs_booster_pack_id = srs_booster_id
-        current_hafiz_items.mode_id = SRS_MODE_ID
-        current_hafiz_items.status_id = 5
-        current_hafiz_items.next_interval = next_interval
-        current_hafiz_items.srs_start_date = current_date
-        current_hafiz_items.next_review = next_review_date
-        hafizs_items.update(current_hafiz_items)
-
-
 def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
     def render_options(val):
         return fh.Option(
@@ -645,13 +436,6 @@ def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
 
 def get_mode_name(mode_id: int):
     return modes[mode_id].name
-
-
-def find_next_memorized_srs_item_id(item_id):
-    memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="status_id IN (1, 5)")
-    ]
-    return find_next_greater(memorized_and_srs_item_ids, item_id)
 
 
 def get_unrevised_memorized_item_ids(auth, plan_id):
@@ -888,23 +672,11 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             **change_rating_hx_attrs,
         )
 
-        revs = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
-        if mode_id == SRS_MODE_ID:
-            rep_denominator = len(get_srs_interval_list(item_id))
-        else:
-            rep_denominator = 7
-        progress = P(Strong(len(revs)), Span(f"/{rep_denominator}"))
-
         return Tr(
             Td(get_page_description(item_id)),
             Td(
                 get_start_text(item_id),
                 cls=TextT.lg,
-            ),
-            (
-                Td(progress)
-                if not (is_newly_memorized or is_full_review or is_srs)
-                else None
             ),
             Td(record_btn),
             Td(

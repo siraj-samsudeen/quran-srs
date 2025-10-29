@@ -410,41 +410,6 @@ def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
         )
 
 
-def binary_search_less_than(input_list: list[int], target: int) -> int:
-    # initial values
-    left = 0
-    right = len(input_list) - 1
-    possible_answer = {"index": None, "value": None}
-
-    while left <= right:
-        middle = (left + right) // 2
-        middle_value = input_list[middle]
-
-        if middle_value <= target:
-            left = middle + 1
-            possible_answer["index"] = middle
-            possible_answer["value"] = middle_value
-        else:
-            right = middle - 1
-
-    return possible_answer
-
-
-# This function is only used for getting the intervals for the rating in srs mode
-def get_interval_triplet(target_interval, interval_list):
-    result = binary_search_less_than(input_list=interval_list, target=target_interval)
-    i = result["index"]
-
-    # If the index is None then, it only means that the current interval is less than the first element
-    # in which case we assign the first element index
-    if i is None:
-        i = 0
-
-    left = interval_list[i - 1] if i > 0 else interval_list[i]
-    right = interval_list[i + 1] if i < len(interval_list) - 1 else interval_list[i]
-    return [left, interval_list[i], right]
-
-
 def render_date(date: str):
     if date:
         date = date_to_human_readable(date)
