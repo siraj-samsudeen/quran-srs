@@ -191,8 +191,7 @@ def group_by_type(data, current_type, feild=None):
 
 
 def get_not_memorized_records(auth, custom_where=None):
-    # The page is not started, if it is not memorized and mode the is full cycle (as it is the default mode)
-    default = f"hafizs_items.memorized = 0 AND hafizs_items.mode_id = {FULL_CYCLE_MODE_ID} AND items.active != 0"
+    default = f"hafizs_items.memorized = 0 AND items.active != 0"
     if custom_where:
         default = f"{custom_where}"
     not_memorized_tb = f"""
@@ -247,7 +246,7 @@ def get_last_added_full_cycle_page(auth):
 
 def find_next_memorized_item_id(item_id):
     memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="memorized = 1")
+        i.item_id for i in hafizs_items(where="memorized = 1 AND mode_id IN (1, 5)")
     ]
     return find_next_greater(memorized_and_srs_item_ids, item_id)
 
@@ -450,7 +449,7 @@ def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]

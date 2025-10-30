@@ -560,7 +560,7 @@ def custom_full_cycle_entry_view(auth):
             ]
         )
         memorized_and_srs_item_ids = [
-            i.item_id for i in hafizs_items(where="memorized = 1")
+            i.item_id for i in hafizs_items(where="memorized = 1 AND mode_id IN (1, 5)")
         ]
         # this will return the gap of the current_plan_item_ids based on the master(items_id)
         items_gaps_with_limit = find_gaps(

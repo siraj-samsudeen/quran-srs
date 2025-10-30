@@ -15,6 +15,7 @@ new_memorization_app, rt = create_app_with_auth()
 def update_hafiz_item_for_new_memorization(rev):
     hafiz_item_details = get_hafizs_items(rev.item_id)
     hafiz_item_details.mode_id = DAILY_REPS_MODE_ID
+    hafiz_item_details.memorized = True
     hafizs_items.update(hafiz_item_details)
 
 
@@ -219,16 +220,14 @@ def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
 
     def get_not_memorized_item_ids(page_id):
         # Get only the items that are not started
-        result = hafizs_items(
-            where=f"page_number = {page_id} AND memorized = 0 AND mode_id = {FULL_CYCLE_MODE_ID}"
-        )
+        result = hafizs_items(where=f"page_number = {page_id} AND memorized = 0")
         return [i.item_id for i in result]
 
     def get_next_unmemorized_page_items(item_id):
         qry = f"""
             SELECT items.id AS item_id, items.page_id AS page_number FROM items
             LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-            WHERE hafizs_items.memorized = 0 AND mode_id = {FULL_CYCLE_MODE_ID} AND items.active != 0 AND items.id > {item_id}
+            WHERE hafizs_items.memorized = 0 AND items.active != 0 AND items.id > {item_id}
        """
         ct = db.q(qry)
         grouped = group_by_type(ct, "page")
@@ -507,7 +506,7 @@ def load_descendant_items_for_new_memorization(
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.memorized FROM items
                           LEFT JOIN pages ON items.page_id = pages.id
                           LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-                          WHERE items.active != 0 AND hafizs_items.memorized = 0 AND mode_id = {FULL_CYCLE_MODE_ID} AND {condition}"""
+                          WHERE items.active != 0 AND hafizs_items.memorized = 0 AND {condition}"""
     ct = db.q(qry)
 
     def render_row(record):
