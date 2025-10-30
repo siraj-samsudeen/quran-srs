@@ -234,7 +234,7 @@ def get_last_added_full_cycle_page(auth):
     last_full_cycle_record = db.q(
         f"""
         SELECT hafizs_items.page_number FROM revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.id AND hafizs_items.hafiz_id = {auth}
+        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         WHERE revisions.revision_date < '{current_date}' AND revisions.mode_id = {FULL_CYCLE_MODE_ID} AND revisions.hafiz_id = {auth}
         ORDER BY revisions.revision_date DESC, revisions.item_id DESC
         LIMIT 1
@@ -851,6 +851,7 @@ def make_summary_table(
     if route == "srs":
         srs_daily_limit = get_srs_daily_limit(auth)
         exclude_start_page = get_last_added_full_cycle_page(auth)
+        print(exclude_start_page)
 
         # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
         if exclude_start_page is not None:
