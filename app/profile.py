@@ -214,31 +214,6 @@ def show_page_status(current_type: str, auth, status: str = ""):
         ),
     )
 
-    # For memorization progress
-    unfiltered_data = db.q(qry)
-    page_stats = defaultdict(lambda: {"memorized": 0, "total": 0})
-    for item in unfiltered_data:
-        page = item["page_number"]
-        page_stats[page]["total"] += 1
-        if item["memorized"]:
-            page_stats[page]["memorized"] += 1
-
-    total_memorized_pages = 0
-    for page, stats in page_stats.items():
-        total_memorized_pages += stats["memorized"] / stats["total"]
-
-    progress_bar_with_stats = (
-        DivCentered(
-            P(
-                f"Memorization Progress: {format_number(total_memorized_pages)}/604 Pages ({int(total_memorized_pages/604*100)}%)",
-                cls="font-bold text-sm sm:text-lg ",
-            ),
-            Progress(value=f"{total_memorized_pages}", max="604"),
-            cls="space-y-2",
-            id="stats_info",
-        ),
-    )
-
     modal = Div(
         ModalContainer(
             ModalDialog(
@@ -274,8 +249,6 @@ def show_page_status(current_type: str, auth, status: str = ""):
     details = type_details.get(current_type, ["", ""])
     return main_area(
         Div(
-            progress_bar_with_stats,
-            DividerLine(),
             DivFullySpaced(
                 filter_btns,
             ),
@@ -299,12 +272,12 @@ def show_page_status(current_type: str, auth, status: str = ""):
                         ),
                         x_init="updateSelectAll()",
                     ),
-                    cls="h-[68vh] overflow-auto uk-overflow-auto",
+                    cls="h-[75vh] overflow-auto uk-overflow-auto",
                 ),
                 cls="space-y-5",
             ),
             Div(modal),
-            cls="space-y-5",
+            cls="space-y-5 pt-2",
         ),
         auth=auth,
         active="Memorization Status",
