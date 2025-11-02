@@ -9,17 +9,26 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 ## Development Commands
 
 ### Python Environment
-- **Run the application**: `uv run main.py` (NOT `python main.py`)
+- **Run the application**: `uv run main.py` (uses uv, NOT `python main.py`)
 - **Install dependencies**: `uv sync`
-- **Database**: SQLite database at `data/quran_v10.db` managed through fastmigrate with migrations in `migrations/` directory
-
-### Testing
+- **Add new dependency**: `uv add <package-name>`
+- **Run tests**: `uv run pytest` (pytest configured but no tests currently exist)
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
-### Frontend Assets
-- **Tailwind CSS**: Configuration in `tailwind.config.js`
-- **JavaScript**: Static files in `public/` directory (script.js)
-- **Styles**: Custom CSS in `public/css/style.css`
+### Database
+- **Path**: SQLite database at `data/quran_v10.db`
+- **Migrations**: Uses fastmigrate with numbered SQL files in `migrations/` directory (format: `0001-description.sql`)
+- **Migration system**: Automatically runs on app startup via `globals.py`
+
+### Frontend Stack
+- **Framework**: FastHTML (server-side rendered HTML with HTMX)
+- **UI Library**: MonsterUI (provides pre-built FastHTML components)
+- **Interactivity**:
+  - HTMX (hx-boost enabled globally for SPA-like navigation)
+  - Alpine.js (shift-click multi-select in tables)
+  - Hyperscript (dynamic button states)
+- **Styles**: Custom CSS in `public/css/style.css`, MonsterUI theme (blue)
+- **JavaScript**: `public/script.js` for custom interactions
 
 ## Architecture Overview
 
@@ -112,30 +121,35 @@ Full Cycle mode shows a dynamic number of items on the home page (main.py:546-57
 - Additional count: Session-stored extra pages (`full_cycle_display_count`)
 - Users can add +1, +2, +3, +5 pages via buttons to see more suggestions
 
-### File Structure
+### File Structure & MVC Pattern
+
+The app follows an MVC-like pattern where applicable:
+- **Controllers** (`*_controller.py`): Route handlers and request processing
+- **Views** (`*_view.py`): UI components, forms, display logic
+- **Models** (`*_model.py`): Data access layer, business logic
 
 **Main Application:**
 - `main.py`: Main app initialization, home page route with all summary tables, Close Date logic
-- `globals.py`: Database setup, mode constants, table references
+- `globals.py`: Database setup, mode constants (FULL_CYCLE_MODE_ID, etc.), table references
 - `utils.py`: Helper functions for dates, formatting, list operations
 
-**App Modules (mounted as sub-apps):**
-- `app/users_controller.py`: User authentication routes
-- `app/revision.py`: Revision CRUD operations and bulk operations
+**App Modules (mounted as sub-apps via FastHTML's Mount):**
+- `app/users_controller.py` + `app/users_view.py`: User authentication routes and UI
+- `app/revision.py` + `app/revision_view.py` + `app/revision_model.py`: Full MVC for revision CRUD operations
 - `app/new_memorization.py`: New memorization workflow
 - `app/profile.py`: Hafiz profile management
 - `app/hafiz.py`: Hafiz-specific settings (capacity, current_date override)
 - `app/admin.py`: Admin utilities and database management
 - `app/page_details.py`: Detailed item/page information views
-- `app/common_function.py`: Shared utilities (authentication, rendering helpers, data fetching)
-- `app/revision_model.py`: Data access layer for revisions
-- `app/fixed_reps.py`: Daily/Weekly Reps logic with `REP_MODES_CONFIG`
+- `app/common_function.py`: Shared utilities (authentication beforeware, rendering helpers, data fetching)
+- `app/fixed_reps.py`: Daily/Weekly Reps logic with `REP_MODES_CONFIG` dict
 - `app/srs_reps.py`: SRS mode logic including interval calculations
 
 **Supporting Files:**
 - `docs/design.md`: Comprehensive design vision through user conversations
 - `docs/data_model.md`: Database schema documentation
 - `docs/srs-mode-design.md`: SRS algorithm specifications
+- `docs/user_personas.md`: User personas for design decisions
 
 ### Common Development Patterns
 
@@ -151,8 +165,21 @@ The `make_summary_table()` function (app/common_function.py) generates mode-spec
 
 **Database Queries:**
 - Use table objects from `globals.py` (e.g., `revisions()`, `hafizs_items()`)
+- Each table has a dataclass (e.g., `Revision`, `Hafiz_Items`) for type safety
 - For complex queries, use `db.q()` with raw SQL
 - Always include `hafiz_id` filters (automatically added by `xtra()` when using beforeware)
+- FastHTML's database layer provides CRUD operations: `table.insert()`, `table.update()`, `table[id]`, `table.delete()`
 
 **Page References:**
 Items can represent full pages or page parts (e.g., page 5 might have items for "5.1", "5.2", "5.3"). Use `get_page_description()` to render human-readable descriptions.
+
+**Creating New Routes:**
+When adding new sub-apps, mount them in `main.py` using FastHTML's `Mount()` and add beforeware for authentication:
+```python
+app, rt = create_app_with_auth(
+    routes=[
+        Mount("/users", users_app, name="users"),
+        Mount("/new_module", new_module_app, name="new_module"),
+    ]
+)
+```

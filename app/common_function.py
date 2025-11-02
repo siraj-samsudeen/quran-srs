@@ -167,7 +167,7 @@ def get_page_description(
         Br(),
         Span(description),
         href=(f"/page_details/{item_id}" if not link else link),
-        cls=AT.classic,
+        cls="no-underline",
     )
 
 
@@ -655,20 +655,18 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         if current_revision_data:
             current_rev_data = current_revision_data[0]
             default_rating = current_rev_data.rating
-            change_rating_hx_attrs = {
-                "hx_put": f"/revision/{current_rev_data.id}",
-                "hx_swap": "none",
-            }
         else:
             default_rating = 1
-            change_rating_hx_attrs = checkbox_hx_attrs
-            change_rating_hx_attrs["hx_vals"] = {
-                "date": current_date,
-                "mode_id": mode_id,
-                "is_checked": True,
-            }
-            if is_full_review:
-                change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
+
+        # Always use the same HTMX attributes to ensure row re-renders with new color
+        change_rating_hx_attrs = checkbox_hx_attrs.copy()
+        change_rating_hx_attrs["hx_vals"] = {
+            "date": current_date,
+            "mode_id": mode_id,
+            "is_checked": True,
+        }
+        if is_full_review:
+            change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
 
         rating_dropdown_input = rating_dropdown(
             default_mode=str(default_rating),
@@ -678,6 +676,16 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
             hx_trigger="change",
             **change_rating_hx_attrs,
         )
+
+        # Determine background color based on rating
+        bg_color = None
+        if is_checked:
+            if default_rating == 1:  # Good
+                bg_color = "bg-green-100"
+            elif default_rating == 0:  # Ok
+                bg_color = "bg-yellow-50"
+            elif default_rating == -1:  # Bad
+                bg_color = "bg-red-50"
 
         return Tr(
             Td(get_page_description(item_id)),
@@ -695,7 +703,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                 )
             ),
             id=row_id,
-            cls="bg-green-100" if is_checked else None,
+            cls=bg_color,
         )
 
     body_rows = list(map(render_range_row, item_ids))
