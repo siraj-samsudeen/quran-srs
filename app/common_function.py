@@ -597,19 +597,18 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(item, route, current_date, mode_id, plan_id, rating):
+def render_range_row(item, current_date, mode_id, plan_id, rating):
     """Render a single table row for an item in the summary table.
 
     Args:
         item: Item record with id, description, start_text
-        route: Route name (e.g., "full_cycle", "daily_reps")
         current_date: Current date for the hafiz
         mode_id: Mode ID
         plan_id: Plan ID (optional, for full cycle)
         rating: Rating from today's revision (None if not reviewed)
     """
     item_id = item.id
-    row_id = f"{route}-row-{item_id}"
+    row_id = f"row-{mode_id}-{item_id}"
 
     # Build form values
     vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
@@ -643,16 +642,21 @@ def render_range_row(item, route, current_date, mode_id, plan_id, rating):
     )
 
 
-def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
-    is_accordion = route != "full_cycle"
+def get_mode_condition(mode_id: int):
+    # The full cycle mode is a special case, where it also shows the SRS pages
     mode_id_mapping = {
-        "full_cycle": FULL_CYCLE_MODE_ID,
-        "new_memorization": NEW_MEMORIZATION_MODE_ID,
-        "daily_reps": DAILY_REPS_MODE_ID,
-        "weekly_reps": WEEKLY_REPS_MODE_ID,
-        "srs": SRS_MODE_ID,
+        FULL_CYCLE_MODE_ID: [str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
     }
-    mode_id = mode_id_mapping[route]
+    retrived_mode_id = mode_id_mapping.get(mode_id)
+    if retrived_mode_id is None:
+        mode_condition = f"mode_id = {mode_id}"
+    else:
+        mode_condition = f"mode_id IN ({', '.join(retrived_mode_id)})"
+    return mode_condition
+
+
+def render_summary_table(auth, mode_id, item_ids, plan_id=None):
+    is_accordion = mode_id != FULL_CYCLE_MODE_ID
     is_newly_memorized = mode_id == NEW_MEMORIZATION_MODE_ID
     is_full_review = mode_id == FULL_CYCLE_MODE_ID
     is_srs = mode_id == SRS_MODE_ID
@@ -661,7 +665,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
     today_revisions = revisions(
-        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND mode_id IN ({', '.join(mode_ids)}) {plan_condition}"
+        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_id)} {plan_condition}"
     )
     # Create lookup dictionary: item_id -> rating
     ratings_lookup = {rev.item_id: rev.rating for rev in today_revisions}
@@ -672,7 +676,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     # Render rows
     body_rows = [
         render_range_row(
-            item, route, current_date, mode_id, plan_id, ratings_lookup.get(item.id)
+            item, current_date, mode_id, plan_id, ratings_lookup.get(item.id)
         )
         for item in items_data
     ]
@@ -694,14 +698,14 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
-                Tbody(*body_rows, id=f"{route}_tbody", data_testid=f"{route}_tbody"),
-                id=f"{route}_summary_table",
+                Tbody(*body_rows),
+                id=f"summary_table_{mode_id}",
             ),
         ),
     )
     return (
         AccordionItem(
-            Span(modes[mode_id].name, id=f"{route}-header"),
+            Span(modes[mode_id].name),
             render_output,
             open=True,  # Always open by default
         )
@@ -711,8 +715,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
 
 
 def make_summary_table(
-    mode_ids: list[str],
-    route: str,
+    mode_id: int,
     auth: str,
     total_display_count=0,
     plan_id=None,
@@ -757,33 +760,33 @@ def make_summary_table(
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id 
-        WHERE hafizs_items.mode_id IN ({', '.join(mode_ids)}) AND hafizs_items.hafiz_id = {auth}
+        WHERE {get_mode_condition(mode_id)} AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
     """
     ct = db.q(qry)
 
     # Route-specific condition builders
     route_conditions = {
-        "daily_reps": lambda item: (
+        DAILY_REPS_MODE_ID: lambda item: (
             (is_review_due(item) and not has_newly_memorized_for_today(item))
             or (is_reviewed_today(item) and has_mode_id(item, DAILY_REPS_MODE_ID))
         ),
-        "weekly_reps": lambda item: (
+        WEEKLY_REPS_MODE_ID: lambda item: (
             has_mode_id(item, WEEKLY_REPS_MODE_ID)
             and (
                 is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
             )
         ),
-        "srs": lambda item: (is_review_due(item) or has_revisions_today(item)),
-        "full_cycle": lambda item: has_memorized(item),
+        SRS_MODE_ID: lambda item: (is_review_due(item) or has_revisions_today(item)),
+        FULL_CYCLE_MODE_ID: lambda item: has_memorized(item),
     }
 
-    filtered_records = [i for i in ct if route_conditions[route](i)]
+    filtered_records = [i for i in ct if route_conditions[mode_id](i)]
 
     def get_unique_item_ids(records):
         return list(dict.fromkeys(record["item_id"] for record in records))
 
-    if route == "srs":
+    if mode_id == SRS_MODE_ID:
         srs_daily_limit = get_srs_daily_limit(auth)
         exclude_start_page = get_last_added_full_cycle_page(auth)
         print(exclude_start_page)
@@ -809,7 +812,7 @@ def make_summary_table(
     else:
         item_ids = get_unique_item_ids(filtered_records)
 
-    if route == "full_cycle":
+    if mode_id == FULL_CYCLE_MODE_ID:
         item_ids = get_full_review_item_ids(
             auth=auth,
             total_display_count=total_display_count,
@@ -819,21 +822,10 @@ def make_summary_table(
         )
 
     return render_summary_table(
-        route=route,
         auth=auth,
-        mode_ids=mode_ids,
+        mode_id=mode_id,
         item_ids=item_ids,
         plan_id=plan_id,
-    )
-
-
-# This funtion is to convert the mode ids to string
-def get_reps_table(mode_ids, route, auth):
-    """Helper to get table and target count for rep modes."""
-    return make_summary_table(
-        mode_ids=[str(mid) for mid in mode_ids],
-        route=route,
-        auth=auth,
     )
 
 

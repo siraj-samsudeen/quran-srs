@@ -197,7 +197,7 @@ def render_row_based_on_type(
     )
 
 
-def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
+def get_new_memorization_table(auth: str):
     current_date = get_current_date(auth)
 
     def get_last_memorized_item_id():
@@ -257,9 +257,8 @@ def get_new_memorization_table(auth: str, mode_ids: list[str], route: str):
         set(unmemorized_items + daily_reps_newly_memorized_items)
     )
     return render_summary_table(
-        route=route,
         auth=auth,
-        mode_ids=mode_ids,
+        mode_id=NEW_MEMORIZATION_MODE_ID,
         item_ids=new_memorization_items,
     )
 
@@ -457,8 +456,6 @@ def new_memorization(auth, current_type: str):
     )
     # New Memorization entry table same as the one on home page
     # new_memorization_table = get_new_memorization_table(
-    #     mode_ids=[str(NEW_MEMORIZATION_MODE_ID)],
-    #     route="new_memorization",
     #     auth=auth,
     # )
     return main_area(

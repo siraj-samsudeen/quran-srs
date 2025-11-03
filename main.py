@@ -408,8 +408,8 @@ def index(auth, sess, full_cycle_display_count: int = None):
         return Button(
             f"+{count}",
             hx_get=f"/?full_cycle_display_count={count}",
-            hx_select="#full_cycle_summary_table",
-            hx_target="#full_cycle_summary_table",
+            hx_select=f"#summary_table_{FULL_CYCLE_MODE_ID}",
+            hx_target=f"#summary_table_{FULL_CYCLE_MODE_ID}",
             hx_swap="outerHTML",
         )
 
@@ -418,8 +418,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
 
     full_cycle_table = make_summary_table(
-        mode_ids=[str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
-        route="full_cycle",
+        mode_id=FULL_CYCLE_MODE_ID,
         auth=auth,
         total_display_count=total_display_count,
         plan_id=plan_id,
@@ -427,7 +426,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
     overall_table = AccordionItem(
         Span(
             modes[1].name,
-            id=f"full_cycle-header",
         ),
         full_cycle_table,
         DivHStacked(
@@ -439,17 +437,15 @@ def index(auth, sess, full_cycle_display_count: int = None):
     )
     ############################# END ################################
 
-    daily_reps_table = get_reps_table(
-        mode_ids=[NEW_MEMORIZATION_MODE_ID, DAILY_REPS_MODE_ID],
-        route="daily_reps",
+    daily_reps_table = make_summary_table(
+        mode_id=DAILY_REPS_MODE_ID,
         auth=auth,
     )
-    weekly_reps_table = get_reps_table(
-        mode_ids=[WEEKLY_REPS_MODE_ID, FULL_CYCLE_MODE_ID],
-        route="weekly_reps",
+    weekly_reps_table = make_summary_table(
+        mode_id=WEEKLY_REPS_MODE_ID,
         auth=auth,
     )
-    srs_table = get_reps_table(mode_ids=[SRS_MODE_ID], route="srs", auth=auth)
+    srs_table = make_summary_table(mode_id=SRS_MODE_ID, auth=auth)
 
     mode_tables = [
         (overall_table if plan_id else None),
@@ -645,22 +641,12 @@ def update_status_from_index(
         plan_id=plan_id,
     )
 
-    # Determine route name from mode_id
-    mode_to_route = {
-        FULL_CYCLE_MODE_ID: "full_cycle",
-        NEW_MEMORIZATION_MODE_ID: "new_memorization",
-        DAILY_REPS_MODE_ID: "daily_reps",
-        WEEKLY_REPS_MODE_ID: "weekly_reps",
-        SRS_MODE_ID: "srs",
-    }
-    route = mode_to_route[mode_id]
-
     # Get item data and current date
     item = items[int(item_id)]
     current_date = get_current_date(auth)
 
     # Return the updated row
-    return render_range_row(item, route, current_date, mode_id, plan_id, rating)
+    return render_range_row(item, current_date, mode_id, plan_id, rating)
 
 
 @app.post("/bulk_add")
