@@ -49,11 +49,6 @@ def get_revisions_by_item_and_mode(item_id: int, mode_id: int):
     return revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
 
 
-def update_revision_rating_only(revision_id: int, rating: int):
-    """Update only the rating for a revision"""
-    return revisions.update({"rating": rating}, revision_id)
-
-
 def update_revision_next_interval(revision_id: int, next_interval: int):
     """Update next interval for a revision"""
     return revisions.update({"next_interval": next_interval}, revision_id)

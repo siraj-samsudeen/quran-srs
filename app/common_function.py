@@ -347,7 +347,7 @@ def get_planned_next_interval(item_id):
 
 
 def add_revision_record(**kwargs):
-    revisions.insert(**kwargs)
+    return revisions.insert(**kwargs)
 
 
 def remove_revision_record(item_id, mode_id, date):
@@ -597,7 +597,7 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(item, current_date, mode_id, plan_id, rating):
+def render_range_row(records, current_date=None, mode_id=None, plan_id=None):
     """Render a single table row for an item in the summary table.
 
     Args:
@@ -607,19 +607,28 @@ def render_range_row(item, current_date, mode_id, plan_id, rating):
         plan_id: Plan ID (optional, for full cycle)
         rating: Rating from today's revision (None if not reviewed)
     """
-    item_id = item.id
+    item_id = records["item"].id
+    rating = records["revision"].rating
     row_id = f"row-{mode_id}-{item_id}"
 
-    # Build form values
-    vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
-    if plan_id:
-        vals_dict["plan_id"] = plan_id
+    if rating is None:
+        # Build form values
+        vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
+        if plan_id:
+            vals_dict["plan_id"] = plan_id
+        hx_attrs = {
+            "hx_post": f"/add/{item_id}",
+            "hx_vals": vals_dict,
+        }
+    else:
+        hx_attrs = {
+            "hx_put": f"/edit/{records["revision"].id}",
+        }
 
     rating_dropdown_input = rating_dropdown(
         default_mode=str(rating) if rating is not None else None,
         id=f"rev-{item_id}",
-        hx_post=f"/add/{item_id}",
-        hx_vals=vals_dict,
+        **hx_attrs,
         hx_trigger="change",
         hx_target=f"#{row_id}",
         hx_swap="outerHTML",
@@ -628,7 +637,7 @@ def render_range_row(item, current_date, mode_id, plan_id, rating):
     return Tr(
         Td(get_page_description(item_id)),
         Td(
-            item.start_text or "-",
+            records["item"].start_text or "-",
             cls=TextT.lg,
         ),
         Td(
@@ -668,17 +677,23 @@ def render_summary_table(auth, mode_id, item_ids, plan_id=None):
         where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_id)} {plan_condition}"
     )
     # Create lookup dictionary: item_id -> rating
-    ratings_lookup = {rev.item_id: rev.rating for rev in today_revisions}
+    revisions_lookup = {rev.item_id: rev for rev in today_revisions}
 
     # Query all items data once
-    items_data = [items[item_id] for item_id in item_ids]
+    items_with_revisions = [
+        {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
+        for item_id in item_ids
+    ]
 
     # Render rows
     body_rows = [
         render_range_row(
-            item, current_date, mode_id, plan_id, ratings_lookup.get(item.id)
+            records,
+            current_date,
+            mode_id,
+            plan_id,
         )
-        for item in items_data
+        for records in items_with_revisions
     ]
     if not body_rows:
         return None

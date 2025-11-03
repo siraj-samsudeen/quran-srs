@@ -629,11 +629,10 @@ def update_status_from_index(
     item_id: str,
     mode_id: int,
     rating: int,
-    is_checked: bool = False,
     plan_id: int = None,
 ):
     # Add or update the revision record
-    add_revision_record(
+    revision = add_revision_record(
         item_id=item_id,
         mode_id=mode_id,
         revision_date=date,
@@ -646,7 +645,28 @@ def update_status_from_index(
     current_date = get_current_date(auth)
 
     # Return the updated row
-    return render_range_row(item, current_date, mode_id, plan_id, rating)
+    return render_range_row(
+        {
+            "item": item,
+            "revision": revision,
+        },
+        current_date,
+        mode_id,
+        plan_id,
+        rating,
+    )
+
+
+@app.put("/edit/{rev_id}")
+def update_revision_rating(rev_id: int, rating: int):
+
+    revision = revisions.update({"rating": rating}, rev_id)
+    return render_range_row(
+        {
+            "item": items[revision.item_id],
+            "revision": revision,
+        }
+    )
 
 
 @app.post("/bulk_add")

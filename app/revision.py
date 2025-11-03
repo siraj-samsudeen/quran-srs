@@ -337,12 +337,6 @@ def post(revision_details: Revision):
     )
 
 
-# This is to update the rating from the summary tables
-@revision_app.put("/{rev_id}")
-def update_revision_rating(rev_id: int, rating: int):
-    update_revision_rating_only(rev_id, rating)
-
-
 @revision_app.get("/bulk_add")
 def get(
     auth,
