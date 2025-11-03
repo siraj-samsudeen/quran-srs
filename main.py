@@ -245,7 +245,6 @@ def create_stat_table(auth):
         revisions(where=f"revision_date = '{yesterday}'")
     )
     mode_ids = [mode.id for mode in modes()]
-    sorted_mode_ids = sorted(mode_ids, key=lambda x: extract_mode_sort_number(x))
 
     def render_count(mode_id, revision_date):
         count, item_ids = get_revision_data(mode_id, revision_date)
@@ -272,7 +271,7 @@ def create_stat_table(auth):
             )
         ),
         Tbody(
-            *map(render_stat_rows, sorted_mode_ids),
+            *map(render_stat_rows, mode_ids),
         ),
         Tfoot(
             Tr(
@@ -466,13 +465,10 @@ def index(auth, sess, full_cycle_display_count: int = None):
     header = DivLAligned(
         render_current_date(auth),
         Button(
-            "Close Date",
-            id="close-date-btn",
-            hx_get="/close_date",
-            hx_target="body",
-            hx_push_url="true",
-            hx_disabled_elt="#close-date-btn, .bulk-add-checkbox, .add-checkbox, .update-dropdown",  # Disable these elements during the request
-            cls=(ButtonT.default, "px-2 py-3 h-0"),
+            A(
+                "Close Date",
+                href="/close_date",
+            ),
         ),
     )
     return main_area(
@@ -632,6 +628,7 @@ def custom_full_cycle_entry_view(auth):
 # and update the review dates for that item_id
 @app.post("/add/{item_id}")
 def update_status_from_index(
+    auth,
     date: str,
     item_id: str,
     mode_id: int,
@@ -639,18 +636,31 @@ def update_status_from_index(
     is_checked: bool = False,
     plan_id: int = None,
 ):
-    if is_checked:
-        add_revision_record(
-            item_id=item_id,
-            mode_id=mode_id,
-            revision_date=date,
-            rating=rating,
-            plan_id=plan_id,
-        )
-    else:
-        remove_revision_record(item_id=item_id, mode_id=mode_id, date=date)
+    # Add or update the revision record
+    add_revision_record(
+        item_id=item_id,
+        mode_id=mode_id,
+        revision_date=date,
+        rating=rating,
+        plan_id=plan_id,
+    )
 
-    return RedirectResponse("/", status_code=303)
+    # Determine route name from mode_id
+    mode_to_route = {
+        FULL_CYCLE_MODE_ID: "full_cycle",
+        NEW_MEMORIZATION_MODE_ID: "new_memorization",
+        DAILY_REPS_MODE_ID: "daily_reps",
+        WEEKLY_REPS_MODE_ID: "weekly_reps",
+        SRS_MODE_ID: "srs",
+    }
+    route = mode_to_route[mode_id]
+
+    # Get item data and current date
+    item = items[int(item_id)]
+    current_date = get_current_date(auth)
+
+    # Return the updated row
+    return render_range_row(item, route, current_date, mode_id, plan_id, rating)
 
 
 @app.post("/bulk_add")

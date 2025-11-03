@@ -167,7 +167,7 @@ def get_page_description(
         Br(),
         Span(description),
         href=(f"/page_details/{item_id}" if not link else link),
-        cls="no-underline",
+        cls=AT.classic,
     )
 
 
@@ -472,11 +472,7 @@ def get_ordered_mode_name_and_id():
     mode_name_list = [mode.name for mode in modes()]
     mode_id_list = [mode.id for mode in modes()]
     # to display the mode names in the correct order
-    mode_id_list, mode_name_list = zip(
-        *sorted(
-            zip(mode_id_list, mode_name_list), key=lambda x: int(x[1].split(".")[0])
-        )
-    )
+    mode_id_list, mode_name_list = zip(*sorted(zip(mode_id_list, mode_name_list)))
     return list(mode_id_list), list(mode_name_list)
 
 
@@ -588,6 +584,65 @@ def create_count_link(count: int, rev_ids: str):
     )
 
 
+def row_background_color(rating):
+    # Determine background color based on rating
+    if rating is None:
+        return
+    if rating == 1:  # Good
+        bg_color = "bg-green-100"
+    elif rating == 0:  # Ok
+        bg_color = "bg-yellow-50"
+    elif rating == -1:  # Bad
+        bg_color = "bg-red-50"
+    return bg_color
+
+
+def render_range_row(item, route, current_date, mode_id, plan_id, rating):
+    """Render a single table row for an item in the summary table.
+
+    Args:
+        item: Item record with id, description, start_text
+        route: Route name (e.g., "full_cycle", "daily_reps")
+        current_date: Current date for the hafiz
+        mode_id: Mode ID
+        plan_id: Plan ID (optional, for full cycle)
+        rating: Rating from today's revision (None if not reviewed)
+    """
+    item_id = item.id
+    row_id = f"{route}-row-{item_id}"
+
+    # Build form values
+    vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
+    if plan_id:
+        vals_dict["plan_id"] = plan_id
+
+    rating_dropdown_input = rating_dropdown(
+        default_mode=str(rating) if rating is not None else None,
+        id=f"rev-{item_id}",
+        hx_post=f"/add/{item_id}",
+        hx_vals=vals_dict,
+        hx_trigger="change",
+        hx_target=f"#{row_id}",
+        hx_swap="outerHTML",
+    )
+
+    return Tr(
+        Td(get_page_description(item_id)),
+        Td(
+            item.start_text or "-",
+            cls=TextT.lg,
+        ),
+        Td(
+            Form(
+                rating_dropdown_input,
+                Hidden(name="item_id", value=item_id),
+            )
+        ),
+        id=row_id,
+        cls=row_background_color(rating),
+    )
+
+
 def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_accordion = route != "full_cycle"
     mode_id_mapping = {
@@ -602,120 +657,27 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
     is_full_review = mode_id == FULL_CYCLE_MODE_ID
     is_srs = mode_id == SRS_MODE_ID
     current_date = get_current_date(auth)
-    # This list is to close the accordian, if all the checkboxes are selected
-    is_all_selected = []
 
-    # Sort the item_ids by not revised(top) and revised(bottom)
-    # records = db.q(
-    #     f"""
-    #     SELECT hafizs_items.item_id FROM hafizs_items
-    #     LEFT JOIN revisions on hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id AND revisions.revision_date = '{current_date}'
-    #     WHERE hafizs_items.hafiz_id = {auth} AND hafizs_items.item_id IN ({', '.join(map(str, item_ids))})
-    #     ORDER BY revisions.item_id, hafizs_items.item_id ASC
-    # """
-    # )
-    # item_ids = [r["item_id"] for r in records]
+    # Query all today's revisions once for efficiency
+    plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
+    today_revisions = revisions(
+        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND mode_id IN ({', '.join(mode_ids)}) {plan_condition}"
+    )
+    # Create lookup dictionary: item_id -> rating
+    ratings_lookup = {rev.item_id: rev.rating for rev in today_revisions}
 
-    def render_range_row(item_id: str):
-        row_id = f"{route}-row-{item_id}"
-        plan_condition = f"AND plan_id = {plan_id}" if is_full_review else ""
-        current_revision_data = revisions(
-            where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_id IN ({', '.join(mode_ids)}) {plan_condition}"
+    # Query all items data once
+    items_data = [items[item_id] for item_id in item_ids]
+
+    # Render rows
+    body_rows = [
+        render_range_row(
+            item, route, current_date, mode_id, plan_id, ratings_lookup.get(item.id)
         )
-        is_checked = len(current_revision_data) != 0
-        is_all_selected.append(is_checked)
-        checkbox_hx_attrs = {
-            "hx_post": f"/add/{item_id}",
-            "hx_select": f"#{row_id}",
-            # TODO: make the full cycle to only rerender on full summary table
-            "hx_select_oob": f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
-            + (", #full_cycle_link_table, #page" if is_full_review else ""),
-            "hx_target": f"#{row_id}",
-            "hx_swap": "outerHTML",
-        }
-        vals_dict = {"date": current_date, "mode_id": mode_id}
-        if is_full_review:
-            vals_dict["plan_id"] = plan_id
-        record_btn = CheckboxX(
-            name=f"is_checked",
-            value="1",
-            **checkbox_hx_attrs,
-            hx_vals=vals_dict,
-            hx_include=f"#rev-{item_id}",
-            checked=is_checked,
-            cls=(
-                f"{route}_ids",
-                "add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
-                "disabled:opacity-50",
-            ),
-            _at_click="handleCheckboxClick($event)",  # To handle `shift+click` selection
-            data_testid=f"{item_id}-checkbox",
-        )
-
-        if current_revision_data:
-            current_rev_data = current_revision_data[0]
-            default_rating = current_rev_data.rating
-        else:
-            default_rating = 1
-
-        # Always use the same HTMX attributes to ensure row re-renders with new color
-        change_rating_hx_attrs = checkbox_hx_attrs.copy()
-        change_rating_hx_attrs["hx_vals"] = {
-            "date": current_date,
-            "mode_id": mode_id,
-            "is_checked": True,
-        }
-        if is_full_review:
-            change_rating_hx_attrs["hx_vals"]["plan_id"] = plan_id
-
-        rating_dropdown_input = rating_dropdown(
-            default_mode=str(default_rating),
-            is_label=False,
-            id=f"rev-{item_id}",
-            cls="update-dropdown",  # This class-name is used to disable the dropdown when closing the date to prevent it from being updated
-            hx_trigger="change",
-            **change_rating_hx_attrs,
-        )
-
-        # Determine background color based on rating
-        bg_color = None
-        if is_checked:
-            if default_rating == 1:  # Good
-                bg_color = "bg-green-100"
-            elif default_rating == 0:  # Ok
-                bg_color = "bg-yellow-50"
-            elif default_rating == -1:  # Bad
-                bg_color = "bg-red-50"
-
-        return Tr(
-            Td(get_page_description(item_id)),
-            Td(
-                get_start_text(item_id),
-                cls=TextT.lg,
-            ),
-            Td(record_btn),
-            Td(
-                Form(
-                    rating_dropdown_input,
-                    Hidden(name="item_id", value=item_id),
-                    Hidden(name="is_checked", value=f"{is_checked}"),
-                    id=f"{route}_ratings",
-                )
-            ),
-            id=row_id,
-            cls=bg_color,
-        )
-
-    body_rows = list(map(render_range_row, item_ids))
+        for item in items_data
+    ]
     if not body_rows:
         return None
-
-    select_all_vals = {
-        "mode_id": mode_id,
-        "date": current_date,
-    }
-    if is_full_review:
-        select_all_vals["plan_id"] = plan_id
 
     render_output = (
         Div(
@@ -729,46 +691,11 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
                             if not (is_newly_memorized or is_full_review or is_srs)
                             else None
                         ),
-                        Th(
-                            CheckboxX(
-                                name="is_select_all",
-                                hx_vals=select_all_vals,
-                                hx_post="/bulk_add",
-                                hx_trigger="change",
-                                hx_include=f"#{route}_ratings",
-                                hx_select=f"#{route}_tbody",
-                                hx_select_oob=f"#stat-row-{mode_id}, #total_row, #total-ticked-count-footer, #{route}-header"
-                                + (
-                                    ", #full_cycle_link_table, #page"
-                                    if is_full_review
-                                    else ""
-                                ),
-                                hx_target=f"#{route}_tbody",
-                                hx_swap="outerHTML",
-                                checked=all(is_all_selected),
-                                cls=(
-                                    "select_all",
-                                    "bulk-add-checkbox",  # This class-name is used to disable the checkbox when closing the date to prevent it from being updated
-                                    "disabled:opacity-50",
-                                    ("hidden" if mode_id == SRS_MODE_ID else None),
-                                ),
-                                x_model="selectAll",  # To update the current status of the checkbox (checked or unchecked)
-                            )
-                        ),
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
                 Tbody(*body_rows, id=f"{route}_tbody", data_testid=f"{route}_tbody"),
                 id=f"{route}_summary_table",
-                x_data=select_all_with_shift_click_for_summary_table(
-                    class_name=f"{route}_ids"
-                ),
-                # initializing the updateSelectAll function to select the selectAll checkboxe.
-                # if all the below checkboxes are selected.
-                x_init="updateSelectAll()",
-                # This is responsible for preserving the scroll position when hx-swap happens, to prevent scroll jump.
-                hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
-                hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
             ),
         ),
     )
@@ -776,7 +703,7 @@ def render_summary_table(auth, route, mode_ids, item_ids, plan_id=None):
         AccordionItem(
             Span(modes[mode_id].name, id=f"{route}-header"),
             render_output,
-            open=(not all(is_all_selected)),
+            open=True,  # Always open by default
         )
         if is_accordion
         else render_output
@@ -914,5 +841,5 @@ def render_current_date(auth):
     current_date = get_current_date(auth)
     return P(
         Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), id="current_date_description"),
+        Span(date_to_human_readable(current_date)),
     )
