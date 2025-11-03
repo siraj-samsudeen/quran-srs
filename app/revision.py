@@ -117,11 +117,7 @@ def bulk_edit_view(ids: str, auth):
                 )
             ),
             Td(
-                rating_dropdown(
-                    default_mode=str(current_revision.rating),
-                    name=f"rating-{id}",
-                    is_label=False,
-                ),
+                rating_dropdown(rating=current_revision.rating, name=f"rating-{id}"),
                 cls="min-w-32",
             ),
         )
@@ -454,7 +450,7 @@ def get(
                 )
             ),
             Td(
-                rating_dropdown(is_label=False, name=f"rating-{current_item_id}"),
+                rating_dropdown(name=f"rating-{current_item_id}"),
                 cls="!pr-0 min-w-32",
             ),
         )

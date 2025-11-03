@@ -367,23 +367,21 @@ def render_rating(rating: int):
 
 
 def rating_dropdown(
-    default_mode="1",
-    is_label=True,
+    rating="None",
     name="rating",
     cls="",
     **kwargs,
 ):
     def mk_options(o):
         id, name = o
-        is_selected = lambda m: m == default_mode
+        is_selected = lambda m: m == str(rating)
         return fh.Option(name, value=id, selected=is_selected(id))
 
     return Div(
         fh.Select(
-            map(mk_options, RATING_MAP.items()),
-            label=("Rating" if is_label else None),
+            fh.Option("Select Rating", value="None", selected=rating == "None"),
+            *map(mk_options, RATING_MAP.items()),
             name=name,
-            select_kwargs={"name": name},
             cls=cls,
             **kwargs,
         ),
@@ -601,34 +599,29 @@ def render_range_row(records, current_date=None, mode_id=None, plan_id=None):
     """Render a single table row for an item in the summary table.
 
     Args:
-        item: Item record with id, description, start_text
+        records: contains the item and revision record
         current_date: Current date for the hafiz
         mode_id: Mode ID
         plan_id: Plan ID (optional, for full cycle)
-        rating: Rating from today's revision (None if not reviewed)
     """
     item_id = records["item"].id
-    rating = records["revision"].rating
+    rating = records["revision"].rating if records["revision"] else None
     row_id = f"row-{mode_id}-{item_id}"
 
     if rating is None:
-        # Build form values
-        vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
-        if plan_id:
-            vals_dict["plan_id"] = plan_id
-        hx_attrs = {
-            "hx_post": f"/add/{item_id}",
-            "hx_vals": vals_dict,
-        }
+        action_link_attr = {"hx_post": f"/add/{item_id}"}
     else:
-        hx_attrs = {
-            "hx_put": f"/edit/{records["revision"].id}",
-        }
+        action_link_attr = {"hx_put": f"/edit/{records["revision"].id}"}
+
+    vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
+    if plan_id:
+        vals_dict["plan_id"] = plan_id
 
     rating_dropdown_input = rating_dropdown(
-        default_mode=str(rating) if rating is not None else None,
+        rating=rating,
         id=f"rev-{item_id}",
-        **hx_attrs,
+        **action_link_attr,
+        hx_vals=vals_dict,
         hx_trigger="change",
         hx_target=f"#{row_id}",
         hx_swap="outerHTML",

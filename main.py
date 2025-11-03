@@ -653,20 +653,33 @@ def update_status_from_index(
         current_date,
         mode_id,
         plan_id,
-        rating,
     )
 
 
 @app.put("/edit/{rev_id}")
-def update_revision_rating(rev_id: int, rating: int):
+def update_revision_rating(
+    rev_id: int,
+    date: str,
+    mode_id: int,
+    item_id: int,
+    rating: str,
+    plan_id: int = None,
+):
+    record = {
+        "item": items[item_id],
+    }
 
-    revision = revisions.update({"rating": rating}, rev_id)
-    return render_range_row(
-        {
-            "item": items[revision.item_id],
-            "revision": revision,
-        }
-    )
+    # If the `Select rating` options is selected, delete the revision record
+    if rating == "None":
+        revisions.delete(rev_id)
+        record["revision"] = None
+        return render_range_row(
+            records=record, current_date=date, mode_id=mode_id, plan_id=plan_id
+        )
+    else:
+        revision = revisions.update({"rating": int(rating)}, rev_id)
+        record["revision"] = revision
+        return render_range_row(records=record)
 
 
 @app.post("/bulk_add")
