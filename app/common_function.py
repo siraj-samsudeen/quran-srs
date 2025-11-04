@@ -712,10 +712,22 @@ def render_summary_table(auth, mode_id, item_ids, plan_id=None):
         ),
     )
     return AccordionItem(
-        H2(modes[mode_id].name),
+        H2(modes[mode_id].name, data_testid=f"mode-{get_mode_testid(mode_id)}"),
         render_output,
         open=True,  # Always open by default
     )
+
+
+def get_mode_testid(mode_id: int) -> str:
+    """Convert mode_id to a testid slug for E2E testing."""
+    mode_slugs = {
+        FULL_CYCLE_MODE_ID: "full-cycle",
+        NEW_MEMORIZATION_MODE_ID: "new-memorization",
+        DAILY_REPS_MODE_ID: "daily-reps",
+        WEEKLY_REPS_MODE_ID: "weekly-reps",
+        SRS_MODE_ID: "srs-weak-pages",
+    }
+    return mode_slugs.get(mode_id, f"mode-{mode_id}")
 
 
 def make_summary_table(
