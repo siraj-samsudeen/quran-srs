@@ -10,12 +10,12 @@ page_details_app, rt = create_app_with_auth()
 
 @page_details_app.get("/")
 def page_details_view(auth):
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
+    mode_code_list, mode_name_list = get_mode_name_and_code()
 
     # To get the count of the records under each modes to display
     mode_case_statements = []
-    for mode_id in mode_id_list:
-        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_id = {mode_id} THEN 1 END), '-') AS '{mode_id}'"
+    for mode_code in mode_code_list:
+        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_code = '{mode_code}' THEN 1 END), '-') AS '{mode_code}'"
         mode_case_statements.append(case_stmt)
     mode_cases = ",\n".join(mode_case_statements)
 
@@ -57,7 +57,7 @@ def page_details_view(auth):
 
         return Tr(
             Td(get_page_description(item_id=r["id"], link="#")),
-            *map(lambda id: Td(r[str(id)]), mode_id_list),
+            *map(lambda code: Td(r[code]), mode_code_list),
             Td(rating_summary),
             Td(
                 A(
@@ -101,7 +101,7 @@ def display_page_level_details(auth, item_id: int):
     if not is_active_item:
         return Redirect("/page_details")
 
-    mode_id_list, mode_name_list = get_ordered_mode_name_and_id()
+    mode_code_list, _mode_name_list = get_mode_name_and_code()
 
     # Avoid showing nav buttons (if the page has is no revision)
     rev_data = revisions(where=f"item_id = {item_id}")
@@ -118,8 +118,8 @@ def display_page_level_details(auth, item_id: int):
             tds.append(Td(value))
         return Tr(*tds)
 
-    def make_mode_title_for_table(mode_id):
-        mode_details = modes(where=f"id = {mode_id}")
+    def make_mode_title_for_table(mode_code):
+        mode_details = modes(where=f"code = '{mode_code}'")
         if mode_details:
             mode_details = mode_details[0]
             mode_name, mode_description = (mode_details.name, mode_details.description)
@@ -136,13 +136,13 @@ def display_page_level_details(auth, item_id: int):
         Redirect("/page_details")
 
     ####### Summary of first memorization
-    if not mode_id_list:
+    if not mode_code_list:
         memorization_summary = ""
     else:
         ctn = []
 
         first_revision_data = revisions(
-            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_id IN ({', '.join(map(str, mode_id_list))})",
+            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_code IN ({", ".join([repr(code) for code in mode_code_list])})",
             order_by="revision_date ASC",
             limit=1,
         )
@@ -154,7 +154,9 @@ def display_page_level_details(auth, item_id: int):
                 else Redirect("/page_details")
             )
             first_memorized_mode_code = (
-                first_revision.mode_code if first_revision else Redirect("/page_details")
+                first_revision.mode_code
+                if first_revision
+                else Redirect("/page_details")
             )
             first_memorized_mode_name, description = make_mode_title_for_table(
                 first_memorized_mode_code
@@ -258,7 +260,7 @@ def display_page_level_details(auth, item_id: int):
         # determine table visibility
         has_data = len(data) > 0
         # This is to render the srs table different from others
-        if len(mode_ids) == 1 and SRS_MODE_ID in mode_ids:
+        if len(mode_codes) == 1 and SRS_MODE_CODE in mode_codes:
             cols = [
                 "s_no",
                 "revision_date",
@@ -286,21 +288,21 @@ def display_page_level_details(auth, item_id: int):
         return has_data, table
 
     ########### Summary Table
-    has_summary_data, summary_table = create_mode_table(mode_id_list, is_summary=True)
+    has_summary_data, summary_table = create_mode_table(mode_code_list, is_summary=True)
 
     ########### Mode specific tables
     # Dynamically generate tables for each specific revision mode
     mode_data_map = {}
-    for mode_id in mode_id_list:
-        has_data, table = create_mode_table([mode_id])
-        mode_data_map[mode_id] = (has_data, table)
+    for mode_code in mode_code_list:
+        has_data, table = create_mode_table([mode_code])
+        mode_data_map[mode_code] = (has_data, table)
 
     # Create mode sections dynamically
     mode_sections = []
-    for mode_id in mode_id_list:
-        is_display, table = mode_data_map[mode_id]
+    for mode_code in mode_code_list:
+        is_display, table = mode_data_map[mode_code]
         if is_display:
-            mode_sections.append(Div(make_mode_title_for_table(mode_id), table))
+            mode_sections.append(Div(make_mode_title_for_table(mode_code), table))
 
     ########### Previous and Next Page Navigation
     def create_nav_button(item_id, arrow, show_nav):

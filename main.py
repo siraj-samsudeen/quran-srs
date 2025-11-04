@@ -70,8 +70,7 @@ def split_page_range(page_range: str):
 # eg: sorted(mode_codes, key=lambda code: extract_mode_sort_number(code))
 def extract_mode_sort_number(mode_code):
     """Extract the number from mode name like '1. full Cycle' -> 1"""
-    mode_name = modes(where=f"code = '{mode_code}'")[0].name
-    return int(mode_name.split(". ")[0])
+    return modes(where=f"code = '{mode_code}'")[0].id
 
 
 ####################### END #######################
@@ -197,7 +196,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                     if mode_with_ids_and_pages[0]["mode_code"] == o["mode_code"]
                     else ()
                 ),
-                Td(modes[o["mode_code"]].name),
+                Td(get_mode_name(o["mode_code"])),
                 Td(len(o["revision_data"])),
                 Td(_render_pages_range(o["revision_data"])),
             )
@@ -245,7 +244,7 @@ def create_stat_table(auth):
 
     def render_stat_rows(current_mode_code):
         return Tr(
-            Td(f"{modes(where=f"code = '{current_mode_code}'")[0].name}"),
+            Td(get_mode_name(current_mode_code)),
             Td(render_count(current_mode_code, today)),
             Td(render_count(current_mode_code, yesterday)),
             id=f"stat-row-{current_mode_code}",
@@ -496,7 +495,9 @@ def custom_full_cycle_entry_view(auth):
         )
         memorized_and_srs_item_ids = [
             i.item_id
-            for i in hafizs_items(where="memorized = 1 AND mode_code IN ('FC', 'SR')")
+            for i in hafizs_items(
+                where=f"memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')"
+            )
         ]
         # this will return the gap of the current_plan_item_ids based on the master(items_id)
         items_gaps_with_limit = find_gaps(
@@ -624,32 +625,6 @@ def update_revision_rating(
         revision = revisions.update({"rating": int(rating)}, rev_id)
         record["revision"] = revision
         return render_range_row(records=record)
-
-
-@app.post("/bulk_add")
-def update_multiple_items_from_index(
-    mode_id: int,
-    date: str,
-    item_id: list[int],
-    rating: list[int],
-    is_checked: list[bool],
-    plan_id: str = None,
-    is_select_all: bool = False,
-):
-    for o in zip(item_id, rating, is_checked):
-        current_item_id, current_rating, current_is_checked = o
-        if not is_select_all:
-            remove_revision_record(item_id=current_item_id, mode_id=mode_id, date=date)
-        elif not current_is_checked:
-            add_revision_record(
-                item_id=current_item_id,
-                mode_id=mode_id,
-                revision_date=date,
-                rating=current_rating,
-                plan_id=plan_id,
-            )
-
-    return RedirectResponse("/", status_code=303)
 
 
 serve()

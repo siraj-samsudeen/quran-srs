@@ -66,7 +66,13 @@ favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 def create_app_with_auth(**kwargs):
     app, rt = fast_app(
         before=[user_bware, hafiz_bware],
-        hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header, style_css, favicon),
+        hdrs=(
+            Theme.blue.headers(),
+            hyperscript_header,
+            alpinejs_header,
+            style_css,
+            favicon,
+        ),
         bodykw={"hx-boost": "true"},
         **kwargs,
     )
@@ -247,7 +253,10 @@ def get_last_added_full_cycle_page(auth):
 
 def find_next_memorized_item_id(item_id):
     memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="memorized = 1 AND mode_code IN ('FC', 'SR')")
+        i.item_id
+        for i in hafizs_items(
+            where=f"memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')"
+        )
     ]
     return find_next_greater(memorized_and_srs_item_ids, item_id)
 
@@ -351,15 +360,6 @@ def add_revision_record(**kwargs):
     return revisions.insert(**kwargs)
 
 
-def remove_revision_record(item_id, mode_code, date):
-    revision_record = revisions(
-        where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{date}'"
-    )
-    if not revision_record:
-        return None
-    revisions.delete(revision_record[0].id)
-
-
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 
 
@@ -448,7 +448,7 @@ def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('FC', 'SR') AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]
@@ -467,12 +467,11 @@ def get_juz_name(page_id=None, item_id=None):
     return juz_number
 
 
-def get_ordered_mode_name_and_code():
-    mode_name_list = [mode.name for mode in modes()]
-    mode_code_list = [mode.code for mode in modes()]
-    # to display the mode names in the correct order
-    mode_code_list, mode_name_list = zip(*sorted(zip(mode_code_list, mode_name_list)))
-    return list(mode_code_list), list(mode_name_list)
+def get_mode_name_and_code():
+    all_modes = modes()
+    mode_code_list = [mode.code for mode in all_modes]
+    mode_name_list = [mode.name for mode in all_modes]
+    return mode_code_list, mode_name_list
 
 
 def delete_hafiz(hafiz_id: int):
@@ -698,11 +697,6 @@ def render_summary_table(auth, mode_code, item_ids, plan_id=None):
                     Tr(
                         Th("Page", cls="min-w-24"),
                         Th("Start Text", cls="min-w-24"),
-                        (
-                            Th("Reps")
-                            if not (is_newly_memorized or is_full_review or is_srs)
-                            else None
-                        ),
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
@@ -712,7 +706,10 @@ def render_summary_table(auth, mode_code, item_ids, plan_id=None):
         ),
     )
     return AccordionItem(
-        H2(modes(where=f"code = '{mode_code}'")[0].name, data_testid=f"mode-{mode_code.lower()}"),
+        H2(
+            get_mode_name(mode_code),
+            data_testid=f"mode-{mode_code.lower()}",
+        ),
         render_output,
         open=True,  # Always open by default
     )

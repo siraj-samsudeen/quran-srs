@@ -44,16 +44,6 @@ def insert_revisions_bulk(revision_list):
     return revisions.insert_all(revision_list)
 
 
-def get_revisions_by_item_and_mode(item_id: int, mode_code: str):
-    """Get revisions for specific item and mode"""
-    return revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
-
-
-def update_revision_next_interval(revision_id: int, next_interval: int):
-    """Update next interval for a revision"""
-    return revisions.update({"next_interval": next_interval}, revision_id)
-
-
 def get_items_by_page_id(page_id: int, active_only: bool = True):
     """Get items for a specific page"""
     where_clause = f"page_id = {page_id}"
@@ -64,11 +54,6 @@ def get_items_by_page_id(page_id: int, active_only: bool = True):
 
 def get_item_ids_by_page(page):
     return [i.id for i in get_items_by_page_id(page)]
-
-
-def get_hafiz_item_by_item_id(item_id: int):
-    """Get hafiz item record by item ID"""
-    return hafizs_items(where=f"item_id = {item_id}")[0]
 
 
 def update_hafiz_item(hafiz_item: Hafiz_Items):

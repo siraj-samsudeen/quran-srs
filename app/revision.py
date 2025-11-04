@@ -234,7 +234,7 @@ def parse_page_string(page_str: str):
 def validate_page_revision(sess, item_id, page, plan_id):
     """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
     if not hafizs_items(
-        where=f"item_id = {item_id} AND memorized = 1 AND mode_code IN ('FC', 'SR')"
+        where=f"item_id = {item_id} AND memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') AND page_number = {page}"
     ):
         error_toast(sess, f"Given page '{page}' is not yet memorized!")
         return False
@@ -389,7 +389,8 @@ def get(
         SELECT hafizs_items.item_id, hafizs_items.page_number
         FROM hafizs_items
         LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('FC', 'SR') AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') 
+        AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
         ORDER BY hafizs_items.page_number ASC
         LIMIT {length};
         """
@@ -570,7 +571,6 @@ async def post(
         if name.startswith("rating-"):
             item_id = name.split("-")[1]
             if item_id in item_ids:
-                hafizs_items_id = get_hafiz_item_by_item_id(item_id).id
                 parsed_data.append(
                     Revision(
                         item_id=int(item_id),
