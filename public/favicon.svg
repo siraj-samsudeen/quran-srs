@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="45" fill="#4F46E5"/>
+
+  <!-- Open book -->
+  <path d="M 30 35 Q 30 30 35 30 L 48 30 L 48 65 L 35 65 Q 30 65 30 60 Z" fill="#FFFFFF"/>
+  <path d="M 70 35 Q 70 30 65 30 L 52 30 L 52 65 L 65 65 Q 70 65 70 60 Z" fill="#FFFFFF"/>
+
+  <!-- Book spine/center line -->
+  <line x1="50" y1="30" x2="50" y2="65" stroke="#4F46E5" stroke-width="1.5"/>
+
+  <!-- Page lines (left page) -->
+  <line x1="35" y1="38" x2="45" y2="38" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+  <line x1="35" y1="43" x2="45" y2="43" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+  <line x1="35" y1="48" x2="45" y2="48" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+
+  <!-- Page lines (right page) -->
+  <line x1="55" y1="38" x2="65" y2="38" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+  <line x1="55" y1="43" x2="65" y2="43" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+  <line x1="55" y1="48" x2="65" y2="48" stroke="#4F46E5" stroke-width="1" opacity="0.5"/>
+</svg>

@@ -59,13 +59,14 @@ alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
 style_css = Link(rel="stylesheet", href="/public/css/style.css")
+favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 
 
 # Create sub-apps with the beforeware
 def create_app_with_auth(**kwargs):
     app, rt = fast_app(
         before=[user_bware, hafiz_bware],
-        hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header, style_css),
+        hdrs=(Theme.blue.headers(), hyperscript_header, alpinejs_header, style_css, favicon),
         bodykw={"hx-boost": "true"},
         **kwargs,
     )
