@@ -279,7 +279,7 @@ def start_srs_for_bad_streak_items(auth):
     qry = f"""
         SELECT revisions.item_id FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{current_date}'
+        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{current_date}'
     """
     for items in db.q(qry):
         start_srs(items["item_id"], auth)
