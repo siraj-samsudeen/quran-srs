@@ -89,7 +89,7 @@ def start_srs(item_id: int, auth):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         current_hafiz_items = current_hafiz_items[0]
-        current_hafiz_items.mode_id = SRS_MODE_ID
+        current_hafiz_items.mode_code = SRS_MODE_CODE
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
@@ -156,7 +156,7 @@ def recalculate_intervals_on_srs_records(item_id: int, current_date: str):
     srs_start_date = hafiz_item_details.srs_start_date
 
     items_rev_data = revisions(
-        where=f"item_id = {item_id} AND mode_id = {SRS_MODE_ID} AND revision_date >= '{srs_start_date}'",
+        where=f"item_id = {item_id} AND mode_code = '{SRS_MODE_CODE}' AND revision_date >= '{srs_start_date}'",
         order_by="revision_date ASC",
     )
 
@@ -257,7 +257,7 @@ def update_hafiz_item_for_srs(rev):
         hafiz_items_details.next_interval = next_interval
         hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
     else:
-        hafiz_items_details.mode_id = FULL_CYCLE_MODE_ID
+        hafiz_items_details.mode_code = FULL_CYCLE_MODE_CODE
         hafiz_items_details.memorized = True
         hafiz_items_details.last_interval = calculate_days_difference(
             hafiz_items_details.last_review, current_date
@@ -279,7 +279,7 @@ def start_srs_for_bad_streak_items(auth):
     qry = f"""
         SELECT revisions.item_id FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_id = {FULL_CYCLE_MODE_ID} AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{current_date}'
+        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{current_date}'
     """
     for items in db.q(qry):
         start_srs(items["item_id"], auth)
@@ -293,7 +293,7 @@ def display_srs_pages_recorded_today(auth):
         f"""
     SELECT revisions.item_id, hafizs_items.next_interval as previous_interval, revisions.rating FROM revisions 
     LEFT JOIN hafizs_items ON hafizs_items.item_id = revisions.item_id AND hafizs_items.hafiz_id = revisions.hafiz_id
-    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_id = {SRS_MODE_ID} AND revisions.hafiz_id = {auth}
+    WHERE revisions.revision_date = '{current_date}' AND revisions.mode_code = '{SRS_MODE_CODE}' AND revisions.hafiz_id = {auth}
     """
     )
 

@@ -4,10 +4,10 @@ from app.srs_reps import recalculate_intervals_on_srs_records
 
 
 # Model functions for revision data operations
-def update_stats_and_interval(item_id: int, mode_id: int, current_date: str):
+def update_stats_and_interval(item_id: int, mode_code: str, current_date: str):
     """Update statistics and intervals for revision items"""
     populate_hafizs_items_stat_columns(item_id=item_id)
-    if mode_id == SRS_MODE_ID:
+    if mode_code == SRS_MODE_CODE:
         recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 
@@ -44,9 +44,9 @@ def insert_revisions_bulk(revision_list):
     return revisions.insert_all(revision_list)
 
 
-def get_revisions_by_item_and_mode(item_id: int, mode_id: int):
+def get_revisions_by_item_and_mode(item_id: int, mode_code: str):
     """Get revisions for specific item and mode"""
-    return revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
+    return revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
 
 
 def update_revision_next_interval(revision_id: int, next_interval: int):

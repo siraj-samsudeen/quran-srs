@@ -153,11 +153,11 @@ def display_page_level_details(auth, item_id: int):
                 if first_revision
                 else Redirect("/page_details")
             )
-            first_memorized_mode_id = (
-                first_revision.mode_id if first_revision else Redirect("/page_details")
+            first_memorized_mode_code = (
+                first_revision.mode_code if first_revision else Redirect("/page_details")
             )
             first_memorized_mode_name, description = make_mode_title_for_table(
-                first_memorized_mode_id
+                first_memorized_mode_code
             )
             ctn.append(
                 P(
@@ -175,13 +175,13 @@ def display_page_level_details(auth, item_id: int):
                     "last_review",
                     "next_review",
                     "memorized",
-                    "mode_id",
+                    "mode_code",
                     "last_interval",
                     "current_interval",
                     "next_interval",
                 ]
                 rename_columns = {
-                    "mode_id": "current_mode",
+                    "mode_code": "current_mode",
                     "last_interval": "previous_interval",
                     "current_interval": "actual_interval",
                 }
@@ -189,7 +189,7 @@ def display_page_level_details(auth, item_id: int):
                 # Table View
                 def render_stats(col_name: str):
                     value = hafiz_items_details.__dict__[col_name]
-                    if col_name == "mode_id":
+                    if col_name == "mode_code":
                         value = get_mode_name(value)
                     elif col_name == "memorized":
                         value = "Yes" if value else "No"
@@ -227,8 +227,8 @@ def display_page_level_details(auth, item_id: int):
 
     ########### Display Tables
 
-    def build_revision_query(mode_ids, row_alias):
-        """It fetch the revision data for the current item_id with specified mode_ids"""
+    def build_revision_query(mode_codes, row_alias):
+        """It fetch the revision data for the current item_id with specified mode_codes"""
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -246,14 +246,14 @@ def display_page_level_details(auth, item_id: int):
                 )
             END AS interval
             FROM revisions
-            JOIN modes ON revisions.mode_id = modes.id
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_id IN ({", ".join(map(str, mode_ids))})
+            JOIN modes ON revisions.mode_code = modes.code
+            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_code IN ({", ".join(repr(code) for code in mode_codes)})
             ORDER BY revision_date ASC;
         """
 
-    def create_mode_table(mode_ids, is_summary=False):
+    def create_mode_table(mode_codes, is_summary=False):
         """Generate a table for the specified mode, returning both its visibility status and the table itself"""
-        query = build_revision_query(mode_ids, "s_no")
+        query = build_revision_query(mode_codes, "s_no")
         data = db.q(query)
         # determine table visibility
         has_data = len(data) > 0

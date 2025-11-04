@@ -47,29 +47,14 @@ app, rt = create_app_with_auth(
 print("-" * 15, "ROUTES=", app.routes)
 
 
-def get_revision_data(mode_id: str, revision_date: str):
-    """Returns the revision count and revision ID for a specific date and mode ID."""
+def get_revision_data(mode_code: str, revision_date: str):
+    """Returns the revision count and revision ID for a specific date and mode code."""
     records = revisions(
-        where=f"mode_id = '{mode_id}' AND revision_date = '{revision_date}'"
+        where=f"mode_code = '{mode_code}' AND revision_date = '{revision_date}'"
     )
     rev_ids = ",".join(str(r.id) for r in records)
     count = get_page_count(records)
     return count, rev_ids
-
-
-def mode_dropdown(default_mode=1, **kwargs):
-    def mk_options(mode):
-        id, name = mode.id, mode.name
-        is_selected = lambda m: m == default_mode
-        return Option(name, value=id, selected=is_selected(id))
-
-    return LabelSelect(
-        map(mk_options, modes()),
-        label="Mode Id",
-        name="mode_id",
-        select_kwargs={"name": "mode_id"},
-        **kwargs,
-    )
 
 
 def split_page_range(page_range: str):
@@ -82,10 +67,10 @@ def split_page_range(page_range: str):
 
 
 # This is used to dynamically sort them by mode name which contains the sort order
-# eg: sorted(mode_ids, key=lambda id: extract_mode_sort_number(id))
-def extract_mode_sort_number(mode_id):
+# eg: sorted(mode_codes, key=lambda code: extract_mode_sort_number(code))
+def extract_mode_sort_number(mode_code):
     """Extract the number from mode name like '1. full Cycle' -> 1"""
-    mode_name = modes[mode_id].name
+    mode_name = modes(where=f"code = '{mode_code}'")[0].name
     return int(mode_name.split(". ")[0])
 
 
@@ -109,17 +94,21 @@ def datewise_summary_table(show=None, hafiz_id=None):
         rev_condition = f"WHERE revisions.revision_date = '{date}'" + (
             f" AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
         )
-        unique_modes = db.q(f"SELECT DISTINCT mode_id FROM {revisions} {rev_condition}")
-        unique_modes = [m["mode_id"] for m in unique_modes]
-        unique_modes = sorted(unique_modes, key=lambda id: extract_mode_sort_number(id))
+        unique_modes = db.q(
+            f"SELECT DISTINCT mode_code FROM {revisions} {rev_condition}"
+        )
+        unique_modes = [m["mode_code"] for m in unique_modes]
+        unique_modes = sorted(
+            unique_modes, key=lambda code: extract_mode_sort_number(code)
+        )
 
         mode_with_ids_and_pages = []
-        for mode_id in unique_modes:
-            rev_query = f"SELECT revisions.id, revisions.item_id, items.page_id FROM {revisions} LEFT JOIN {items} ON revisions.item_id = items.id {rev_condition} AND mode_id = {mode_id}"
+        for mode_code in unique_modes:
+            rev_query = f"SELECT revisions.id, revisions.item_id, items.page_id FROM {revisions} LEFT JOIN {items} ON revisions.item_id = items.id {rev_condition} AND mode_code = '{mode_code}'"
             current_date_and_mode_revisions = db.q(rev_query)
             mode_with_ids_and_pages.append(
                 {
-                    "mode_id": mode_id,
+                    "mode_code": mode_code,
                     "revision_data": current_date_and_mode_revisions,
                 }
             )
@@ -205,10 +194,10 @@ def datewise_summary_table(show=None, hafiz_id=None):
                             rowspan=f"{len(mode_with_ids_and_pages)}",
                         ),
                     )
-                    if mode_with_ids_and_pages[0]["mode_id"] == o["mode_id"]
+                    if mode_with_ids_and_pages[0]["mode_code"] == o["mode_code"]
                     else ()
                 ),
-                Td(modes[o["mode_id"]].name),
+                Td(modes[o["mode_code"]].name),
                 Td(len(o["revision_data"])),
                 Td(_render_pages_range(o["revision_data"])),
             )
@@ -244,22 +233,22 @@ def create_stat_table(auth):
     yesterday_completed_count = get_page_count(
         revisions(where=f"revision_date = '{yesterday}'")
     )
-    mode_ids = [mode.id for mode in modes()]
+    mode_codes = [mode.code for mode in modes()]
 
-    def render_count(mode_id, revision_date):
-        count, item_ids = get_revision_data(mode_id, revision_date)
+    def render_count(mode_code, revision_date):
+        count, item_ids = get_revision_data(mode_code, revision_date)
 
         if count == 0:
             return "-"
 
         return create_count_link(count, item_ids)
 
-    def render_stat_rows(current_mode_id):
+    def render_stat_rows(current_mode_code):
         return Tr(
-            Td(f"{modes[current_mode_id].name}"),
-            Td(render_count(current_mode_id, today)),
-            Td(render_count(current_mode_id, yesterday)),
-            id=f"stat-row-{current_mode_id}",
+            Td(f"{modes(where=f"code = '{current_mode_code}'")[0].name}"),
+            Td(render_count(current_mode_code, today)),
+            Td(render_count(current_mode_code, yesterday)),
+            id=f"stat-row-{current_mode_code}",
         )
 
     return Table(
@@ -271,7 +260,7 @@ def create_stat_table(auth):
             )
         ),
         Tbody(
-            *map(render_stat_rows, mode_ids),
+            *map(render_stat_rows, mode_codes),
         ),
         Tfoot(
             Tr(
@@ -291,7 +280,7 @@ def custom_entry_inputs(auth, plan_id):
     """
     # Get last added item or start from beginning
     revision_data = revisions(
-        where=f"mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {plan_id}"
+        where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
     )
     if revision_data:
         last_added_item_id = revision_data[-1].item_id
@@ -385,21 +374,21 @@ def index(auth):
     total_display_count = get_full_cycle_daily_limit(auth)
 
     full_cycle_table = make_summary_table(
-        mode_id=FULL_CYCLE_MODE_ID,
+        mode_code=FULL_CYCLE_MODE_CODE,
         auth=auth,
         total_display_count=total_display_count,
         plan_id=plan_id,
     )
 
     daily_reps_table = make_summary_table(
-        mode_id=DAILY_REPS_MODE_ID,
+        mode_code=DAILY_REPS_MODE_CODE,
         auth=auth,
     )
     weekly_reps_table = make_summary_table(
-        mode_id=WEEKLY_REPS_MODE_ID,
+        mode_code=WEEKLY_REPS_MODE_CODE,
         auth=auth,
     )
-    srs_table = make_summary_table(mode_id=SRS_MODE_ID, auth=auth)
+    srs_table = make_summary_table(mode_code=SRS_MODE_CODE, auth=auth)
 
     mode_tables = [
         full_cycle_table,
@@ -436,7 +425,7 @@ def update_hafiz_item_for_full_cycle(rev):
     last_review = hafiz_item_details.last_review
     currrent_date = get_current_date(rev.hafiz_id)
     # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current next_interval
-    if hafiz_item_details.mode_id == SRS_MODE_ID:
+    if hafiz_item_details.mode_code == SRS_MODE_CODE:
         hafiz_item_details.next_review = add_days_to_date(
             currrent_date, hafiz_item_details.next_interval
         )
@@ -464,13 +453,13 @@ def change_the_current_date(auth):
 
     revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
-        if rev.mode_id == FULL_CYCLE_MODE_ID:
+        if rev.mode_code == FULL_CYCLE_MODE_CODE:
             update_hafiz_item_for_full_cycle(rev)
-        elif rev.mode_id == NEW_MEMORIZATION_MODE_ID:
+        elif rev.mode_code == NEW_MEMORIZATION_MODE_CODE:
             update_hafiz_item_for_new_memorization(rev)
-        elif rev.mode_id in REP_MODES_CONFIG:
+        elif rev.mode_code in REP_MODES_CONFIG:
             update_rep_item(rev)
-        elif rev.mode_id == SRS_MODE_ID:
+        elif rev.mode_code == SRS_MODE_CODE:
             update_hafiz_item_for_srs(rev)
 
         # update all the non-mode specific columns (including the last_review column)
@@ -501,12 +490,13 @@ def custom_full_cycle_entry_view(auth):
             [
                 r.item_id
                 for r in revisions(
-                    where=f"mode_id = '{FULL_CYCLE_MODE_ID}' AND plan_id = '{plan_id}'"
+                    where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = '{plan_id}'"
                 )
             ]
         )
         memorized_and_srs_item_ids = [
-            i.item_id for i in hafizs_items(where="memorized = 1 AND mode_id IN (1, 5)")
+            i.item_id
+            for i in hafizs_items(where="memorized = 1 AND mode_code IN ('FC', 'SR')")
         ]
         # this will return the gap of the current_plan_item_ids based on the master(items_id)
         items_gaps_with_limit = find_gaps(
@@ -581,14 +571,14 @@ def update_status_from_index(
     auth,
     date: str,
     item_id: str,
-    mode_id: int,
+    mode_code: str,
     rating: int,
     plan_id: int = None,
 ):
     # Add or update the revision record
     revision = add_revision_record(
         item_id=item_id,
-        mode_id=mode_id,
+        mode_code=mode_code,
         revision_date=date,
         rating=rating,
         plan_id=plan_id,
@@ -605,7 +595,7 @@ def update_status_from_index(
             "revision": revision,
         },
         current_date,
-        mode_id,
+        mode_code,
         plan_id,
     )
 
@@ -614,7 +604,7 @@ def update_status_from_index(
 def update_revision_rating(
     rev_id: int,
     date: str,
-    mode_id: int,
+    mode_code: str,
     item_id: int,
     rating: str,
     plan_id: int = None,
@@ -628,7 +618,7 @@ def update_revision_rating(
         revisions.delete(rev_id)
         record["revision"] = None
         return render_range_row(
-            records=record, current_date=date, mode_id=mode_id, plan_id=plan_id
+            records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
         )
     else:
         revision = revisions.update({"rating": int(rating)}, rev_id)

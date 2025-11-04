@@ -72,7 +72,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                 )
             ),
             Td(item_details.part),
-            Td(rev.mode_id),
+            Td(rev.mode_code),
             Td(rev.plan_id),
             Td(render_rating(rev.rating)),
             Td(get_surah_name(item_id=item_id)),

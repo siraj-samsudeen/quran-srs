@@ -7,12 +7,12 @@ from fastmigrate.core import (
     _set_db_version,
 )
 
-# Mode IDs
-FULL_CYCLE_MODE_ID = 1
-NEW_MEMORIZATION_MODE_ID = 2
-DAILY_REPS_MODE_ID = 3
-WEEKLY_REPS_MODE_ID = 4
-SRS_MODE_ID = 5
+# Mode Codes (2-character primary keys)
+FULL_CYCLE_MODE_CODE = 'FC'
+NEW_MEMORIZATION_MODE_CODE = 'NM'
+DAILY_REPS_MODE_CODE = 'DR'
+WEEKLY_REPS_MODE_CODE = 'WR'
+SRS_MODE_CODE = 'SR'
 
 
 def create_and_migrate_db(db_path):

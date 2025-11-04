@@ -14,7 +14,7 @@ new_memorization_app, rt = create_app_with_auth()
 
 def update_hafiz_item_for_new_memorization(rev):
     hafiz_item_details = get_hafizs_items(rev.item_id)
-    hafiz_item_details.mode_id = DAILY_REPS_MODE_ID
+    hafiz_item_details.mode_code = DAILY_REPS_MODE_CODE
     hafiz_item_details.memorized = True
     hafizs_items.update(hafiz_item_details)
 
@@ -70,7 +70,7 @@ def render_new_memorization_checkbox(
         )
     else:
         current_revision_data = revisions(
-            where=f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID} AND hafiz_id = {auth};"
+            where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {auth};"
         )
         check_form = Form(
             LabelCheckboxX(
@@ -202,7 +202,7 @@ def get_new_memorization_table(auth: str):
 
     def get_last_memorized_item_id():
         result = revisions(
-            where=f"hafiz_id = {auth} AND mode_id = {NEW_MEMORIZATION_MODE_ID}",
+            where=f"hafiz_id = {auth} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'",
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
@@ -212,7 +212,7 @@ def get_new_memorization_table(auth: str):
         qry = f"""
             SELECT items.page_id AS page_number FROM revisions
             JOIN items ON revisions.item_id = items.id 
-            WHERE revisions.hafiz_id = {auth} AND revisions.mode_id = {NEW_MEMORIZATION_MODE_ID} AND revisions.revision_date = '{current_date}'
+            WHERE revisions.hafiz_id = {auth} AND revisions.mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revisions.revision_date = '{current_date}'
             ORDER BY revisions.id DESC;
         """
         result = db.q(qry)
@@ -238,7 +238,7 @@ def get_new_memorization_table(auth: str):
 
     def get_today_memorized_item_ids():
         result = revisions(
-            where=f"mode_id = {NEW_MEMORIZATION_MODE_ID} AND revision_date = '{current_date}'"
+            where=f"mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revision_date = '{current_date}'"
         )
         return [i.item_id for i in result]
 
@@ -258,7 +258,7 @@ def get_new_memorization_table(auth: str):
     )
     return render_summary_table(
         auth=auth,
-        mode_id=NEW_MEMORIZATION_MODE_ID,
+        mode_code=NEW_MEMORIZATION_MODE_CODE,
         item_ids=new_memorization_items,
     )
 
@@ -267,7 +267,7 @@ def get_new_memorization_table(auth: str):
 def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
 ):
-    qry = f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID};"
+    qry = f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}';"
     revisions_data = revisions(where=qry)
     current_date = get_current_date(auth)
     if not revisions_data and is_checked:
@@ -278,7 +278,7 @@ def update_status_as_newly_memorized(
             rating=(
                 DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
             ),
-            mode_id=NEW_MEMORIZATION_MODE_ID,
+            mode_code=NEW_MEMORIZATION_MODE_CODE,
         )
         try:
             hafizs_items(where=f"item_id = {item_id}")[0]
@@ -306,7 +306,7 @@ def bulk_update_status_as_newly_memorized(
             rating=(
                 DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
             ),
-            mode_id=NEW_MEMORIZATION_MODE_ID,
+            mode_code=NEW_MEMORIZATION_MODE_CODE,
         )
 
         try:
@@ -321,7 +321,7 @@ def bulk_update_status_as_newly_memorized(
 
 @new_memorization_app.delete("/update_as_newly_memorized/{item_id}")
 def delete(auth, request, item_id: str):
-    qry = f"item_id = {item_id} AND mode_id = {NEW_MEMORIZATION_MODE_ID};"
+    qry = f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}';"
     revisions_data = revisions(where=qry)
     revisions.delete(revisions_data[0].id)
 
@@ -377,7 +377,7 @@ def new_memorization(auth, current_type: str):
     )
 
     where_query = f"""
-    revisions.mode_id = {NEW_MEMORIZATION_MODE_ID} AND revisions.hafiz_id = {auth} AND items.active != 0 
+    revisions.mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revisions.hafiz_id = {auth} AND items.active != 0 
     ORDER BY revisions.revision_date DESC, revisions.id DESC 
     LIMIT 10;
     """

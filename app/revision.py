@@ -53,7 +53,7 @@ def post(revision_details: Revision, backlink: str, auth):
     current_revision = update_revision(revision_details)
     update_stats_and_interval(
         item_id=current_revision.item_id,
-        mode_id=current_revision.mode_id,
+        mode_code=current_revision.mode_code,
         current_date=get_current_date(auth),
     )
     return Redirect(backlink)
@@ -65,7 +65,7 @@ def delete(revision_id: int, auth):
     delete_revision(revision_id)
     update_stats_and_interval(
         item_id=current_revision.item_id,
-        mode_id=current_revision.mode_id,
+        mode_code=current_revision.mode_code,
         current_date=get_current_date(auth),
     )
 
@@ -77,7 +77,7 @@ def revision_delete_all(ids: List[int], auth):
         revisions.delete(id)
         update_stats_and_interval(
             item_id=current_revision.item_id,
-            mode_id=current_revision.mode_id,
+            mode_code=current_revision.mode_code,
             current_date=get_current_date(auth),
         )
     return RedirectResponse(revision, status_code=303)
@@ -199,7 +199,7 @@ async def bulk_edit_save(revision_date: str, req, auth):
                 )
                 update_stats_and_interval(
                     item_id=current_revision.item_id,
-                    mode_id=current_revision.mode_id,
+                    mode_code=current_revision.mode_code,
                     current_date=get_current_date(auth),
                 )
 
@@ -234,7 +234,7 @@ def parse_page_string(page_str: str):
 def validate_page_revision(sess, item_id, page, plan_id):
     """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
     if not hafizs_items(
-        where=f"item_id = {item_id} AND memorized = 1 AND mode_id IN (1, 5)"
+        where=f"item_id = {item_id} AND memorized = 1 AND mode_code IN ('FC', 'SR')"
     ):
         error_toast(sess, f"Given page '{page}' is not yet memorized!")
         return False
@@ -311,7 +311,7 @@ def post(revision_details: Revision):
     # before inserting to generate the id automatically
     del revision_details.id
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
-    revision_details.mode_id = FULL_CYCLE_MODE_ID
+    revision_details.mode_code = FULL_CYCLE_MODE_CODE
 
     item_id = revision_details.item_id
 
@@ -389,7 +389,7 @@ def get(
         SELECT hafizs_items.item_id, hafizs_items.page_number
         FROM hafizs_items
         LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('FC', 'SR') AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
         ORDER BY hafizs_items.page_number ASC
         LIMIT {length};
         """
@@ -577,7 +577,7 @@ async def post(
                         rating=int(value),
                         hafiz_id=auth,
                         revision_date=revision_date,
-                        mode_id=FULL_CYCLE_MODE_ID,
+                        mode_code=FULL_CYCLE_MODE_CODE,
                         plan_id=plan_id,
                     )
                 )

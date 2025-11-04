@@ -236,7 +236,7 @@ def get_last_added_full_cycle_page(auth):
         f"""
         SELECT hafizs_items.page_number FROM revisions
         LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_id = {FULL_CYCLE_MODE_ID} AND revisions.hafiz_id = {auth}
+        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth}
         ORDER BY revisions.revision_date DESC, revisions.item_id DESC
         LIMIT 1
     """
@@ -247,7 +247,7 @@ def get_last_added_full_cycle_page(auth):
 
 def find_next_memorized_item_id(item_id):
     memorized_and_srs_item_ids = [
-        i.item_id for i in hafizs_items(where="memorized = 1 AND mode_id IN (1, 5)")
+        i.item_id for i in hafizs_items(where="memorized = 1 AND mode_code IN ('FC', 'SR')")
     ]
     return find_next_greater(memorized_and_srs_item_ids, item_id)
 
@@ -321,8 +321,8 @@ def get_hafizs_items(item_id):
         return ValueError(f"No hafizs_items found for item_id {item_id}")
 
 
-def get_mode_count(item_id, mode_id):
-    mode_records = revisions(where=f"item_id = {item_id} AND mode_id = {mode_id}")
+def get_mode_count(item_id, mode_code):
+    mode_records = revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
     return len(mode_records)
 
 
@@ -351,9 +351,9 @@ def add_revision_record(**kwargs):
     return revisions.insert(**kwargs)
 
 
-def remove_revision_record(item_id, mode_id, date):
+def remove_revision_record(item_id, mode_code, date):
     revision_record = revisions(
-        where=f"item_id = {item_id} AND mode_id = {mode_id} AND revision_date = '{date}'"
+        where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{date}'"
     )
     if not revision_record:
         return None
@@ -440,15 +440,15 @@ def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
     )
 
 
-def get_mode_name(mode_id: int):
-    return modes[mode_id].name
+def get_mode_name(mode_code: str):
+    return modes(where=f"code = '{mode_code}'")[0].name
 
 
 def get_unrevised_memorized_item_ids(auth, plan_id):
     qry = f"""
         SELECT hafizs_items.item_id from hafizs_items
         LEFT JOIN revisions ON revisions.item_id == hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_id IN (1, 5) AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('FC', 'SR') AND hafizs_items.hafiz_id = {auth} AND revisions.item_id is Null;
         """
     data = db.q(qry)
     return [r["item_id"] for r in data]
@@ -467,12 +467,12 @@ def get_juz_name(page_id=None, item_id=None):
     return juz_number
 
 
-def get_ordered_mode_name_and_id():
+def get_ordered_mode_name_and_code():
     mode_name_list = [mode.name for mode in modes()]
-    mode_id_list = [mode.id for mode in modes()]
+    mode_code_list = [mode.code for mode in modes()]
     # to display the mode names in the correct order
-    mode_id_list, mode_name_list = zip(*sorted(zip(mode_id_list, mode_name_list)))
-    return list(mode_id_list), list(mode_name_list)
+    mode_code_list, mode_name_list = zip(*sorted(zip(mode_code_list, mode_name_list)))
+    return list(mode_code_list), list(mode_name_list)
 
 
 def delete_hafiz(hafiz_id: int):
@@ -513,7 +513,7 @@ def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_pl
         """Check if item has revised today for current mode."""
         return bool(
             revisions(
-                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {item['mode_id']}"
+                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_code = '{item['mode_code']}'"
             )
         )
 
@@ -526,8 +526,8 @@ def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_pl
         except ValueError:
             return []
 
-    def has_full_cycle_mode_id(item: dict) -> bool:
-        return item["mode_id"] == FULL_CYCLE_MODE_ID
+    def has_full_cycle_mode_code(item: dict) -> bool:
+        return item["mode_code"] == FULL_CYCLE_MODE_CODE
 
     if current_plan_id is not None:
         # eliminate items that are already revisioned in the current plan_id
@@ -535,12 +535,12 @@ def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_pl
             i
             for i in item_ids
             if not revisions(
-                where=f"item_id = {i} AND mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+                where=f"item_id = {i} AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
             )
         ]
         # TODO: handle the new user that not have any revision/plan_id
         last_added_revision = revisions(
-            where=f"revision_date <> '{current_date}' AND mode_id = {FULL_CYCLE_MODE_ID} AND plan_id = {current_plan_id}",
+            where=f"revision_date <> '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {current_plan_id}",
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
@@ -560,7 +560,7 @@ def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_pl
     # take today revision data that are not in today's target (item_ids)
     display_conditions = {
         "full_cycle": lambda item: (
-            has_full_cycle_mode_id(item)
+            has_full_cycle_mode_code(item)
             and has_revisions_today(item)
             and item["item_id"] not in item_ids
         )
@@ -596,25 +596,25 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(records, current_date=None, mode_id=None, plan_id=None):
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
     """Render a single table row for an item in the summary table.
 
     Args:
         records: contains the item and revision record
         current_date: Current date for the hafiz
-        mode_id: Mode ID
+        mode_code: Mode code
         plan_id: Plan ID (optional, for full cycle)
     """
     item_id = records["item"].id
     rating = records["revision"].rating if records["revision"] else None
-    row_id = f"row-{mode_id}-{item_id}"
+    row_id = f"row-{mode_code}-{item_id}"
 
     if rating is None:
         action_link_attr = {"hx_post": f"/add/{item_id}"}
     else:
         action_link_attr = {"hx_put": f"/edit/{records["revision"].id}"}
 
-    vals_dict = {"date": current_date, "mode_id": mode_id, "item_id": item_id}
+    vals_dict = {"date": current_date, "mode_code": mode_code, "item_id": item_id}
     if plan_id:
         vals_dict["plan_id"] = plan_id
 
@@ -645,29 +645,29 @@ def render_range_row(records, current_date=None, mode_id=None, plan_id=None):
     )
 
 
-def get_mode_condition(mode_id: int):
+def get_mode_condition(mode_code: str):
     # The full cycle mode is a special case, where it also shows the SRS pages
-    mode_id_mapping = {
-        FULL_CYCLE_MODE_ID: [str(FULL_CYCLE_MODE_ID), str(SRS_MODE_ID)],
+    mode_code_mapping = {
+        FULL_CYCLE_MODE_CODE: [f"'{FULL_CYCLE_MODE_CODE}'", f"'{SRS_MODE_CODE}'"],
     }
-    retrived_mode_id = mode_id_mapping.get(mode_id)
-    if retrived_mode_id is None:
-        mode_condition = f"mode_id = {mode_id}"
+    retrieved_mode_codes = mode_code_mapping.get(mode_code)
+    if retrieved_mode_codes is None:
+        mode_condition = f"mode_code = '{mode_code}'"
     else:
-        mode_condition = f"mode_id IN ({', '.join(retrived_mode_id)})"
+        mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
     return mode_condition
 
 
-def render_summary_table(auth, mode_id, item_ids, plan_id=None):
-    is_newly_memorized = mode_id == NEW_MEMORIZATION_MODE_ID
-    is_full_review = mode_id == FULL_CYCLE_MODE_ID
-    is_srs = mode_id == SRS_MODE_ID
+def render_summary_table(auth, mode_code, item_ids, plan_id=None):
+    is_newly_memorized = mode_code == NEW_MEMORIZATION_MODE_CODE
+    is_full_review = mode_code == FULL_CYCLE_MODE_CODE
+    is_srs = mode_code == SRS_MODE_CODE
     current_date = get_current_date(auth)
 
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
     today_revisions = revisions(
-        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_id)} {plan_condition}"
+        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
     )
     # Create lookup dictionary: item_id -> rating
     revisions_lookup = {rev.item_id: rev for rev in today_revisions}
@@ -683,7 +683,7 @@ def render_summary_table(auth, mode_id, item_ids, plan_id=None):
         render_range_row(
             records,
             current_date,
-            mode_id,
+            mode_code,
             plan_id,
         )
         for records in items_with_revisions
@@ -707,31 +707,19 @@ def render_summary_table(auth, mode_id, item_ids, plan_id=None):
                     )
                 ),
                 Tbody(*body_rows),
-                id=f"summary_table_{mode_id}",
+                id=f"summary_table_{mode_code}",
             ),
         ),
     )
     return AccordionItem(
-        H2(modes[mode_id].name, data_testid=f"mode-{get_mode_testid(mode_id)}"),
+        H2(modes(where=f"code = '{mode_code}'")[0].name, data_testid=f"mode-{mode_code.lower()}"),
         render_output,
         open=True,  # Always open by default
     )
 
 
-def get_mode_testid(mode_id: int) -> str:
-    """Convert mode_id to a testid slug for E2E testing."""
-    mode_slugs = {
-        FULL_CYCLE_MODE_ID: "full-cycle",
-        NEW_MEMORIZATION_MODE_ID: "new-memorization",
-        DAILY_REPS_MODE_ID: "daily-reps",
-        WEEKLY_REPS_MODE_ID: "weekly-reps",
-        SRS_MODE_ID: "srs-weak-pages",
-    }
-    return mode_slugs.get(mode_id, f"mode-{mode_id}")
-
-
 def make_summary_table(
-    mode_id: int,
+    mode_code: str,
     auth: str,
     total_display_count=0,
     plan_id=None,
@@ -745,8 +733,8 @@ def make_summary_table(
     def is_reviewed_today(item: dict) -> bool:
         return item["last_review"] == current_date
 
-    def has_mode_id(item: dict, mode_id: int) -> bool:
-        return item["mode_id"] == mode_id
+    def has_mode_code(item: dict, mode_code: str) -> bool:
+        return item["mode_code"] == mode_code
 
     def has_memorized(item: dict) -> bool:
         return item["memorized"]
@@ -755,7 +743,7 @@ def make_summary_table(
         """Check if item has revisions for current mode."""
         return bool(
             revisions(
-                where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']}"
+                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}'"
             )
         )
 
@@ -763,46 +751,46 @@ def make_summary_table(
         """Check if item has revisions for current mode today."""
         return bool(
             revisions(
-                where=f"item_id = {item['item_id']} AND mode_id = {item['mode_id']} AND revision_date = '{current_date}'"
+                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}' AND revision_date = '{current_date}'"
             )
         )
 
     def has_newly_memorized_for_today(item: dict) -> bool:
         newly_memorized_record = revisions(
-            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_id = {NEW_MEMORIZATION_MODE_ID}"
+            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
         )
         return len(newly_memorized_record) == 1
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_id, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
-        LEFT JOIN items on hafizs_items.item_id = items.id 
-        WHERE {get_mode_condition(mode_id)} AND hafizs_items.hafiz_id = {auth}
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
+        LEFT JOIN items on hafizs_items.item_id = items.id
+        WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
     """
     ct = db.q(qry)
 
     # Route-specific condition builders
     route_conditions = {
-        DAILY_REPS_MODE_ID: lambda item: (
+        DAILY_REPS_MODE_CODE: lambda item: (
             (is_review_due(item) and not has_newly_memorized_for_today(item))
-            or (is_reviewed_today(item) and has_mode_id(item, DAILY_REPS_MODE_ID))
+            or (is_reviewed_today(item) and has_mode_code(item, DAILY_REPS_MODE_CODE))
         ),
-        WEEKLY_REPS_MODE_ID: lambda item: (
-            has_mode_id(item, WEEKLY_REPS_MODE_ID)
+        WEEKLY_REPS_MODE_CODE: lambda item: (
+            has_mode_code(item, WEEKLY_REPS_MODE_CODE)
             and (
                 is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
             )
         ),
-        SRS_MODE_ID: lambda item: (is_review_due(item) or has_revisions_today(item)),
-        FULL_CYCLE_MODE_ID: lambda item: has_memorized(item),
+        SRS_MODE_CODE: lambda item: (is_review_due(item) or has_revisions_today(item)),
+        FULL_CYCLE_MODE_CODE: lambda item: has_memorized(item),
     }
 
-    filtered_records = [i for i in ct if route_conditions[mode_id](i)]
+    filtered_records = [i for i in ct if route_conditions[mode_code](i)]
 
     def get_unique_item_ids(records):
         return list(dict.fromkeys(record["item_id"] for record in records))
 
-    if mode_id == SRS_MODE_ID:
+    if mode_code == SRS_MODE_CODE:
         srs_daily_limit = get_srs_daily_limit(auth)
         exclude_start_page = get_last_added_full_cycle_page(auth)
         print(exclude_start_page)
@@ -828,7 +816,7 @@ def make_summary_table(
     else:
         item_ids = get_unique_item_ids(filtered_records)
 
-    if mode_id == FULL_CYCLE_MODE_ID:
+    if mode_code == FULL_CYCLE_MODE_CODE:
         item_ids = get_full_review_item_ids(
             auth=auth,
             total_display_count=total_display_count,
@@ -839,7 +827,7 @@ def make_summary_table(
 
     return render_summary_table(
         auth=auth,
-        mode_id=mode_id,
+        mode_code=mode_code,
         item_ids=item_ids,
         plan_id=plan_id,
     )

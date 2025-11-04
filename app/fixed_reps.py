@@ -1,15 +1,15 @@
 from app.common_function import *
 
 REP_MODES_CONFIG = {
-    DAILY_REPS_MODE_ID: {
+    DAILY_REPS_MODE_CODE: {
         "interval": 1,
         "threshold": 7,
-        "next_mode_id": WEEKLY_REPS_MODE_ID,
+        "next_mode_code": WEEKLY_REPS_MODE_CODE,
     },  # Daily -> Weekly
-    WEEKLY_REPS_MODE_ID: {
+    WEEKLY_REPS_MODE_CODE: {
         "interval": 7,
         "threshold": 7,
-        "next_mode_id": FULL_CYCLE_MODE_ID,
+        "next_mode_code": FULL_CYCLE_MODE_CODE,
     },  # Weekly -> Full Cycle
 }
 
@@ -22,7 +22,7 @@ def set_next_review(hafiz_item, interval, current_date):
 
 def update_rep_item(rev):
     # This function handles all rep-based modes (Daily, Weekly, etc.)
-    config = REP_MODES_CONFIG.get(rev.mode_id)
+    config = REP_MODES_CONFIG.get(rev.mode_code)
     if not config:
         return  # Not a rep mode we can handle
 
@@ -32,20 +32,20 @@ def update_rep_item(rev):
     hafiz_item.last_interval = hafiz_item.next_interval
 
     # Check if the item is ready to graduate
-    if get_mode_count(rev.item_id, rev.mode_id) < config["threshold"]:
+    if get_mode_count(rev.item_id, rev.mode_code) < config["threshold"]:
         # Keep in current mode, just update next review date
         set_next_review(hafiz_item, config["interval"], current_date)
     else:
         # Graduate to the next mode
-        hafiz_item.mode_id = config["next_mode_id"]
-        if config["next_mode_id"] == FULL_CYCLE_MODE_ID:
+        hafiz_item.mode_code = config["next_mode_code"]
+        if config["next_mode_code"] == FULL_CYCLE_MODE_CODE:
             # Reset intervals for Full Cycle
             hafiz_item.memorized = True
             hafiz_item.next_interval = None
             hafiz_item.next_review = None
         else:
             # Graduate to the next rep mode (e.g., Daily -> Weekly)
-            next_config = REP_MODES_CONFIG[config["next_mode_id"]]
+            next_config = REP_MODES_CONFIG[config["next_mode_code"]]
             set_next_review(hafiz_item, next_config["interval"], current_date)
 
     hafizs_items.update(hafiz_item)
