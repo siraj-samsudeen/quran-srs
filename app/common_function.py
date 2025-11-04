@@ -658,7 +658,6 @@ def get_mode_condition(mode_id: int):
 
 
 def render_summary_table(auth, mode_id, item_ids, plan_id=None):
-    is_accordion = mode_id != FULL_CYCLE_MODE_ID
     is_newly_memorized = mode_id == NEW_MEMORIZATION_MODE_ID
     is_full_review = mode_id == FULL_CYCLE_MODE_ID
     is_srs = mode_id == SRS_MODE_ID
@@ -711,14 +710,10 @@ def render_summary_table(auth, mode_id, item_ids, plan_id=None):
             ),
         ),
     )
-    return (
-        AccordionItem(
-            Span(modes[mode_id].name),
-            render_output,
-            open=True,  # Always open by default
-        )
-        if is_accordion
-        else render_output
+    return AccordionItem(
+        H2(modes[mode_id].name),
+        render_output,
+        open=True,  # Always open by default
     )
 
 

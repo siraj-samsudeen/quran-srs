@@ -375,47 +375,14 @@ def get_next_input_page(next_item_id):
 
 
 @rt
-def index(auth, sess, full_cycle_display_count: int = None):
+def index(auth):
     current_date = get_current_date(auth)
     ################### Overall summary ###################
     plan_id = get_current_plan_id()
 
     ############################ full Cycle ################################
 
-    def get_extra_page_display_count(sess, auth, current_date):
-        sess_data = sess.get("full_cycle_display_count_details", {})
-        # Check if session data is valid for current user and date
-        if (
-            sess_data.get("auth") == auth
-            and sess_data.get("current_date") == current_date
-        ):
-            return sess_data.get("extra_no_of_pages", 0)
-        # For new user/date reset to default value
-        return 0
-
-    def update_extra_page_display_count():
-        current_extra = get_extra_page_display_count(sess, auth, current_date)
-        new_extra = current_extra + (full_cycle_display_count or 0)
-
-        sess["full_cycle_display_count_details"] = {
-            "auth": auth,
-            "extra_no_of_pages": new_extra,
-            "current_date": current_date,
-        }
-        return new_extra
-
-    def create_count_button(count):
-        return Button(
-            f"+{count}",
-            hx_get=f"/?full_cycle_display_count={count}",
-            hx_select=f"#summary_table_{FULL_CYCLE_MODE_ID}",
-            hx_target=f"#summary_table_{FULL_CYCLE_MODE_ID}",
-            hx_swap="outerHTML",
-        )
-
-    total_display_count = (
-        get_full_cycle_daily_limit(auth) + update_extra_page_display_count()
-    )
+    total_display_count = get_full_cycle_daily_limit(auth)
 
     full_cycle_table = make_summary_table(
         mode_id=FULL_CYCLE_MODE_ID,
@@ -423,19 +390,6 @@ def index(auth, sess, full_cycle_display_count: int = None):
         total_display_count=total_display_count,
         plan_id=plan_id,
     )
-    overall_table = AccordionItem(
-        Span(
-            modes[1].name,
-        ),
-        full_cycle_table,
-        DivHStacked(
-            *[create_count_button(count) for count in [1, 2, 3, 5]],
-            cls=(FlexT.center, "gap-2"),
-        ),
-        open=True,
-        div_kwargs={"data-testid": "full-cycle-summary-table-area"},
-    )
-    ############################# END ################################
 
     daily_reps_table = make_summary_table(
         mode_id=DAILY_REPS_MODE_ID,
@@ -448,7 +402,7 @@ def index(auth, sess, full_cycle_display_count: int = None):
     srs_table = make_summary_table(mode_id=SRS_MODE_ID, auth=auth)
 
     mode_tables = [
-        (overall_table if plan_id else None),
+        full_cycle_table,
         daily_reps_table,
         weekly_reps_table,
         srs_table,
