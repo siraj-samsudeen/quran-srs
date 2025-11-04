@@ -160,11 +160,6 @@ Based on [Conventional Commits](https://www.conventionalcommits.org/) and [How t
 - **Install dependencies**: `uv sync`
 - **Database**: SQLite with fastmigrate migrations in `migrations/` directory
 
-### Testing (FastHTML)
-- **Run Playwright tests**: `npx playwright test` (chrome browser only)
-- **Run specific test**: `npx playwright test tests/quran_srs-test.spec.ts`
-- **Show test report**: `npx playwright show-report`
-
 ### Frontend Assets (FastHTML)
 - **Tailwind CSS**: Configuration in `tailwind.config.js`
 - **JavaScript**: Static files in `public/` directory
@@ -202,13 +197,10 @@ Based on [Conventional Commits](https://www.conventionalcommits.org/) and [How t
 ### File Organization  
 - **docs/**: Clean documentation (vision.md, plan.md, changelog.md, data_model.md)
 - **data/**: Database files and CSV seed data (seeds/, seeds.exs, quran_v10.db)  
-- **.claude/settings.json**: Consolidated permissions for Phoenix development tools
 
 ### Development Tools
-- **Serena**: File & symbol management MCP
-- **Context7**: Documentation lookup MCP  
-- **Playwright**: Browser automation for E2E testing
-- **Tidewave**: Project evaluation and logs MCP
+- **Context7**: Documentation lookup MCP
+- **Wallaby**: Browser automation for E2E testing
 
 ## NEXT STEPS
 
@@ -216,11 +208,11 @@ Following the plan.md todo list:
 
 1. **Create Phoenix 1.8.0 application** in current directory
 2. **Generate default auth system** (mix phx.gen.auth)
-3. **Create master data tables** (mushafs, pages, surahs, items) 
+3. **Create master data tables** (mushafs, pages, surahs, items)
 4. **Migrate master data** from CSV files in data/seeds/
 5. **Create learner tables** (hafiz, hafiz_item relationships)
 6. **Implement business logic** and LiveView interfaces
-7. **Port Playwright tests** and add Phoenix-specific testing
+7. **Add Phoenix-specific testing** with Wallaby E2E tests
 
 ---
 
@@ -250,9 +242,21 @@ Following the plan.md todo list:
 - **Master data in tests**: Use `assert item in list` not `assert list == [item]` when master data present
 - **Comments for test changes**: Explain why assertions changed (e.g., "master data from migrations also present")
 
+### E2E Testing with Wallaby
+- **Cross-framework testing**: E2E tests in Phoenix migration branch test both FastHTML (current) and Phoenix (future)
+- **Git worktree setup**: Two worktrees allow simultaneous FastHTML and Phoenix development
+  - `/quran-srs` (close-date-not-working branch) - FastHTML production
+  - `/quran-srs-phoenix_migration` (phoenix-migration branch) - Phoenix development
+- **Test helper patterns**: Create small, reusable helper functions (e.g., `login/3`, `select_first_hafiz/1`)
+- **Avoid unnecessary wrappers**: Don't create helper functions that are just one-time wrappers; inline for readability
+- **Specific selectors**: Use meaningful selectors (`text: "Switch Hafiz"`) instead of generic ones (`at: 0`)
+- **No obvious comments**: Remove redundant comments like "# Helper functions"
+- **Authentication flow**: FastHTML requires login → select hafiz → access home page
+
 ### Development Process
 - **Small atomic commits**: One task → do → test → commit → next task
 - **Stage first, then commit**: Always review staged changes before committing
+- **Never commit without permission**: NEVER run git commit without explicit user instruction
 - **Concise commit messages**: Subject line only, no unnecessary details
 - **Update documentation**: Keep changelog.md current with actual changes
 - **Changelog format**: One bullet per commit, not per change

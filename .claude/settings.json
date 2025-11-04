@@ -1,31 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__serena__initial_instructions",
-      "mcp__serena__check_onboarding_performed",
-      "mcp__serena__onboarding",
-      "mcp__serena__get_symbols_overview",
-      "mcp__serena__list_dir",
-      "mcp__serena__search_for_pattern",
-      "mcp__serena__write_memory",
-      "mcp__serena__get_current_config",
-      "mcp__serena__read_memory",
-      "mcp__serena__find_symbol",
-      "mcp__serena__replace_regex",
-      "mcp__serena__think_about_collected_information",
-      "mcp__serena__replace_symbol_body",
-      "mcp__serena__find_file",
-
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-
-      "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_type",
-      "mcp__playwright__browser_click",
-      "mcp__playwright__browser_snapshot",
-      "mcp__playwright__browser_take_screenshot",
-      "mcp__playwright__browser_press_key",
-      "mcp__playwright__browser_close",
 
       "mcp__tidewave__get_logs",
       "mcp__tidewave__project_eval",

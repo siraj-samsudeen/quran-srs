@@ -5,9 +5,23 @@ defmodule E2ETest do
 
   @moduletag :e2e
 
-  feature "visiting the home page", %{session: session} do
+  defp login(session, email \\ "mailsiraj@gmail.com", password \\ "123") do
+    session
+    |> fill_in(css("input[name='email']"), with: email)
+    |> fill_in(css("input[name='password']"), with: password)
+    |> click(css("button[type='submit']"))
+  end
+
+  defp select_first_hafiz(session) do
+    session
+    |> click(css("button", text: "Switch Hafiz", at: 0))
+  end
+
+  feature "Full Cycle mode is always visible", %{session: session} do
     session
     |> visit("/")
-    |> assert_has(css("body"))
+    |> login()
+    |> select_first_hafiz()
+    |> assert_has(css("h2", text: "Full cycle - Dowr"))
   end
 end
