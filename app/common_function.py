@@ -702,6 +702,7 @@ def render_summary_table(auth, mode_code, item_ids, plan_id=None):
                 ),
                 Tbody(*body_rows),
                 id=f"summary_table_{mode_code}",
+                cls=(TableT.middle, TableT.divider, TableT.sm),
             ),
         ),
     )
