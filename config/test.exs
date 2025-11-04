@@ -39,5 +39,26 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
+# Configure Wallaby for E2E testing (works with both FastHTML and Phoenix)
+config :wallaby,
+  driver: Wallaby.Chrome,
+  base_url: System.get_env("TEST_BASE_URL", "http://localhost:5001"),
+  # Screenshot path for debugging failed tests
+  screenshot_dir: "screenshots/wallaby",
+  # Run headless for CI/automation
+  hackney_options: [timeout: :infinity, recv_timeout: :infinity],
+  chromedriver: [
+    capabilities: %{
+      chromeOptions: %{
+        args: [
+          "--headless",
+          "--disable-gpu",
+          "--no-sandbox",
+          "--disable-dev-shm-usage"
+        ]
+      }
+    }
+  ]
+
 # Configure PhoenixTest endpoint
 config :phoenix_test, :endpoint, QuranSrsWeb.Endpoint

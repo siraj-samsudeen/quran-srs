@@ -40,6 +40,7 @@ defmodule QuranSrs.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:wallaby, "~> 0.30", runtime: false, only: :test},
       {:phoenix_test, "~> 0.7"},
       {:mix_test_watch, "~> 1.0"},
       {:igniter, "~> 0.6", only: [:dev, :test]},
