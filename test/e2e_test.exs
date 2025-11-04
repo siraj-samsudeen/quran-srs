@@ -22,6 +22,6 @@ defmodule E2ETest do
     |> visit("/")
     |> login()
     |> select_first_hafiz()
-    |> assert_has(css("h2", text: "Full cycle - Dowr"))
+    |> assert_has(css("[data-testid='mode-full-cycle']"))
   end
 end
