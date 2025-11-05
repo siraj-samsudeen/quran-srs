@@ -232,8 +232,8 @@ def get_srs_daily_limit(auth):
 
 
 def get_full_cycle_daily_limit(auth):
-    # 50% percentage of daily capacity
-    return math.ceil(get_daily_capacity(auth) * 0.5)
+    # 100% percentage of daily capacity
+    return get_daily_capacity(auth)
 
 
 def get_last_added_full_cycle_page(auth):
