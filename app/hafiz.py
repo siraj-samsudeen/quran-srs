@@ -72,7 +72,7 @@ def update_setings(auth, hafiz_data: Hafiz):
         hafiz_data,
         hafizs[auth].id,
     )
-    return RedirectResponse("/hafiz/settings", status_code=303)
+    return Redirect("/")
 
 
 # hafiz delete route for testing
