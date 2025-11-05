@@ -505,8 +505,9 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
-def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_plan_id):
+def get_full_review_item_ids(auth, total_display_count, ct, item_ids):
     current_date = get_current_date(auth)
+    plan_id = get_current_plan_id()
 
     def has_revisions_today(item: dict) -> bool:
         """Check if item has revised today for current mode."""
@@ -528,18 +529,18 @@ def get_full_review_item_ids(auth, total_display_count, ct, item_ids, current_pl
     def has_full_cycle_mode_code(item: dict) -> bool:
         return item["mode_code"] == FULL_CYCLE_MODE_CODE
 
-    if current_plan_id is not None:
+    if plan_id is not None:
         # eliminate items that are already revisioned in the current plan_id
         eligible_item_ids = [
             i
             for i in item_ids
             if not revisions(
-                where=f"item_id = {i} AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {current_plan_id} AND revision_date != '{current_date}'"
+                where=f"item_id = {i} AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id} AND revision_date != '{current_date}'"
             )
         ]
         # TODO: handle the new user that not have any revision/plan_id
         last_added_revision = revisions(
-            where=f"revision_date <> '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {current_plan_id}",
+            where=f"revision_date <> '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}",
             order_by="revision_date DESC, id DESC",
             limit=1,
         )
@@ -657,11 +658,9 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
-def render_summary_table(auth, mode_code, item_ids, plan_id=None):
-    is_newly_memorized = mode_code == NEW_MEMORIZATION_MODE_CODE
-    is_full_review = mode_code == FULL_CYCLE_MODE_CODE
-    is_srs = mode_code == SRS_MODE_CODE
+def render_summary_table(auth, mode_code, item_ids):
     current_date = get_current_date(auth)
+    plan_id = get_current_plan_id()
 
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
@@ -720,7 +719,6 @@ def make_summary_table(
     mode_code: str,
     auth: str,
     total_display_count=0,
-    plan_id=None,
 ):
     current_date = get_current_date(auth)
 
@@ -820,14 +818,12 @@ def make_summary_table(
             total_display_count=total_display_count,
             ct=ct,
             item_ids=item_ids,
-            current_plan_id=plan_id,
         )
 
     return render_summary_table(
         auth=auth,
         mode_code=mode_code,
         item_ids=item_ids,
-        plan_id=plan_id,
     )
 
 
