@@ -364,14 +364,12 @@ def get_next_input_page(next_item_id):
 
 @rt
 def index(auth):
-    current_date = get_current_date(auth)
-
-    total_display_count = get_full_cycle_daily_limit(auth)
+    total_page_count = get_full_cycle_daily_limit(auth)
 
     full_cycle_table = make_summary_table(
         mode_code=FULL_CYCLE_MODE_CODE,
         auth=auth,
-        total_display_count=total_display_count,
+        total_page_count=total_page_count,
     )
 
     daily_reps_table = make_summary_table(

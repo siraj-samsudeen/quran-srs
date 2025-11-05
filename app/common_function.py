@@ -488,6 +488,18 @@ def get_current_plan_id():
     return None
 
 
+def get_item_page_portion(item_id: int) -> float:
+    """
+    Calculates the portion of a page that a single item represents.
+    For example, if a page is divided into 4 items, each item represents 0.25 of the page.
+    """
+    page_no = items[item_id].page_id
+    total_parts = items(where=f"page_id = {page_no} and active = 1")
+    if not total_parts:
+        return 0
+    return 1 / len(total_parts)
+
+
 def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
     total_count = 0
     if item_ids:
@@ -499,78 +511,76 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
 
     # Calculate page count
     for item_id in process_items:
-        page_no = items[item_id].page_id
-        total_parts = items(where=f"page_id = {page_no} and active = 1")
-        total_count += 1 / len(total_parts)
+        total_count += get_item_page_portion(item_id)
     return format_number(total_count)
 
 
-def get_full_review_item_ids(auth, total_display_count, ct, item_ids):
+def get_full_review_item_ids(
+    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
+):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
-    def has_revisions_today(item: dict) -> bool:
-        """Check if item has revised today for current mode."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_code = '{item['mode_code']}'"
-            )
-        )
-
-    def get_next_item_range_from_item_id(item_ids, start_item_id, no_of_next_items):
+    def get_next_item_range_from_item_id(item_ids, start_item_id, total_page_count):
         """Get items from a list starting from a specific number."""
         try:
-            start_idx = item_ids.index(start_item_id)
-            end_idx = min(start_idx + no_of_next_items, len(item_ids))
-            return item_ids[start_idx:end_idx]
+            start_index = item_ids.index(start_item_id)
+            item_ids_to_process = item_ids[start_index:]
         except ValueError:
-            return []
+            item_ids_to_process = []
 
-    def has_full_cycle_mode_code(item: dict) -> bool:
-        return item["mode_code"] == FULL_CYCLE_MODE_CODE
+        final_item_ids = []
+        current_page_count = 0
+        for item_id in item_ids_to_process:
+            if current_page_count >= total_page_count:
+                break
+            current_page_count += get_item_page_portion(item_id)
+            final_item_ids.append(item_id)
+        return final_item_ids
 
     if plan_id is not None:
-        # eliminate items that are already revisioned in the current plan_id
-        eligible_item_ids = [
-            i
-            for i in item_ids
-            if not revisions(
-                where=f"item_id = {i} AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id} AND revision_date != '{current_date}'"
-            )
-        ]
-        # TODO: handle the new user that not have any revision/plan_id
-        last_added_revision = revisions(
-            where=f"revision_date <> '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}",
+        # Filter out items that have been revised in the current plan (but not today)
+        revised_items_in_plan = revisions(
+            where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id} AND revision_date != '{current_date}'",
             order_by="revision_date DESC, id DESC",
-            limit=1,
         )
+        # Convert to set for faster lookup
+        revised_items_in_plan_set = {r.item_id for r in revised_items_in_plan}
+        eligible_item_ids = [i for i in item_ids if i not in revised_items_in_plan_set]
+
         last_added_item_id = (
-            last_added_revision[0].item_id if last_added_revision else 0
+            revised_items_in_plan[0].item_id if revised_items_in_plan else 0
         )
 
+        # Find the next item to start the review from
         next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
     else:
         eligible_item_ids = []
         next_item_id = 0
 
-    item_ids = get_next_item_range_from_item_id(
-        eligible_item_ids, next_item_id, total_display_count
+    next_item_ids = get_next_item_range_from_item_id(
+        eligible_item_ids, next_item_id, total_page_count
     )
 
-    # take today revision data that are not in today's target (item_ids)
-    display_conditions = {
-        "full_cycle": lambda item: (
-            has_full_cycle_mode_code(item)
-            and has_revisions_today(item)
-            and item["item_id"] not in item_ids
+    # Get all item_ids revised today in full_cycle mode
+    today_full_cycle_revisions = {
+        r.item_id
+        for r in revisions(
+            where=f"revision_date = '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}'"
         )
     }
-    today_revisioned_items = list(
-        dict.fromkeys(i["item_id"] for i in ct if display_conditions["full_cycle"](i))
-    )
 
-    item_ids = sorted(item_ids + today_revisioned_items)
-    return item_ids
+    # Get items that have been revised today in full_cycle mode, but are not in the session_item_ids
+    today_revisioned_items = [
+        item["item_id"]
+        for item in mode_specific_hafizs_items_records
+        if item["item_id"] in today_full_cycle_revisions
+        and item["item_id"] not in next_item_ids
+    ]
+
+    # Combine and sort the item_ids
+    final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
+    return final_item_ids
 
 
 def create_count_link(count: int, rev_ids: str):
@@ -718,7 +728,7 @@ def render_summary_table(auth, mode_code, item_ids):
 def make_summary_table(
     mode_code: str,
     auth: str,
-    total_display_count=0,
+    total_page_count=0,
 ):
     current_date = get_current_date(auth)
 
@@ -763,7 +773,7 @@ def make_summary_table(
         WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
     """
-    ct = db.q(qry)
+    mode_specific_hafizs_items_records = db.q(qry)
 
     # Route-specific condition builders
     route_conditions = {
@@ -781,7 +791,9 @@ def make_summary_table(
         FULL_CYCLE_MODE_CODE: lambda item: has_memorized(item),
     }
 
-    filtered_records = [i for i in ct if route_conditions[mode_code](i)]
+    filtered_records = [
+        i for i in mode_specific_hafizs_items_records if route_conditions[mode_code](i)
+    ]
 
     def get_unique_item_ids(records):
         return list(dict.fromkeys(record["item_id"] for record in records))
@@ -815,8 +827,8 @@ def make_summary_table(
     if mode_code == FULL_CYCLE_MODE_CODE:
         item_ids = get_full_review_item_ids(
             auth=auth,
-            total_display_count=total_display_count,
-            ct=ct,
+            total_page_count=total_page_count,
+            mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
             item_ids=item_ids,
         )
 
