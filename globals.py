@@ -53,7 +53,6 @@ db = get_database_connection()
 
 hafizs = db.t.hafizs
 hafizs_items = db.t.hafizs_items
-hafizs_users = db.t.hafizs_users
 items = db.t.items
 modes = db.t.modes
 pages = db.t.pages
@@ -65,7 +64,6 @@ users = db.t.users
 (
     Hafiz,
     Hafiz_Items,
-    Hafiz_Users,
     Item,
     Mode,
     Page,
@@ -76,7 +74,6 @@ users = db.t.users
 ) = (
     hafizs.dataclass(),
     hafizs_items.dataclass(),
-    hafizs_users.dataclass(),
     items.dataclass(),
     modes.dataclass(),
     pages.dataclass(),

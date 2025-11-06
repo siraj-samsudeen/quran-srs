@@ -29,17 +29,9 @@ def delete_user(user_id: int):
     users.delete(user_id)
 
 
-def cleanup_orphaned_hafizs():
-    qry = """DELETE FROM hafizs
-    WHERE id NOT IN (
-        SELECT DISTINCT hafiz_id FROM hafizs_users
-    );"""
-    db.q(qry)
-
-
 def get_hafizs_for_user(user_id: int):
     """Get all hafizs associated with a user"""
-    return [h for h in hafizs_users() if h.user_id == user_id]
+    return hafizs(where=f"user_id={user_id}")
 
 
 def insert_hafiz(hafiz: Hafiz):
@@ -47,26 +39,19 @@ def insert_hafiz(hafiz: Hafiz):
     return hafizs.insert(hafiz)
 
 
-def insert_hafiz_user_relationship(hafiz_id: int, user_id: int, relationship: str):
-    """Create relationship between hafiz and user"""
-    return hafizs_users.insert(
-        hafiz_id=hafiz_id,
-        user_id=user_id,
-        relationship=relationship,
-        granted_by_user_id=user_id,
-        granted_at=datetime.now().strftime("%d-%m-%y %H:%M:%S"),
-    )
-
-
 def get_hafiz_by_id(hafiz_id: int):
     """Get hafiz record by ID"""
     return hafizs[hafiz_id]
 
 
+def delete_hafiz(hafiz_id: int):
+    """Delete hafiz record (cascade will handle related records)"""
+    hafizs.delete(hafiz_id)
+
+
 def reset_table_filters():
     """Reset xtra attributes to show data for all records"""
     revisions.xtra()
-    hafizs_users.xtra()
 
 
 def populate_hafiz_items(hafiz_id: int):

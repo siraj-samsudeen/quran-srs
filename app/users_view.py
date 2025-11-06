@@ -2,12 +2,6 @@ from fasthtml.common import *
 from monsterui.all import *
 
 
-OPTION_MAP = {
-    "age_group": ["child", "teen", "adult"],
-    "relationship": ["self", "parent", "teacher", "sibling"],
-}
-
-
 def render_login_form():
     """Render login form"""
     return Titled(
@@ -84,38 +78,20 @@ def render_signup_form():
     )
 
 
-def render_options(option):
-    """Render option for select dropdown"""
-    return Option(
-        option.capitalize(),
-        value=option,
-    )
-
-
 def render_add_hafiz_form():
     """Render add hafiz form"""
     return Card(
         Titled(
             "Add Hafiz",
             Form(
-                LabelInput(label="Name", name="name"),
-                LabelSelect(
-                    *map(render_options, OPTION_MAP["age_group"]),
-                    label="Age Group",
-                    name="age_group",
-                ),
+                LabelInput(label="Name", name="name", required=True),
                 LabelInput(
                     label="Daily Capacity",
                     name="daily_capacity",
                     type="number",
                     min="1",
-                    value="1",
+                    value="10",
                     required=True,
-                ),
-                LabelSelect(
-                    *map(render_options, OPTION_MAP["relationship"]),
-                    label="Relationship",
-                    name="relationship",
                 ),
                 Button("Add Hafiz"),
                 action="/users/add_hafiz",
@@ -126,23 +102,69 @@ def render_add_hafiz_form():
     )
 
 
-def render_hafiz_card(hafizs_user, auth, hafiz_name):
-    """Render individual hafiz selection card"""
-    is_current_hafizs_user = auth != hafizs_user.hafiz_id
-    return Card(
-        header=DivFullySpaced(H3(hafiz_name)),
-        footer=Button(
-            "Switch Hafiz" if is_current_hafizs_user else "Go to home",
-            name="current_hafiz_id",
-            value=hafizs_user.hafiz_id,
-            hx_post="/users/hafiz_selection",
-            hx_target="body",
-            hx_replace_url="true",
-            cls=ButtonT.primary,
-            data_testid=f"switch-{hafiz_name}-hafiz-button",
-        ),
-        cls="min-w-[300px] max-w-[400px]",
-    )
+def render_hafiz_card(hafiz, auth):
+    """Render individual hafiz selection card - single row layout"""
+    is_current_hafiz = auth == hafiz.id
+
+    if is_current_hafiz:
+        # For current hafiz, show "Go Back to [name]" button only with distinct background
+        return Div(
+            Button(
+                f"← Go Back to {hafiz.name}",
+                name="current_hafiz_id",
+                value=hafiz.id,
+                hx_post="/users/hafiz_selection",
+                hx_target="body",
+                hx_replace_url="true",
+                cls=f"{ButtonT.primary} w-full text-left",
+                data_testid=f"hafiz-switch-{hafiz.name}",
+            ),
+            cls="flex gap-2 items-center p-2 border-2 border-green-400 rounded-lg bg-green-50 shadow-sm hover:shadow-md transition-shadow",
+        )
+    else:
+        # For other hafizs, show name with dropdown menu for delete
+        return Div(
+            # Clickable name area (takes most space)
+            Button(
+                hafiz.name,
+                name="current_hafiz_id",
+                value=hafiz.id,
+                hx_post="/users/hafiz_selection",
+                hx_target="body",
+                hx_replace_url="true",
+                cls=f"{ButtonT.primary} flex-1 text-left",
+                data_testid=f"hafiz-switch-{hafiz.name}",
+            ),
+            # Dropdown menu for actions (Alpine.js)
+            Div(
+                # Menu toggle button
+                Button(
+                    "⋮",  # Vertical ellipsis
+                    type="button",
+                    cls="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded",
+                    title="More actions",
+                    data_testid=f"hafiz-menu-{hafiz.name}",
+                    **{"@click": "open = !open"},
+                ),
+                # Dropdown menu (hidden by default)
+                Div(
+                    Button(
+                        "Delete",
+                        type="button",
+                        hx_delete=f"/users/delete_hafiz/{hafiz.id}",
+                        hx_target="body",
+                        hx_confirm=f"Are you sure you want to delete {hafiz.name}? This will delete all their progress.",
+                        cls="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded",
+                        data_testid=f"hafiz-delete-{hafiz.name}",
+                    ),
+                    cls="absolute right-0 mt-2 w-32 bg-white border rounded-lg shadow-lg z-10",
+                    **{"x-show": "open", "@click.away": "open = false"},
+                ),
+                cls="relative",
+                **{"x-data": "{ open: false }"},
+            ),
+            cls="flex gap-2 items-center p-2 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow",
+        )
 
 
 def render_hafiz_selection_page(cards, hafiz_form):

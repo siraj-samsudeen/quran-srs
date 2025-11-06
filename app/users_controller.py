@@ -84,7 +84,6 @@ def get(sess):
 @rt("/{user_id}")
 def delete(user_id: int):
     delete_user(user_id)
-    cleanup_orphaned_hafizs()
 
 
 @rt("/hafiz_selection")
@@ -96,11 +95,8 @@ def get(sess):
     if user_auth is None:
         return login_redir
 
-    hafizs_users = get_hafizs_for_user(user_auth)
-    cards = [
-        render_hafiz_card(h, auth, get_hafiz_by_id(h.hafiz_id).name)
-        for h in hafizs_users
-    ]
+    user_hafizs = get_hafizs_for_user(user_auth)
+    cards = [render_hafiz_card(h, auth) for h in user_hafizs]
 
     hafiz_form = render_add_hafiz_form()
 
@@ -115,11 +111,24 @@ def post(current_hafiz_id: int, sess):
 
 
 @rt("/add_hafiz")
-def post(hafiz: Hafiz, relationship: str, sess):
-    """Add new hafiz and create user relationship"""
-    hafiz_id = insert_hafiz(hafiz)
-    hafiz_id = hafiz_id.id
-    insert_hafiz_user_relationship(hafiz_id, sess["user_auth"], relationship)
+def post(hafiz: Hafiz, sess):
+    """Add new hafiz"""
+    # Set the user_id for the hafiz
+    hafiz.user_id = sess["user_auth"]
+    new_hafiz = insert_hafiz(hafiz)
+    hafiz_id = new_hafiz.id
     populate_hafiz_items(hafiz_id)
     create_new_plan(hafiz_id)
+    return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+
+@rt("/delete_hafiz/{hafiz_id}")
+def delete(hafiz_id: int, sess):
+    """Delete hafiz profile"""
+    # Verify the hafiz belongs to the current user
+    hafiz = get_hafiz_by_id(hafiz_id)
+    if hafiz.user_id != sess["user_auth"]:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    delete_hafiz(hafiz_id)
     return RedirectResponse("/users/hafiz_selection", status_code=303)

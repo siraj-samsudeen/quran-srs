@@ -15,6 +15,67 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - **Run tests**: `uv run pytest` (pytest configured but no tests currently exist)
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
+### End-to-End Testing
+- **Location**: E2E tests are maintained in a separate git worktree at `../quran-srs-phoenix_migration/test/e2e_test.exs`
+- **Framework**: Uses Wallaby (Elixir's browser automation library) with ChromeDriver
+- **Purpose**: Tests the FastHTML application UI flows (login, hafiz selection, CRUD operations, mode visibility)
+- **Running E2E tests**: From the phoenix_migration worktree, run `mix test --only e2e`
+- **Note**: The phoenix_migration worktree is used for both Phoenix (future) and FastHTML (current) e2e tests
+
+#### E2E Test Structure & Best Practices
+
+**Test Organization:**
+- Use `feature` blocks for each major user flow
+- Create reusable helper functions for common actions (`login/2`, `create_hafiz/3`, `delete_hafiz/2`)
+- Each feature should test a complete user journey from start to finish
+
+**Selector Strategy:**
+- **Primary**: Use `data-testid` attributes for reliable element targeting (e.g., `data-testid="switch-{name}-hafiz-button"`)
+- **Fallback**: Use semantic selectors (e.g., `css("h3", text: "Name")`) for content verification
+- **Why**: `data-testid` is stable across UI changes; text/class selectors are fragile
+
+**Handling Dynamic Content:**
+- Use timestamp-based unique identifiers for test data (e.g., `"E2E Test #{:os.system_time(:millisecond)}"`)
+- Prevents test collisions when running concurrently or with leftover data
+- Use `count: 1` assertions for unique identifiers, `minimum: 1` for "at least exists" checks
+
+**Common Wallaby Patterns:**
+
+1. **Browser Confirmation Dialogs** (`hx-confirm` in HTMX):
+   ```elixir
+   # WRONG: accept_dialogs() doesn't exist
+   # CORRECT:
+   accept_confirm session, fn session ->
+     click(session, css("button[data-testid='delete-button']"))
+   end
+   session  # Must return session for pipe chain
+   ```
+
+2. **Waiting for HTMX Updates**:
+   - `assert_has/2` polls automatically (default 3 seconds)
+   - No need for explicit waits in most cases
+   - Use `count: N` or `minimum: N` to verify exact/minimum element counts
+
+3. **Newly Created Resources**:
+   - Don't assume Full Cycle mode appears for new hafizs (requires memorized pages)
+   - Check for always-visible elements instead (e.g., "System Date:", "Close Date" button)
+   - Understand business logic: new hafizs have `hafizs_items` but with `memorized=false`
+
+**Common Errors & Solutions:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `undefined function accept_dialogs/1` | Wrong Wallaby API | Use `accept_confirm/2` instead |
+| `FunctionClauseError` with dialog text | `accept_confirm` returns text, not session | Explicitly return `session` after `accept_confirm` |
+| `Expected 1 element, found 3` | Non-unique selector or leftover test data | Use timestamp-based unique names + `count: 1` |
+| `ExpectationNotMetError` for mode tables | Business logic prevents display | Check for always-visible elements instead |
+| Alert/confirm dialog errors | HTMX `hx-confirm` creates native browser dialogs | Use `accept_confirm/2` wrapper function |
+
+**Test Data Cleanup:**
+- Tests should be self-contained: create → use → delete
+- Rely on database CASCADE DELETE for related records
+- Unique naming prevents interference between test runs
+
 ### Database
 - **Path**: SQLite database at `data/quran_v10.db`
 - **Migrations**: Uses fastmigrate with numbered SQL files in `migrations/` directory (format: `0001-description.sql`)
@@ -61,11 +122,41 @@ The app uses a two-tier authentication system implemented via beforeware in `app
    - Redirects to `/users/hafiz_selection` if not selected
    - Automatically adds `hafiz_id` to database queries via `xtra()` for `revisions`, `hafizs_items`, and `plans` tables
 
-This allows one account (parent/teacher) to manage multiple hafiz profiles (children/students).
+This allows one account (parent/teacher) to manage multiple hafiz profiles (children/students). Each hafiz profile belongs to exactly one user via the `user_id` foreign key in the `hafizs` table.
+
+### UI/UX Design Patterns
+
+**Hafiz Selection Page** (`/users/hafiz_selection`):
+- **Mobile-First Design**: Compact single-row layout per hafiz to minimize scrolling on mobile devices
+- **Visual Hierarchy**:
+  - Current hafiz: Green background (`bg-green-50`) with green border (`border-green-400`), shows "← Go Back to [Name]"
+  - Other hafizs: White background with hafiz name button + delete icon (🗑️)
+- **Button Layout**:
+  - Non-current hafiz: `[Name Button (flex-1)] [🗑️ Delete Icon (minimal)]`
+  - Current hafiz: `[← Go Back to Name (full-width)]` with green highlight
+- **Delete Safety**: Current hafiz cannot delete themselves (delete button hidden when active)
+- **HTMX Integration**:
+  - `hx-post` for hafiz switching
+  - `hx-delete` for deletion with `hx-confirm` for confirmation dialogs
+- **Test Selectors**: All buttons use `data-testid` attributes for E2E test stability
+
+**Key UI Components** (`app/users_view.py`):
+- `render_hafiz_card(hafiz, auth)`: Conditional rendering based on `is_current_hafiz`
+- `render_add_hafiz_form()`: Minimalist form (name + daily_capacity only)
+- `render_hafiz_selection_page(cards, hafiz_form)`: Grid layout with flexbox wrapping
 
 ### Database Schema Key Points
 
 **Core Tables:**
+- `users`: User accounts (parents/teachers)
+  - `email`, `password`, `name`
+
+- `hafizs`: Hafiz profiles (one-to-many with users)
+  - `name`: Hafiz name
+  - `user_id`: Foreign key to users (ON DELETE CASCADE)
+  - `daily_capacity`: Number of pages for daily revision
+  - `current_date`: Virtual date for this hafiz (allows independent timelines)
+
 - `items`: Quran content broken into items (full pages or page parts)
   - `page_id`: Page number (1-604)
   - `item_type`: "page" or "page-part"
@@ -91,6 +182,7 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
   - Used to track progress through complete Quran cycles
 
 **Critical Relationships:**
+- One user has many `hafizs` (one-to-many relationship via `hafizs.user_id`)
 - One hafiz has many `hafizs_items` (one per Quran item)
 - One item can have many `revisions` across different modes and dates
 - Revisions in Full Cycle mode link to `plans` via `plan_id`
