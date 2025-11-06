@@ -66,6 +66,12 @@ def render_options(option):
     )
 
 
+def parse_primary_key(table: str, primary_key: str):
+    if table != "modes":
+        return int(primary_key)
+    return primary_key
+
+
 @admin_app.get("/backups")
 def list_backups(auth):
     files = [f for f in os.listdir("data/backup") if f.endswith(".db")]
@@ -191,10 +197,14 @@ def list_tables(auth):
 def view_table(table: str, auth):
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
+    if table == "modes":
+        primary_key_column = "code"
+    else:
+        primary_key_column = "id"
 
     def _render_rows(data: dict):
         def render_cell(column: str):
-            if column == "id":
+            if column == primary_key_column:
                 return Td(
                     A(
                         data[column],
@@ -210,14 +220,14 @@ def view_table(table: str, auth):
             Td(
                 A(
                     "Delete",
-                    hx_delete=f"/admin/tables/{table}/{data["id"]}",
-                    target_id=f"row-{data["id"]}",
+                    hx_delete=f"/admin/tables/{table}/{data[primary_key_column]}",
+                    target_id=f"row-{data[primary_key_column]}",
                     hx_swap="outerHTML",
                     hx_confirm="Are you sure?",
                     cls=AT.muted,
                 ),
             ),
-            id=f"row-{data["id"]}",
+            id=f"row-{data[primary_key_column]}",
         )
 
     table_element = Table(
@@ -263,7 +273,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
     def create_input_field(o: dict):
         column, datatype = o
-        if column == "id":
+        if column in ["id", "code"]:
             return None
         # This is used to get the datatype of the columns as a dict
         datatype = datatype.__args__[0].__name__
@@ -302,10 +312,12 @@ def create_dynamic_input_form(schema: dict, **kwargs):
     )
 
 
-@admin_app.get("/tables/{table}/{record_id}/edit")
-def edit_record_view(table: str, record_id: int, auth):
+@admin_app.get("/tables/{table}/{primary_key}/edit")
+def edit_record_view(table: str, primary_key: str, auth):
+    primary_key = parse_primary_key(table, primary_key)
+
     current_table = tables[table]
-    current_data = current_table[record_id]
+    current_data = current_table[primary_key]
 
     # The `completed` column is stored in int but it needs to be considered as bool
     # so we are converting it to str in order to select the right radio button using fill_form
@@ -315,7 +327,7 @@ def edit_record_view(table: str, record_id: int, auth):
     column_with_types = get_column_and_its_type(table)
     form = create_dynamic_input_form(
         column_with_types,
-        hx_put=f"/admin/tables/{table}/{record_id}",
+        hx_put=f"/admin/tables/{table}/{primary_key}",
         hx_target="body",
         hx_push_url="true",
         # The redirect_link is when we edit the description from the different page it should go back to that page
@@ -334,8 +346,9 @@ def get_column_and_its_type(table):
     return data_class.__dict__["__annotations__"]
 
 
-@admin_app.put("/tables/{table}/{record_id}")
-async def update_record(table: str, record_id: int, redirect_link: str, req: Request):
+@admin_app.put("/tables/{table}/{primary_key}")
+async def update_record(table: str, primary_key: str, redirect_link: str, req: Request):
+    primary_key = parse_primary_key(table, primary_key)
     formt_data = await req.form()
     current_data = formt_data.__dict__.get("_dict")
     # replace the value to `None` in order to set it as unset if the value came as empty
@@ -345,15 +358,16 @@ async def update_record(table: str, record_id: int, redirect_link: str, req: Req
         if key != "redirect_link"
     }
 
-    tables[table].update(current_data, record_id)
+    tables[table].update(current_data, primary_key)
 
     return RedirectResponse(redirect_link, status_code=303)
 
 
-@admin_app.delete("/tables/{table}/{record_id}")
-def delete_record(table: str, record_id: int):
+@admin_app.delete("/tables/{table}/{primary_key}")
+def delete_record(table: str, primary_key: str):
     try:
-        tables[table].delete(record_id)
+        primary_key = parse_primary_key(table, primary_key)
+        tables[table].delete(primary_key)
     except Exception as e:
         return Tr(Td(P(f"Error: {e}"), colspan="11", cls="text-center"))
 
