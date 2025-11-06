@@ -631,6 +631,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
     rating_dropdown_input = rating_dropdown(
         rating=rating,
         id=f"rev-{item_id}",
+        data_testid=f"rating-{item_id}",
         **action_link_attr,
         hx_vals=vals_dict,
         hx_trigger="change",
@@ -843,5 +844,5 @@ def render_current_date(auth):
     current_date = get_current_date(auth)
     return P(
         Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date)),
+        Span(date_to_human_readable(current_date), data_testid="system-date"),
     )

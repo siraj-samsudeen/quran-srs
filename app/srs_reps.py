@@ -331,6 +331,7 @@ def display_srs_pages_recorded_today(auth):
             hx_push_url="true",
             hx_disabled_elt="this",
             cls=(ButtonT.primary, "p-2"),
+            data_testid="confirm-close-btn",
         ),
         Button(
             "Cancel",

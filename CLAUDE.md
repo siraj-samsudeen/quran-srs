@@ -18,9 +18,29 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 ### End-to-End Testing
 - **Location**: E2E tests are maintained in a separate git worktree at `../quran-srs-phoenix_migration/test/e2e_test.exs`
 - **Framework**: Uses Wallaby (Elixir's browser automation library) with ChromeDriver
-- **Purpose**: Tests the FastHTML application UI flows (login, hafiz selection, CRUD operations, mode visibility)
+- **Purpose**: Tests the FastHTML application UI flows (login, hafiz selection, CRUD operations, mode-specific workflows)
 - **Running E2E tests**: From the phoenix_migration worktree, run `mix test --only e2e`
 - **Note**: The phoenix_migration worktree is used for both Phoenix (future) and FastHTML (current) e2e tests
+
+#### E2E Test Coverage Status
+
+**Completed Tests (✅):**
+1. User authentication and hafiz selection
+2. Hafiz CRUD operations (create, switch, delete)
+3. Full Cycle mode visibility verification
+4. **Full Cycle - Review item due today** (rating dropdown auto-submit via HTMX)
+
+**Pending Tests (⏳):**
+- Full Cycle: Item not due doesn't appear (3 more FC tests)
+- SRS: Rating affects interval progression (3 SRS tests)
+- Mode Progression: NM→DR→WR→FC graduation (3 progression tests)
+
+**Test Infrastructure:**
+- Database seeding helpers (`seed_item_in_mode`, `seed_revision`)
+- Hafiz management helpers (`create_test_hafiz_and_switch`, `cleanup_test_hafiz`)
+- Assertion helpers (`assert_revision_exists`, `assert_item_in_mode`)
+- Date manipulation helper (`set_hafiz_date`)
+- All `data-testid` attributes added to core UI components
 
 #### E2E Test Structure & Best Practices
 
@@ -85,8 +105,7 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - **Framework**: FastHTML (server-side rendered HTML with HTMX)
 - **UI Library**: MonsterUI (provides pre-built FastHTML components)
 - **Interactivity**:
-  - HTMX (hx-boost enabled globally for SPA-like navigation)
-  - Alpine.js (shift-click multi-select in tables)
+  - HTMX (hx-boost enabled globally for SPA-like navigation, auto-submit on rating dropdown change)
   - Hyperscript (dynamic button states)
 - **Styles**: Custom CSS in `public/css/style.css`, MonsterUI theme (blue)
 - **JavaScript**: `public/script.js` for custom interactions
@@ -103,6 +122,8 @@ The application is built around 5 distinct memorization modes, each with differe
 5. **SRS Mode (mode_code='SR')**: Adaptive spaced repetition for problematic pages
 
 Mode codes are defined as constants in `globals.py`: `NEW_MEMORIZATION_MODE_CODE`, `DAILY_REPS_MODE_CODE`, `WEEKLY_REPS_MODE_CODE`, `FULL_CYCLE_MODE_CODE`, `SRS_MODE_CODE`.
+
+**Important:** The codebase recently migrated from numeric `mode_id` (1-5) to 2-character `mode_code` ('FC', 'NM', 'DR', 'WR', 'SR'). The `code` column is now the PRIMARY KEY in the `modes` table. All Python code uses `mode_code` exclusively.
 
 ### Mode Progression Flow
 - **New Memorization** → **Daily Reps** (after first review)
@@ -165,11 +186,11 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
 
 - `hafizs_items`: Tracks each hafiz's progress per item
   - `mode_code`: Current mode ('FC', 'NM', 'DR', 'WR', 'SR')
-  - `status_id`: Item status (1=memorized, 4=daily_reps, 5=srs, 6=not_memorized)
-  - `next_review`, `next_interval`: For scheduled reviews
+  - `memorized`: Boolean flag indicating if item has been memorized
+  - `next_review`, `next_interval`: For scheduled reviews (used by DR, WR, SR modes)
   - `last_interval`: Actual days since last review
   - `bad_streak`, `good_streak`: Performance tracking
-  - `srs_booster_pack_id`: Links to SRS configuration when in SRS mode
+  - `page_number`: Reference to the page in the Quran
 
 - `revisions`: Individual review records
   - `item_id`, `hafiz_id`, `mode_code`, `revision_date`
@@ -202,16 +223,10 @@ The "Close Date" operation (main.py:716-745) is critical:
 4. Advances the hafiz's `current_date` by one day
 
 **Mode-Specific Update Logic:**
-- **Full Cycle**: Updates `last_interval` based on actual days, moves SRS items' `next_review` forward (main.py:695-707)
-- **New Memorization**: Promotes to Daily Reps mode on close (main.py:709-714)
-- **Daily/Weekly Reps**: Handled by `update_rep_item()` in `app/fixed_reps.py` - counts reviews and graduates to next mode after threshold
-- **SRS**: Handled by `update_hafiz_item_for_srs()` in `app/srs_reps.py` - calculates next interval using booster pack algorithm, graduates to Full Cycle when complete
-
-**Display Count Logic:**
-Full Cycle mode shows a dynamic number of items on the home page (main.py:546-577):
-- Base count: `get_display_count(auth)` (based on hafiz's capacity)
-- Additional count: Session-stored extra pages (`full_cycle_display_count`)
-- Users can add +1, +2, +3, +5 pages via buttons to see more suggestions
+- **Full Cycle**: Updates `last_interval` based on actual days, moves SRS items' `next_review` forward
+- **New Memorization**: Promotes to Daily Reps mode on close
+- **Daily/Weekly Reps**: Handled by `update_rep_item()` in `app/fixed_reps.py` - counts reviews (threshold: 7) and graduates to next mode
+- **SRS**: Handled by `update_hafiz_item_for_srs()` in `app/srs_reps.py` - calculates next interval using SRS algorithm, graduates to Full Cycle when interval exceeds threshold
 
 ### File Structure & MVC Pattern
 
@@ -222,7 +237,7 @@ The app follows an MVC-like pattern where applicable:
 
 **Main Application:**
 - `main.py`: Main app initialization, home page route with all summary tables, Close Date logic
-- `globals.py`: Database setup, mode constants (FULL_CYCLE_MODE_ID, etc.), table references
+- `globals.py`: Database setup, mode constants (FULL_CYCLE_MODE_CODE, DAILY_REPS_MODE_CODE, etc.), table references
 - `utils.py`: Helper functions for dates, formatting, list operations
 
 **App Modules (mounted as sub-apps via FastHTML's Mount):**
@@ -248,11 +263,11 @@ The app follows an MVC-like pattern where applicable:
 Use `add_revision_record()` and `remove_revision_record()` from `app/common_function.py`. These handle both database operations and hafizs_items stat updates.
 
 **Rendering Summary Tables:**
-The `make_summary_table()` function (app/common_function.py) generates mode-specific review tables with checkboxes for bulk operations. It handles:
+The `make_summary_table()` function (app/common_function.py) generates mode-specific review tables with rating dropdowns. It handles:
 - Item filtering by mode and date
-- Checkbox states for already-reviewed items
-- Rating dropdowns
-- Shift-click multi-select via Alpine.js
+- Rating dropdowns with auto-submit (HTMX `hx_trigger="change"`)
+- Row background color based on rating (green=good, yellow=ok, red=bad)
+- Displays: Page number, Start text, Rating dropdown
 
 **Database Queries:**
 - Use table objects from `globals.py` (e.g., `revisions()`, `hafizs_items()`)
@@ -274,3 +289,193 @@ app, rt = create_app_with_auth(
     ]
 )
 ```
+
+---
+
+## E2E Testing Roadmap
+
+### Test Strategy
+All E2E tests use **temporary test hafizs** that are:
+- Created with timestamp-based unique names (e.g., "E2E FC Review 1762408089619")
+- Seeded with specific data via direct database manipulation
+- Deleted after each test (CASCADE DELETE cleans up related records)
+
+This approach ensures:
+- Test isolation (no shared state between tests)
+- No corruption of production data (Siraj hafiz)
+- Repeatable tests (clean slate each time)
+
+### Completed Tests ✅
+
+#### Test Infrastructure (File: `../quran-srs-phoenix_migration/test/e2e_test.exs`)
+
+**Database Helpers:**
+```elixir
+seed_item_in_mode(hafiz_id, item_id, mode_code, opts)  # Creates/updates hafizs_items
+seed_revision(hafiz_id, item_id, mode_code, date, rating)  # Inserts revision record
+set_hafiz_date(hafiz_id, date_string)  # Updates hafiz's current_date
+get_hafiz_id_by_name(name)  # Retrieves hafiz_id from database
+```
+
+**Test Management:**
+```elixir
+create_test_hafiz_and_switch(session, name_suffix)  # Creates hafiz, logs in, switches to it
+cleanup_test_hafiz(session, hafiz_name)  # Switches away and deletes test hafiz
+```
+
+**Assertions:**
+```elixir
+assert_revision_exists(hafiz_id, item_id, mode_code, date, rating)
+assert_item_in_mode(hafiz_id, item_id, expected_mode)
+get_hafizs_items_from_db(hafiz_id, item_id)  # Returns item details map
+```
+
+#### Passing Tests:
+1. **User authentication** - Login flow with email/password
+2. **Hafiz CRUD** - Create, switch, delete hafiz profiles
+3. **Full Cycle visibility** - FC mode always visible on home page
+4. **FC - Review item due today** - Rating dropdown auto-submit via HTMX
+
+### Pending Tests ⏳
+
+#### Phase 1: Full Cycle Tests (3 remaining)
+
+**Test 2: FC - Item not due doesn't appear**
+```elixir
+# Seed item with next_review = "2025-11-10" (future)
+# Set current_date = "2025-11-07"
+# Verify item does NOT appear in FC table
+```
+
+**Test 3: FC - Already reviewed item shows correct state**
+```elixir
+# Seed item with next_review = current_date
+# Seed revision for that item (rating = 1)
+# Verify dropdown shows selected value
+# Verify row has green background (reviewed as good)
+```
+
+**Test 4: FC - Bad rating moves to SRS after Close Date**
+```elixir
+# Seed item in FC mode (bad_streak = 0)
+# Review with Bad rating (-1)
+# Click Close Date → Confirm
+# Verify item.mode_code changed to 'SR'
+# Verify bad_streak incremented
+```
+
+#### Phase 2: SRS Tests (3 tests)
+
+**Test 5: SR - Good rating increases interval**
+```elixir
+# Seed item in SR mode (next_interval = 7)
+# Review with Good rating (1)
+# Close Date
+# Verify next_interval > 7 (SRS algorithm progression)
+```
+
+**Test 6: SR - Bad rating resets/decreases interval**
+```elixir
+# Seed item in SR mode (next_interval = 14)
+# Review with Bad rating (-1)
+# Close Date
+# Verify next_interval < 14 (penalty for bad performance)
+```
+
+**Test 7: SR - Graduation back to Full Cycle**
+```elixir
+# Seed item in SR mode (next_interval = 28, near 30-day threshold)
+# Review with Good rating
+# Close Date
+# Verify item.mode_code changed to 'FC'
+# Verify bad_streak reset to 0
+```
+
+#### Phase 3: Mode Progression Tests (3 tests)
+
+**Test 8: NM → DR Progression**
+```elixir
+# Seed item in NM mode (memorized = false)
+# Review with Good rating
+# Close Date
+# Verify item.mode_code changed to 'DR'
+# Verify memorized = true
+```
+
+**Test 9: DR → WR Progression (7 reviews)**
+```elixir
+# Seed item in DR mode with 6 historical reviews
+# Perform 7th review
+# Close Date
+# Verify item.mode_code changed to 'WR'
+# Verify next_interval = 7 (weekly interval)
+```
+
+**Test 10: WR → FC Progression (7 reviews)**
+```elixir
+# Seed item in WR mode with 6 historical reviews (7 days apart)
+# Perform 7th review
+# Close Date
+# Verify item.mode_code changed to 'FC'
+# Verify next_interval = NULL (FC doesn't use fixed intervals)
+# Verify next_review = NULL
+```
+
+### Implementation Notes
+
+**HTMX Testing Pattern:**
+Rating dropdowns auto-submit on change, so use JavaScript to trigger:
+```elixir
+session
+|> execute_script("document.querySelector('select[data-testid=\"rating-#{item_id}\"]').value = '1'")
+|> execute_script("document.querySelector('select[data-testid=\"rating-#{item_id}\"]').dispatchEvent(new Event('change'))")
+Process.sleep(2000)  # Give HTMX time to process
+```
+
+**Historical Revisions for Progression Tests:**
+Use loops to seed multiple revisions:
+```elixir
+for day <- 0..5 do
+  date = Date.add(~D[2025-11-01], day) |> Date.to_string()
+  seed_revision(hafiz_id, item_id, "DR", date, 1)
+end
+```
+
+**Data Sources:**
+- Use Siraj hafiz (hafiz_id=1) historical data to understand behavior
+- Implement tests with temporary test hafizs for isolation
+
+### Running Tests
+
+**Start FastHTML server first:**
+```bash
+uv run main.py  # From quran-srs directory
+```
+
+**Run all E2E tests:**
+```bash
+cd ../quran-srs-phoenix_migration
+mix test --only e2e
+```
+
+**Run specific test:**
+```bash
+mix test test/e2e_test.exs:236  # Line number of feature block
+```
+
+### Key Business Logic to Test
+
+**Mode Transition Thresholds:**
+- DR → WR: 7 reviews (configurable in `REP_MODES_CONFIG`)
+- WR → FC: 7 reviews
+- FC → SR: bad_streak >= 1 (triggered on Close Date)
+- SR → FC: next_interval > SRS_END_INTERVAL (30 days)
+
+**Close Date Processing:**
+The Close Date operation is critical and must:
+1. Process all revisions for current_date
+2. Update hafizs_items based on mode-specific logic
+3. Trigger SRS demotion for bad streaks
+4. Advance current_date by 1 day
+
+All mode progression tests must verify Close Date works correctly.

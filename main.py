@@ -389,6 +389,7 @@ def index(auth):
         A(
             Button(
                 "Close Date",
+                data_testid="close-date-btn",
             ),
             href="/close_date",
         ),
