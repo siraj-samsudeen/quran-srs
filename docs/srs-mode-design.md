@@ -20,7 +20,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 - interval_days: Comma-separated progression "2,3,5,7,11,13,17,19,23,29,31,37,41,43..."
 
 ### 2. hafizs_items TABLE (current state):
-- mode_id: 5 = SRS mode, 1 = Full Cycle mode
+- mode_code: 'SR' = SRS mode, 'FC' = Full Cycle mode
 - status_id: 5 = SRS active, 6 = Not started
 - srs_start_date: When item entered SRS (e.g., '2025-07-09')
 - srs_booster_pack_id: Which pack to use (typically 1 = Standard)
@@ -31,7 +31,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 - next_interval: Days to add for next review (NULL = graduated)
 
 ### 3. revisions TABLE (review history):
-- mode_id: 5 = SRS review, 1 = Full Cycle review
+- mode_code: 'SR' = SRS review, 'FC' = Full Cycle review
 - rating: -1=bad, 0=ok, 1=good
 - last_interval: The interval position used to calculate this review (from algorithm state)
 - current_interval: Actual days between previous review and this review date
@@ -45,7 +45,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 **Note:** SRS feature was implemented starting July 9, 2025 (earliest SRS revision date)
 
 **Database changes in hafizs_items:**
-- mode_id = 5 (SRS mode)
+- mode_code = 'SR' (SRS mode)
 - status_id = 5 (SRS active)
 - srs_start_date = current_date (when SRS began)
 - srs_booster_pack_id = 1 (Standard SRS pack)
@@ -90,7 +90,7 @@ SRS was implemented on July 9, 2025 (earliest SRS revision date in database)
 - next_review = NULL (no longer scheduled)
 - current_interval, last_interval = NULL (no more reviews)
 - srs_booster_pack_id, srs_start_date = NULL (no longer in SRS mode)
-- mode_id = 1 (returns to Full Cycle mode)
+- mode_code = 'FC' (returns to Full Cycle mode)
 - status_id = 1 (returns to normal memorized status)
 
 **Result:** Page successfully completed SRS and returns to regular sequential revision
@@ -215,7 +215,7 @@ SRS Start: ~2025-07-22, start_interval=7 (Standard SRS pack)
 - 2025-08-01: Second SRS review (rating=1, good) → next_interval=11, next_review=2025-08-12
 
 **Cross-Mode Event (2025-08-11):**
-- Page 64 reviewed in Full Cycle mode (mode_id=1) while still in SRS
+- Page 64 reviewed in Full Cycle mode (mode_code='FC') while still in SRS
 - SRS schedule: Due 2025-08-12 (next day)
 - Full Cycle review recorded normally without affecting SRS state
 
@@ -225,7 +225,7 @@ SRS Start: ~2025-07-22, start_interval=7 (Standard SRS pack)
 3. **Dual Mode Operation:** Same page can be active in both systems simultaneously
 4. **Independent Tracking:** Each mode maintains separate revision history
 
-**Technical Implementation:** The system differentiates reviews by mode_id (1=Full Cycle, 5=SRS) allowing parallel operation without interference. This flexibility lets users review SRS pages in regular sequential order when desired while maintaining their SRS schedule.
+**Technical Implementation:** The system differentiates reviews by mode_code ('FC'=Full Cycle, 'SR'=SRS) allowing parallel operation without interference. This flexibility lets users review SRS pages in regular sequential order when desired while maintaining their SRS schedule.
 
 ## Key Algorithm Functions
 

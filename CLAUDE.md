@@ -96,13 +96,13 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 ### Core Modes System
 The application is built around 5 distinct memorization modes, each with different revision algorithms:
 
-1. **New Memorization (mode_id=2)**: For learning completely new pages
-2. **Daily Reps (mode_id=3)**: Daily repetition (1-day interval) after initial memorization
-3. **Weekly Reps (mode_id=4)**: Weekly repetition (7-day interval) after daily graduation
-4. **Full Cycle (mode_id=1)**: Sequential maintenance of all memorized content
-5. **SRS Mode (mode_id=5)**: Adaptive spaced repetition for problematic pages
+1. **New Memorization (mode_code='NM')**: For learning completely new pages
+2. **Daily Reps (mode_code='DR')**: Daily repetition (1-day interval) after initial memorization
+3. **Weekly Reps (mode_code='WR')**: Weekly repetition (7-day interval) after daily graduation
+4. **Full Cycle (mode_code='FC')**: Sequential maintenance of all memorized content
+5. **SRS Mode (mode_code='SR')**: Adaptive spaced repetition for problematic pages
 
-Mode IDs are defined as constants in `globals.py`: `NEW_MEMORIZATION_MODE_ID`, `DAILY_REPS_MODE_ID`, `WEEKLY_REPS_MODE_ID`, `FULL_CYCLE_MODE_ID`, `SRS_MODE_ID`.
+Mode codes are defined as constants in `globals.py`: `NEW_MEMORIZATION_MODE_CODE`, `DAILY_REPS_MODE_CODE`, `WEEKLY_REPS_MODE_CODE`, `FULL_CYCLE_MODE_CODE`, `SRS_MODE_CODE`.
 
 ### Mode Progression Flow
 - **New Memorization** → **Daily Reps** (after first review)
@@ -164,7 +164,7 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
   - `active`: Whether item is currently in use
 
 - `hafizs_items`: Tracks each hafiz's progress per item
-  - `mode_id`: Current mode (1-5)
+  - `mode_code`: Current mode ('FC', 'NM', 'DR', 'WR', 'SR')
   - `status_id`: Item status (1=memorized, 4=daily_reps, 5=srs, 6=not_memorized)
   - `next_review`, `next_interval`: For scheduled reviews
   - `last_interval`: Actual days since last review
@@ -172,7 +172,7 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
   - `srs_booster_pack_id`: Links to SRS configuration when in SRS mode
 
 - `revisions`: Individual review records
-  - `item_id`, `hafiz_id`, `mode_id`, `revision_date`
+  - `item_id`, `hafiz_id`, `mode_code`, `revision_date`
   - `rating`: -1 (Bad), 0 (Ok), 1 (Good)
   - `next_interval`: Calculated interval for SRS reviews
   - `plan_id`: Groups revisions into cycles (for Full Cycle mode)
@@ -239,7 +239,6 @@ The app follows an MVC-like pattern where applicable:
 
 **Supporting Files:**
 - `docs/design.md`: Comprehensive design vision through user conversations
-- `docs/data_model.md`: Database schema documentation
 - `docs/srs-mode-design.md`: SRS algorithm specifications
 - `docs/user_personas.md`: User personas for design decisions
 

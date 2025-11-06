@@ -119,11 +119,10 @@ def display_page_level_details(auth, item_id: int):
         return Tr(*tds)
 
     def make_mode_title_for_table(mode_code):
-        mode_details = modes(where=f"code = '{mode_code}'")
-        if mode_details:
-            mode_details = mode_details[0]
+        try:
+            mode_details = modes[mode_code]
             mode_name, mode_description = (mode_details.name, mode_details.description)
-        else:
+        except NotFoundError:
             mode_name, mode_description = ("", "")
         return H2(mode_name, Subtitle(mode_description))
 

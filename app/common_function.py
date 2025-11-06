@@ -441,7 +441,7 @@ def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
 
 
 def get_mode_name(mode_code: str):
-    return modes(where=f"code = '{mode_code}'")[0].name
+    return modes[mode_code].name
 
 
 def get_unrevised_memorized_item_ids(auth, plan_id):
