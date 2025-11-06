@@ -289,20 +289,6 @@ def display_page_level_details(auth, item_id: int):
     ########### Summary Table
     has_summary_data, summary_table = create_mode_table(mode_code_list, is_summary=True)
 
-    ########### Mode specific tables
-    # Dynamically generate tables for each specific revision mode
-    mode_data_map = {}
-    for mode_code in mode_code_list:
-        has_data, table = create_mode_table([mode_code])
-        mode_data_map[mode_code] = (has_data, table)
-
-    # Create mode sections dynamically
-    mode_sections = []
-    for mode_code in mode_code_list:
-        is_display, table = mode_data_map[mode_code]
-        if is_display:
-            mode_sections.append(Div(make_mode_title_for_table(mode_code), table))
-
     ########### Previous and Next Page Navigation
     def create_nav_button(item_id, arrow, show_nav):
         return A(
@@ -381,8 +367,7 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H2("Summary Table"), summary_table) if has_summary_data else None,
-                *mode_sections,
+                Div(H2("Revision History"), summary_table) if has_summary_data else None,
                 cls="space-y-6",
             ),
         ),

@@ -1,7 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
-import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
 from app.new_memorization import (
@@ -20,17 +19,6 @@ from app.srs_reps import (
     update_hafiz_item_for_srs,
     start_srs_for_bad_streak_items,
 )
-
-RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-OPTION_MAP = {
-    "role": ["hafiz", "parent", "teacher", "parent_hafiz"],
-    "age_group": ["child", "teen", "adult"],
-    "relationship": ["self", "parent", "teacher", "sibling"],
-}
-
-DEFAULT_RATINGS = {
-    "new_memorization": 1,
-}
 
 app, rt = create_app_with_auth(
     routes=[
@@ -264,95 +252,6 @@ def create_stat_table(auth):
     )
 
 
-def custom_entry_inputs(auth, plan_id):
-    """
-    This function is used to retain the input values in the form and display the custom entry inputs
-    """
-    # Get last added item or start from beginning
-    revision_data = revisions(
-        where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
-    )
-    if revision_data:
-        last_added_item_id = revision_data[-1].item_id
-    else:
-        start_page = plans(where=f"hafiz_id = {auth} AND id = {plan_id}")[0].start_page
-        # If the user doesn't have a start page, start from beginning
-        if start_page is None:
-            start_page = 2
-        last_added_item_id = items(where=f"page_id = {start_page}")[0].page_id - 1
-
-    next_item_id = find_next_memorized_item_id(last_added_item_id)
-
-    if next_item_id and revisions(
-        where=f"item_id = {next_item_id} AND plan_id = {plan_id}"
-    ):
-        next_item_id = None
-
-    # Fallback to unrevised items if needed
-    if not next_item_id:
-        unrevised_item_ids = get_unrevised_memorized_item_ids(auth, plan_id)
-        next_item_id = unrevised_item_ids[0] if unrevised_item_ids else None
-
-    next_page = get_next_input_page(next_item_id) if next_item_id else None
-
-    if isinstance(next_page, int) and next_page >= 605:
-        next_page = None
-    if not next_page:
-        unrevised_item_ids = get_unrevised_memorized_item_ids(auth, plan_id)
-        next_page = "" if not unrevised_item_ids else None
-
-    entry_buttons = Form(
-        P(
-            "Custom Page Entry",
-            cls=TextPresets.muted_sm,
-        ),
-        DivLAligned(
-            Input(
-                type="text",
-                placeholder="page",
-                cls="w-20",
-                id="page",
-                value=next_page,
-                autocomplete="off",
-                # Matches numbers 1 to 999 in format like "1-100" or "1.3-2" (number-range or decimal-suffix), excluding zeros
-                pattern=r"^(?!0+(?:\.0*)?$|1(?:\.0*)?(?:-\d+)?$)0*\d{1,3}(?:\.\d+)?(?:-\d+)?$",
-                title="Enter from page 2, format like 604, 604.2, or 604.2-3",
-                required=True,
-            ),
-            Hidden(id="plan_id", value=plan_id),
-            Button("Bulk", name="type", value="bulk", cls=ButtonT.link),
-            Button("Single", name="type", value="single", cls=ButtonT.link),
-            cls=("gap-3", FlexT.wrap),
-        ),
-        action="/revision/entry",
-        method="POST",
-    )
-    return Div(entry_buttons, cls="flex-wrap gap-4 min-w-72", id="custom_entry_link")
-
-
-def get_next_input_page(next_item_id):
-    if next_item_id:
-        item_details = items[next_item_id]
-        next_page = item_details.page_id
-
-        if item_details.item_type == "page-part":
-            page_len = len(items(where=f"page_id = {next_page} AND active != 0"))
-            # Handle page parts with decimal increments to fill the page input
-            # based on the last added record to start from the next part
-            if "1" in item_details.part:
-                next_page += 0.1
-            elif page_len >= 2 and "2" in item_details.part:
-                next_page += 0.2
-            elif page_len >= 3 and "3" in item_details.part:
-                next_page += 0.3
-    else:
-        next_page = None
-    return next_page
-
-
-############################ End Custom Single and Bulk Entry ################################
-
-
 @rt
 def index(auth):
     total_page_count = get_full_cycle_daily_limit(auth)
@@ -460,93 +359,6 @@ def change_the_current_date(auth):
 @app.get("/report")
 def datewise_summary_table_view(auth):
     return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
-
-
-@app.get("/custom")
-def custom_full_cycle_entry_view(auth):
-    plan_id = get_current_plan_id()
-
-    if plan_id is None:
-        items_gaps_with_limit = []
-    else:
-        current_plan_item_ids = sorted(
-            [
-                r.item_id
-                for r in revisions(
-                    where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = '{plan_id}'"
-                )
-            ]
-        )
-        memorized_and_srs_item_ids = [
-            i.item_id
-            for i in hafizs_items(
-                where=f"memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')"
-            )
-        ]
-        # this will return the gap of the current_plan_item_ids based on the master(items_id)
-        items_gaps_with_limit = find_gaps(
-            current_plan_item_ids, memorized_and_srs_item_ids
-        )
-
-    def render_overall_row(o: tuple):
-        last_added_item_id, upper_limit = o
-        # This is to set a upper limit for the bulk entry, if there are gaps in between
-        # to avoid adding records for already added items
-        upper_limit = get_last_item_id() if upper_limit is None else upper_limit
-
-        next_item_id = find_next_memorized_item_id(last_added_item_id)
-
-        if next_item_id is None:
-            next_page = "No further page"
-            action_buttons = None
-        else:
-            next_page = get_page_description(next_item_id)
-            action_buttons = DivLAligned(
-                Button(
-                    "Bulk",
-                    hx_get=f"revision/bulk_add?item_id={next_item_id}&plan_id={plan_id}&max_item_id={get_last_item_id() if upper_limit is None else upper_limit}",
-                    hx_target="body",
-                    hx_push_url="true",
-                    cls=(ButtonT.default, "p-2"),
-                ),
-                Button(
-                    "Single",
-                    hx_get=f"revision/add?item_id={next_item_id}&plan_id={plan_id}",
-                    hx_target="body",
-                    hx_push_url="true",
-                    cls=(ButtonT.default, "p-2"),
-                ),
-                cls=("gap-3", FlexT.wrap),
-            )
-
-        return Tr(
-            Td(next_page),
-            Td(action_buttons),
-        )
-
-    return main_area(
-        Div(
-            H2("Custom Full Cycle Entry"),
-            (
-                Table(
-                    Thead(
-                        Tr(
-                            Th("Next"),
-                            Th("Entry"),
-                        )
-                    ),
-                    Tbody(*map(render_overall_row, items_gaps_with_limit)),
-                    id="full_cycle_link_table",
-                )
-                if len(items_gaps_with_limit) > 0
-                else Div(id="full_cycle_link_table")
-            ),
-            custom_entry_inputs(auth, plan_id),
-            cls="space-y-2",
-        ),
-        active="Custom",
-        auth=auth,
-    )
 
 
 # This route is responsible for adding and deleting record for all the summary table on the home page

@@ -100,6 +100,25 @@ def main_area(*args, active=None, auth=None):
         href="/users/hafiz_selection",
         method="GET",
     )
+
+    # Admin dropdown
+    admin_dropdown = Div(
+        Button(
+            "Admin ▾",
+            type="button",
+            cls=f"px-3 py-2 rounded hover:bg-gray-100 {AT.primary if active in ['Admin', 'Tables'] else ''}",
+            **{"@click": "open = !open"},
+        ),
+        Div(
+            A("Tables", href="/admin/tables", cls="block px-4 py-2 hover:bg-gray-100"),
+            A("Backup", href="/admin/backup", cls="block px-4 py-2 hover:bg-gray-100", hx_boost="false"),
+            cls="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-20",
+            **{"x-show": "open", "@click.away": "open = false"},
+        ),
+        cls="relative inline-block",
+        **{"x-data": "{ open: false }"},
+    )
+
     return Title("Quran SRS"), Container(
         Div(
             NavBar(
@@ -120,7 +139,7 @@ def main_area(*args, active=None, auth=None):
                     cls=is_active("New Memorization"),
                 ),
                 A("Revision", href="/revision", cls=is_active("Revision")),
-                A("Tables", href="/admin/tables", cls=is_active("Tables")),
+                admin_dropdown,
                 A("Report", href="/report", cls=is_active("Report")),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
                 A("logout", href="/users/logout"),
@@ -318,10 +337,6 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
-def get_auth(sess):
-    return sess.get("user_auth", None)
-
-
 def get_hafizs_items(item_id):
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
@@ -333,13 +348,6 @@ def get_hafizs_items(item_id):
 def get_mode_count(item_id, mode_code):
     mode_records = revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
     return len(mode_records)
-
-
-def get_start_text(item_id):
-    try:
-        return items[item_id].start_text
-    except:
-        return "-"
 
 
 def get_actual_interval(item_id):
@@ -423,21 +431,6 @@ def rating_radio(
         label = None
 
     return Div(label, *options, cls=outer_cls)
-
-
-def custom_select(name: str, vals: list[str], default_val: str, **kwargs):
-    def render_options(val):
-        return fh.Option(
-            val,
-            value=standardize_column(val),
-            selected=(standardize_column(val) == standardize_column(default_val)),
-        )
-
-    return fh.Select(
-        map(render_options, vals),
-        name=name,
-        **kwargs,
-    )
 
 
 def get_mode_name(mode_code: str):

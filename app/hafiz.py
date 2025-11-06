@@ -4,10 +4,6 @@ from utils import *
 from app.common_function import *
 from globals import *
 
-DEFAULT_RATINGS = {
-    "new_memorization": 1,
-}
-
 
 hafiz_app, rt = create_app_with_auth()
 
@@ -73,14 +69,3 @@ def update_setings(auth, hafiz_data: Hafiz):
         hafizs[auth].id,
     )
     return Redirect("/")
-
-
-# hafiz delete route for testing
-@hafiz_app.delete("/{hafiz_id}")
-def delete_hafizs_data(hafiz_id: int):
-    delete_hafiz(hafiz_id)
-
-
-@hafiz_app.get("/theme")
-def custom_theme_picker():
-    return ThemePicker()

@@ -54,8 +54,3 @@ def get_items_by_page_id(page_id: int, active_only: bool = True):
 
 def get_item_ids_by_page(page):
     return [i.id for i in get_items_by_page_id(page)]
-
-
-def update_hafiz_item(hafiz_item: Hafiz_Items):
-    """Update hafiz item record"""
-    return hafizs_items.update(hafiz_item)
