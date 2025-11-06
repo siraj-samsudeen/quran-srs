@@ -710,9 +710,12 @@ def render_summary_table(auth, mode_code, item_ids):
                         Th("Rating", cls="min-w-24"),
                     )
                 ),
-                Tbody(*body_rows),
+                Tbody(*body_rows, id=f"{mode_code}_tbody"),
                 id=f"summary_table_{mode_code}",
                 cls=(TableT.middle, TableT.divider, TableT.sm),
+                # To prevent scroll jumping
+                hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+                hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
             ),
         ),
     )

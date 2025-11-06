@@ -31,6 +31,8 @@ OPTION_MAP = {
 DEFAULT_RATINGS = {
     "new_memorization": 1,
 }
+ADD_EXTRA_ROWS = 1
+
 
 app, rt = create_app_with_auth(
     routes=[
@@ -351,16 +353,37 @@ def get_next_input_page(next_item_id):
 
 
 ############################ End Custom Single and Bulk Entry ################################
+def get_full_cycle_revised_length(current_date):
+    plan_id = get_current_plan_id()
+    revised_records = revisions(
+        where=f"revision_date = '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
+    )
+    return get_page_count(records=revised_records)
+
+
+def get_full_cycle_limit_and_revised_count(auth):
+    current_date = get_current_date(auth)
+    page_limit = get_full_cycle_daily_limit(auth)
+    revised_count = get_full_cycle_revised_length(current_date)
+    if revised_count >= page_limit:
+        page_limit = revised_count + ADD_EXTRA_ROWS
+    return page_limit, revised_count
 
 
 @rt
-def index(auth):
-    total_page_count = get_full_cycle_daily_limit(auth)
+def index(auth, sess):
+
+    # Set the full cycle progress, for auto adding extra rows
+    page_limit, revised_count = get_full_cycle_limit_and_revised_count(auth)
+    sess["full_cycle_progress"] = {
+        "limit": page_limit,
+        "revised": revised_count,
+    }
 
     full_cycle_table = make_summary_table(
         mode_code=FULL_CYCLE_MODE_CODE,
         auth=auth,
-        total_page_count=total_page_count,
+        total_page_count=page_limit,
     )
 
     daily_reps_table = make_summary_table(
@@ -549,10 +572,37 @@ def custom_full_cycle_entry_view(auth):
     )
 
 
+def update_full_cycle_progress(sess, page_count):
+    if sess["full_cycle_progress"]:
+        sess["full_cycle_progress"]["revised"] += page_count
+
+
+def is_full_cycle_limit_reached(sess):
+    if "full_cycle_progress" in sess:
+        return (
+            sess["full_cycle_progress"]["revised"]
+            >= sess["full_cycle_progress"]["limit"]
+        )
+    return False
+
+
+def get_full_cycle_limit(sess):
+    if sess["full_cycle_progress"]:
+        return sess["full_cycle_progress"]["limit"]
+    else:
+        return 0
+
+
+def increment_full_cycle_limit(sess):
+    if sess["full_cycle_progress"]:
+        sess["full_cycle_progress"]["limit"] += ADD_EXTRA_ROWS
+
+
 # This route is responsible for adding and deleting record for all the summary table on the home page
 # and update the review dates for that item_id
 @app.post("/add/{item_id}")
 def update_status_from_index(
+    sess,
     auth,
     date: str,
     item_id: str,
@@ -568,6 +618,22 @@ def update_status_from_index(
         rating=rating,
         plan_id=plan_id,
     )
+
+    # Update the full cycle limit details, to auto add more rows
+    if mode_code == FULL_CYCLE_MODE_CODE:
+        page_count = get_page_count(item_ids=[item_id])
+        update_full_cycle_progress(sess, page_count)
+        if is_full_cycle_limit_reached(sess):
+            increment_full_cycle_limit(sess)
+            return make_summary_table(
+                mode_code=mode_code,
+                auth=auth,
+                total_page_count=get_full_cycle_limit(sess),
+            ), HtmxResponseHeaders(
+                retarget=f"#{mode_code}_tbody",
+                reselect=f"#{mode_code}_tbody",
+                reswap="outerHTML",
+            )
 
     # Get item data and current date
     item = items[int(item_id)]
