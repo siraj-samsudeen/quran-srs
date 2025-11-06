@@ -803,13 +803,12 @@ def make_summary_table(
         return list(dict.fromkeys(record["item_id"] for record in records))
 
     if mode_code == SRS_MODE_CODE:
-        srs_daily_limit = get_srs_daily_limit(auth)
+        full_cycle_daily_limit = get_full_cycle_daily_limit(auth)
         exclude_start_page = get_last_added_full_cycle_page(auth)
-        print(exclude_start_page)
 
         # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
         if exclude_start_page is not None:
-            exclude_end_page = exclude_start_page + (srs_daily_limit * 3)
+            exclude_end_page = exclude_start_page + (full_cycle_daily_limit * 3)
 
             filtered_records = [
                 record
@@ -822,9 +821,9 @@ def make_summary_table(
 
         # On a daily basis, This will rotate the items to show (first/last) pages, to ensure that the user can focus on all the pages.
         if get_day_from_date(current_date) % 2 == 0:
-            item_ids = item_ids[:srs_daily_limit]
+            item_ids = item_ids[:full_cycle_daily_limit]
         else:
-            item_ids = item_ids[-srs_daily_limit:]
+            item_ids = item_ids[-full_cycle_daily_limit:]
     else:
         item_ids = get_unique_item_ids(filtered_records)
 
