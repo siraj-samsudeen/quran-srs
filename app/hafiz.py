@@ -38,14 +38,17 @@ def settings_page(auth):
         render_field("Name", "text"),
         render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
-        DivHStacked(
-            Button("Update", type="submit", cls=ButtonT.primary),
-            Button(
-                "Discard",
-                hx_get="/hafiz/settings",
-                hx_target="body",
-                cls=ButtonT.destructive,
+        DivFullySpaced(
+            DivLAligned(
+                Button("Update", type="submit", cls=ButtonT.primary),
+                Button(
+                    "Discard",
+                    hx_get="/hafiz/settings",
+                    hx_target="body",
+                    cls=ButtonT.destructive,
+                ),
             ),
+            A(Button("Theme", cls=ButtonT.secondary), href="/hafiz/theme"),
         ),
         action="/hafiz/settings",
         method="POST",
@@ -69,3 +72,8 @@ def update_setings(auth, hafiz_data: Hafiz):
         hafizs[auth].id,
     )
     return Redirect("/")
+
+
+@hafiz_app.get("/theme")
+def custom_theme_picker(auth):
+    return main_area(ThemePicker(), active="Settings", auth=auth)

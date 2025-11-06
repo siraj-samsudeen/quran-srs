@@ -6,11 +6,6 @@ from utils import *
 from app.common_function import *
 from globals import *
 
-OPTION_MAP = {
-    "role": ["hafiz", "parent", "teacher", "parent_hafiz"],
-    "age_group": ["child", "teen", "adult"],
-    "relationship": ["self", "parent", "teacher", "sibling"],
-}
 
 tables = db.t
 
@@ -64,6 +59,38 @@ def render_options(option):
         option.capitalize(),
         value=option,
     )
+
+
+@admin_app.get("/backups")
+def list_backups(auth):
+    files = [f for f in os.listdir("data/backup") if f.endswith(".db")]
+    files = sorted(files, reverse=True)
+
+    def render_dbs(file_name: str):
+        return Li(
+            A(
+                file_name,
+                href=f"/admin/backups/{file_name}",
+                cls=AT.classic,
+                hx_boost="false",
+            ),
+            cls=ListT.bullet,
+        )
+
+    return main_area(
+        Div(
+            H1("Database Backups", cls=TextT.center),
+            Ul(*map(render_dbs, files)),
+            cls="space-y-6",
+        ),
+        auth=auth,
+        active="Admin",
+    )
+
+
+@admin_app.get("/backups/{file}")
+def download_backup(file: str):
+    return FileResponse(f"data/backup/{file}", media_type="application/octet-stream")
 
 
 @admin_app.get("/backup")
@@ -186,14 +213,6 @@ def create_dynamic_input_form(schema: dict, **kwargs):
                 LabelRadio(label="True", id=f"{column}-1", name=column, value="1"),
                 LabelRadio(label="False", id=f"{column}-2", name=column, value="0"),
                 cls="space-y-2",
-            )
-        if column in ["role", "age_group", "relationship"]:
-            return (
-                LabelSelect(
-                    *map(render_options, OPTION_MAP[column]),
-                    label=column.capitalize(),
-                    name=column,
-                ),
             )
         return LabelInput(column, type=input_type)
 

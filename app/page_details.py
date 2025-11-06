@@ -178,26 +178,26 @@ def display_page_level_details(auth, item_id: int):
                     "memorized",
                     "mode_code",
                     "last_interval",
-                    "current_interval",
+                    "actual_interval",
                     "next_interval",
                 ]
                 rename_columns = {
                     "mode_code": "current_mode",
                     "last_interval": "previous_interval",
-                    "current_interval": "actual_interval",
                 }
 
                 # Table View
                 def render_stats(col_name: str):
-                    value = hafiz_items_details.__dict__[col_name]
-                    if col_name == "mode_code":
-                        value = get_mode_name(value)
-                    elif col_name == "memorized":
-                        value = "Yes" if value else "No"
-                    elif col_name == "current_interval":
+                    if col_name == "actual_interval":
                         value = get_actual_interval(item_id)
                     else:
-                        value = str(value).capitalize()
+                        value = hafiz_items_details.__dict__[col_name]
+                        if col_name == "mode_code":
+                            value = get_mode_name(value)
+                        elif col_name == "memorized":
+                            value = "Yes" if value else "No"
+                        else:
+                            value = str(value).capitalize()
                     return Tr(
                         Th(destandardize_text(rename_columns.get(col_name, col_name))),
                         Td(value),
@@ -236,8 +236,6 @@ def display_page_level_details(auth, item_id: int):
                 revision_date,
                 rating,
                 modes.name AS mode_name,
-                last_interval AS previous_interval,
-                current_interval AS actual_interval,
                 next_interval,
             CASE
                 WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
@@ -245,49 +243,40 @@ def display_page_level_details(auth, item_id: int):
                     JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
                     AS INTEGER
                 )
-            END AS interval
+            END AS intervals_since_last_revision
             FROM revisions
             JOIN modes ON revisions.mode_code = modes.code
             WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_code IN ({", ".join(repr(code) for code in mode_codes)})
             ORDER BY revision_date ASC;
         """
 
-    def create_mode_table(mode_codes, is_summary=False):
+    def create_mode_table(mode_codes):
         """Generate a table for the specified mode, returning both its visibility status and the table itself"""
         query = build_revision_query(mode_codes, "s_no")
         data = db.q(query)
         # determine table visibility
         has_data = len(data) > 0
         # This is to render the srs table different from others
-        if len(mode_codes) == 1 and SRS_MODE_CODE in mode_codes:
-            cols = [
-                "s_no",
-                "revision_date",
-                "rating",
-                "previous_interval",
-                "actual_interval",
-                "next_interval",
-            ]
-        else:
-            cols = ["s_no", "revision_date", "rating", "interval"]
-        cls = "uk-overflow-auto max-h-[30vh] p-4"
-        if is_summary:
-            # summary table has all records regradless of mode, so we need to add mode_name column
-            cols.insert(3, "mode_name")
-            cls = ""
+        cols = [
+            "s_no",
+            "revision_date",
+            "rating",
+            "mode_name",
+            "intervals_since_last_revision",
+            "next_interval",
+        ]
 
         table = Div(
             Table(
                 Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
                 Tbody(*[_render_row(row, cols) for row in data]),
-            ),
-            cls=cls,
+            )
         )
 
         return has_data, table
 
     ########### Summary Table
-    has_summary_data, summary_table = create_mode_table(mode_code_list, is_summary=True)
+    has_summary_data, summary_table = create_mode_table(mode_code_list)
 
     ########### Previous and Next Page Navigation
     def create_nav_button(item_id, arrow, show_nav):
@@ -367,7 +356,11 @@ def display_page_level_details(auth, item_id: int):
             ),
             Div(
                 memorization_summary,
-                Div(H2("Revision History"), summary_table) if has_summary_data else None,
+                (
+                    Div(H2("Revision History"), summary_table)
+                    if has_summary_data
+                    else None
+                ),
                 cls="space-y-6",
             ),
         ),

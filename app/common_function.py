@@ -111,7 +111,18 @@ def main_area(*args, active=None, auth=None):
         ),
         Div(
             A("Tables", href="/admin/tables", cls="block px-4 py-2 hover:bg-gray-100"),
-            A("Backup", href="/admin/backup", cls="block px-4 py-2 hover:bg-gray-100", hx_boost="false"),
+            A(
+                "Backup",
+                href="/admin/backup",
+                cls="block px-4 py-2 hover:bg-gray-100",
+                hx_boost="false",
+            ),
+            A(
+                "All Backups",
+                href="/admin/backups",
+                cls="block px-4 py-2 hover:bg-gray-100",
+                hx_boost="false",
+            ),
             cls="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-20",
             **{"x-show": "open", "@click.away": "open = false"},
         ),
@@ -147,7 +158,7 @@ def main_area(*args, active=None, auth=None):
                 cls="py-3",
             ),
             DividerLine(y_space=0),
-            cls="bg-white sticky top-0 z-50",
+            cls="bg-background sticky top-0 z-50",
             hx_boost="false",
         ),
         Main(*args, id="main") if args else None,
@@ -289,38 +300,26 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         good_streak = 0
         bad_streak = 0
         last_review = ""
-        good_count = 0
-        bad_count = 0
-        score = 0
-        count = 0
 
         for rev in items_rev_data:
             current_rating = rev.rating
 
             if current_rating == -1:
-                bad_count += 1
                 bad_streak += 1
                 good_streak = 0
             elif current_rating == 1:
-                good_count += 1
                 good_streak += 1
                 bad_streak = 0
             else:
                 good_streak = 0
                 bad_streak = 0
 
-            score += current_rating
-            count += 1
             last_review = rev.revision_date
 
         return {
             "good_streak": good_streak,
             "bad_streak": bad_streak,
             "last_review": last_review,
-            "good_count": good_count,
-            "bad_count": bad_count,
-            "score": score,
-            "count": count,
         }
 
     # Update the streak for a specific items if item_id is givien
@@ -366,9 +365,6 @@ def get_planned_next_interval(item_id):
 
 def add_revision_record(**kwargs):
     return revisions.insert(**kwargs)
-
-
-RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
 
 
 def render_rating(rating: int):

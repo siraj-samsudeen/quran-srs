@@ -52,9 +52,7 @@ def post(revision_details: Revision, backlink: str, auth):
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
     current_revision = update_revision(revision_details)
     update_stats_and_interval(
-        item_id=current_revision.item_id,
-        mode_code=current_revision.mode_code,
-        current_date=get_current_date(auth),
+        item_id=current_revision.item_id, mode_code=current_revision.mode_code
     )
     return Redirect(backlink)
 
@@ -64,9 +62,7 @@ def delete(revision_id: int, auth):
     current_revision = get_revision_by_id(revision_id)
     delete_revision(revision_id)
     update_stats_and_interval(
-        item_id=current_revision.item_id,
-        mode_code=current_revision.mode_code,
-        current_date=get_current_date(auth),
+        item_id=current_revision.item_id, mode_code=current_revision.mode_code
     )
 
 
@@ -76,9 +72,7 @@ def revision_delete_all(ids: List[int], auth):
         current_revision = revisions[id]
         revisions.delete(id)
         update_stats_and_interval(
-            item_id=current_revision.item_id,
-            mode_code=current_revision.mode_code,
-            current_date=get_current_date(auth),
+            item_id=current_revision.item_id, mode_code=current_revision.mode_code
         )
     return RedirectResponse(revision, status_code=303)
 
@@ -200,7 +194,6 @@ async def bulk_edit_save(revision_date: str, req, auth):
                 update_stats_and_interval(
                     item_id=current_revision.item_id,
                     mode_code=current_revision.mode_code,
-                    current_date=get_current_date(auth),
                 )
 
     return RedirectResponse("/revision/", status_code=303)

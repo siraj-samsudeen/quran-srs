@@ -1,14 +1,11 @@
 from app.common_function import *
 from globals import *
-from app.srs_reps import recalculate_intervals_on_srs_records
 
 
 # Model functions for revision data operations
-def update_stats_and_interval(item_id: int, mode_code: str, current_date: str):
+def update_stats_and_interval(item_id: int, mode_code: str):
     """Update statistics and intervals for revision items"""
     populate_hafizs_items_stat_columns(item_id=item_id)
-    if mode_code == SRS_MODE_CODE:
-        recalculate_intervals_on_srs_records(item_id=item_id, current_date=current_date)
 
 
 def get_revision_table_data(part_num: int = 1, size: int = 20):

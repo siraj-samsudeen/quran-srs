@@ -1,6 +1,7 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
+import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
 from app.new_memorization import (

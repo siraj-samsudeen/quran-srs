@@ -5,9 +5,7 @@ from datetime import datetime
 from app.common_function import *
 from globals import *
 
-DEFAULT_RATINGS = {
-    "new_memorization": 1,
-}
+NEW_MEMORIZATION_RATING = 1
 
 new_memorization_app, rt = create_app_with_auth()
 
@@ -275,9 +273,7 @@ def update_status_as_newly_memorized(
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=(
-                DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
-            ),
+            rating=(NEW_MEMORIZATION_RATING if rating is None else rating),
             mode_code=NEW_MEMORIZATION_MODE_CODE,
         )
         try:
@@ -303,9 +299,7 @@ def bulk_update_status_as_newly_memorized(
             hafiz_id=auth,
             item_id=item_id,
             revision_date=current_date,
-            rating=(
-                DEFAULT_RATINGS.get("new_memorization") if rating is None else rating
-            ),
+            rating=(NEW_MEMORIZATION_RATING if rating is None else rating),
             mode_code=NEW_MEMORIZATION_MODE_CODE,
         )
 
