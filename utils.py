@@ -18,44 +18,6 @@ def find_next_greater(arr, target):
     return None
 
 
-def select_all_with_shift_click_for_summary_table(class_name):
-    template = """
-        {
-        selectAll: false,
-        updateSelectAll() {
-            const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
-          this.selectAll = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
-        },
-        toggleAll() {
-          $el.querySelectorAll('.CLASS_NAME_PLACEHOLDER').forEach(cb =>  {
-            cb.checked = this.selectAll;
-        });
-        },
-        handleCheckboxClick(e) {
-            // Handle shift+click selection
-            if (e.shiftKey) {
-                const checkboxes = [...$el.querySelectorAll('.CLASS_NAME_PLACEHOLDER')];
-                const currentCheckboxIndex = checkboxes.indexOf(e.target);
-                
-                // loop through the checkboxes backwards untll we find one that is checked
-                for (let i = currentCheckboxIndex; i >= 0; i--) {
-                    if (i != currentCheckboxIndex && checkboxes[i].checked) {break;}
-                    checkboxes[i].checked = true;
-                     // Trigger change event for each modified checkbox
-                    const event = new Event('change', {
-                        bubbles: true, 
-                        cancelable: true
-                    });
-                    checkboxes[i].dispatchEvent(event);
-                }
-            }
-            this.updateSelectAll();
-        },
-        }
-    """
-    return template.replace("CLASS_NAME_PLACEHOLDER", class_name)
-
-
 def select_all_checkbox_x_data(class_name, is_select_all="true"):
     template = """
         { 
@@ -138,12 +100,6 @@ def current_time(f="%Y-%m-%d"):
     return datetime.now().strftime(f)
 
 
-def calculate_date_difference(days=0, date_format="%Y-%m-%d"):
-    current_date = datetime.now()
-    target_date = current_date - timedelta(days=days)
-    return target_date.strftime(date_format)
-
-
 def add_days_to_date(date_str, days):
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     new_date = date_obj + timedelta(days=days)
@@ -154,17 +110,6 @@ def sub_days_to_date(date_str, days):
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     new_date = date_obj - timedelta(days=days)
     return new_date.strftime("%Y-%m-%d")
-
-
-def is_first_date_greater(
-    date1: str, date2: str, date_format: str = "%Y-%m-%d"
-) -> bool:
-    try:
-        d1 = datetime.strptime(date1, date_format)
-        d2 = datetime.strptime(date2, date_format)
-        return d1 >= d2
-    except ValueError as e:
-        raise ValueError(f"Invalid date format. Error: {str(e)}")
 
 
 # TODO: this function is duplixcation of the `calculate_days_difference``
@@ -179,43 +124,6 @@ def day_diff(date1, date2):
     date1 = datetime.strptime(date1, "%Y-%m-%d")
     date2 = datetime.strptime(date2, "%Y-%m-%d")
     return (date2 - date1).days
-
-
-def calculate_week_number(initial_date, input_date):
-    """
-    Calculate which week the input_date belongs to based on the initial_date.
-    The initial_date is excluded - counting starts from the next day.
-
-    Args:
-        initial_date (str): Starting date in DD-MM-YYYY format (excluded from counting)
-        input_date (str): Date to check in DD-MM-YYYY format
-
-    Returns:
-        int: Week number (1-based)
-
-    Logic:
-        - initial_date is excluded from counting
-        - Days 1-7 after initial_date = Week 1
-        - Days 8-14 after initial_date = Week 2
-        - And so on...
-    """
-
-    # Parse the date strings
-    initial = datetime.strptime(initial_date, "%Y-%m-%d")
-    input_dt = datetime.strptime(input_date, "%Y-%m-%d")
-
-    # Calculate the difference in days
-    days_diff = (input_dt - initial).days
-
-    # If input_date is same as or before initial_date, return 0
-    if days_diff <= 0:
-        return 0  # initial_date and earlier dates are not part of any week
-
-    # Calculate week number (1-based)
-    # Since we exclude initial_date, day 1 after initial_date starts week 1
-    week_number = ((days_diff - 1) // 7) + 1
-
-    return week_number
 
 
 def compact_format(numbers):
@@ -284,29 +192,6 @@ def backup_sqlite_db(source_db_path, backup_dir):
     destination.close()
 
     return backup_path
-
-
-def insert_between(lst, element):
-    """
-    Insert an element between every pair of elements in a list.
-
-    Args:
-        lst: The original list
-        element: The element to insert between each pair
-
-    Returns:
-        A new list with the element inserted between each pair
-    """
-    if len(lst) <= 1:
-        return lst.copy()
-
-    result = []
-    for i in range(len(lst)):
-        result.append(lst[i])
-        if i < len(lst) - 1:  # Don't add separator after last element
-            result.append(element)
-
-    return result
 
 
 def set_zero_to_none(data):

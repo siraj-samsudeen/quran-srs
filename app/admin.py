@@ -6,11 +6,6 @@ from utils import *
 from app.common_function import *
 from globals import *
 
-OPTION_MAP = {
-    "role": ["hafiz", "parent", "teacher", "parent_hafiz"],
-    "age_group": ["child", "teen", "adult"],
-    "relationship": ["self", "parent", "teacher", "sibling"],
-}
 
 tables = db.t
 
@@ -95,75 +90,13 @@ def list_backups(auth):
             cls="space-y-6",
         ),
         auth=auth,
-        active="Backups",
+        active="Admin",
     )
 
 
 @admin_app.get("/backups/{file}")
 def download_backup(file: str):
     return FileResponse(f"data/backup/{file}", media_type="application/octet-stream")
-
-
-@admin_app.get("/change_current_date")
-def change_current_date(auth):
-    current_date = get_current_date(auth)
-    label_input = LabelInput(
-        label="Current date",
-        id="current_date",
-        type="date",
-        value=current_date,
-        hx_post="/admin/change_current_date",
-        hx_target="body",
-        hx_trigger="change",
-    )
-    return main_area(label_input, auth=auth)
-
-
-@admin_app.post("/change_current_date")
-def update_current_date(auth, current_date: str):
-    current_hafiz = hafizs[auth]
-    current_hafiz.current_date = current_date
-    hafizs.update(current_hafiz)
-    return RedirectResponse("/admin/change_current_date", status_code=303)
-
-
-@admin_app.get("/import_db")
-def import_db_view(auth):
-    current_dbs = [
-        Li(f, cls=ListT.circle) for f in os.listdir("data") if f.endswith(".db")
-    ]
-    form = Form(
-        UploadZone(
-            DivCentered(Span("Upload Zone"), UkIcon("upload")),
-            id="file",
-            accept=".db",
-        ),
-        Button("Submit"),
-        action="/admin/import_db",
-        method="POST",
-    )
-    return main_area(
-        Div(
-            Div(H2("Current DBs"), Ul(*current_dbs)),
-            Div(H1("Upload DB"), form),
-            cls="space-y-6",
-        ),
-        active="Revision",
-        auth=auth,
-    )
-
-
-@admin_app.post("/import_db")
-async def import_db_handler(file: UploadFile):
-    path = "data/" + file.filename
-    if get_database_path() == path:
-        return Titled("Error", P("Cannot overwrite the current DB"))
-
-    file_content = await file.read()
-    with open(path, "wb") as f:
-        f.write(file_content)
-
-    return RedirectResponse("/")
 
 
 @admin_app.get("/backup")
@@ -290,14 +223,6 @@ def create_dynamic_input_form(schema: dict, **kwargs):
                 LabelRadio(label="True", id=f"{column}-1", name=column, value="1"),
                 LabelRadio(label="False", id=f"{column}-2", name=column, value="0"),
                 cls="space-y-2",
-            )
-        if column in ["role", "age_group", "relationship"]:
-            return (
-                LabelSelect(
-                    *map(render_options, OPTION_MAP[column]),
-                    label=column.capitalize(),
-                    name=column,
-                ),
             )
         return LabelInput(column, type=input_type)
 

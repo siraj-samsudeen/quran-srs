@@ -80,12 +80,6 @@ def get(sess):
     return RedirectResponse("/users/login", status_code=303)
 
 
-# user delete route for testing
-@rt("/{user_id}")
-def delete(user_id: int):
-    delete_user(user_id)
-
-
 @rt("/hafiz_selection")
 def get(sess):
     """Display hafiz selection page"""

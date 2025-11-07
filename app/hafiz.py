@@ -4,10 +4,6 @@ from utils import *
 from app.common_function import *
 from globals import *
 
-DEFAULT_RATINGS = {
-    "new_memorization": 1,
-}
-
 
 hafiz_app, rt = create_app_with_auth()
 
@@ -42,14 +38,17 @@ def settings_page(auth):
         render_field("Name", "text"),
         render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
-        DivHStacked(
-            Button("Update", type="submit", cls=ButtonT.primary),
-            Button(
-                "Discard",
-                hx_get="/hafiz/settings",
-                hx_target="body",
-                cls=ButtonT.destructive,
+        DivFullySpaced(
+            DivLAligned(
+                Button("Update", type="submit", cls=ButtonT.primary),
+                Button(
+                    "Discard",
+                    hx_get="/hafiz/settings",
+                    hx_target="body",
+                    cls=ButtonT.destructive,
+                ),
             ),
+            A(Button("Theme", cls=ButtonT.secondary), href="/hafiz/theme"),
         ),
         action="/hafiz/settings",
         method="POST",
@@ -75,12 +74,6 @@ def update_setings(auth, hafiz_data: Hafiz):
     return Redirect("/")
 
 
-# hafiz delete route for testing
-@hafiz_app.delete("/{hafiz_id}")
-def delete_hafizs_data(hafiz_id: int):
-    delete_hafiz(hafiz_id)
-
-
 @hafiz_app.get("/theme")
-def custom_theme_picker():
-    return ThemePicker()
+def custom_theme_picker(auth):
+    return main_area(ThemePicker(), active="Settings", auth=auth)

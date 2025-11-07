@@ -50,9 +50,6 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
     """Generate paginated table rows for revisions display"""
 
     def _render_rows(rev: Revision):
-        item_id = rev.item_id
-        item_details = items[item_id]
-        page = item_details.page_id
         return Tr(
             Td(
                 CheckboxX(
@@ -66,17 +63,14 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
             ),
             Td(
                 A(
-                    page,
+                    get_page_description(item_id=rev.item_id, is_link=False),
                     href=f"/revision/edit/{rev.id}",
                     cls=AT.muted,
                 )
             ),
-            Td(item_details.part),
             Td(rev.mode_code),
             Td(rev.plan_id),
             Td(render_rating(rev.rating)),
-            Td(get_surah_name(item_id=item_id)),
-            Td(pages[page].juz_number),
             Td(date_to_human_readable(rev.revision_date)),
             Td(
                 A(
@@ -157,12 +151,9 @@ def render_revision_table(auth, idx: int | None = 1):
             Tr(
                 Th(),  # empty header for checkbox
                 Th("Page"),
-                Th("Part"),
                 Th("Mode"),
                 Th("Plan Id"),
                 Th("Rating"),
-                Th("Surah"),
-                Th("Juz"),
                 Th("Revision Date"),
                 Th("Action"),
             )

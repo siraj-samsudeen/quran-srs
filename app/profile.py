@@ -4,10 +4,6 @@ from utils import *
 from app.common_function import *
 from globals import *
 
-DEFAULT_RATINGS = {
-    "new_memorization": 1,
-}
-
 profile_app, rt = create_app_with_auth()
 
 
