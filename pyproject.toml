@@ -15,3 +15,10 @@ dependencies = [
 ]
 [tool.pytest.ini_options]
 pythonpath = "."
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-playwright>=0.7.1",
+]
