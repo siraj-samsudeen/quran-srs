@@ -2,15 +2,15 @@
 
 ## Overview
 
-**Goal**: Set up Python-based E2E testing with Playwright that provides code coverage metrics for safe refactoring of the FastHTML application.
+**Goal**: Set up Python-based UI and Backend testing following Phoenix LiveView patterns, providing code coverage metrics for safe refactoring of the FastHTML application.
 
 **Key Principles**:
-- **E2E-first approach**: Start with E2E tests to understand the big picture
-- **On-demand optimization**: Add integration/unit tests only when needed (speed, coverage gaps, TDD)
+- **Phoenix LiveView-Inspired**: Two-layer approach (UI tests + Backend tests)
+- **UI tests browser-only assertions**: Setup via DB allowed, but NO database assertions
+- **Backend tests for logic**: Direct function calls with database assertions
 - **Minimal test suite**: Test each feature once, at the right layer
 - **Focused tests** (not journey tests) for clear failure messages
-- **Fast execution**: Target ~20-30s for E2E suite, expand strategically
-- **Hybrid strategy**: DB setup (fast) → UI action (realistic) → Dual assertion (confident)
+- **Fast execution**: Target ~20-30s for UI suite, <5s for Backend
 
 **Testing Philosophy**:
 - Each feature tested once, no duplication across layers
@@ -32,28 +32,34 @@
 
 ---
 
-## File Structure
+## File Structure (Phoenix LiveView Pattern)
 
 ```
 tests/
-├── e2e/                           # START HERE (6-8 tests, ~20-30s)
-│   ├── test_hafiz_crud.py         # 3 tests: create, switch, delete
-│   ├── test_review_flow.py        # 1 test: rating dropdown + HTMX
-│   └── test_close_date.py         # 2-4 tests: engine tests
+├── ui/                            # UI Tests (Phoenix-style)
+│   ├── conftest.py                # Playwright fixtures (browser, page)
+│   ├── test_smoke.py              # ✅ Smoke test (login flow)
+│   ├── test_hafiz_crud.py         # Hafiz CRUD operations
+│   ├── test_review_flow.py        # Rating dropdown + HTMX
+│   └── test_close_date.py         # Close Date button behavior
 │
-├── integration/                   # ADD ONLY WHEN NEEDED
-│   ├── test_srs_intervals.py      # (if E2E too slow for edge cases)
-│   ├── test_mode_transitions.py   # (if debugging E2E is painful)
-│   └── test_close_date_engine.py  # (if TDD needs fast feedback)
+├── backend/                       # Backend Tests (Phoenix-style)
+│   ├── test_mode_transitions.py   # Mode graduation logic
+│   ├── test_srs_algorithm.py      # SRS interval calculations
+│   └── test_close_date_engine.py  # Close Date processing logic
 │
-├── unit/                          # ADD ONLY WHEN NEEDED
-│   └── test_utils.py              # (if pure functions need testing)
+├── conftest.py                    # Shared fixtures (ENV=test, db_connection)
 │
-└── helpers/
+└── helpers/                       # Shared test helpers
     ├── database.py                # DB seeding helpers
-    ├── auth.py                    # Login/navigation helpers
+    ├── auth.py                    # Login/navigation helpers (UI only)
     └── assertions.py              # Reusable assertions
 ```
+
+**Key Differences from Traditional E2E/Integration:**
+- **UI Tests**: Browser-based, UI-only assertions (like Phoenix LiveView tests)
+- **Backend Tests**: Pure Python, database assertions allowed (like Phoenix Context tests)
+- **No "integration" or "unit" terminology**: Using Phoenix's UI/Backend naming for clarity
 
 ---
 
@@ -963,10 +969,84 @@ TOTAL                     850     40    95%
 
 1. ✅ Pull latest changes from master
 2. ✅ Merge into `playwright-testing` branch
-3. Start with smallest first step: Create conftest.py with basic fixtures
-4. Commit atomically
-5. Write one simple test to verify setup works
-6. Iterate based on feedback
+3. ✅ Create conftest.py with basic fixtures
+4. ✅ Add ENV-based database configuration
+5. ✅ Write smoke test to verify setup works
+6. 🔄 Iterate based on feedback
+
+---
+
+## Running Tests
+
+### Setup (One-time)
+
+**Test database created from backup:**
+```bash
+cp data_backup/quran_v10.db data/quran_test.db
+```
+
+**Note**: `data/quran_test.db` is already in `.gitignore` (via `data/` entry), so it won't be committed.
+
+### Running Tests
+
+**Terminal 1: Start FastHTML server in test mode** (required for UI tests)
+```bash
+ENV=test uv run main.py
+```
+
+**Terminal 2: Run tests**
+```bash
+# Run all tests (UI + Backend)
+uv run pytest -v
+
+# Run only UI tests (requires running server)
+uv run pytest tests/ui -v
+
+# Run only Backend tests (no server needed, fast!)
+uv run pytest tests/backend -v
+
+# Run specific test file
+uv run pytest tests/ui/test_smoke.py -v
+
+# Run with coverage
+uv run pytest --cov --cov-report=html --cov-report=term-missing
+```
+
+**Phoenix-Style Testing Rules**:
+- **UI Tests**: Must assert on UI elements only (no DB assertions)
+- **Backend Tests**: Can assert on database state directly
+- **Both**: Can seed data via DB in setup phase
+
+**How it works:**
+- `globals.py` checks `ENV` environment variable
+  - `ENV=test` → uses `data/quran_test.db`
+  - `ENV=dev` (default) → uses `data/quran_v10.db`
+  - `ENV=prod` → uses `data/quran_v10.db`
+- `tests/conftest.py` automatically sets `ENV=test` when running pytest
+- App and tests both use the same test database for E2E testing
+
+### Resetting Test Database
+
+If test data gets corrupted or you want a fresh start:
+
+```bash
+# Delete test DB
+rm data/quran_test.db
+
+# Recreate from backup
+cp data_backup/quran_v10.db data/quran_test.db
+
+# Or copy from current dev DB (if you want latest schema/data)
+cp data/quran_v10.db data/quran_test.db
+```
+
+### Environment Variables Summary
+
+| ENV Value | Database Path | Use Case |
+|-----------|---------------|----------|
+| `test` | `data/quran_test.db` | E2E tests (isolated from dev data) |
+| `dev` (default) | `data/quran_v10.db` | Local development |
+| `prod` | `data/quran_v10.db` | Production (future: separate path) |
 
 ---
 

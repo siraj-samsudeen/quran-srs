@@ -15,9 +15,8 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - Cleaned up duplicate utility functions in `utils.py`
 - Removed unused SRS recalculation logic from Close Date processing
 
-**Migration to Python Testing**:
-- Existing E2E tests (Wallaby/Elixir) remain in phoenix_migration worktree
-- **NEW**: Python Playwright tests being added to `tests/` directory for code coverage
+**Testing**:
+- Python Playwright tests in `tests/` directory for E2E testing with code coverage
 - Goal: Minimal E2E test suite (6-8 tests) with pytest-cov integration
 - Approach: E2E-first, add integration tests only if coverage gaps exist
 
@@ -25,86 +24,141 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 
 ### Python Environment
 - **Run the application**: `uv run main.py` (uses uv, NOT `python main.py`)
+- **Run in test mode**: `ENV=test uv run main.py` (uses test database)
 - **Install dependencies**: `uv sync`
 - **Add new dependency**: `uv add <package-name>`
-- **Run tests**: `uv run pytest` (pytest configured but no tests currently exist)
+- **Run tests**: `uv run pytest tests/e2e -v` (Playwright E2E tests)
+- **Run with coverage**: `uv run pytest tests/e2e --cov --cov-report=html`
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
-### End-to-End Testing
-- **Location**: E2E tests are maintained in a separate git worktree at `../quran-srs-phoenix_migration/test/e2e_test.exs`
-- **Framework**: Uses Wallaby (Elixir's browser automation library) with ChromeDriver
-- **Purpose**: Tests the FastHTML application UI flows (login, hafiz selection, CRUD operations, mode-specific workflows)
-- **Running E2E tests**: From the phoenix_migration worktree, run `mix test --only e2e`
-- **Note**: The phoenix_migration worktree is used for both Phoenix (future) and FastHTML (current) e2e tests
+### Environment Configuration
 
-#### E2E Test Coverage Status
+The application uses an `ENV` environment variable to determine which database to use:
 
-**Completed Tests (✅):**
-1. User authentication and hafiz selection
-2. Hafiz CRUD operations (create, switch, delete)
-3. Full Cycle mode visibility verification
-4. **Full Cycle - Review item due today** (rating dropdown auto-submit via HTMX)
+| ENV Value | Database Path | Use Case |
+|-----------|---------------|----------|
+| `test` | `data/quran_test.db` | E2E tests (isolated from dev data) |
+| `dev` (default) | `data/quran_v10.db` | Local development |
+| `prod` | `data/quran_v10.db` | Production (future: separate path) |
 
-**Pending Tests (⏳):**
-- Full Cycle: Item not due doesn't appear (3 more FC tests)
-- SRS: Rating affects interval progression (3 SRS tests)
-- Mode Progression: NM→DR→WR→FC graduation (3 progression tests)
+**Setup test database (one-time)**:
+```bash
+cp data_backup/quran_v10.db data/quran_test.db
+```
 
-**Test Infrastructure:**
-- Database seeding helpers (`seed_item_in_mode`, `seed_revision`)
-- Hafiz management helpers (`create_test_hafiz_and_switch`, `cleanup_test_hafiz`)
-- Assertion helpers (`assert_revision_exists`, `assert_item_in_mode`)
-- Date manipulation helper (`set_hafiz_date`)
-- All `data-testid` attributes added to core UI components
+### Testing Strategy
 
-#### E2E Test Structure & Best Practices
+**Phoenix LiveView-Inspired Architecture**:
+Our testing follows Phoenix's two-layer approach with strict separation of concerns:
+
+**1. UI Tests** (`tests/ui/`) - Browser-based tests with Playwright
+- **Purpose**: Test complete user workflows through the browser
+- **Framework**: Playwright Python with pytest
+- **Running tests**:
+  ```bash
+  # Terminal 1: Start app in test mode
+  ENV=test uv run main.py
+
+  # Terminal 2: Run UI tests
+  uv run pytest tests/ui -v
+  ```
+- **Key Rules (Phoenix-style)**:
+  - ✅ **Setup**: Can seed test data via DB (arrange phase)
+  - ✅ **Action**: Interact through browser only
+  - ✅ **Assert**: Verify UI elements ONLY (no DB assertions)
+  - ❌ **Never**: Assert on database state directly
+
+**2. Backend Tests** (`tests/backend/`) - Business logic tests
+- **Purpose**: Test business logic, algorithms, and data transformations
+- **Framework**: Pure Python with pytest (no browser)
+- **Running tests**:
+  ```bash
+  uv run pytest tests/backend -v
+  ```
+- **Key Rules**:
+  - ✅ **Setup**: Seed test data via DB
+  - ✅ **Action**: Call functions/methods directly
+  - ✅ **Assert**: Verify database state and return values
+  - ⚡ **Fast**: No browser overhead
+
+**Run all tests**: `uv run pytest -v`
+
+#### UI Test Example (Phoenix-style)
+
+```python
+def test_user_can_login(page, db_connection):
+    # Arrange: Seed data via DB (setup is allowed)
+    seed_user(db_connection, "test@example.com", "password123")
+
+    # Act: Interact through browser
+    page.goto("/users/login")
+    page.fill("input[name='email']", "test@example.com")
+    page.fill("input[name='password']", "password123")
+    page.click("button[type='submit']")
+
+    # Assert: Verify UI ONLY (no DB assertions!)
+    expect(page).to_have_url("/users/hafiz_selection")
+    expect(page.locator("text=Hafiz Selection")).to_be_visible()
+```
+
+#### Backend Test Example
+
+```python
+def test_dr_to_wr_progression(db_connection):
+    # Arrange: Seed data
+    hafiz_id = create_test_hafiz(db_connection, "Test Hafiz")
+    seed_item_in_mode(db_connection, hafiz_id, item_id=1, mode="DR")
+    seed_revisions(db_connection, hafiz_id, item_id=1, count=6)
+
+    # Act: Call business logic directly
+    from app.fixed_reps import update_rep_item
+    update_rep_item(hafiz_id, item_id=1, mode_code="DR")
+
+    # Assert: Verify database state
+    item = get_hafizs_item(db_connection, hafiz_id, item_id=1)
+    assert item['mode_code'] == 'WR'
+    assert item['next_interval'] == 7
+```
+
+#### Test Structure & Best Practices
 
 **Test Organization:**
-- Use `feature` blocks for each major user flow
-- Create reusable helper functions for common actions (`login/2`, `create_hafiz/3`, `delete_hafiz/2`)
-- Each feature should test a complete user journey from start to finish
+- Use focused tests (one behavior per test, not journey tests)
+- Create reusable helper functions for common actions (`login()`, `create_hafiz()`, `switch_hafiz()`)
+- Each test should be independent and self-contained
 
 **Selector Strategy:**
 - **Primary**: Use `data-testid` attributes for reliable element targeting (e.g., `data-testid="switch-{name}-hafiz-button"`)
-- **Fallback**: Use semantic selectors (e.g., `css("h3", text: "Name")`) for content verification
+- **Fallback**: Use semantic selectors (e.g., `page.locator("h3:has-text('Name')")`) for content verification
 - **Why**: `data-testid` is stable across UI changes; text/class selectors are fragile
 
 **Handling Dynamic Content:**
-- Use timestamp-based unique identifiers for test data (e.g., `"E2E Test #{:os.system_time(:millisecond)}"`)
+- Use timestamp-based unique identifiers for test data (e.g., `f"E2E Test {int(time.time() * 1000)}"`)
 - Prevents test collisions when running concurrently or with leftover data
-- Use `count: 1` assertions for unique identifiers, `minimum: 1` for "at least exists" checks
+- Use Playwright's auto-waiting (polls automatically until element appears)
 
-**Common Wallaby Patterns:**
+**Common Playwright Patterns:**
 
 1. **Browser Confirmation Dialogs** (`hx-confirm` in HTMX):
-   ```elixir
-   # WRONG: accept_dialogs() doesn't exist
-   # CORRECT:
-   accept_confirm session, fn session ->
-     click(session, css("button[data-testid='delete-button']"))
-   end
-   session  # Must return session for pipe chain
+   ```python
+   # Handle browser confirmation dialog
+   page.on("dialog", lambda dialog: dialog.accept())
+   page.click("button[data-testid='delete-button']")
    ```
 
 2. **Waiting for HTMX Updates**:
-   - `assert_has/2` polls automatically (default 3 seconds)
-   - No need for explicit waits in most cases
-   - Use `count: N` or `minimum: N` to verify exact/minimum element counts
+   ```python
+   # Playwright auto-waits for elements
+   expect(page.locator("text=Success")).to_be_visible()
+
+   # Or explicit wait for HTMX processing
+   page.wait_for_timeout(1000)  # 1 second
+   ```
 
 3. **Newly Created Resources**:
    - Don't assume Full Cycle mode appears for new hafizs (requires memorized pages)
    - Check for always-visible elements instead (e.g., "System Date:", "Close Date" button)
    - Understand business logic: new hafizs have `hafizs_items` but with `memorized=false`
-
-**Common Errors & Solutions:**
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `undefined function accept_dialogs/1` | Wrong Wallaby API | Use `accept_confirm/2` instead |
-| `FunctionClauseError` with dialog text | `accept_confirm` returns text, not session | Explicitly return `session` after `accept_confirm` |
-| `Expected 1 element, found 3` | Non-unique selector or leftover test data | Use timestamp-based unique names + `count: 1` |
-| `ExpectationNotMetError` for mode tables | Business logic prevents display | Check for always-visible elements instead |
-| Alert/confirm dialog errors | HTMX `hx-confirm` creates native browser dialogs | Use `accept_confirm/2` wrapper function |
 
 **Test Data Cleanup:**
 - Tests should be self-contained: create → use → delete
@@ -317,178 +371,7 @@ app, rt = create_app_with_auth(
 
 ---
 
-## E2E Testing Roadmap
-
-### Test Strategy
-All E2E tests use **temporary test hafizs** that are:
-- Created with timestamp-based unique names (e.g., "E2E FC Review 1762408089619")
-- Seeded with specific data via direct database manipulation
-- Deleted after each test (CASCADE DELETE cleans up related records)
-
-This approach ensures:
-- Test isolation (no shared state between tests)
-- No corruption of production data (Siraj hafiz)
-- Repeatable tests (clean slate each time)
-
-### Completed Tests ✅
-
-#### Test Infrastructure (File: `../quran-srs-phoenix_migration/test/e2e_test.exs`)
-
-**Database Helpers:**
-```elixir
-seed_item_in_mode(hafiz_id, item_id, mode_code, opts)  # Creates/updates hafizs_items
-seed_revision(hafiz_id, item_id, mode_code, date, rating)  # Inserts revision record
-set_hafiz_date(hafiz_id, date_string)  # Updates hafiz's current_date
-get_hafiz_id_by_name(name)  # Retrieves hafiz_id from database
-```
-
-**Test Management:**
-```elixir
-create_test_hafiz_and_switch(session, name_suffix)  # Creates hafiz, logs in, switches to it
-cleanup_test_hafiz(session, hafiz_name)  # Switches away and deletes test hafiz
-```
-
-**Assertions:**
-```elixir
-assert_revision_exists(hafiz_id, item_id, mode_code, date, rating)
-assert_item_in_mode(hafiz_id, item_id, expected_mode)
-get_hafizs_items_from_db(hafiz_id, item_id)  # Returns item details map
-```
-
-#### Passing Tests:
-1. **User authentication** - Login flow with email/password
-2. **Hafiz CRUD** - Create, switch, delete hafiz profiles
-3. **Full Cycle visibility** - FC mode always visible on home page
-4. **FC - Review item due today** - Rating dropdown auto-submit via HTMX
-
-### Pending Tests ⏳
-
-#### Phase 1: Full Cycle Tests (3 remaining)
-
-**Test 2: FC - Item not due doesn't appear**
-```elixir
-# Seed item with next_review = "2025-11-10" (future)
-# Set current_date = "2025-11-07"
-# Verify item does NOT appear in FC table
-```
-
-**Test 3: FC - Already reviewed item shows correct state**
-```elixir
-# Seed item with next_review = current_date
-# Seed revision for that item (rating = 1)
-# Verify dropdown shows selected value
-# Verify row has green background (reviewed as good)
-```
-
-**Test 4: FC - Bad rating moves to SRS after Close Date**
-```elixir
-# Seed item in FC mode (bad_streak = 0)
-# Review with Bad rating (-1)
-# Click Close Date → Confirm
-# Verify item.mode_code changed to 'SR'
-# Verify bad_streak incremented
-```
-
-#### Phase 2: SRS Tests (3 tests)
-
-**Test 5: SR - Good rating increases interval**
-```elixir
-# Seed item in SR mode (next_interval = 7)
-# Review with Good rating (1)
-# Close Date
-# Verify next_interval > 7 (SRS algorithm progression)
-```
-
-**Test 6: SR - Bad rating resets/decreases interval**
-```elixir
-# Seed item in SR mode (next_interval = 14)
-# Review with Bad rating (-1)
-# Close Date
-# Verify next_interval < 14 (penalty for bad performance)
-```
-
-**Test 7: SR - Graduation back to Full Cycle**
-```elixir
-# Seed item in SR mode (next_interval = 28, near 30-day threshold)
-# Review with Good rating
-# Close Date
-# Verify item.mode_code changed to 'FC'
-# Verify bad_streak reset to 0
-```
-
-#### Phase 3: Mode Progression Tests (3 tests)
-
-**Test 8: NM → DR Progression**
-```elixir
-# Seed item in NM mode (memorized = false)
-# Review with Good rating
-# Close Date
-# Verify item.mode_code changed to 'DR'
-# Verify memorized = true
-```
-
-**Test 9: DR → WR Progression (7 reviews)**
-```elixir
-# Seed item in DR mode with 6 historical reviews
-# Perform 7th review
-# Close Date
-# Verify item.mode_code changed to 'WR'
-# Verify next_interval = 7 (weekly interval)
-```
-
-**Test 10: WR → FC Progression (7 reviews)**
-```elixir
-# Seed item in WR mode with 6 historical reviews (7 days apart)
-# Perform 7th review
-# Close Date
-# Verify item.mode_code changed to 'FC'
-# Verify next_interval = NULL (FC doesn't use fixed intervals)
-# Verify next_review = NULL
-```
-
-### Implementation Notes
-
-**HTMX Testing Pattern:**
-Rating dropdowns auto-submit on change, so use JavaScript to trigger:
-```elixir
-session
-|> execute_script("document.querySelector('select[data-testid=\"rating-#{item_id}\"]').value = '1'")
-|> execute_script("document.querySelector('select[data-testid=\"rating-#{item_id}\"]').dispatchEvent(new Event('change'))")
-Process.sleep(2000)  # Give HTMX time to process
-```
-
-**Historical Revisions for Progression Tests:**
-Use loops to seed multiple revisions:
-```elixir
-for day <- 0..5 do
-  date = Date.add(~D[2025-11-01], day) |> Date.to_string()
-  seed_revision(hafiz_id, item_id, "DR", date, 1)
-end
-```
-
-**Data Sources:**
-- Use Siraj hafiz (hafiz_id=1) historical data to understand behavior
-- Implement tests with temporary test hafizs for isolation
-
-### Running Tests
-
-**Start FastHTML server first:**
-```bash
-uv run main.py  # From quran-srs directory
-```
-
-**Run all E2E tests:**
-```bash
-cd ../quran-srs-phoenix_migration
-mix test --only e2e
-```
-
-**Run specific test:**
-```bash
-mix test test/e2e_test.exs:236  # Line number of feature block
-```
-
-### Key Business Logic to Test
+## Key Business Logic to Test
 
 **Mode Transition Thresholds:**
 - DR → WR: 7 reviews (configurable in `REP_MODES_CONFIG`)
