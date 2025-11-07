@@ -4,6 +4,7 @@ from utils import *
 import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
+from app.revision_model import cycle_full_cycle_plan_if_completed
 from app.new_memorization import (
     new_memorization_app,
     update_hafiz_item_for_new_memorization,
@@ -387,6 +388,9 @@ def change_the_current_date(auth):
         populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
     start_srs_for_bad_streak_items(auth)
+
+    # Check if the full cycle plan is completed, if so close and create a new plan
+    cycle_full_cycle_plan_if_completed()
 
     # Change the current date to next date
     hafiz_data.current_date = add_days_to_date(hafiz_data.current_date, 1)

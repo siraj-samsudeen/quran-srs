@@ -51,3 +51,25 @@ def get_items_by_page_id(page_id: int, active_only: bool = True):
 
 def get_item_ids_by_page(page):
     return [i.id for i in get_items_by_page_id(page)]
+
+
+def are_all_full_cycle_items_revised(plan_id: int) -> bool:
+    """Check if all pages in a plan have been revised."""
+    memorized_items = hafizs_items(
+        where=f"mode_code IN ('{SRS_MODE_CODE}', '{FULL_CYCLE_MODE_CODE}') AND memorized = 1 "
+    )
+    revised_records = revisions(
+        where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
+    )
+    # Check if all plan_item_ids are in revised_item_ids
+    return len(memorized_items) == len(revised_records)
+
+
+def cycle_full_cycle_plan_if_completed():
+    """Complete the existing plan if all the pages are revised and create a new plan"""
+    current_plan_id = get_current_plan_id()
+
+    if current_plan_id:
+        if are_all_full_cycle_items_revised(current_plan_id):
+            plans.update({"completed": 1}, current_plan_id)
+            plans.insert(completed=0)
