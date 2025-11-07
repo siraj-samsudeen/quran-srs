@@ -120,6 +120,41 @@ def test_dr_to_wr_progression(db_connection):
     assert item['next_interval'] == 7
 ```
 
+#### TDD Workflow (Red-Green-Refactor)
+
+**IMPORTANT**: All tests must be written following strict TDD discipline:
+
+**🔴 RED: Write Failing Test First**
+1. Write the test that describes the desired behavior
+2. Run test - it MUST fail (proves test is actually testing something)
+3. Commit with message: `RED: [test description]`
+4. Example: `RED: test user can create hafiz via UI`
+
+**✅ GREEN: Write Minimal Implementation**
+1. Write the simplest code to make the test pass
+2. Run test - it MUST pass
+3. Commit with message: `GREEN: [test description]`
+4. Example: `GREEN: test user can create hafiz via UI`
+5. **No refactoring yet** - just make it work
+
+**🔄 REFACTOR: Clean Up Code**
+1. Improve code quality without changing behavior
+2. Run test - it MUST still pass
+3. Commit with message: `REFACTOR: [description of improvement]`
+4. Example: `REFACTOR: extract hafiz creation helpers`
+5. This is where test helpers are created (if needed)
+
+**Test Helper Policy**:
+- ❌ **DO NOT** write test helpers upfront
+- ✅ **DO** write helpers during RED phase if test requires it
+- ✅ **DO** extract helpers during REFACTOR phase when duplication emerges
+- **Rule of Three**: Extract helper after copying code 3 times
+
+**Commit Discipline**:
+- Each RED-GREEN-REFACTOR cycle = 2-3 separate commits
+- Never combine RED and GREEN in one commit
+- REFACTOR is optional (only when needed)
+
 #### Test Structure & Best Practices
 
 **Test Organization:**
