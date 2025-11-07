@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Quran SRS is a sophisticated Spaced Repetition System designed to help with Quran memorization and revision. It uses FastHTML as the web framework with SQLite database, focusing on tracking memorization progress across different modes (New Memorization, Daily, Weekly, Full Cycle, SRS). The application supports multi-user scenarios where a single account can manage multiple hafiz profiles (family/teaching contexts).
 
+## Recent Changes & Cleanup (Nov 2025)
+
+**Codebase Cleanup** (Commits: 08f2db7, 5a133f3, 2fc9263):
+- Removed ~809 lines of dead code across 17 files
+- Deleted 27 unused database columns (migration 0020)
+- Removed orphaned routes: `/admin/backups`, `/admin/change_current_date`, `/admin/import_db`
+- Cleaned up duplicate utility functions in `utils.py`
+- Removed unused SRS recalculation logic from Close Date processing
+
+**Migration to Python Testing**:
+- Existing E2E tests (Wallaby/Elixir) remain in phoenix_migration worktree
+- **NEW**: Python Playwright tests being added to `tests/` directory for code coverage
+- Goal: Minimal E2E test suite (6-8 tests) with pytest-cov integration
+- Approach: E2E-first, add integration tests only if coverage gaps exist
+
 ## Development Commands
 
 ### Python Environment
@@ -216,17 +231,27 @@ Each hafiz has a `current_date` field that acts as the "system date" for that pr
 - Testing and demo scenarios
 - Review of past data without affecting current progress
 
-The "Close Date" operation (main.py:716-745) is critical:
-1. Processes all reviews for the current date
+The "Close Date" operation (`main.py:457-481`) is the core engine that:
+1. Processes all reviews for the current date across all modes
 2. Updates `hafizs_items` based on mode-specific logic
-3. Triggers SRS mode for items with bad streaks
-4. Advances the hafiz's `current_date` by one day
+3. Triggers SRS mode for items with `bad_streak >= 1`
+4. Recalculates statistics (streaks, counts, intervals)
+5. Advances the hafiz's `current_date` by one day
 
 **Mode-Specific Update Logic:**
-- **Full Cycle**: Updates `last_interval` based on actual days, moves SRS items' `next_review` forward
-- **New Memorization**: Promotes to Daily Reps mode on close
-- **Daily/Weekly Reps**: Handled by `update_rep_item()` in `app/fixed_reps.py` - counts reviews (threshold: 7) and graduates to next mode
-- **SRS**: Handled by `update_hafiz_item_for_srs()` in `app/srs_reps.py` - calculates next interval using SRS algorithm, graduates to Full Cycle when interval exceeds threshold
+- **Full Cycle (FC)**: Updates `last_interval` based on actual days since last review; if item is in SRS, moves `next_review` forward using `next_interval`
+- **New Memorization (NM)**: Promotes to Daily Reps mode on close, sets `memorized=True`
+- **Daily Reps (DR) & Weekly Reps (WR)**: Handled by `update_rep_item()` in `app/fixed_reps.py`
+  - Counts reviews in current mode (threshold: 7 for both)
+  - DR → WR after 7 reviews at 1-day intervals
+  - WR → FC after 7 reviews at 7-day intervals
+  - Updates `next_review = current_date + interval` if staying in mode
+- **SRS Mode (SR)**: Handled by `update_hafiz_item_for_srs()` in `app/srs_reps.py`
+  - Uses prime number interval sequence: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101]
+  - Finds current interval in sequence, calculates triplet: [left, current, right]
+  - Bad rating (-1) → left, Ok rating (0) → current, Good rating (1) → right
+  - Graduates to FC when `next_interval > 99`, resets `bad_streak=0`
+  - Otherwise updates `next_review = current_date + next_interval`
 
 ### File Structure & MVC Pattern
 
