@@ -155,6 +155,30 @@ def test_dr_to_wr_progression(db_connection):
 - Never combine RED and GREEN in one commit
 - REFACTOR is optional (only when needed)
 
+**Branching Workflow**:
+1. **Always push master first**: `git push origin master` before starting new work
+2. **Create feature branch**: `git checkout -b feature-name` for each new test/feature
+3. **Work in branch**: Do RED-GREEN-REFACTOR commits in the feature branch
+4. **Review before merge**: User reviews all commits in branch
+5. **Merge to master**: `git checkout master && git merge feature-name`
+6. **Push master**: `git push origin master`
+7. **Delete feature branch**: `git branch -d feature-name`
+
+**Example workflow**:
+```bash
+# Starting work on a new test
+git push origin master                        # Ensure master is synced
+git checkout -b test-create-hafiz            # Create feature branch
+# ... do RED commit ...
+# ... do GREEN commit ...
+# ... do REFACTOR commit (if needed) ...
+# User reviews commits
+git checkout master                           # Switch back to master
+git merge test-create-hafiz                   # Merge feature branch
+git push origin master                        # Push to remote
+git branch -d test-create-hafiz              # Clean up feature branch
+```
+
 #### Test Structure & Best Practices
 
 **Test Organization:**
