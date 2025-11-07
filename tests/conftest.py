@@ -2,8 +2,12 @@
 Pytest configuration and fixtures for Quran SRS tests.
 """
 
+import os
 import pytest
 from playwright.sync_api import sync_playwright
+
+# Set test environment before any imports that use globals.py
+os.environ["ENV"] = "test"
 
 
 @pytest.fixture(scope="session")
@@ -34,8 +38,11 @@ def page(browser):
 def db_connection():
     """
     Database connection for seeding test data and verification.
+    Uses test database (ENV=test -> data/quran_test.db).
     """
     import sqlite3
-    conn = sqlite3.connect("data/quran_v10.db")
+    from globals import DB_PATH
+
+    conn = sqlite3.connect(DB_PATH)
     yield conn
     conn.close()

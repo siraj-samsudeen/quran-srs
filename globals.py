@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from fasthtml.common import database
 from fastmigrate.core import (
@@ -15,6 +16,13 @@ WEEKLY_REPS_MODE_CODE = "WR"
 SRS_MODE_CODE = "SR"
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+
+# Database configuration per environment
+DB_CONFIG = {
+    "test": "data/quran_test.db",
+    "dev": "data/quran_v10.db",
+    "prod": "data/quran_v10.db",
+}
 
 
 def create_and_migrate_db(db_path):
@@ -44,8 +52,16 @@ def get_database_connection():
 
 
 def get_database_path():
-    """Get the database file path"""
-    return "data/quran_v10.db"
+    """
+    Get the database file path based on ENV environment variable.
+
+    Environments:
+    - test: Uses data/quran_test.db (for E2E tests)
+    - dev: Uses data/quran_v10.db (default for local development)
+    - prod: Uses data/quran_v10.db (production database)
+    """
+    env = os.getenv("ENV", "dev")
+    return DB_CONFIG.get(env, DB_CONFIG["dev"])
 
 
 DB_PATH = get_database_path()
