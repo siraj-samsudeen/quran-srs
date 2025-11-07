@@ -1,9 +1,15 @@
 /* To flush the table on left and right */
-.uk-table th:first-child, .uk-table td:first-child {
-    padding-left: 0
+.uk-table th:first-child,
+.uk-table td:first-child {
+  padding-left: 0;
 }
 
-.uk-table th:last-child, td:last-child {
-    padding-right: 0
+.uk-table th:last-child,
+td:last-child {
+  padding-right: 0;
 }
 
+/* To hide the admin nav dropdown */
+[x-cloak] {
+  display: none !important;
+}

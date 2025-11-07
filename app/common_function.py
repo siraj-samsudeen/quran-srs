@@ -124,7 +124,7 @@ def main_area(*args, active=None, auth=None):
                 hx_boost="false",
             ),
             cls="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-20",
-            **{"x-show": "open", "@click.away": "open = false"},
+            **{"x-show": "open", "@click.away": "open = false", "x-cloak": true},
         ),
         cls="relative inline-block",
         **{"x-data": "{ open: false }"},
