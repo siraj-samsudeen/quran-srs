@@ -83,7 +83,6 @@ def create_new_plan(hafiz_id: int):
     plans.xtra()
     return plans.insert(
         hafiz_id=hafiz_id,
-        start_date=get_current_date(hafiz_id),
         start_page=2,
         completed=0,
     )

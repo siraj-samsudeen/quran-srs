@@ -510,13 +510,15 @@ def get_full_review_item_ids(
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
-    def get_next_item_range_from_item_id(item_ids, start_item_id, total_page_count):
+    def get_next_item_range_from_item_id(
+        eligible_item_ids, start_item_id, total_page_count
+    ):
         """Get items from a list starting from a specific number."""
         try:
-            start_index = item_ids.index(start_item_id)
-            item_ids_to_process = item_ids[start_index:]
+            start_index = eligible_item_ids.index(start_item_id)
+            item_ids_to_process = eligible_item_ids[start_index:]
         except ValueError:
-            item_ids_to_process = []
+            item_ids_to_process = eligible_item_ids
 
         final_item_ids = []
         current_page_count = 0
@@ -525,7 +527,10 @@ def get_full_review_item_ids(
                 break
             current_page_count += get_item_page_portion(item_id)
             final_item_ids.append(item_id)
-        return final_item_ids
+
+        is_plan_finished = len(eligible_item_ids) == len(final_item_ids)
+
+        return is_plan_finished, final_item_ids
 
     if plan_id is not None:
         # Filter out items that have been revised in the current plan (but not today)
@@ -547,7 +552,7 @@ def get_full_review_item_ids(
         eligible_item_ids = []
         next_item_id = 0
 
-    next_item_ids = get_next_item_range_from_item_id(
+    is_plan_finished, next_item_ids = get_next_item_range_from_item_id(
         eligible_item_ids, next_item_id, total_page_count
     )
 
@@ -569,7 +574,7 @@ def get_full_review_item_ids(
 
     # Combine and sort the item_ids
     final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
-    return final_item_ids
+    return is_plan_finished, final_item_ids
 
 
 def create_count_link(count: int, rev_ids: str):
@@ -658,7 +663,7 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
-def render_summary_table(auth, mode_code, item_ids):
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
@@ -689,6 +694,20 @@ def render_summary_table(auth, mode_code, item_ids):
     if not body_rows:
         return None
 
+    if is_plan_finished:
+        body_rows.append(
+            Tr(
+                Td(
+                    Span(
+                        "Plan is finished, mark pages in ",
+                        A("Profile", href="/profile", cls=AT.classic),
+                        " to continue, or a new plan will be created",
+                    ),
+                    colspan=3,
+                    cls="text-center text-lg",
+                )
+            )
+        )
     render_output = (
         Div(
             Table(
@@ -819,17 +838,20 @@ def make_summary_table(
         item_ids = get_unique_item_ids(filtered_records)
 
     if mode_code == FULL_CYCLE_MODE_CODE:
-        item_ids = get_full_review_item_ids(
+        is_plan_finished, item_ids = get_full_review_item_ids(
             auth=auth,
             total_page_count=total_page_count,
             mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
             item_ids=item_ids,
         )
+    else:
+        is_plan_finished = False
 
     return render_summary_table(
         auth=auth,
         mode_code=mode_code,
         item_ids=item_ids,
+        is_plan_finished=is_plan_finished,
     )
 
 
