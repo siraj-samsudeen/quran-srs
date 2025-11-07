@@ -153,7 +153,7 @@ def main_area(*args, active=None, auth=None):
                 admin_dropdown,
                 A("Report", href="/report", cls=is_active("Report")),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
-                A("logout", href="/users/logout"),
+                A("Logout", href="/users/logout"),
                 brand=H3(title, Span(" - "), hafiz_name),
                 cls="py-3",
             ),

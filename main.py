@@ -16,7 +16,6 @@ from app.common_function import *
 from globals import *
 from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps import (
-    display_srs_pages_recorded_today,
     update_hafiz_item_for_srs,
     start_srs_for_bad_streak_items,
 )
@@ -320,11 +319,24 @@ def update_hafiz_item_for_full_cycle(rev):
 @app.get("/close_date")
 def close_date_confirmation_page(auth):
     header = render_current_date(auth)
+    action_buttons = DivLAligned(
+        Button(
+            "Confirm",
+            hx_post="close_date",
+            hx_target="body",
+            hx_push_url="true",
+            hx_disabled_elt="this",
+            cls=(ButtonT.primary, "p-2"),
+            data_testid="confirm-close-btn",
+        ),
+        Button(
+            "Cancel",
+            onclick="history.back()",
+            cls=(ButtonT.default, "p-2"),
+        ),
+    )
     return main_area(
-        header,
-        create_stat_table(auth),
-        DividerLine(),
-        display_srs_pages_recorded_today(auth),
+        Div(header, create_stat_table(auth), action_buttons, cls="space-y-4"),
         active="Home",
         auth=auth,
     )
