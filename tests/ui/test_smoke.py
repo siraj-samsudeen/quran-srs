@@ -1,48 +1,22 @@
 """
-Smoke test to verify Playwright and authentication setup is working.
+Phase 0: Smoke Test
+
+Verifies basic setup and auth beforeware.
 """
 
 from playwright.sync_api import expect
 
 
-def test_user_can_login(page, db_connection):
+def test_home_page_redirects_to_login(page):
     """
-    Smoke test: Verify basic login flow works end-to-end.
+    RED: Home page redirects unauthenticated users to login.
 
-    This validates:
-    - Playwright is installed correctly
-    - Browser launches successfully
-    - FastHTML server is running
-    - Database connection works
-    - Authentication flow works
-    - Session management works
-
-    UI Testing Rules (Phoenix-style):
-    - Setup: Can seed test data via DB (arrange phase)
-    - Action: Interact through browser only
-    - Assertion: Verify UI elements only (no DB assertions)
+    Expected behavior (from master):
+    - User visits "/" without authentication
+    - Auth beforeware redirects to "/users/login"
+    - Login page displays
     """
-    # Arrange: Create test user via DB (setup is allowed)
-    cursor = db_connection.cursor()
-    cursor.execute("""
-        INSERT OR REPLACE INTO users (id, email, password, name)
-        VALUES (999, 'smoke_test@example.com', 'testpass123', 'Smoke Test User')
-    """)
-    db_connection.commit()
+    page.goto("http://localhost:5001/")
 
-    # Act: Login via UI (browser interactions)
-    page.goto("/users/login")
-    page.fill("input[name='email']", "smoke_test@example.com")
-    page.fill("input[name='password']", "testpass123")
-    page.click("button[type='submit']")
-
-    # Assert: Verify UI shows we're logged in (no DB assertions!)
-    # After login, should redirect to hafiz selection page
-    expect(page).to_have_url("http://localhost:5001/users/hafiz_selection")
-
-    # Verify we see the hafiz selection page title
-    expect(page.locator("text=Hafiz Selection")).to_be_visible()
-
-    # Cleanup: Remove test user
-    cursor.execute("DELETE FROM users WHERE id = 999")
-    db_connection.commit()
+    expect(page).to_have_url("http://localhost:5001/users/login")
+    expect(page.locator("h1")).to_contain_text("Login")

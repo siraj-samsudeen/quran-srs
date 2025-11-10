@@ -1,5 +1,7 @@
 """
-Pytest configuration and fixtures for Quran SRS tests.
+Pytest configuration for Quran SRS tests.
+
+Sets ENV=test before app imports and provides Playwright fixtures.
 """
 
 import os
@@ -12,37 +14,17 @@ os.environ["ENV"] = "test"
 
 @pytest.fixture(scope="session")
 def browser():
-    """
-    Browser instance shared across all tests.
-    Uses headless Chromium for speed.
-    """
+    """Browser instance shared across all tests (headed Chrome)."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=False)
         yield browser
         browser.close()
 
 
 @pytest.fixture(scope="function")
 def page(browser):
-    """
-    New page for each test (ensures test isolation).
-    Base URL set to localhost:5001.
-    """
+    """New page for each test (ensures isolation)."""
     context = browser.new_context(base_url="http://localhost:5001")
     page = context.new_page()
     yield page
     context.close()
-
-
-@pytest.fixture
-def db_connection():
-    """
-    Database connection for seeding test data and verification.
-    Uses test database (ENV=test -> data/quran_test.db).
-    """
-    import sqlite3
-    from globals import DB_PATH
-
-    conn = sqlite3.connect(DB_PATH)
-    yield conn
-    conn.close()

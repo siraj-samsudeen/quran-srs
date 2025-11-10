@@ -3,7 +3,7 @@
 **Branch:** `tdd-rebuild` | **Target:** `master` (our specification)
 
 ## Phase 0: Smoke Test
-- [ ] Home page shows login and signup links
+- [ ] Home page redirects unauthenticated users to login
 
 ## Phase 1: User Authentication
 - [ ] Signup page loads and displays form
