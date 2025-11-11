@@ -156,3 +156,4 @@ data/
 # Serena MCP files
 .serena/
 quran_srs_phoenix
+.sesskey

@@ -70,41 +70,43 @@ Rebuilding Quran SRS from scratch using pure TDD. The `master` branch is the spe
 
 ## File Organization
 
-### Application Code
+### Project Structure (TDD Rebuild)
 ```
-app/
-├── users_controller.py    # User auth routes
-├── users_view.py          # User auth UI
-├── users_model.py         # User DB operations
-└── common_function.py     # Shared utilities, beforeware
-```
+_reference/               # Master branch code for reference only
+├── main.py              # Original main app file
+├── app/                 # All master application modules
+├── globals.py           # Master global config
+├── utils.py             # Master utility functions
+├── public/              # Master static assets
+└── package.json         # Master npm config
 
-### Test Code
-```
-tests/
-├── ui/                    # Browser-based UI tests
-│   ├── conftest.py        # Playwright fixtures
+app/                     # Fresh TDD implementation (build from scratch)
+tests/                   # Test files
+├── ui/                  # Browser-based UI tests
+│   ├── conftest.py     # Playwright fixtures
 │   └── test_*.py
-├── backend/               # Pure Python backend tests
-└── conftest.py           # Shared fixtures (ENV=test, db)
+├── backend/            # Pure Python backend tests
+└── conftest.py         # Shared fixtures (ENV=test, db)
+
+main.py                  # Fresh minimal FastHTML app
+migrations/              # Database schema (shared)
+docs/                    # Documentation (shared)
+data_backup/             # Seed data (shared)
 ```
 
----
+### Reference Code Usage
 
-## Master Branch Reference
+Master branch code lives in `_reference/` directory:
+- **DO NOT** copy-paste from `_reference/` - use as specification only
+- **DO** reference to understand expected behavior
+- **DO** check business logic and edge cases
+- **DO NOT** import or use reference code directly
 
-Use `master` as specification to understand:
-- Expected behavior and business logic
-- Database schema
-- UI components
-
-**Do NOT copy-paste from master** - use as spec, rebuild via TDD.
-
-**Key files**:
-- `app/users_controller.py` - Authentication
-- `main.py` - Home page, Close Date
-- `app/profile.py` - Memorization status
-- `app/common_function.py` - Shared utilities
+**Key reference files**:
+- `_reference/app/users_controller.py` - Authentication flows
+- `_reference/main.py` - Home page, Close Date logic
+- `_reference/app/profile.py` - Memorization status
+- `_reference/app/common_function.py` - Shared utilities, beforeware
 
 ---
 
@@ -127,3 +129,63 @@ uv run pytest --cov --cov-report=html
 ## Current Status
 
 **Phase**: 0 (Smoke Test) | **Next**: Commit documentation → Begin Phase 0 implementation
+
+---
+
+## Lessons Learnt/Corrections from User
+
+### 1. RED Commits Must Only Contain Failing Tests
+
+**Rule:** RED commits should ONLY contain the failing test. Any setup, refactoring, or infrastructure work must be in a separate commit (e.g., `chore:`, `refactor:`, `docs:`).
+
+**Bad Example:**
+```
+RED: Home page redirects to login
+
+- Added failing test
+- Moved master code to _reference/
+- Created fresh main.py
+- Updated documentation
+```
+
+**Good Example:**
+```
+chore: Move master code to _reference for TDD rebuild
+
+- Moved all app/ code to _reference/app/
+- Moved globals.py, utils.py, public/ to _reference/
+- Created fresh minimal main.py
+- Deleted .sesskey
+- Updated CLAUDE.md with new structure
+
+(Separate commit later)
+RED: Home page redirects to login
+
+- Added test_home_page_redirects_to_login test
+- Test verifies "/" redirects to "/users/login"
+```
+
+### 2. No Status Comments in Production Code
+
+**Rule:** Never add comments explaining what the code "will be" or status messages to the user. Code should be clean and self-documenting.
+
+**Bad Example:**
+```python
+from fasthtml.common import *
+
+# Minimal app setup - will build with TDD
+app, rt = fast_app()
+
+serve()
+```
+
+**Good Example:**
+```python
+from fasthtml.common import *
+
+app, rt = fast_app()
+
+serve()
+```
+
+**Why:** Comments like "will build with TDD" are meta-commentary about the development process, not about the code itself. They clutter the codebase and become stale quickly. 
