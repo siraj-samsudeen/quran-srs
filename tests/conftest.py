@@ -16,7 +16,7 @@ os.environ["ENV"] = "test"
 def browser():
     """Browser instance shared across all tests (headed Chrome)."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         yield browser
         browser.close()
 

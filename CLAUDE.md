@@ -25,6 +25,7 @@ Rebuilding Quran SRS from scratch using pure TDD. The `master` branch is the spe
 - **ALWAYS ask approval before committing** - Show what will be committed and wait
 - Commit messages must match: `RED:`, `GREEN:`, or `REFACTOR:` pattern
 - Never auto-commit
+- **Documentation updates don't need separate commits** - Update CLAUDE.md as needed within RED/GREEN/REFACTOR commits
 
 ### Testing Strategy (Phoenix LiveView Pattern)
 
@@ -48,6 +49,35 @@ Rebuilding Quran SRS from scratch using pure TDD. The `master` branch is the spe
 - Point out better approaches and anti-patterns
 - Question decisions that don't make sense
 - Help user learn, don't just execute
+
+### Documentation & Best Practices Workflow
+
+**CRITICAL: Always follow this order when starting ANY task:**
+
+1. **Read `docs/llms.txt` first** - This is the project's FastHTML knowledge base
+   - Contains FastHTML patterns specific to this project
+   - Load relevant sections into context before coding
+
+2. **Check Context7 for latest FastHTML API** - Verify current best practices
+   - Use `mcp__context7__resolve-library-id` → `mcp__context7__get-library-docs`
+   - Search for relevant topics (e.g., "beforeware authentication routing")
+   - Ensure code follows latest FastHTML conventions
+
+3. **_reference/ is NOT the source of truth**
+   - Code in `_reference/` was written while learning FastHTML
+   - May contain outdated patterns or anti-patterns
+   - **ONLY** use `_reference/` to understand business logic and expected behavior
+   - **NEVER** copy implementation patterns from `_reference/`
+
+**Example workflow:**
+```
+Task: Implement authentication
+1. grep "auth" docs/llms.txt (load patterns)
+2. Context7: get latest FastHTML auth docs
+3. Write test (RED)
+4. Implement using docs/llms.txt + Context7 patterns (GREEN)
+5. Reference _reference/ only for business rules if needed
+```
 
 ---
 
