@@ -156,13 +156,7 @@ uv run pytest --cov --cov-report=html
 
 ---
 
-## Current Status
-
-**Phase**: 0 (Smoke Test) | **Next**: Commit documentation → Begin Phase 0 implementation
-
----
-
-## Lessons Learnt/Corrections from User
+## Lessons Learnt
 
 ### 1. RED Commits Must Only Contain Failing Tests
 
@@ -219,3 +213,9 @@ serve()
 ```
 
 **Why:** Comments like "will build with TDD" are meta-commentary about the development process, not about the code itself. They clutter the codebase and become stale quickly. 
+
+### Corrections from User
+- never restart the server on your own as changes are
+  automatically reloaded.
+- docs updates can happen in any commit including RED commit. other chores and other code changes should not be done in RED commit.
+- for current status, check the plan.md and the git commits to see where we are in the RED-GREEN-REFACTOR loop for the first unchecked task in the plan.

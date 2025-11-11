@@ -8,15 +8,11 @@ from playwright.sync_api import expect
 
 
 def test_home_page_redirects_to_login(page):
-    """
-    RED: Home page redirects unauthenticated users to login.
-
-    Expected behavior (from master):
-    - User visits "/" without authentication
-    - Auth beforeware redirects to "/users/login"
-    - Login page displays
-    """
+    # User visits home page without authentication
     page.goto("http://localhost:5001/")
 
+    # Auth beforeware redirects to login page
     expect(page).to_have_url("http://localhost:5001/users/login")
-    expect(page.locator("h1")).to_contain_text("Login")
+
+    # Login page displays
+    expect(page.get_by_role("heading", name="Login")).to_be_visible()
