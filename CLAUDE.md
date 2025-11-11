@@ -219,3 +219,31 @@ serve()
   automatically reloaded.
 - docs updates can happen in any commit including RED commit. other chores and other code changes should not be done in RED commit.
 - for current status, check the plan.md and the git commits to see where we are in the RED-GREEN-REFACTOR loop for the first unchecked task in the plan.
+- explain code line by line always once you finish the task
+- use resilient selectors in Playwright tests: `get_by_role()`, `get_by_label()`, `get_by_test_id()` instead of brittle CSS selectors like `input[name='email']`
+- do not use docstrings in tests - inline comments are sufficient and clearer
+
+### 3. MonsterUI Setup and Form Patterns
+
+**Rule:** MonsterUI components require `Theme.*.headers()` in `fast_app()` for proper styling.
+
+**Without Theme Headers:**
+```python
+app, rt = fast_app()  # MonsterUI components render unstyled
+```
+
+**With Theme Headers:**
+```python
+app, rt = fast_app(hdrs=Theme.blue.headers())  # Fully styled components
+```
+
+**LabelInput Auto-Naming:**
+- `LabelInput("Name")` → automatically sets `name="name"` (lowercase of label)
+- `LabelInput("Email")` → automatically sets `name="email"`
+- `LabelInput("Confirm Password", name="confirm_password")` → needs explicit `name` when label has spaces
+
+**Form Styling Best Practices:**
+- Use `cls=ButtonT.primary` for primary action buttons (CTAs)
+- Use `cls="space-y-6"` on containers for consistent vertical spacing
+- Use `cls="mt-4"` for specific top margin spacing
+- Use `cls=TextT.primary` for primary colored text/links
