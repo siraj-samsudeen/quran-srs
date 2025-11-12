@@ -18,7 +18,7 @@ from globals import *
 from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps import (
     update_hafiz_item_for_srs,
-    start_srs_for_bad_streak_items,
+    start_srs_for_ok_and_bad_rating,
 )
 
 ADD_EXTRA_ROWS = 1
@@ -387,7 +387,7 @@ def change_the_current_date(auth):
         # update all the non-mode specific columns (including the last_review column)
         populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
-    start_srs_for_bad_streak_items(auth)
+    start_srs_for_ok_and_bad_rating(auth)
 
     # Check if the full cycle plan is completed, if so close and create a new plan
     cycle_full_cycle_plan_if_completed()

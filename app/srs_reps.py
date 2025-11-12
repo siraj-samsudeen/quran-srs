@@ -10,7 +10,10 @@ from app.common_function import (
 )
 
 # SRS Intervals
-SRS_START_INTERVAL = 7
+SRS_START_INTERVAL = {
+    -1: 3,  # Bad rating -> 3-day interval
+    0: 10,  # Ok rating -> 10-day interval
+}
 SRS_END_INTERVAL = 99
 SRS_INTERVALS = [
     2,
@@ -81,9 +84,9 @@ def get_interval_triplet(target_interval, interval_list):
 ## END ##
 
 
-def start_srs(item_id: int, auth):
+def start_srs(item_id: int, auth, rating: int):
     current_date = get_current_date(auth)
-    next_interval = SRS_START_INTERVAL
+    next_interval = SRS_START_INTERVAL[rating]
     next_review_date = add_days_to_date(current_date, next_interval)
 
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
@@ -171,13 +174,44 @@ def update_hafiz_item_for_srs(rev):
     revisions.update(rev, rev.id)
 
 
-def start_srs_for_bad_streak_items(auth):
-    current_date = get_current_date(auth)
-    # Get the full-cycle today revised pages which have 1 or more bad streak
-    qry = f"""
-        SELECT revisions.item_id FROM revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE hafizs_items.bad_streak >= 1 AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth} AND revisions.revision_date = '{current_date}'
+def start_srs_for_ok_and_bad_rating(auth):
     """
-    for items in db.q(qry):
-        start_srs(items["item_id"], auth)
+    Move items to SRS mode based on today's revision ratings.
+
+    Logic:
+    - Bad rating (-1): Move to SRS with 3-day starting interval
+    - Ok rating (0): Move to SRS with 10-day starting interval
+    - Good rating (1): Stay in Full Cycle (no SRS entry)
+    """
+    current_date = get_current_date(auth)
+
+    # Build query in readable stages
+    query_base = """
+        SELECT revisions.item_id, revisions.rating
+        FROM revisions
+        LEFT JOIN hafizs_items
+            ON revisions.item_id = hafizs_items.item_id
+            AND hafizs_items.hafiz_id = revisions.hafiz_id
+    """
+
+    # Build WHERE conditions
+    conditions = [
+        # Only process today's revisions (during Close Date)
+        f"revisions.revision_date = '{current_date}'",
+        # Filter to current hafiz
+        f"revisions.hafiz_id = {auth}",
+        # Only Ok (0) or Bad (-1) ratings trigger SRS entry
+        "revisions.rating IN (-1, 0)",
+        # The revision was performed in Full Cycle mode
+        f"revisions.mode_code = '{FULL_CYCLE_MODE_CODE}'",
+        # The item is currently still in Full Cycle mode (prevents re-processing items already in SRS)
+        f"hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'",
+    ]
+    where_clause = "WHERE " + " AND ".join(conditions)
+
+    # Assemble final query
+    query = f"{query_base} {where_clause}"
+
+    # Execute and process results
+    for item in db.q(query):
+        start_srs(item["item_id"], auth, rating=item["rating"])

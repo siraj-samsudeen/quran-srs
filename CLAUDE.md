@@ -257,7 +257,7 @@ Mode codes are defined as constants in `globals.py`: `NEW_MEMORIZATION_MODE_CODE
 - **New Memorization** → **Daily Reps** (after first review)
 - **Daily Reps** → **Weekly Reps** (after 7 reviews at 1-day intervals)
 - **Weekly Reps** → **Full Cycle** (after 7 reviews at 7-day intervals)
-- **Full Cycle** → **SRS Mode** (when bad_streak >= 1, triggered on date close)
+- **Full Cycle** → **SRS Mode** (when revision receives Ok or Bad rating, triggered on date close)
 
 ### Authentication & Multi-User Architecture
 The app uses a two-tier authentication system implemented via beforeware in `app/common_function.py`:
@@ -344,10 +344,10 @@ Each hafiz has a `current_date` field that acts as the "system date" for that pr
 - Testing and demo scenarios
 - Review of past data without affecting current progress
 
-The "Close Date" operation (`main.py:457-481`) is the core engine that:
+The "Close Date" operation (`main.py:372-399`) is the core engine that:
 1. Processes all reviews for the current date across all modes
 2. Updates `hafizs_items` based on mode-specific logic
-3. Triggers SRS mode for items with `bad_streak >= 1`
+3. Triggers SRS mode for Full Cycle items that received Ok or Bad ratings today
 4. Recalculates statistics (streaks, counts, intervals)
 5. Advances the hafiz's `current_date` by one day
 
@@ -360,11 +360,15 @@ The "Close Date" operation (`main.py:457-481`) is the core engine that:
   - WR → FC after 7 reviews at 7-day intervals
   - Updates `next_review = current_date + interval` if staying in mode
 - **SRS Mode (SR)**: Handled by `update_hafiz_item_for_srs()` in `app/srs_reps.py`
-  - Uses prime number interval sequence: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101]
-  - Finds current interval in sequence, calculates triplet: [left, current, right]
-  - Bad rating (-1) → left, Ok rating (0) → current, Good rating (1) → right
-  - Graduates to FC when `next_interval > 99`, resets `bad_streak=0`
-  - Otherwise updates `next_review = current_date + next_interval`
+  - **Entry**: Items move from Full Cycle to SRS when they receive Ok or Bad ratings (triggered by `start_srs_for_ok_and_bad_rating()` during Close Date)
+    - Bad rating (-1) → 3-day starting interval
+    - Ok rating (0) → 10-day starting interval
+    - Good rating (1) → Stays in Full Cycle (no SRS entry)
+  - **Progression**: Uses prime number interval sequence: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101]
+    - Finds current interval in sequence, calculates triplet: [left, current, right]
+    - Bad rating (-1) → left, Ok rating (0) → current, Good rating (1) → right
+  - **Graduation**: Returns to Full Cycle when `next_interval > 99`
+  - Updates `next_review = current_date + next_interval` after each review
 
 ### File Structure & MVC Pattern
 
@@ -435,14 +439,16 @@ app, rt = create_app_with_auth(
 **Mode Transition Thresholds:**
 - DR → WR: 7 reviews (configurable in `REP_MODES_CONFIG`)
 - WR → FC: 7 reviews
-- FC → SR: bad_streak >= 1 (triggered on Close Date)
-- SR → FC: next_interval > SRS_END_INTERVAL (30 days)
+- FC → SR: When Full Cycle revision receives Ok (0) or Bad (-1) rating (triggered on Close Date)
+  - Bad rating → 3-day starting interval
+  - Ok rating → 10-day starting interval
+- SR → FC: next_interval > SRS_END_INTERVAL (99 days)
 
 **Close Date Processing:**
 The Close Date operation is critical and must:
 1. Process all revisions for current_date
 2. Update hafizs_items based on mode-specific logic
-3. Trigger SRS demotion for bad streaks
+3. Trigger SRS entry for Full Cycle items with Ok or Bad ratings (via `start_srs_for_ok_and_bad_rating()`)
 4. Advance current_date by 1 day
 
 All mode progression tests must verify Close Date works correctly.
