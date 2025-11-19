@@ -1,8 +1,38 @@
 {
   "permissions": {
     "allow": [
-      "mcp__serena__*",
-      "mcp__context7__*"
-    ]
-  }
+      "Bash(elixir:*)",
+      "Bash(mix --version)",
+      "Bash(mix archive:*)",
+      "WebFetch(domain:hexdocs.pm)",
+      "Bash(uv run:*)",
+      "Bash(nvim:*)",
+      "Bash([ -d ~/.local/share/nvim ])",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_click",
+      "Bash(pkill:*)",
+      "Bash(rm:*)",
+      "Bash(tree:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(python3:*)",
+      "Bash(uv sync:*)",
+      "Bash(ENV=test uv run:*)",
+      "Bash(git mv:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(cat:*)",
+      "Bash(git show-ref:*)",
+      "Bash(git tag:*)",
+      "Bash(railway logs:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "chrome-mcp-server"
+  ]
 }
