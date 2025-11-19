@@ -300,10 +300,10 @@ def index(auth, sess):
     srs_table = make_summary_table(mode_code=SRS_MODE_CODE, auth=auth)
 
     mode_tables = [
+        srs_table,
         full_cycle_table,
         daily_reps_table,
         weekly_reps_table,
-        srs_table,
     ]
 
     # if the table has no records then exclude them from the tables list
@@ -372,6 +372,16 @@ def close_date_confirmation_page(auth):
 @app.post("/close_date")
 def change_the_current_date(auth):
     hafiz_data = hafizs[auth]
+
+    # Check if many days have elapsed - if so, skip directly to today
+    today = current_time()
+    days_elapsed = day_diff(hafiz_data.current_date, today)
+
+    if days_elapsed > 1:
+        # Skip directly to today instead of processing each day
+        hafiz_data.current_date = today
+        hafizs.update(hafiz_data)
+        return Redirect("/")
 
     revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
