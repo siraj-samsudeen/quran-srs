@@ -51,6 +51,72 @@ Git history should show nested cycles clearly.
 
 ---
 
+## Testing Philosophy (Kent Beck + DHH)
+
+**Core Principle:** UI tests verify the full stack. If test says "creates project", verify it's actually in DB.
+
+### What to Test
+- ✅ User actions work (click, fill, submit)
+- ✅ Data persists to DB (via Context functions, not Repo)
+- ✅ Data displays to user
+- ✅ Bugs you've encountered (test once, not everywhere)
+
+### What NOT to Test
+- ❌ Routes/URLs (`assert_path`) - implementation detail
+- ❌ Heading text, flash messages - UI copy changes
+- ❌ Validation in UI tests - backend concern
+- ❌ Framework behavior - trust Phoenix/Ash
+- ❌ Hypothetical bugs - test what you've seen break
+
+### Helpers
+- ✅ Simple navigation helpers (`visit_projects`) - transparent, reusable
+- ❌ Assertion wrappers (`assert_project_exists`) - direct code is clearer
+
+### Pattern
+```elixir
+test "user can create a project" do
+  conn
+  |> visit_projects()  # Helper for navigation
+  |> click_link("New Project")
+  |> fill_in("Name", with: "Launch")
+  |> submit()
+  |> assert_text("Launch")  # User sees it
+
+  # ✅ Verify DB via Context (not Repo)
+  assert Tasks.get_project_by_name("Launch")
+end
+```
+
+### Edge Cases
+Test once if you've seen the bug:
+```elixir
+# Regression test for multi-item delete bug
+describe "multiple projects" do
+  test "deletes correct project" do
+    # Test this ONCE, not for every resource
+  end
+end
+```
+
+### DB Verification (Pragmatic Rule)
+```elixir
+# ✅ Prefer Context when function exists:
+assert Tasks.get_project!(scope, project.id)
+
+# ✅ Direct Repo OK for simple test verification:
+assert Repo.get_by(Project, name: "test")  # Production doesn't need this query
+refute Repo.get_by(Project, name: "deleted")
+
+# When to use which:
+# - Context: function exists, authorization matters, natural domain operation
+# - Repo: simple verification, no auth needed, don't add function just for tests (YAGNI)
+# - Ash: ALWAYS use Resource actions (Repo bypasses policies)
+```
+
+**Reference:** See project's `docs/how-to-test.md` for detailed examples
+
+---
+
 ## Documentation Style
 
 ### dev-log.md
