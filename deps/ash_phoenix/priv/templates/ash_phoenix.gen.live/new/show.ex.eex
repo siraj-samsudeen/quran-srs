@@ -1,0 +1,39 @@
+defmodule <%= inspect Module.concat(@web_module, @resource_alias) %>Live.Show do
+  use <%= @web_module %>, :live_view
+
+  @impl true
+  def render(assigns) do
+  ~H"""
+  <Layouts.app flash={@flash}>
+    <.header>
+      <%= @resource_human_singular %> <%%= @<%= @resource_singular %>.id %>
+        <:subtitle>This is a <%= @resource_singular %> record from your database.</:subtitle>
+      <%= if @update_action do %>
+        <:actions>
+          <.button navigate={~p"<%= @route_prefix %>"}>
+            <.icon name="hero-arrow-left" />
+          </.button>
+          <.button variant="primary" navigate={~p"<%= @route_prefix %>/#{@<%= @resource_singular %>}/edit?return_to=show"}>
+            <.icon name="hero-pencil-square" /> Edit <%= @resource_human_singular %>
+          </.button>
+        </:actions>
+      <% end %>
+    </.header>
+
+    <.list>
+      <%= for attribute <- @attrs do %>
+        <:item title="<%= Phoenix.Naming.humanize(attribute.name) %>"><%%= @<%= @resource_singular %>.<%= attribute.name %> %></:item>
+      <% end %>
+    </.list>
+  </Layouts.app>
+  """
+  end
+
+  @impl true
+  def mount(%{"<%= @pkey %>" => <%= @pkey %>}, _session, socket) do
+    {:ok,
+      socket
+      |> assign(:page_title, "Show <%= @resource_human_singular %>")
+      |> assign(:<%= @resource_singular %>, <%= @get_by_pkey %>)}
+  end
+end

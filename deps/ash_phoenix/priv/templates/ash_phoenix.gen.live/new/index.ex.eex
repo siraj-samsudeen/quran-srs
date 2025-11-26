@@ -1,0 +1,69 @@
+defmodule <%= inspect Module.concat(@web_module, @resource_alias) %>Live.Index do
+  use <%= @web_module %>, :live_view
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <.header>
+        Listing <%= @resource_human_plural %>
+        <:actions>
+          <.button variant="primary" navigate={~p"<%= @route_prefix %>/new"}>
+            <.icon name="hero-plus" /> New <%= @resource_human_singular %>
+          </.button>
+        </:actions>
+      </.header>
+
+      <.table
+        id="<%= @resource_plural %>"
+        rows={@streams.<%= @resource_plural %>}
+        row_click={fn {_<%= @pkey %>, <%= @resource_singular %>} -> JS.navigate(~p"<%= @route_prefix %>/#{<%= @resource_singular %>}") end}
+      >
+        <%= for %{name: name} <- @attrs do %>
+          <:col :let={{_<%= @pkey %>, <%= @resource_singular %>}} label="<%= Phoenix.Naming.humanize(Atom.to_string(name)) %>"><%%= <%= @resource_singular %>.<%= name %> %></:col>
+        <% end %>
+        <:action :let={{_<%= @pkey %>, <%= @resource_singular %>}}>
+          <div class="sr-only">
+            <.link navigate={~p"<%= @route_prefix %>/#{<%= @resource_singular %>}"}>Show</.link>
+          </div>
+          <%= if @update_action do %>
+            <.link navigate={~p"<%= @route_prefix %>/#{<%= @resource_singular %>}/edit"}>Edit</.link>
+          <% end %>
+        </:action>
+        <%= if @destroy do %>
+        <:action :let={{<%= @pkey %>, <%= @resource_singular %>}}>
+          <.link
+            phx-click={JS.push("delete", value: %{<%= @pkey %>: <%= @resource_singular %>.<%= @pkey %>}) |> hide("##{<%= @pkey %>}")}
+            data-confirm="Are you sure?"
+          >
+            Delete
+          </.link>
+        </:action>
+        <% end %>
+      </.table>
+    </Layouts.app>
+    """
+  end
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok,
+      socket
+      |> assign(:page_title, "Listing <%= @resource_human_plural %>")
+      <%= if @actor do %>
+      |> assign_new(:<%= @actor %>, fn -> nil end)
+      |> stream(:<%= @resource_plural %>, Ash.read!(<%= @resource %>, actor: socket.assigns[:<%= @actor %>]))}
+      <% else %>
+      |> stream(:<%= @resource_plural %>, Ash.read!(<%= @resource %>))}
+      <% end %>
+  end
+
+  <%= if @destroy do %>
+  @impl true
+  def handle_event("delete", %{"<%= @pkey %>" => <%= @pkey %>}, socket) do
+    <%= @destroy %>
+
+    {:noreply, stream_delete(socket, :<%= @resource_plural %>, <%= @resource_singular %>)}
+  end
+  <% end %>
+end
