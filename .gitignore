@@ -157,3 +157,10 @@ data_backup/
 # Serena MCP files
 .serena/
 .playwright-mcp/
+
+# Elixir/Phoenix files (from phoenix-rebuild branch experiments)
+deps/
+_build/
+.elixir_ls/
+assets/
+priv/
