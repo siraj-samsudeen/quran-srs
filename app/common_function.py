@@ -58,6 +58,11 @@ hyperscript_header = Script(src="https://unpkg.com/hyperscript.org@0.9.14")
 alpinejs_header = Script(
     src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js", defer=True
 )
+# DaisyUI (Tailwind component library) - same classes work in Phoenix
+daisyui_css = Link(
+    rel="stylesheet",
+    href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css",
+)
 style_css = Link(rel="stylesheet", href="/public/css/style.css")
 favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 
@@ -68,6 +73,7 @@ def create_app_with_auth(**kwargs):
         before=[user_bware, hafiz_bware],
         hdrs=(
             Theme.blue.headers(),
+            daisyui_css,
             hyperscript_header,
             alpinejs_header,
             style_css,
@@ -382,15 +388,13 @@ def rating_dropdown(
         is_selected = lambda m: m == str(rating)
         return fh.Option(name, value=id, selected=is_selected(id))
 
-    return Div(
-        fh.Select(
-            fh.Option("Select Rating", value="None", selected=rating == "None"),
-            *map(mk_options, RATING_MAP.items()),
-            name=name,
-            cls=cls,
-            **kwargs,
-        ),
-        cls="rounded-sm",
+    return fh.Select(
+        fh.Option("-", value="None", selected=rating == "None"),
+        *map(mk_options, RATING_MAP.items()),
+        name=name,
+        # DaisyUI: select (base), select-bordered (adds border)
+        cls=f"select select-bordered {cls}",
+        **kwargs,
     )
 
 

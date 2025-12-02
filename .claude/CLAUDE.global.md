@@ -155,6 +155,17 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 - Update plan.md: check off task in GREEN commits
 - Any setup/infrastructure work and docs update goes in `chore:` commits (never in RED commits)
 
+### Experimental/Exploratory Coding
+When figuring something out or exploring unfamiliar territory:
+- Keep human in the loop at every step - get feedback/approval before proceeding
+- Never do hacky or non-standard things just to "make it work"
+- Follow proper practices for each tool/framework - maintainability over speed
+- Write one line (or a few related lines) at a time, then pause for review
+- Show how you would test the code and explain the testing process + expected output
+- Slow down - be methodical and step-by-step
+- avoid unnecesary complexity - i prefer simplicity, but sophistication and flexibility where it matters and
+  make devx easier is always welcome.
+
 ### Process
 - Every dev project should have plan.md, dev_log.md, and CLAUDE.md - prompt the user if they are not there
 - plan.md tasks = user-facing features = GitHub issues. The

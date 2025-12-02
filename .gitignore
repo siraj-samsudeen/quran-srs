@@ -152,7 +152,8 @@ test-results/
 
 # ignore data folder as it is used only in local DEV environment to bring prod data in from data_backup
 data/
+data_backup/
 
 # Serena MCP files
 .serena/
-quran_srs_phoenix
+.playwright-mcp/
