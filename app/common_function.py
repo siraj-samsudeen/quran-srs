@@ -393,7 +393,7 @@ def rating_dropdown(
         *map(mk_options, RATING_MAP.items()),
         name=name,
         # DaisyUI: select (base), select-bordered (adds border)
-        cls=f"select select-bordered {cls}",
+        cls=f"select select-bordered select-sm {cls}",
         **kwargs,
     )
 
@@ -686,7 +686,7 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
         for records in items_with_revisions
     ]
     if not body_rows:
-        return None
+        return (mode_code, None)
 
     if is_plan_finished:
         body_rows.append(
@@ -702,33 +702,24 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
                 )
             )
         )
-    render_output = (
-        Div(
-            Table(
-                Thead(
-                    Tr(
-                        Th("Page", cls="min-w-24"),
-                        Th("Start Text", cls="min-w-24"),
-                        Th("Rating", cls="min-w-24"),
-                    )
-                ),
-                Tbody(*body_rows, id=f"{mode_code}_tbody"),
-                id=f"summary_table_{mode_code}",
-                cls=(TableT.middle, TableT.divider, TableT.sm),
-                # To prevent scroll jumping
-                hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
-                hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
+    table = Div(
+        Table(
+            Thead(
+                Tr(
+                    Th("Page", cls="min-w-24"),
+                    Th("Start Text", cls="min-w-24"),
+                    Th("Rating", cls="min-w-24"),
+                )
             ),
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            id=f"summary_table_{mode_code}",
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+            # To prevent scroll jumping
+            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         ),
     )
-    return AccordionItem(
-        H2(
-            get_mode_name(mode_code),
-            data_testid=f"mode-{mode_code.lower()}",
-        ),
-        render_output,
-        open=True,  # Always open by default
-    )
+    return (mode_code, table)
 
 
 def make_summary_table(

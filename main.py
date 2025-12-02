@@ -283,33 +283,40 @@ def index(auth, sess):
         "revised": revised_count,
     }
 
-    full_cycle_table = make_summary_table(
-        mode_code=FULL_CYCLE_MODE_CODE,
-        auth=auth,
-        total_page_count=page_limit,
-    )
+    # Build panels - each returns (mode_code, panel) tuple
+    mode_panels = [
+        make_summary_table(FULL_CYCLE_MODE_CODE, auth, total_page_count=page_limit),
+        make_summary_table(SRS_MODE_CODE, auth),
+        make_summary_table(DAILY_REPS_MODE_CODE, auth),
+        make_summary_table(WEEKLY_REPS_MODE_CODE, auth),
+    ]
+    # Filter to only modes with content
+    mode_panels = [(code, panel) for code, panel in mode_panels if panel is not None]
 
-    daily_reps_table = make_summary_table(
-        mode_code=DAILY_REPS_MODE_CODE,
-        auth=auth,
-    )
-    weekly_reps_table = make_summary_table(
-        mode_code=WEEKLY_REPS_MODE_CODE,
-        auth=auth,
-    )
-    srs_table = make_summary_table(mode_code=SRS_MODE_CODE, auth=auth)
+    mode_icons = {
+        FULL_CYCLE_MODE_CODE: "🔄",
+        SRS_MODE_CODE: "🧠",
+        DAILY_REPS_MODE_CODE: "☀️",
+        WEEKLY_REPS_MODE_CODE: "📅",
+    }
 
-    mode_tables = [
-        srs_table,
-        full_cycle_table,
-        daily_reps_table,
-        weekly_reps_table,
+    def make_tab_button(mode_code):
+        icon = mode_icons.get(mode_code, "")
+        return A(
+            f"{icon} {get_mode_name(mode_code)}",
+            cls="tab",
+            **{
+                "@click": f"activeTab = '{mode_code}'",
+                ":class": f"activeTab === '{mode_code}' ? 'tab-active [--tab-bg:oklch(var(--p)/0.1)] [--tab-border-color:oklch(var(--p))]' : ''",
+            },
+        )
+
+    tab_buttons = [make_tab_button(code) for code, _ in mode_panels]
+    tab_contents = [
+        Div(content, x_show=f"activeTab === '{code}'")
+        for code, content in mode_panels
     ]
 
-    # if the table has no records then exclude them from the tables list
-    mode_tables = [_table for _table in mode_tables if _table is not None]
-
-    # Contains the date and close button
     header = DivLAligned(
         render_current_date(auth),
         A(
@@ -320,10 +327,13 @@ def index(auth, sess):
             href="/close_date",
         ),
     )
+
     return main_area(
         Div(
             header,
-            Accordion(*mode_tables, multiple=True, animation=True),
+            Div(*tab_buttons, role="tablist", cls="tabs tabs-lifted mt-4"),
+            *tab_contents,
+            x_data=f"{{ activeTab: '{FULL_CYCLE_MODE_CODE}' }}",
         ),
         active="Home",
         auth=auth,

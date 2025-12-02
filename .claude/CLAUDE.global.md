@@ -148,6 +148,7 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 
 ### Git Workflow
 - ALWAYS ask approval before committing - show what will be committed and wait
+- For UI changes: take a screenshot before asking for commit approval so user can verify visually
 - Never auto-commit
 - Commit messages: `RED:`, `GREEN:`, `REFACTOR:`, or `chore:` pattern
 - No references to claude in commit message
