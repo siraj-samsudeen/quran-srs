@@ -392,7 +392,7 @@ def rating_dropdown(
         fh.Option("-", value="None", selected=rating == "None"),
         *map(mk_options, RATING_MAP.items()),
         name=name,
-        # DaisyUI: select (base), select-bordered (adds border)
+        # DaisyUI: select (base), select-bordered (adds border), select-sm (small dropdowns)
         cls=f"select select-bordered select-sm {cls}",
         **kwargs,
     )
