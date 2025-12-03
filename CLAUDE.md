@@ -219,6 +219,18 @@ git branch -d test-create-hafiz              # Clean up feature branch
    - Check for always-visible elements instead (e.g., "System Date:", "Close Date" button)
    - Understand business logic: new hafizs have `hafizs_items` but with `memorized=false`
 
+4. **Testing Alpine.js x_show visibility**:
+   - Don't compare content between tabs - content might be the same
+   - Don't use CSS `:visible` selector - doesn't work reliably with Alpine's x_show
+   - Test class changes instead (more reliable):
+   ```python
+   import re
+   srs_tab = page.locator("a:has-text('SRS')")
+   srs_tab.click()
+   # Verify tab-active class was applied
+   expect(srs_tab).to_have_class(re.compile(r"tab-active"))
+   ```
+
 **Test Data Cleanup:**
 - Tests should be self-contained: create → use → delete
 - Rely on database CASCADE DELETE for related records
@@ -234,9 +246,34 @@ git branch -d test-create-hafiz              # Clean up feature branch
 - **UI Library**: MonsterUI (provides pre-built FastHTML components)
 - **Interactivity**:
   - HTMX (hx-boost enabled globally for SPA-like navigation, auto-submit on rating dropdown change)
+  - Alpine.js (client-side reactivity for tabs, toggles)
   - Hyperscript (dynamic button states)
 - **Styles**: Custom CSS in `public/css/style.css`, MonsterUI theme (blue)
 - **JavaScript**: `public/script.js` for custom interactions
+
+**DaisyUI Tabs with Alpine.js** (see `main.py` home page):
+```python
+# Tab buttons with Alpine.js state management
+def make_tab_button(mode_code):
+    return A(
+        f"{icon} {name}",
+        cls="tab",
+        **{
+            "@click": f"activeTab = '{mode_code}'",
+            ":class": f"activeTab === '{mode_code}' ? 'tab-active [--tab-bg:oklch(var(--p)/0.1)] [--tab-border-color:oklch(var(--p))]' : ''",
+        },
+    )
+
+# Tab content panels with x_show
+Div(content, x_show=f"activeTab === '{mode_code}'")
+
+# Wrap in container with x_data
+Div(
+    Div(*tab_buttons, cls="tabs tabs-lifted", role="tablist"),
+    *tab_contents,
+    x_data=f"{{ activeTab: '{default_mode}' }}",
+)
+```
 
 ## Architecture Overview
 

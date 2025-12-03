@@ -55,6 +55,16 @@ Git history should show nested cycles clearly.
 
 **Core Principle:** UI tests verify the full stack. If test says "creates project", verify it's actually in DB.
 
+### MECE Test Design
+Tests should be **MECE** (Mutually Exclusive, Collectively Exhaustive):
+- **Mutually Exclusive**: Each test covers ONE distinct behavior, no overlap
+- **Collectively Exhaustive**: Together, tests cover all behaviors of the feature
+
+Example for a toggle feature:
+- ✅ Test 1: Off → On (initial state, action, new state)
+- ✅ Test 2: On → Off (opposite direction)
+- ❌ Bad: Single test doing Off → On → Off (tests two things)
+
 ### What to Test
 - ✅ User actions work (click, fill, submit)
 - ✅ Data persists to DB (via Context functions, not Repo)
@@ -135,6 +145,11 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 - Do not overuse bolding format
 - Use H3/H4/H5/H6 for nested sections instead of bold headings
 - Use simple bulleted lists without bolded phrases in each bullet
+- Place comments directly above the specific line they explain, not at the beginning of a code block
+
+### Code Changes
+- Don't remove code if it is not related to the work you are doing
+- Only modify what's necessary for the current task
 
 ### Communication
 - **Avoid repeating same ideas in multiple places** - each concept should appear once
@@ -176,6 +191,34 @@ When figuring something out or exploring unfamiliar territory:
 
 ---
 
+## CSS / Tailwind / DaisyUI
+
+### Use Standard Color Variables
+Use DaisyUI's OKLCH color variables instead of hex colors:
+```css
+/* ❌ Bad - hardcoded hex */
+background-color: #e0f2fe;
+
+/* ✅ Good - DaisyUI primary at 10% opacity */
+background-color: oklch(var(--p)/0.1);
+
+/* Common patterns */
+--p    /* primary */
+--s    /* secondary */
+--a    /* accent */
+--n    /* neutral */
+--b1   /* base-100 (background) */
+--bc   /* base-content (text) */
+```
+
+In Tailwind arbitrary values:
+```python
+# Tab active state with primary color
+":class": "isActive ? 'tab-active [--tab-bg:oklch(var(--p)/0.1)] [--tab-border-color:oklch(var(--p))]' : ''"
+```
+
+---
+
 ## Phoenix Projects
 
 [Patterns will be added as we discover them]
@@ -184,4 +227,11 @@ When figuring something out or exploring unfamiliar territory:
 
 ## FastHTML Projects
 
-[Patterns will be added as we discover them]
+### pytest-playwright Fixture Override
+To override pytest-playwright's built-in `base_url` fixture, use `scope="session"`:
+```python
+# tests/conftest.py
+@pytest.fixture(scope="session")  # Must be session-scoped!
+def base_url():
+    return os.getenv("BASE_URL", "http://localhost:5001")
+```
