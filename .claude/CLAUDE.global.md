@@ -136,6 +136,15 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 - Explain **WHY**, not WHAT
 - No status comments (no TODO, "will implement later", etc.)
 - Keep concise
+- For non-obvious code (especially FastHTML/Alpine/HTMX patterns): one-liner comments above the line
+
+Example:
+```python
+# DaisyUI checkbox class + custom class for JS targeting
+cls="checkbox bulk-select-checkbox",
+# when checkbox changes, count ALL checked checkboxes in this table
+**{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+```
 
 ---
 
@@ -146,9 +155,10 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 - Use H3/H4/H5/H6 for nested sections instead of bold headings
 - Use simple bulleted lists without bolded phrases in each bullet
 - Place comments directly above the specific line they explain, not at the beginning of a code block
+- Always provide clickable file references with line numbers (e.g., `file.py:123`) so user can click to open in VSCode
 
 ### Code Changes
-- Don't remove code if it is not related to the work you are doing
+- Don't touch files unrelated to the current feature (no drive-by fixes or comment updates)
 - Only modify what's necessary for the current task
 
 ### Communication
@@ -162,8 +172,9 @@ Document decisions, tradeoffs, and thought process for knowledge transfer.
 - If you are in a multi-step process, pause at each step, explain your reasoning, provide him the options and get to know his thought before taking the next step.
 
 ### Git Workflow
-- ALWAYS ask approval before committing - show what will be committed and wait
+- ALWAYS ask approval before committing - show what will be committed and wait for explicit "commit" instruction
 - For UI changes: take a screenshot before asking for commit approval so user can verify visually
+- If user gives feedback or asks questions during review, answer them and wait for explicit commit approval
 - Never auto-commit
 - Commit messages: `RED:`, `GREEN:`, `REFACTOR:`, or `chore:` pattern
 - No references to claude in commit message
@@ -235,3 +246,9 @@ To override pytest-playwright's built-in `base_url` fixture, use `scope="session
 def base_url():
     return os.getenv("BASE_URL", "http://localhost:5001")
 ```
+
+### Alpine.js + HTMX Integration
+When combining Alpine.js with HTMX for elements that get replaced:
+- Use `style="display: none"` instead of `x-cloak` for elements that should start hidden after HTMX swap
+- `x-cloak` works for initial page load, but fails on HTMX swaps (timing issue between cloak removal and x-show evaluation)
+- `@click` handlers provide immediate feedback before HTMX round-trip completes

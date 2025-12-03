@@ -627,11 +627,30 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
         hx_swap="outerHTML",
     )
 
+    # Checkbox for bulk selection - only show if not already rated
+    if rating is None:
+        checkbox_cell = Td(
+            fh.Input(
+                type="checkbox",
+                # when form is submitted, all checked values go into item_ids[] array
+                name="item_ids",
+                # each checkbox carries the item's ID
+                value=item_id,
+                cls="checkbox bulk-select-checkbox",
+                **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+            ),
+            cls="w-8 text-center",
+        )
+    else:
+        # Empty Td for rated items - maintains column alignment
+        checkbox_cell = Td(cls="w-8")
+
     return Tr(
+        checkbox_cell,
         Td(get_page_description(item_id)),
         Td(
             records["item"].start_text or "-",
-            cls=TextT.lg,
+            cls="text-lg",
         ),
         Td(
             Form(
@@ -655,6 +674,43 @@ def get_mode_condition(mode_code: str):
     else:
         mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
     return mode_condition
+
+
+def render_bulk_action_bar(mode_code, current_date, plan_id):
+    """Render a sticky bulk action bar for applying ratings to selected items."""
+    plan_id_val = plan_id or ""
+
+    def bulk_button(rating_value, label, btn_cls):
+        return Button(
+            label,
+            hx_post="/bulk_rate",
+            hx_vals={"rating": rating_value, "mode_code": mode_code, "date": current_date, "plan_id": plan_id_val},
+            hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+            hx_target=f"#summary_table_{mode_code}",
+            hx_swap="outerHTML",
+            # Reset count immediately to hide bulk bar while HTMX processes
+            **{"@click": "count = 0"},
+            cls=(btn_cls, "px-4 py-2"),
+        )
+
+    return Div(
+        Div(
+            Span("Selected: ", cls="font-medium"),
+            Span(x_text="count", cls="font-bold"),
+            cls="text-sm",
+        ),
+        Div(
+            bulk_button(1, "Good", ButtonT.primary),
+            bulk_button(0, "Ok", ButtonT.secondary),
+            bulk_button(-1, "Bad", ButtonT.destructive),
+            cls="flex gap-2",
+        ),
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+        # x-show controls visibility when count changes; style ensures hidden by default after HTMX swap
+        x_show="count > 0",
+        style="display: none",
+    )
 
 
 def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
@@ -697,27 +753,40 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
                         A("Profile", href="/profile", cls=AT.classic),
                         " to continue, or a new plan will be created",
                     ),
-                    colspan=3,
+                    colspan=4,
                     cls="text-center text-lg",
                 )
             )
         )
+
+    bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
+
     table = Div(
         Table(
             Thead(
                 Tr(
+                    Th(
+                        fh.Input(
+                            type="checkbox",
+                            cls="checkbox select-all-checkbox",
+                            **{"@change": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked); count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0"},
+                        ),
+                        cls="w-8 text-center",
+                    ),
                     Th("Page", cls="min-w-24"),
                     Th("Start Text", cls="min-w-24"),
-                    Th("Rating", cls="min-w-24"),
+                    Th("Rating", cls="min-w-16"),
                 )
             ),
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
-            id=f"summary_table_{mode_code}",
             cls=(TableT.middle, TableT.divider, TableT.sm),
             # To prevent scroll jumping
             hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
             hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         ),
+        bulk_bar,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
     )
     return (mode_code, table)
 
@@ -726,6 +795,7 @@ def make_summary_table(
     mode_code: str,
     auth: str,
     total_page_count=0,
+    table_only=False,
 ):
     current_date = get_current_date(auth)
 
@@ -832,12 +902,15 @@ def make_summary_table(
     else:
         is_plan_finished = False
 
-    return render_summary_table(
+    result = render_summary_table(
         auth=auth,
         mode_code=mode_code,
         item_ids=item_ids,
         is_plan_finished=is_plan_finished,
     )
+    if table_only:
+        return result[1]  # Just the table element for HTMX swap
+    return result
 
 
 def render_current_date(auth):

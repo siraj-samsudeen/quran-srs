@@ -529,4 +529,45 @@ def update_revision_rating(
         return render_range_row(records=record)
 
 
+@app.post("/bulk_rate")
+def bulk_rate(
+    sess,
+    auth,
+    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values 
+    # (from checked checkboxes), FastHTML collects them into a list
+    item_ids: list[str],
+    rating: int,
+    mode_code: str,
+    date: str,
+    plan_id: str = "",
+):
+    plan_id_int = int(plan_id) if plan_id else None
+
+    # Add revision records for each item
+    for item_id in item_ids:
+        add_revision_record(
+            item_id=item_id,
+            mode_code=mode_code,
+            revision_date=date,
+            rating=rating,
+            plan_id=plan_id_int,
+        )
+
+    # Update full cycle progress if applicable
+    if mode_code == FULL_CYCLE_MODE_CODE:
+        page_count = get_page_count(item_ids=item_ids)
+        update_full_cycle_progress(sess, page_count)
+        if is_full_cycle_limit_reached(sess):
+            increment_full_cycle_limit(sess)
+
+    page_limit, _ = get_full_cycle_limit_and_revised_count(auth)
+
+    return make_summary_table(
+        mode_code=mode_code,
+        auth=auth,
+        total_page_count=page_limit if mode_code == FULL_CYCLE_MODE_CODE else 0,
+        table_only=True,
+    )
+
+
 serve()
