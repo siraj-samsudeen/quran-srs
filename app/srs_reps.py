@@ -24,21 +24,15 @@ from app.common_function import (
     render_rating,
 )
 
-# =============================================================================
-# CONSTANTS
-# =============================================================================
-
-# Starting intervals when entering SRS mode (based on the rating that triggered entry)
+# Starting intervals when entering SRS mode
 SRS_START_INTERVAL = {
     -1: 3,  # Bad rating -> 3-day interval
     0: 10,  # Ok rating -> 10-day interval
 }
 
-# Threshold for graduating back to Full Cycle (when next_interval exceeds this)
-SRS_END_INTERVAL = 99
+SRS_END_INTERVAL = 99  # Graduate back to Full Cycle when exceeded
 
-# Prime number sequence for interval progression
-# Rating determines movement: Bad→left, Ok→stay, Good→right
+# Prime number sequence for interval progression (Bad→left, Ok→stay, Good→right)
 SRS_INTERVALS = [
     2,
     3,
@@ -69,25 +63,8 @@ SRS_INTERVALS = [
 ]
 
 
-# =============================================================================
-# INTERVAL CALCULATION HELPERS
-# =============================================================================
-
-
 def binary_search_less_than(input_list: list[int], target: int) -> dict:
-    """
-    Find the largest element in a sorted list that is <= target.
-
-    Uses binary search for O(log n) performance.
-
-    Args:
-        input_list: Sorted list of integers (ascending)
-        target: Value to search for
-
-    Returns:
-        Dict with 'index' and 'value' of the largest element <= target,
-        or {'index': None, 'value': None} if no such element exists.
-    """
+    """Find the largest element in a sorted list that is <= target."""
     left = 0
     right = len(input_list) - 1
     possible_answer = {"index": None, "value": None}
@@ -108,21 +85,8 @@ def binary_search_less_than(input_list: list[int], target: int) -> dict:
 
 def get_interval_triplet(target_interval: int, interval_list: list[int]) -> list[int]:
     """
-    Get the interval options for the next review based on current interval.
-
-    Finds where the target_interval sits in the interval_list and returns
-    a triplet [left, current, right] representing the three possible next
-    intervals based on rating:
-        - Index 0 (left): Used for Bad rating (-1)
-        - Index 1 (current): Used for Ok rating (0)
-        - Index 2 (right): Used for Good rating (1)
-
-    Args:
-        target_interval: Current interval to find in the list
-        interval_list: Sorted list of valid intervals (prime numbers)
-
-    Returns:
-        List of 3 intervals: [shorter, same, longer]
+    Return [left, current, right] intervals for rating-based progression.
+    Index maps to rating+1: Bad(-1)→0, Ok(0)→1, Good(1)→2.
     """
     result = binary_search_less_than(input_list=interval_list, target=target_interval)
     i = result["index"]
@@ -137,23 +101,8 @@ def get_interval_triplet(target_interval: int, interval_list: list[int]) -> list
     return [left, interval_list[i], right]
 
 
-# =============================================================================
-# SRS ENTRY (From Full Cycle)
-# =============================================================================
-
-
 def start_srs(item_id: int, auth: int, rating: int) -> None:
-    """
-    Move an item from Full Cycle into SRS mode.
-
-    Called when a Full Cycle revision receives an Ok or Bad rating,
-    indicating the item needs focused reinforcement.
-
-    Args:
-        item_id: The item to move to SRS
-        auth: The hafiz_id
-        rating: The rating that triggered SRS entry (-1=Bad, 0=Ok)
-    """
+    """Move an item from Full Cycle into SRS mode."""
     current_date = get_current_date(auth)
     next_interval = SRS_START_INTERVAL[rating]
     next_review_date = add_days_to_date(current_date, next_interval)
@@ -168,24 +117,8 @@ def start_srs(item_id: int, auth: int, rating: int) -> None:
         hafizs_items.update(current_hafiz_items)
 
 
-# =============================================================================
-# SRS PROGRESSION (Next Interval Calculation)
-# =============================================================================
-
-
 def get_actual_interval(item_id: int) -> int | None:
-    """
-    Calculate the actual number of days since the last review.
-
-    This may differ from the planned interval if the user reviewed
-    early or late.
-
-    Args:
-        item_id: The item to check
-
-    Returns:
-        Number of days since last review, or None if no last_review exists
-    """
+    """Return days since last review (may differ from planned if reviewed early/late)."""
     hafiz_items_details = get_hafizs_items(item_id)
     current_date = get_current_date(hafiz_items_details.hafiz_id)
 
@@ -196,44 +129,16 @@ def get_actual_interval(item_id: int) -> int | None:
 
 
 def apply_rating_penalty(actual_interval: int, rating: int) -> int:
-    """
-    Apply a penalty to the actual interval based on rating.
-
-    Reduces the effective interval for Ok/Bad ratings to account for
-    the struggle, even if the user waited the full interval.
-
-    Multipliers:
-        - Good (1): 100% - full credit for waiting
-        - Ok (0): 50% - partial credit
-        - Bad (-1): 35% - minimal credit
-
-    Args:
-        actual_interval: Days since last review
-        rating: Review rating (-1, 0, or 1)
-
-    Returns:
-        Adjusted interval after applying rating penalty
-    """
+    """Apply rating penalty: Good=100%, Ok=50%, Bad=35% of actual interval."""
     rating_multipliers = {1: 1, 0: 0.5, -1: 0.35}
     return round(actual_interval * rating_multipliers[rating])
 
 
 def get_planned_next_interval(item_id: int) -> int | None:
-    """Get the planned next_interval from hafizs_items."""
     return get_hafizs_items(item_id).next_interval
 
 
 def get_next_interval_based_on_rating(current_interval: int, rating: int) -> int:
-    """
-    Look up the next interval from the prime sequence based on rating.
-
-    Args:
-        current_interval: Current position in the interval sequence
-        rating: Review rating (-1=Bad, 0=Ok, 1=Good)
-
-    Returns:
-        Next interval from the prime sequence
-    """
     rating_intervals = get_interval_triplet(
         target_interval=current_interval,
         interval_list=SRS_INTERVALS,
@@ -244,21 +149,8 @@ def get_next_interval_based_on_rating(current_interval: int, rating: int) -> int
 
 def get_next_interval(item_id: int, rating: int) -> int | None:
     """
-    Calculate the next SRS interval for an item based on its rating.
-
-    This is the main interval calculation that considers both:
-    1. Actual interval (days since last review) with rating penalty applied
-    2. Planned interval (what was scheduled)
-
-    The larger of these two becomes the "current interval", which is then
-    used to look up the next interval from the prime sequence based on rating.
-
-    Args:
-        item_id: The item being reviewed
-        rating: Review rating (-1=Bad, 0=Ok, 1=Good)
-
-    Returns:
-        Next interval in days, or None if calculation fails
+    Calculate next SRS interval using max(planned, adjusted_actual) as base,
+    then look up next interval from prime sequence based on rating.
     """
     actual_interval = get_actual_interval(item_id)
     if not actual_interval:
@@ -277,23 +169,8 @@ def get_next_interval(item_id: int, rating: int) -> int | None:
     return get_next_interval_based_on_rating(current_interval, rating)
 
 
-# =============================================================================
-# SRS UPDATE & GRADUATION (Called on Close Date)
-# =============================================================================
-
-
 def update_hafiz_item_for_srs(rev) -> None:
-    """
-    Update hafizs_items after an SRS revision, potentially graduating to Full Cycle.
-
-    Called during Close Date processing for each SRS revision. Calculates the next
-    interval based on rating, then either:
-    1. Schedules the next SRS review (if next_interval <= 99)
-    2. Graduates the item back to Full Cycle (if next_interval > 99)
-
-    Args:
-        rev: The revision record being processed
-    """
+    """Process SRS revision: schedule next review or graduate to Full Cycle if interval > 99."""
     hafiz_items_details = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)
     next_interval = get_next_interval(item_id=rev.item_id, rating=rev.rating)
@@ -324,20 +201,7 @@ def update_hafiz_item_for_srs(rev) -> None:
 
 
 def start_srs_for_ok_and_bad_rating(auth: int) -> None:
-    """
-    Move items to SRS mode based on today's Full Cycle revision ratings.
-
-    Called during Close Date processing. Scans today's Full Cycle revisions
-    and moves items with Ok or Bad ratings into SRS mode.
-
-    Rating-based starting intervals:
-        - Bad (-1): 3-day starting interval
-        - Ok (0): 10-day starting interval
-        - Good (1): Stays in Full Cycle (no SRS entry)
-
-    Args:
-        auth: The hafiz_id to process
-    """
+    """Called during Close Date: move today's Ok/Bad Full Cycle items into SRS."""
     current_date = get_current_date(auth)
 
     # Build query in readable stages
