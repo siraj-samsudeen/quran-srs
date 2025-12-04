@@ -37,14 +37,15 @@ def post(login: Login, sess):
     return hafizs_selection_redir
 
 
+# Signup disabled for private beta - bot abuse prevention
 # @rt("/signup")
-def get(sess):
+def get_signup(sess):
     """Display signup form"""
     return render_signup_form()
 
 
 # @rt("/signup")
-def post(user: User, confirm_password: str, sess):
+def post_signup(user: User, confirm_password: str, sess):
     """Process signup form submission"""
     # Check if passwords match
     if user.password != confirm_password:

@@ -316,3 +316,644 @@ Only **hafizs_items.current_interval** is truly redundant and could be removed. 
 - **Historical accuracy** (preserve actual timing facts that cannot be recalculated)
 
 The storage cost is minimal compared to the architectural benefits of having both an immutable audit trail (revisions) and a fast-access current state cache (hafizs_items).
+
+## SRS Algorithm v2 - Unified Interval System
+
+A unified spaced repetition system that treats all review modes as **interval bands** on a continuous spectrum. The system adapts to user behavior, tracks peak performance, and uses rating-based progression throughout.
+
+## Core Philosophy
+
+1. **Trust Success**: Good/Perfect at long intervals = proven strength
+2. **Hedge on Failure**: Bad after long gap = unclear cause, don't punish harshly
+3. **Accelerate Recovery**: Help items return to their proven peak
+4. **Two Speeds**: Fast growth early (multiplicative), careful maintenance later (additive)
+5. **Gradual Demotion**: Struggling items drop one level, not all the way back
+
+---
+
+## Rating Scale
+
+| Value | Name     | Meaning                        | Effect                   |
+| ----- | -------- | ------------------------------ | ------------------------ |
+| 2     | Perfect  | Instant, effortless recall     | Strongest progression    |
+| 1     | Good     | Solid recall with minor effort | Normal progression       |
+| 0     | Ok       | Got it but struggled           | Hold/minimal progression |
+| -1    | Bad      | Significant struggle           | Regression               |
+| -2    | Very Bad | Complete failure               | Strong regression        |
+
+---
+
+## Interval Bands (Unified Model)
+
+Instead of separate modes (DR/WR/SRS), we have **bands** on an interval spectrum:
+
+| Band        | Code | Interval Range | Target  | Reviews to Graduate | Display Name |
+| ----------- | ---- | -------------- | ------- | ------------------- | ------------ |
+| Daily       | D1   | 1-6 days       | 1 day   | 7 reviews + 3 good  | Daily        |
+| Weekly      | W1   | 7-13 days      | 7 days  | 5 reviews + 3 good  | Weekly       |
+| Fortnightly | W2   | 14-29 days     | 14 days | 4 reviews + 3 good  | Fortnightly  |
+| Monthly     | M1   | 30-59 days     | 30 days | 3 reviews + 3 good  | Monthly      |
+| Full Cycle  | FC   | 60+ days       | N/A     | N/A                 | Maintenance  |
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     INTERVAL SPECTRUM                           │
+├─────────┬─────────┬──────────┬─────────┬───────────────────────┤
+│   D1    │   W1    │    W2    │   M1    │         FC            │
+│  1-6d   │  7-13d  │  14-29d  │ 30-59d  │        60+d           │
+│  Daily  │ Weekly  │Fortnght  │ Monthly │    Full Cycle         │
+└─────────┴─────────┴──────────┴─────────┴───────────────────────┘
+     ↑                                                ↑
+     │      Items flow along spectrum based on       │
+     │      performance (graduation/demotion)        │
+     └────────────────────────────────────────────────┘
+```
+
+---
+
+## Graduation Criteria
+
+An item graduates to the next band when ANY of these conditions are met:
+
+1. **Performance-based**: 3 consecutive Good/Perfect ratings
+2. **Count-based**: Completed required reviews for current band
+3. **Manual**: User explicitly graduates the item
+
+```python
+def should_graduate(item, band_config) -> bool:
+    return (
+        item.good_streak >= 3 or
+        item.band_review_count >= band_config["reviews_to_graduate"] or
+        item.manual_graduation_requested
+    )
+```
+
+---
+
+## Two-Phase Algorithm
+
+### Phase 1: Growth (interval < 30 days)
+
+Multiplicative - quickly find the right level:
+
+```python
+GROWTH_MULTIPLIERS = {
+    2: 2.0,    # Perfect → double
+    1: 1.5,    # Good → 50% increase
+    0: 1.1,    # Ok → slight increase
+   -1: 0.5,    # Bad → halve
+   -2: 0.3,    # Very Bad → aggressive cut
+}
+
+def apply_growth_phase(base: int, rating: int) -> float:
+    return base * GROWTH_MULTIPLIERS[rating]
+```
+
+### Phase 2: Maintenance (interval ≥ 30 days)
+
+Additive for positive ratings, midpoint regression for negative:
+
+```python
+MAINTENANCE_ADDITIONS = {
+    2: 5,      # Perfect → +5 days
+    1: 3,      # Good → +3 days
+    0: 1,      # Ok → +1 day
+}
+
+def apply_maintenance_phase(base: int, rating: int, peak_good: int | None) -> int:
+    if rating >= 0:
+        return base + MAINTENANCE_ADDITIONS[rating]
+
+    # Bad: midpoint toward half of peak (or half of base)
+    if rating == -1:
+        lower = (peak_good // 2) if peak_good else (base // 2)
+        return (base + lower) // 2
+
+    # Very Bad: midpoint toward third of peak (or third of base)
+    lower = (peak_good // 3) if peak_good else (base // 3)
+    return (base + lower) // 2
+```
+
+---
+
+## Core Algorithm
+
+### Main Calculation
+
+```python
+MIN_INTERVAL = 1
+PHASE_THRESHOLD = 30
+RECOVERY_BOOST = 0.3  # Cover 30% of gap to peak
+
+def calculate_next_interval(
+    scheduled_interval: int,    # What was scheduled for this review
+    actual_interval: int,       # Days since last review
+    rating: int,                # -2 to 2
+    peak_good: int | None,      # Best proven interval
+) -> int:
+    # Step 1: Determine base interval
+    base = determine_base(scheduled_interval, actual_interval, rating)
+
+    # Step 2: Apply phase-appropriate transformation
+    if base < PHASE_THRESHOLD:
+        result = apply_growth_phase(base, rating)
+    else:
+        result = apply_maintenance_phase(base, rating, peak_good)
+
+    # Step 3: Recovery boost when below proven peak
+    if rating >= 1 and peak_good and result < peak_good:
+        gap = peak_good - result
+        result += gap * RECOVERY_BOOST
+
+    return max(MIN_INTERVAL, round(result))
+```
+
+### Base Interval Determination
+
+Who do we trust - the schedule or actual performance?
+
+```python
+def determine_base(scheduled: int, actual: int, rating: int) -> int:
+    # Good/Perfect after long wait: trust actual (they proved it)
+    if rating >= 1 and actual > scheduled:
+        return actual
+
+    # Ok/Bad after VERY long wait: hedge with midpoint
+    if rating in (0, -1) and actual > scheduled * 2:
+        return (scheduled + actual) // 2
+
+    # Very Bad: always use scheduled (serious failure)
+    # Default: use scheduled
+    return scheduled
+```
+
+| Scheduled | Actual | Rating  | Base | Why                     |
+| --------- | ------ | ------- | ---- | ----------------------- |
+| 15        | 15     | Good    | 15   | On-time                 |
+| 15        | 45     | Good    | 45   | Late success, earned it |
+| 15        | 60     | Bad     | 37   | Late failure, hedge     |
+| 15        | 60     | VeryBad | 15   | Serious failure         |
+
+---
+
+## Band Entry & Demotion
+
+### Entry from New Memorization
+
+```python
+def get_entry_interval(rating: int, actual_interval: int | None) -> int:
+    """Starting interval when entering from New Memorization."""
+    # New memorization always starts at D1 with interval=1
+    return 1
+```
+
+### Demotion (Bad Streak)
+
+Demote gradually based on current interval:
+
+```python
+def get_demotion_band(current_interval: int) -> str:
+    """Determine which band to demote to after bad streak (2 consecutive)."""
+    if current_interval <= 6:
+        return "D1"  # Already in daily, stay there
+    elif current_interval <= 13:
+        return "D1"  # Weekly → Daily
+    elif current_interval <= 29:
+        return "W1"  # Fortnightly → Weekly
+    elif current_interval <= 59:
+        return "W2"  # Monthly → Fortnightly
+    else:
+        return "M1"  # FC → Monthly
+
+def get_demotion_interval(current_interval: int, rating: int) -> int:
+    """Calculate new interval after demotion."""
+    if rating == -2:  # Very Bad
+        return max(1, current_interval // 4)
+    else:  # Bad
+        return max(1, current_interval // 2)
+```
+
+---
+
+## Peak Tracking
+
+Updated on **every review** (all bands, including FC):
+
+```python
+def update_peaks(item_id: int, actual_interval: int, rating: int):
+    """Update peak intervals after any review."""
+    item = get_hafizs_items(item_id)
+
+    # peak_interval_any: Always update if longest seen
+    if actual_interval > (item.peak_interval_any or 0):
+        item.peak_interval_any = actual_interval
+
+    # peak_interval_good: Only on Good (1) or Perfect (2)
+    if rating >= 1:
+        if actual_interval > (item.peak_interval_good or 0):
+            item.peak_interval_good = actual_interval
+
+    hafizs_items.update(item)
+```
+
+---
+
+## Streak Tracking
+
+Bad streak counts **across all bands**:
+
+```python
+def update_streaks(item_id: int, rating: int) -> tuple[int, int]:
+    """Update streaks, returns (good_streak, bad_streak)."""
+    item = get_hafizs_items(item_id)
+
+    if rating >= 1:  # Good or Perfect
+        item.good_streak = (item.good_streak or 0) + 1
+        item.bad_streak = 0
+    elif rating <= -1:  # Bad or Very Bad
+        item.bad_streak = (item.bad_streak or 0) + 1
+        item.good_streak = 0
+    else:  # Ok
+        item.good_streak = 0
+        item.bad_streak = 0
+
+    hafizs_items.update(item)
+    return (item.good_streak, item.bad_streak)
+```
+
+---
+
+## Database Schema
+
+### hafizs_items (current state)
+
+```sql
+id INTEGER PRIMARY KEY,
+hafiz_id INTEGER REFERENCES hafizs(id) ON DELETE CASCADE,
+item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+page_number INTEGER,
+mode_code TEXT,              -- 'D1', 'W1', 'W2', 'M1', 'FC', 'NM'
+memorized BOOLEAN DEFAULT FALSE,
+
+-- Scheduling
+interval INTEGER,            -- Current interval (days between reviews)
+next_review TEXT,            -- When due (YYYY-MM-DD)
+last_review TEXT,            -- Date of last review
+
+-- Streaks & Counts
+good_streak INTEGER DEFAULT 0,
+bad_streak INTEGER DEFAULT 0,
+band_review_count INTEGER DEFAULT 0,   -- Reviews in current band
+
+-- Peak Tracking
+peak_interval_good INTEGER,  -- Best proven interval (Good/Perfect)
+peak_interval_any INTEGER    -- Longest actual interval ever
+```
+
+### revisions (historical record)
+
+```sql
+id INTEGER PRIMARY KEY,
+hafiz_id INTEGER REFERENCES hafizs(id) ON DELETE CASCADE,
+item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+review_date TEXT,            -- YYYY-MM-DD
+rating INTEGER,              -- -2 to 2
+mode_code TEXT,              -- Band at time of review
+plan_id INTEGER,             -- For FC sequential tracking
+
+-- Interval data
+interval INTEGER,            -- Interval assigned after this review
+actual_interval INTEGER      -- Days since previous review
+```
+
+### transitions (event log)
+
+```sql
+id INTEGER PRIMARY KEY,
+hafiz_id INTEGER REFERENCES hafizs(id) ON DELETE CASCADE,
+item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+transition_date TEXT,        -- YYYY-MM-DD
+from_mode TEXT,              -- NULL for initial memorization
+to_mode TEXT,
+trigger TEXT,                -- 'memorized', 'graduated', 'demoted', 'manual'
+context TEXT                 -- JSON: {"rating": -1, "interval": 30}
+```
+
+---
+
+## Close Date (Simplified)
+
+Close Date is retained but streamlined. Most processing happens **immediately** when a review is recorded.
+
+```python
+def close_date(auth):
+    """End-of-day processing (lightweight)."""
+    # 1. Check if FC plan is complete
+    cycle_full_cycle_plan_if_completed()
+
+    # 2. Advance the virtual date
+    advance_current_date(auth)
+```
+
+### What Happens Immediately (on review)
+
+- Interval calculation
+- next_review update
+- Streak updates
+- Peak updates
+- Band graduation/demotion
+- Transition logging
+
+### What Happens at Close Date
+
+- FC plan completion check
+- Virtual date advancement
+
+---
+
+## Example Scenarios
+
+### Scenario A: Normal Progression (New Memorization → FC)
+
+```
+Day 0:  Page memorized → D1, interval=1
+        Transition: NULL → NM (memorized)
+        Transition: NM → D1 (graduated)
+
+Day 1:  Review Good → interval=1, count=1, good_streak=1
+Day 2:  Review Good → interval=1, count=2, good_streak=2
+Day 3:  Review Good → interval=1, count=3, good_streak=3 ✓
+        → Graduate to W1! interval=7
+        Transition: D1 → W1 (graduated)
+
+Day 10: Review Good → interval=7, count=1, good_streak=1
+Day 17: Review Good → interval=7, count=2, good_streak=2
+Day 24: Review Good → interval=7, count=3, good_streak=3 ✓
+        → Graduate to W2! interval=14
+        Transition: W1 → W2 (graduated)
+
+Day 38: Review Good → interval=14, count=1
+Day 52: Review Good → interval=14, count=2
+Day 66: Review Good → interval=14, count=3, good_streak=3 ✓
+        → Graduate to M1! interval=30
+        Transition: W2 → M1 (graduated)
+
+Day 96:  Review Good → interval=30+3=33, count=1
+Day 129: Review Good → interval=33+3=36, count=2
+Day 165: Review Good → interval=36+3=39, count=3, good_streak=3 ✓
+         → Graduate to FC! interval=60+
+         Transition: M1 → FC (graduated)
+```
+
+### Scenario B: Struggle and Recovery
+
+```
+Day 0:   Item in FC, interval=45, peak_good=45
+
+Day 50:  Review Bad (actual=50)
+         base = (45+50)//2 = 47 (hedged, actual > scheduled*2)
+         maintenance regression: lower=45//2=22
+         result = (47+22)//2 = 34
+         bad_streak=1
+
+Day 84:  Review Bad (actual=34)
+         base = 34
+         maintenance regression: lower=45//2=22
+         result = (34+22)//2 = 28
+         bad_streak=2 → Demote to M1!
+         demotion_interval = 34//2 = 17
+         Transition: FC → M1 (demoted, {"bad_streak": 2})
+
+Day 101: Review Good (actual=17)
+         base = 17
+         growth phase: 17*1.5 = 25
+         good_streak=1, band_count=1
+
+Day 126: Review Good (actual=25)
+         base = 25
+         growth phase: 25*1.5 = 37 → but >=30, so maintenance
+         maintenance: 25+3 = 28
+         good_streak=2, band_count=2
+
+Day 154: Review Perfect (actual=28)
+         base = 28
+         growth phase: 28*2.0 = 56 → but >=30, so maintenance
+         maintenance: 28+5 = 33
+         good_streak=3 ✓ → Graduate to FC!
+         recovery_boost: gap=45-33=12, boost=12*0.3=3.6
+         final_interval = 33+4 = 37
+         peak_good updated to 28
+         Transition: M1 → FC (graduated)
+```
+
+### Scenario C: Late Review Success
+
+```
+Day 0:   Item in W2, interval=14
+
+Day 45:  Review Good (actual=45, very late!)
+         base = 45 (trusted: rating Good + actual > scheduled)
+         maintenance phase (45 >= 30): 45+3 = 48
+         peak_good updated to 45
+         peak_interval_any updated to 45
+         → Effectively jumped to M1/FC territory!
+         Transition: W2 → M1 (graduated, early due to performance)
+```
+
+### Scenario D: Very Bad Cascade
+
+```
+Day 0:   Item in M1, interval=30
+
+Day 32:  Review Very Bad (actual=32)
+         base = 30 (VeryBad always uses scheduled)
+         maintenance: lower=30//3=10, (30+10)//2 = 20
+         Actually >=30, use growth: 30*0.3 = 9
+         bad_streak=1
+
+Day 41:  Review Bad (actual=9)
+         base = 9
+         growth phase: 9*0.5 = 4
+         bad_streak=2 → Demote to D1!
+         demotion_interval = max(1, 9//2) = 4
+         Transition: M1 → D1 (demoted, {"bad_streak": 2})
+
+Day 45:  Now rebuilding from D1 with interval=4
+```
+
+---
+
+## Configuration
+
+```python
+# Interval bands
+BANDS = {
+    "NM": {"name": "New Memorization", "min": None, "max": None},
+    "D1": {"name": "Daily", "min": 1, "max": 6, "target": 1, "reviews": 7, "next": "W1"},
+    "W1": {"name": "Weekly", "min": 7, "max": 13, "target": 7, "reviews": 5, "next": "W2"},
+    "W2": {"name": "Fortnightly", "min": 14, "max": 29, "target": 14, "reviews": 4, "next": "M1"},
+    "M1": {"name": "Monthly", "min": 30, "max": 59, "target": 30, "reviews": 3, "next": "FC"},
+    "FC": {"name": "Full Cycle", "min": 60, "max": None, "target": None, "reviews": None, "next": None},
+}
+
+# Phase threshold
+PHASE_THRESHOLD = 30  # Below: multiplicative, at/above: additive
+
+# Growth phase multipliers (interval < 30)
+GROWTH_MULTIPLIERS = {2: 2.0, 1: 1.5, 0: 1.1, -1: 0.5, -2: 0.3}
+
+# Maintenance phase additions (interval >= 30)
+MAINTENANCE_ADDITIONS = {2: 5, 1: 3, 0: 1}  # -1, -2 use midpoint
+
+# Recovery boost
+RECOVERY_BOOST = 0.3  # Cover 30% of gap to peak
+
+# Graduation thresholds
+GOOD_STREAK_TO_GRADUATE = 3
+```
+
+---
+
+## Migration Strategy
+
+### Phase 1: Schema Changes
+
+```sql
+-- 0022-unified-interval-system.sql
+
+-- 1. Add new columns to hafizs_items
+ALTER TABLE hafizs_items ADD COLUMN peak_interval_good INTEGER;
+ALTER TABLE hafizs_items ADD COLUMN peak_interval_any INTEGER;
+ALTER TABLE hafizs_items ADD COLUMN band_review_count INTEGER DEFAULT 0;
+
+-- 2. Rename interval columns for clarity
+ALTER TABLE hafizs_items RENAME COLUMN next_interval TO interval;
+
+-- 3. Add actual_interval to revisions
+ALTER TABLE revisions ADD COLUMN actual_interval INTEGER;
+
+-- 4. Create transitions table
+CREATE TABLE transitions (
+    id INTEGER PRIMARY KEY,
+    hafiz_id INTEGER REFERENCES hafizs(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+    transition_date TEXT,
+    from_mode TEXT,
+    to_mode TEXT,
+    trigger TEXT,
+    context TEXT
+);
+
+-- 5. Add new mode codes
+INSERT INTO modes (code, name, description) VALUES
+    ('W2', 'Fortnightly Reps', 'Review every 14 days'),
+    ('M1', 'Monthly Reps', 'Review every 30 days');
+
+-- 6. Update existing mode codes (DR→D1, WR→W1)
+UPDATE hafizs_items SET mode_code = 'D1' WHERE mode_code = 'DR';
+UPDATE hafizs_items SET mode_code = 'W1' WHERE mode_code = 'WR';
+UPDATE revisions SET mode_code = 'D1' WHERE mode_code = 'DR';
+UPDATE revisions SET mode_code = 'W1' WHERE mode_code = 'WR';
+UPDATE modes SET code = 'D1', name = 'Daily' WHERE code = 'DR';
+UPDATE modes SET code = 'W1', name = 'Weekly' WHERE code = 'WR';
+```
+
+### Phase 2: Backfill Data
+
+```sql
+-- Backfill actual_interval in revisions (from consecutive review dates)
+WITH ordered_revisions AS (
+    SELECT
+        id,
+        item_id,
+        hafiz_id,
+        review_date,
+        LAG(review_date) OVER (
+            PARTITION BY item_id, hafiz_id
+            ORDER BY review_date, id
+        ) as prev_date
+    FROM revisions
+)
+UPDATE revisions
+SET actual_interval = (
+    SELECT CAST(JULIANDAY(revisions.review_date) - JULIANDAY(o.prev_date) AS INTEGER)
+    FROM ordered_revisions o
+    WHERE o.id = revisions.id AND o.prev_date IS NOT NULL
+)
+WHERE EXISTS (
+    SELECT 1 FROM ordered_revisions o
+    WHERE o.id = revisions.id AND o.prev_date IS NOT NULL
+);
+
+-- Backfill peak_interval_any
+UPDATE hafizs_items
+SET peak_interval_any = (
+    SELECT MAX(actual_interval)
+    FROM revisions
+    WHERE revisions.item_id = hafizs_items.item_id
+      AND revisions.hafiz_id = hafizs_items.hafiz_id
+      AND revisions.actual_interval IS NOT NULL
+);
+
+-- Backfill peak_interval_good
+UPDATE hafizs_items
+SET peak_interval_good = (
+    SELECT MAX(actual_interval)
+    FROM revisions
+    WHERE revisions.item_id = hafizs_items.item_id
+      AND revisions.hafiz_id = hafizs_items.hafiz_id
+      AND revisions.rating >= 1
+      AND revisions.actual_interval IS NOT NULL
+);
+```
+
+### Phase 3: Backfill Transitions
+
+```sql
+-- Create 'memorized' transitions from NM revisions
+INSERT INTO transitions (hafiz_id, item_id, transition_date, from_mode, to_mode, trigger)
+SELECT DISTINCT
+    hafiz_id,
+    item_id,
+    MIN(review_date),
+    NULL,
+    'NM',
+    'memorized'
+FROM revisions
+WHERE mode_code = 'NM'
+GROUP BY hafiz_id, item_id;
+
+-- Note: Mode change transitions would require analyzing consecutive
+-- revisions with different mode_codes - complex query, can be done
+-- in Python during migration script
+```
+
+### Phase 4: Code Changes
+
+New algorithm applies to all new reviews. Existing scheduled intervals are honored until reviewed.
+
+---
+
+## Verification Queries
+
+Before and after migration, verify SRS due items are unchanged:
+
+```sql
+-- Items due for review today (should be identical before/after)
+SELECT item_id, interval, next_review, mode_code
+FROM hafizs_items
+WHERE next_review <= :current_date
+  AND mode_code IN ('D1', 'W1', 'W2', 'M1', 'SR')
+ORDER BY item_id;
+```
+
+---
+
+## Removed/Deprecated
+
+- `SRS_INTERVALS` (prime number list) - replaced by multipliers/additions
+- `binary_search_less_than()` - no longer needed
+- `get_interval_triplet()` - no longer needed
+- `last_interval` column in hafizs_items - removed (was `prev_interval`)
+- `SRS_MODE_CODE` ('SR') - items in intensive review are still in their band, just flagged
+- Concept of "graduation from SRS" - items graduate through bands naturally

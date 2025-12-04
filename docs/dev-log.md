@@ -1,5 +1,44 @@
 # Dev Log
 
+## FastHTML Authentication Concepts (Nov 2025)
+
+### HTTP is Stateless
+Every HTTP request is a stranger to the server. You log in on request 1, but request 2 (even 2 seconds later) has no memory of it. The server treats each request as a completely new interaction.
+
+### Session Cookies Solve This
+1. You log in → server creates session (`{user_id: 123}`)
+2. Server sends session cookie (random ID like `abc123xyz`) to browser
+3. **Key magic**: Browser automatically sends this cookie with every future request
+4. Server reads cookie → looks up session → "Oh, you're user 123!"
+
+You don't write code for step 3 - browsers do this automatically for all cookies on the same domain.
+
+### Request Scope vs Session
+- **`sess`** = persistent storage, but might be stale (admin deleted user, but cookie still exists)
+- **`req.scope`** = per-request validated data (beforeware already checked it's valid)
+
+Convention: Beforeware validates session data and puts clean results in `req.scope`. Handlers read from `req.scope`, not `sess` directly. Single source of truth for the request.
+
+### FastHTML Beforeware Pattern
+Middleware that runs before every route handler:
+
+```python
+def auth_before(req, sess):
+    auth = sess.get("auth")           # Read from session
+    req.scope["auth"] = auth          # Store validated data
+    if not auth:
+        return RedirectResponse("/login", status_code=303)  # Intercept
+    # No return = continue to route handler
+
+beforeware = Beforeware(auth_before, skip=["/login", "/signup"])
+```
+
+- **Skip list**: Routes that don't need auth (supports regex)
+- **Return redirect**: Intercepts request, handler never runs
+- **No return**: Request continues to the route handler
+
+---
+
 ## Alpine.js + HTMX Bulk Action Bar Visibility Issue
 
 ### The Problem

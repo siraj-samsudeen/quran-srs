@@ -22,7 +22,7 @@ def user_auth(req, sess):
 
 user_bware = Beforeware(
     user_auth,
-    skip=["/users/login", "/users/logout"],
+    skip=["/users/login", "/users/logout"],  # "/users/signup" disabled for private beta
 )
 
 
@@ -48,6 +48,7 @@ hafiz_bware = Beforeware(
     skip=[
         "/users/login",
         "/users/logout",
+        # "/users/signup",  # disabled for private beta
         r"/users/\d+$",  # for deleting the user
         "/users/hafiz_selection",
         "/users/add_hafiz",
