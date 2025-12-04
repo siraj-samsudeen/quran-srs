@@ -7,7 +7,8 @@ the page needs focused reinforcement before returning to regular rotation.
 
 Key concepts:
 - Items enter SRS from Full Cycle when they get Ok (0) or Bad (-1) ratings
-- Rating affects next interval: Bad→shorter, Ok→same, Good→longer
+- Rating affects next interval: Bad→shorter, Ok→same/capped, Good→longer
+- Graduation: After consecutive Good ratings (not based on interval threshold)
 """
 
 from globals import *
@@ -20,82 +21,13 @@ from app.common_function import (
     get_page_description,
     render_rating,
 )
-
-# Starting intervals when entering SRS mode
-SRS_START_INTERVAL = {
-    -1: 3,  # Bad rating -> 3-day interval
-    0: 10,  # Ok rating -> 10-day interval
-}
-
-SRS_END_INTERVAL = 99  # Graduate back to Full Cycle when exceeded
-
-# Prime number sequence for interval progression (Bad→left, Ok→stay, Good→right)
-SRS_INTERVALS = [
-    2,
-    3,
-    5,
-    7,
-    11,
-    13,
-    17,
-    19,
-    23,
-    29,
-    31,
-    37,
-    41,
-    43,
-    47,
-    53,
-    59,
-    61,
-    67,
-    71,
-    73,
-    79,
-    83,
-    89,
-    97,
-    101,
-]
-
-
-def binary_search_less_than(input_list: list[int], target: int) -> dict:
-    """Find the largest element in a sorted list that is <= target."""
-    left = 0
-    right = len(input_list) - 1
-    possible_answer = {"index": None, "value": None}
-
-    while left <= right:
-        middle = (left + right) // 2
-        middle_value = input_list[middle]
-
-        if middle_value <= target:
-            left = middle + 1
-            possible_answer["index"] = middle
-            possible_answer["value"] = middle_value
-        else:
-            right = middle - 1
-
-    return possible_answer
-
-
-def get_interval_triplet(target_interval: int, interval_list: list[int]) -> list[int]:
-    """
-    Return [left, current, right] intervals for rating-based progression.
-    Index maps to rating+1: Bad(-1)→0, Ok(0)→1, Good(1)→2.
-    """
-    result = binary_search_less_than(input_list=interval_list, target=target_interval)
-    i = result["index"]
-
-    # If no match found (target < first element), start at index 0
-    if i is None:
-        i = 0
-
-    # Build triplet with bounds checking
-    left = interval_list[i - 1] if i > 0 else interval_list[i]
-    right = interval_list[i + 1] if i < len(interval_list) - 1 else interval_list[i]
-    return [left, interval_list[i], right]
+from app.srs_interval_calc import (
+    SRS_START_INTERVAL,
+    get_base_interval,
+    calculate_next_interval,
+    should_graduate,
+    should_reschedule_only,
+)
 
 
 def start_srs(item_id: int, auth: int, rating: int) -> None:
@@ -111,6 +43,9 @@ def start_srs(item_id: int, auth: int, rating: int) -> None:
         current_hafiz_items.next_interval = next_interval
         current_hafiz_items.srs_start_date = current_date
         current_hafiz_items.next_review = next_review_date
+        # Reset streaks on SRS entry
+        current_hafiz_items.good_streak = 0
+        current_hafiz_items.bad_streak = 1 if rating == -1 else 0
         hafizs_items.update(current_hafiz_items)
 
 
@@ -125,74 +60,122 @@ def get_actual_interval(item_id: int) -> int | None:
     return calculate_days_difference(last_review, current_date)
 
 
-def apply_rating_penalty(actual_interval: int, rating: int) -> int:
-    """Apply rating penalty: Good=100%, Ok=50%, Bad=35% of actual interval."""
-    rating_multipliers = {1: 1, 0: 0.5, -1: 0.35}
-    return round(actual_interval * rating_multipliers[rating])
-
-
 def get_planned_next_interval(item_id: int) -> int | None:
+    """Get the planned next interval from hafizs_items."""
     return get_hafizs_items(item_id).next_interval
-
-
-def get_next_interval_based_on_rating(current_interval: int, rating: int) -> int:
-    rating_intervals = get_interval_triplet(
-        target_interval=current_interval,
-        interval_list=SRS_INTERVALS,
-    )
-    # Convert rating (-1, 0, 1) to index (0, 1, 2)
-    return rating_intervals[rating + 1]
 
 
 def get_next_interval(item_id: int, rating: int) -> int | None:
     """
-    Calculate next SRS interval using max(planned, adjusted_actual) as base,
-    then look up next interval from prime sequence based on rating.
+    Calculate next SRS interval using streak-based progression.
+
+    Returns:
+        - None if early + Good (signals reschedule-only)
+        - Calculated interval otherwise
     """
-    actual_interval = get_actual_interval(item_id)
-    if not actual_interval:
+    hafiz_item = get_hafizs_items(item_id)
+    actual = get_actual_interval(item_id)
+    planned = get_planned_next_interval(item_id)
+
+    if actual is None or planned is None:
         return None
 
-    # Apply rating-based penalty to actual interval
-    adjusted_actual = apply_rating_penalty(actual_interval, rating)
-
-    planned_interval = get_planned_next_interval(item_id)
-    if not planned_interval:
+    # Check if this is early + Good (reschedule only, no recalc)
+    if should_reschedule_only(actual, planned, rating):
         return None
 
-    # Use whichever interval is larger as the base for progression
-    current_interval = max(planned_interval, adjusted_actual)
+    # Get base interval accounting for early/late
+    base = get_base_interval(planned, actual, rating)
+    if base is None:
+        return None
 
-    return get_next_interval_based_on_rating(current_interval, rating)
+    # Get streaks for calculation
+    good_streak = hafiz_item.good_streak or 0
+    bad_streak = hafiz_item.bad_streak or 0
+
+    # For Good rating, we use the NEW streak (after this review)
+    # because the streak update happens before interval calculation
+    if rating == 1:
+        good_streak += 1
+    elif rating == -1:
+        bad_streak += 1
+
+    return calculate_next_interval(base, rating, good_streak, bad_streak)
 
 
 def update_hafiz_item_for_srs(rev) -> None:
-    """Process SRS revision: schedule next review or graduate to Full Cycle if interval > 99."""
-    hafiz_items_details = get_hafizs_items(rev.item_id)
+    """
+    Process SRS revision: update streaks, schedule next review, or graduate.
+
+    Handles:
+    - Early + Good: Reschedule only (push forward without changing interval)
+    - Graduation: When good_streak reaches threshold after this review
+    - Normal: Calculate new interval based on rating and streaks
+    """
+    hafiz_item = get_hafizs_items(rev.item_id)
     current_date = get_current_date(rev.hafiz_id)
-    next_interval = get_next_interval(item_id=rev.item_id, rating=rev.rating)
+    actual = get_actual_interval(rev.item_id)
+    planned = hafiz_item.next_interval
 
-    # Save current interval as last_interval before updating
-    hafiz_items_details.last_interval = hafiz_items_details.next_interval
+    # Save current interval as last_interval before any updates
+    hafiz_item.last_interval = hafiz_item.next_interval
 
-    if next_interval <= SRS_END_INTERVAL:
-        # Stay in SRS: schedule next review
-        hafiz_items_details.next_interval = next_interval
-        hafiz_items_details.next_review = add_days_to_date(current_date, next_interval)
-    else:
-        # Graduate to Full Cycle: clear SRS fields
-        hafiz_items_details.mode_code = FULL_CYCLE_MODE_CODE
-        hafiz_items_details.memorized = True
-        hafiz_items_details.last_interval = calculate_days_difference(
-            hafiz_items_details.last_review, current_date
-        )
-        hafiz_items_details.next_interval = None
-        hafiz_items_details.next_review = None
-        hafiz_items_details.srs_start_date = None
+    # Update streaks based on rating (this affects graduation check)
+    if rev.rating == 1:  # Good
+        hafiz_item.good_streak = (hafiz_item.good_streak or 0) + 1
+        hafiz_item.bad_streak = 0
+    elif rev.rating == -1:  # Bad
+        hafiz_item.bad_streak = (hafiz_item.bad_streak or 0) + 1
+        hafiz_item.good_streak = 0
+    else:  # Ok
+        hafiz_item.good_streak = 0
+        hafiz_item.bad_streak = 0
 
-    hafizs_items.update(hafiz_items_details)
+    # Check for early + Good (reschedule only)
+    if actual and planned and should_reschedule_only(actual, planned, rev.rating):
+        # Just push the review forward, keep the same interval
+        hafiz_item.next_review = add_days_to_date(current_date, hafiz_item.next_interval)
+        hafizs_items.update(hafiz_item)
+        # Store None on revision to indicate reschedule-only
+        rev.next_interval = hafiz_item.next_interval
+        revisions.update(rev, rev.id)
+        return
 
-    # Also store next_interval on the revision record for history
+    # Check for graduation (consecutive Good streak)
+    if should_graduate(hafiz_item.good_streak):
+        # Graduate to Full Cycle
+        hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
+        hafiz_item.memorized = True
+        hafiz_item.last_interval = calculate_days_difference(
+            hafiz_item.last_review, current_date
+        ) if hafiz_item.last_review else None
+        hafiz_item.next_interval = None
+        hafiz_item.next_review = None
+        hafiz_item.srs_start_date = None
+        hafizs_items.update(hafiz_item)
+        # Store graduation marker on revision
+        rev.next_interval = None
+        revisions.update(rev, rev.id)
+        return
+
+    # Normal case: calculate next interval
+    base = get_base_interval(planned or 0, actual or 0, rev.rating)
+    if base is None:
+        base = planned or 3  # Fallback
+
+    next_interval = calculate_next_interval(
+        base,
+        rev.rating,
+        hafiz_item.good_streak,
+        hafiz_item.bad_streak
+    )
+
+    # Update hafiz_item with new interval
+    hafiz_item.next_interval = next_interval
+    hafiz_item.next_review = add_days_to_date(current_date, next_interval)
+    hafizs_items.update(hafiz_item)
+
+    # Store next_interval on the revision record for history
     rev.next_interval = next_interval
     revisions.update(rev, rev.id)
 
@@ -201,7 +184,6 @@ def start_srs_for_ok_and_bad_rating(auth: int) -> None:
     """Called during Close Date: move today's Ok/Bad Full Cycle items into SRS."""
     current_date = get_current_date(auth)
 
-    # Build query in readable stages
     query_base = """
         SELECT revisions.item_id, revisions.rating
         FROM revisions
@@ -210,24 +192,16 @@ def start_srs_for_ok_and_bad_rating(auth: int) -> None:
             AND hafizs_items.hafiz_id = revisions.hafiz_id
     """
 
-    # Build WHERE conditions
     conditions = [
-        # Only process today's revisions (during Close Date)
         f"revisions.revision_date = '{current_date}'",
-        # Filter to current hafiz
         f"revisions.hafiz_id = {auth}",
-        # Only Ok (0) or Bad (-1) ratings trigger SRS entry
         "revisions.rating IN (-1, 0)",
-        # The revision was performed in Full Cycle mode
         f"revisions.mode_code = '{FULL_CYCLE_MODE_CODE}'",
-        # The item is currently still in Full Cycle mode (prevents re-processing items already in SRS)
         f"hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'",
     ]
     where_clause = "WHERE " + " AND ".join(conditions)
 
-    # Assemble final query
     query = f"{query_base} {where_clause}"
 
-    # Execute and process results
     for item in db.q(query):
         start_srs(item["item_id"], auth, rating=item["rating"])

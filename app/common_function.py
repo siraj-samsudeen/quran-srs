@@ -299,6 +299,16 @@ def find_next_memorized_item_id(item_id):
 
 
 def populate_hafizs_items_stat_columns(item_id: int = None):
+    """Rebuild hafizs_items statistics from revision history.
+
+    This function replays revision history to compute:
+    - good_streak, bad_streak: Consecutive rating streaks
+    - last_review: Date of most recent revision
+    - next_interval: Restored from last revision that has it (NOT recalculated)
+
+    The next_interval is read from stored revision records to preserve
+    historical algorithm decisions even after algorithm changes.
+    """
 
     def get_item_id_summary(item_id: int):
         items_rev_data = revisions(
@@ -307,6 +317,7 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         good_streak = 0
         bad_streak = 0
         last_review = ""
+        last_next_interval = None  # Track from revision history
 
         for rev in items_rev_data:
             current_rating = rev.rating
@@ -323,11 +334,21 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
 
             last_review = rev.revision_date
 
-        return {
+            # Capture next_interval from revision record (preserves historical decisions)
+            if rev.next_interval is not None:
+                last_next_interval = rev.next_interval
+
+        result = {
             "good_streak": good_streak,
             "bad_streak": bad_streak,
             "last_review": last_review,
         }
+
+        # Only include next_interval if we found one in history
+        if last_next_interval is not None:
+            result["next_interval"] = last_next_interval
+
+        return result
 
     # Update the streak for a specific items if item_id is givien
     if item_id is not None:

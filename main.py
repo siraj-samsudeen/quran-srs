@@ -338,14 +338,20 @@ def index(auth, sess):
 
 
 def update_hafiz_item_for_full_cycle(rev):
-    hafiz_item_details = get_hafizs_items(rev.item_id)
-    currrent_date = get_current_date(rev.hafiz_id)
-    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current next_interval
-    if hafiz_item_details.mode_code == SRS_MODE_CODE:
-        hafiz_item_details.next_review = add_days_to_date(
-            currrent_date, hafiz_item_details.next_interval
-        )
+    """Update hafiz item when Full Cycle revision is recorded.
 
+    Option B: When a SRS item is reviewed in FC mode, the rating affects SRS.
+    This triggers full SRS recalculation instead of just rescheduling.
+    """
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+
+    # When a SRS page is revised in Full Cycle mode, trigger SRS recalculation
+    # (Option B: any revision affects SRS, not just SRS-mode revisions)
+    if hafiz_item_details.mode_code == SRS_MODE_CODE:
+        update_hafiz_item_for_srs(rev)
+        return
+
+    # Normal FC item: just update last_interval
     hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
     hafizs_items.update(hafiz_item_details)
 
