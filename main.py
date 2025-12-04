@@ -58,9 +58,6 @@ def split_page_range(page_range: str):
     return start_id, end_id
 
 
-####################### END #######################
-
-
 def datewise_summary_table(show=None, hafiz_id=None):
     qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
     qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry

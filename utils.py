@@ -82,7 +82,6 @@ def select_all_checkbox_x_data(class_name, is_select_all="true"):
     )
 
 
-# Util function
 def standardize_column(column_name):
     cleaned_column = column_name.strip().lower()
     # Replace consecutive spaces with a single underscore
@@ -206,21 +205,8 @@ def format_number(num):
     return int(rounded) if rounded.is_integer() else rounded
 
 
-# This function is used to get the gaps in a list of numbers.
-# This is mainly used for continuation logic
 def find_gaps(input_list, master_list):
-    """
-    Find gaps by identifying the last number before each gap in the sequence.
-
-    Args:
-        input_list: List of numbers to check for gaps
-        master_list: Master list containing all possible valid numbers
-
-    Returns:
-        List of tuples representing gaps, where:
-        - First element is the last number before the gap
-        - Second element is the next number in input_list after the gap (or None if at the end)
-    """
+    """Find gaps in input_list relative to master_list. Returns list of (before_gap, after_gap) tuples."""
     result = []
 
     if not input_list:
@@ -261,23 +247,7 @@ def find_gaps(input_list, master_list):
 
 
 def calculate_days_difference(date1_str, date2_str, date_format="%Y-%m-%d"):
-    """
-    Calculate the difference in days between two dates.
-
-    Args:
-        date1_str (str): First date as string
-        date2_str (str): Second date as string
-        date_format (str): Format of the date strings (default: '%Y-%m-%d')
-
-    Returns:
-        int: Number of days between the dates (positive if date2 > date1, negative if date2 < date1)
-
-    Example:
-        >>> calculate_days_difference('2024-01-01', '2024-01-10')
-        9
-        >>> calculate_days_difference('2024-01-10', '2024-01-01')
-        -9
-    """
+    """Return days between two dates (positive if date2 > date1)."""
     try:
         # Parse the date strings into datetime objects
         date1 = datetime.strptime(date1_str, date_format)

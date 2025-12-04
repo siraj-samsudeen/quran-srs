@@ -15,7 +15,6 @@ REP_MODES_CONFIG = {
 
 
 def set_next_review(hafiz_item, interval, current_date):
-    """Set next interval and review date for a hafiz item."""
     hafiz_item.next_interval = interval
     hafiz_item.next_review = add_days_to_date(current_date, interval)
 

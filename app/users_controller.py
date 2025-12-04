@@ -17,13 +17,11 @@ users_app, rt = create_app_with_auth()
 
 @rt("/login")
 def get(sess):
-    """Display login form"""
     return render_login_form()
 
 
 @rt("/login")
 def post(login: Login, sess):
-    """Process login form submission"""
     u = get_user_by_email(login.email)
     if u is None:
         error_toast(sess, "This email is not registered!")
@@ -40,14 +38,11 @@ def post(login: Login, sess):
 # Signup disabled for private beta - bot abuse prevention
 # @rt("/signup")
 def get_signup(sess):
-    """Display signup form"""
     return render_signup_form()
 
 
 # @rt("/signup")
 def post_signup(user: User, confirm_password: str, sess):
-    """Process signup form submission"""
-    # Check if passwords match
     if user.password != confirm_password:
         add_toast(sess, "Passwords do not match!", "warning")
         return signup_redir
@@ -71,7 +66,6 @@ def post_signup(user: User, confirm_password: str, sess):
 
 @rt("/logout")
 def get(sess):
-    """Logout user and clear session"""
     user_auth = sess.get("user_auth", None)
     if user_auth is not None:
         del sess["user_auth"]
@@ -83,7 +77,6 @@ def get(sess):
 
 @rt("/hafiz_selection")
 def get(sess):
-    """Display hafiz selection page"""
     reset_table_filters()
     auth = sess.get("auth", None)
     user_auth = sess.get("user_auth", None)
@@ -100,15 +93,12 @@ def get(sess):
 
 @rt("/hafiz_selection")
 def post(current_hafiz_id: int, sess):
-    """Switch to selected hafiz account"""
     sess["auth"] = current_hafiz_id
     return RedirectResponse("/", status_code=303)
 
 
 @rt("/add_hafiz")
 def post(hafiz: Hafiz, sess):
-    """Add new hafiz"""
-    # Set the user_id for the hafiz
     hafiz.user_id = sess["user_auth"]
     new_hafiz = insert_hafiz(hafiz)
     hafiz_id = new_hafiz.id
@@ -119,8 +109,6 @@ def post(hafiz: Hafiz, sess):
 
 @rt("/delete_hafiz/{hafiz_id}")
 def delete(hafiz_id: int, sess):
-    """Delete hafiz profile"""
-    # Verify the hafiz belongs to the current user
     hafiz = get_hafiz_by_id(hafiz_id)
     if hafiz.user_id != sess["user_auth"]:
         return RedirectResponse("/users/hafiz_selection", status_code=303)
