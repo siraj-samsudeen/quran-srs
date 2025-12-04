@@ -52,14 +52,7 @@ def get_database_connection():
 
 
 def get_database_path():
-    """
-    Get the database file path based on ENV environment variable.
-
-    Environments:
-    - test: Uses data/quran_test.db (for E2E tests)
-    - dev: Uses data/quran_v10.db (default for local development)
-    - prod: Uses data/quran_v10.db (production database)
-    """
+    """Get database path based on ENV (test/dev/prod)."""
     env = os.getenv("ENV", "dev")
     return DB_CONFIG.get(env, DB_CONFIG["dev"])
 

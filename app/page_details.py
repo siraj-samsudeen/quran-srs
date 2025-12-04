@@ -126,7 +126,6 @@ def display_page_level_details(auth, item_id: int):
             mode_name, mode_description = ("", "")
         return H2(mode_name, Subtitle(mode_description))
 
-    ###### Title and Juz
     is_item_exist = items(where=f"id = {item_id}")
     if is_item_exist:
         page_description = get_page_description(item_id, is_bold=False, is_link=False)
@@ -134,7 +133,6 @@ def display_page_level_details(auth, item_id: int):
     else:
         Redirect("/page_details")
 
-    ####### Summary of first memorization
     if not mode_code_list:
         memorization_summary = ""
     else:
@@ -226,10 +224,7 @@ def display_page_level_details(auth, item_id: int):
         else:
             memorization_summary = ""
 
-    ########### Display Tables
-
     def build_revision_query(mode_codes, row_alias):
-        """It fetch the revision data for the current item_id with specified mode_codes"""
         return f"""
             SELECT
                 ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
@@ -251,7 +246,6 @@ def display_page_level_details(auth, item_id: int):
         """
 
     def create_mode_table(mode_codes):
-        """Generate a table for the specified mode, returning both its visibility status and the table itself"""
         query = build_revision_query(mode_codes, "s_no")
         data = db.q(query)
         # determine table visibility
@@ -275,10 +269,8 @@ def display_page_level_details(auth, item_id: int):
 
         return has_data, table
 
-    ########### Summary Table
     has_summary_data, summary_table = create_mode_table(mode_code_list)
 
-    ########### Previous and Next Page Navigation
     def create_nav_button(item_id, arrow, show_nav):
         return A(
             arrow if item_id and show_nav else "",
@@ -304,7 +296,6 @@ def display_page_level_details(auth, item_id: int):
     prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
     next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
 
-    ########### Display Editable Description and Start Text
     item_details = items[item_id]
     description = item_details.description
     start_text = item_details.start_text

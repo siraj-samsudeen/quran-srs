@@ -1,6 +1,3 @@
-# View functions for revision module following MVC pattern
-# Contains UI components, forms, and display logic
-
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
@@ -10,8 +7,7 @@ from globals import *
 
 
 def action_buttons():
-    """UI buttons for bulk operations on revisions"""
-    # Enable and Disable the button based on the checkbox selection in the revision table
+    # Enable/disable buttons based on checkbox selection
     dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
     import_export_buttons = DivLAligned(
         Button(
@@ -47,8 +43,6 @@ def action_buttons():
 
 
 def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]:
-    """Generate paginated table rows for revisions display"""
-
     def _render_rows(rev: Revision):
         return Tr(
             Td(
@@ -100,8 +94,6 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
 
 
 def create_revision_form(type, auth, backlink="/"):
-    """Create form for adding/editing revisions"""
-
     def _option(obj):
         name = obj.name
         id = obj.id
@@ -145,7 +137,6 @@ def create_revision_form(type, auth, backlink="/"):
 
 
 def render_revision_table(auth, idx: int | None = 1):
-    """Render the main revision table with pagination"""
     table = Table(
         Thead(
             Tr(

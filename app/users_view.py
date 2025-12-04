@@ -3,7 +3,6 @@ from monsterui.all import *
 
 
 def render_login_form():
-    """Render login form"""
     return Titled(
         "Login",
         Form(
@@ -35,7 +34,6 @@ def render_login_form():
 
 
 def render_signup_form():
-    """Render User Signup form"""
     return Titled(
         "User Registration",
         Form(
@@ -80,7 +78,6 @@ def render_signup_form():
 
 
 def render_add_hafiz_form():
-    """Render add hafiz form"""
     return Card(
         Titled(
             "Add Hafiz",
@@ -104,7 +101,6 @@ def render_add_hafiz_form():
 
 
 def render_hafiz_card(hafiz, auth):
-    """Render individual hafiz selection card - single row layout"""
     is_current_hafiz = auth == hafiz.id
 
     if is_current_hafiz:
@@ -169,7 +165,6 @@ def render_hafiz_card(hafiz, auth):
 
 
 def render_hafiz_selection_page(cards, hafiz_form):
-    """Render hafiz selection page"""
     return Titled(
         "Hafiz Selection",
         Container(
