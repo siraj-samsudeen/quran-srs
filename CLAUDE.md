@@ -275,6 +275,27 @@ Div(
 )
 ```
 
+**MonsterUI LabelInput** - auto-derives `id` and `name` from label:
+```python
+# Verbose (unnecessary)
+LabelInput(
+    label="Email",
+    name="email",
+    type="email",
+    required=True,
+    placeholder="Email",
+)
+
+# Simplified (preferred)
+LabelInput("Email", type="email", required=True)
+```
+- First positional arg is `label`
+- `id` auto-derived from label (lowercased): `"Email"` → `id="email"`
+- `name` follows `id`
+- `placeholder` optional (omit unless needed)
+- Keep `type=` for email/password (not auto-inferred)
+- Keep `required=True` when needed
+
 ## Architecture Overview
 
 ### Core Modes System

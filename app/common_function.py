@@ -458,10 +458,6 @@ def get_mode_name_and_code():
     return mode_code_list, mode_name_list
 
 
-def delete_hafiz(hafiz_id: int):
-    hafizs.delete(hafiz_id)
-
-
 def get_current_plan_id():
     unique_seq_plan_id = [
         i.id for i in plans(where="completed <> 1", order_by="id DESC")
