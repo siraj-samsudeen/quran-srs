@@ -7,10 +7,7 @@ the page needs focused reinforcement before returning to regular rotation.
 
 Key concepts:
 - Items enter SRS from Full Cycle when they get Ok (0) or Bad (-1) ratings
-- Bad ratings start with 3-day interval, Ok ratings with 10-day interval
-- Progression uses prime number intervals: [2, 3, 5, 7, 11, ..., 97, 101]
 - Rating affects next interval: Bad→shorter, Ok→same, Good→longer
-- Items graduate back to Full Cycle when next_interval exceeds 99 days
 """
 
 from globals import *
