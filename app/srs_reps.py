@@ -10,8 +10,8 @@ Key concepts:
 - Rating affects next interval: Bad→shorter, Ok→same, Good→longer
 """
 
-from globals import *
-from utils import *
+from .globals import *
+from .utils import *
 from fasthtml.common import *
 from monsterui.all import *
 from app.common_function import (

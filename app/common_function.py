@@ -1,9 +1,9 @@
 from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
-from utils import *
+from .utils import *
 from collections import defaultdict
-from globals import *
+from .globals import *
 import math
 
 

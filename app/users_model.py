@@ -1,6 +1,6 @@
 from datetime import datetime
 from dataclasses import dataclass
-from globals import *
+from .globals import *
 from app.common_function import *
 
 

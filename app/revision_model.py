@@ -1,5 +1,5 @@
 from app.common_function import *
-from globals import *
+from .globals import *
 
 
 def update_stats_and_interval(item_id: int, mode_code: str):

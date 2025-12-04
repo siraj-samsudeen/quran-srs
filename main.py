@@ -1,6 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
+from app.utils import *
 import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
@@ -14,7 +14,7 @@ from app.page_details import page_details_app
 from app.profile import profile_app
 from app.hafiz import hafiz_app
 from app.common_function import *
-from globals import *
+from app.globals import *
 from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps import (
     update_hafiz_item_for_srs,

@@ -1,10 +1,10 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
+from .utils import *
 from app.common_function import *
 from app.revision_view import *
 from app.revision_model import *
-from globals import *
+from .globals import *
 
 revision_app, rt = create_app_with_auth()
 
