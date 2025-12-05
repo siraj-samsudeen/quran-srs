@@ -65,44 +65,6 @@ def get_planned_next_interval(item_id: int) -> int | None:
     return get_hafizs_items(item_id).next_interval
 
 
-def get_next_interval(item_id: int, rating: int) -> int | None:
-    """
-    Calculate next SRS interval using streak-based progression.
-
-    Returns:
-        - None if early + Good (signals reschedule-only)
-        - Calculated interval otherwise
-    """
-    hafiz_item = get_hafizs_items(item_id)
-    actual = get_actual_interval(item_id)
-    planned = get_planned_next_interval(item_id)
-
-    if actual is None or planned is None:
-        return None
-
-    # Check if this is early + Good (reschedule only, no recalc)
-    if should_reschedule_only(actual, planned, rating):
-        return None
-
-    # Get base interval accounting for early/late
-    base = get_base_interval(planned, actual, rating)
-    if base is None:
-        return None
-
-    # Get streaks for calculation
-    good_streak = hafiz_item.good_streak or 0
-    bad_streak = hafiz_item.bad_streak or 0
-
-    # For Good rating, we use the NEW streak (after this review)
-    # because the streak update happens before interval calculation
-    if rating == 1:
-        good_streak += 1
-    elif rating == -1:
-        bad_streak += 1
-
-    return calculate_next_interval(base, rating, good_streak, bad_streak)
-
-
 def update_hafiz_item_for_srs(rev) -> None:
     """
     Process SRS revision: update streaks, schedule next review, or graduate.

@@ -118,3 +118,85 @@ The key insight: inline `style="display: none"` provides a *default hidden state
 When combining Alpine.js with HTMX for reactive UI that gets replaced:
 - Use inline `style="display: none"` instead of `x-cloak` for elements that should start hidden after HTMX swap
 - `@click` handlers provide immediate feedback before HTMX round-trip completes
+
+---
+
+## 2025-12-05: SRS Algorithm Change - From Prime Numbers to Streak-Based
+
+### Background
+
+The SRS (Spaced Repetition System) algorithm determines when items should be reviewed
+based on past performance. The previous implementation used prime number sequences
+for interval progression.
+
+### Why We Changed
+
+The prime-based algorithm had several issues:
+
+1. **Hard to tune**: Prime jumps are fixed (7→11 is +4, 11→13 is +2). Can't adjust
+   growth rates for different phases of memorization.
+
+2. **Unintuitive for users**: "Why did my interval jump from 11 to 13?" has no
+   satisfying answer beyond "because 13 is the next prime."
+
+3. **Bad rating handling**: Dividing by penalties (35% of actual) then looking up
+   in the prime sequence created inconsistent behavior.
+
+4. **No phase awareness**: Same sequence whether at 7 days or 50 days.
+
+### The New Algorithm
+
+**Streak-based with phase multipliers:**
+
+| Phase | Good | Ok | Bad |
+|-------|------|-----|-----|
+| 0-14 days | `interval + (streak × 2)` | +2 | `÷ (streak + 1)` |
+| 14-30 days | `interval + (streak × 1.5)` | +1 | `÷ (streak + 1)` |
+| 30-40 days | `interval + (streak × 1)` | stay | Drop to 30 |
+| 40+ days | `interval + 3` (fixed) | cap at 40 | Drop to 30 |
+
+**Key design decisions:**
+
+1. **40-day threshold**: Observation that degradation starts around 40 days.
+   Ok ratings cap here; only Good can push beyond.
+
+2. **30-day floor**: Bad rating at 30+ drops to 30, bringing items back to
+   the "ideal zone" for focused work.
+
+3. **Graduation by streak**: 3 consecutive Good = mastery. More meaningful than
+   "interval > 99 days".
+
+4. **Phase-aware growth**: Different multipliers for building (fast), strengthening
+   (moderate), and maintenance (slow) phases.
+
+### Option B: FC Reviews Affect SRS
+
+When a SRS item is reviewed during Full Cycle:
+- **Old behavior**: Just reschedule, don't recalculate
+- **New behavior**: Full SRS recalculation (any revision affects SRS)
+
+Rationale: The user DID review the page. The rating should count regardless of
+which mode triggered the review. If they got Good in FC, it should count toward
+graduation. If Bad, it should affect the interval.
+
+### Backward Compatibility
+
+- Old `next_interval` values stored on revisions are preserved
+- `populate_hafizs_items_stat_columns()` reads intervals from revision history,
+  does NOT recalculate them
+- This ensures algorithm changes don't retroactively affect historical data
+
+### Testing Strategy
+
+Tests use MECE (Mutually Exclusive, Collectively Exhaustive) framework:
+- 76 unit tests for pure calculation functions
+- 14 integration tests including backward compatibility
+- Synthetic fixtures (committed) for CI
+- Full production fixtures (gitignored) for local verification
+
+### Files Changed
+
+- `app/srs_interval_calc.py` - New pure calculation module
+- `app/srs_reps.py` - Rewritten to use new calculations
+- `main.py` - Option B: FC review triggers SRS recalc
+- `app/common_function.py` - History replay preserves intervals

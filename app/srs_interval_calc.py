@@ -5,12 +5,71 @@ This module contains pure functions for calculating SRS intervals.
 All functions take primitive values (int, float) and return primitives.
 No database access - these are easily unit testable.
 
-Algorithm Overview:
-- Intervals progress based on rating and current phase
-- Good: Add (streak × phase_multiplier) or fixed increment
-- Ok: Add phase increment, capped at 40
-- Bad: Divide by (streak + 1), or drop to 30 if in 30+ zone
-- Graduation: After N consecutive Good ratings
+Why We Moved From Prime Numbers to Streak-Based Intervals
+=========================================================
+
+The previous algorithm used prime number sequences [2, 3, 5, 7, 11, 13, ...] for
+interval progression. While mathematically elegant, it had practical problems:
+
+1. **Hard to tune**: Prime jumps are fixed (7→11 is +4, but 11→13 is only +2).
+   You can't adjust growth rates for different phases of memorization.
+
+2. **Unintuitive**: Users couldn't predict when items would appear next.
+   "Why did my interval jump from 11 to 13?" has no satisfying answer beyond
+   "because 13 is the next prime."
+
+3. **Bad rating handling**: Dividing by penalties (35% of actual interval) then
+   looking up in the prime sequence created inconsistent behavior.
+
+4. **No phase awareness**: The same prime sequence applied whether you were at
+   7 days (still building) or 50 days (long-term retention).
+
+The New Streak-Based Algorithm
+==============================
+
+The new algorithm uses simple arithmetic with phase-aware multipliers:
+
+**Formula:**
+- Good: interval + (streak × phase_multiplier)
+- Ok: interval + phase_increment, capped at 40
+- Bad: interval ÷ (streak + 1), or drop to 30 if already past 30
+
+**Key Design Decisions:**
+
+1. **40-day threshold**: Based on observation that degradation typically starts
+   around 40 days. Ok ratings cap here; only Good can push beyond.
+
+2. **30-day floor for Bad**: Any Bad rating at 30+ drops to 30. This brings
+   struggling items back to the "ideal zone" (30-40 days) for focused work.
+
+3. **Streak-based progression**: Rewards consistency. Multiple consecutive Good
+   ratings accelerate growth; multiple Bad ratings accelerate reduction.
+
+4. **Graduation by streak, not interval**: 3 consecutive Good ratings = mastery.
+   This is more meaningful than "interval > 99 days" because it shows the user
+   actually remembers the content consistently.
+
+5. **Phase-aware growth rates**:
+   - 0-14 days: Fast growth (×2 multiplier) - building initial retention
+   - 14-30 days: Moderate (×1.5) - strengthening
+   - 30-40 days: Slow (×1) - ideal zone, careful maintenance
+   - 40+ days: Very slow (+3 fixed) - long-term, minimal growth
+
+Late/Early Review Handling
+==========================
+
+- **Late + Good**: Full credit for the gap (100%). If you remembered after a
+  longer gap, you deserve the full benefit.
+
+- **Late + Ok/Bad**: Partial credit (50%/25%). We don't know if the poor rating
+  was due to the delay or genuine difficulty.
+
+- **Early + Good (FC overlap)**: Just reschedule, don't recalculate. This
+  happens when an SRS item comes up during Full Cycle before its due date.
+  A Good rating there is a "freebie" - we push the schedule forward.
+
+- **Early + Ok/Bad**: Recalculate using planned interval. Something is wrong
+  if you're struggling even before the scheduled date.
 """
 
 from typing import Optional
