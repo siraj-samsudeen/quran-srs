@@ -23,6 +23,28 @@ from .app_setup import (
     warning_toast,
 )
 
+# Re-export from common_model for backward compatibility
+from .common_model import (
+    get_surah_name,
+    get_page_number,
+    get_current_date,
+    get_daily_capacity,
+    get_last_added_full_cycle_page,
+    find_next_memorized_item_id,
+    get_hafizs_items,
+    get_mode_count,
+    get_planned_next_interval,
+    add_revision_record,
+    get_mode_name,
+    get_last_item_id,
+    get_juz_name,
+    get_mode_name_and_code,
+    get_current_plan_id,
+    get_item_page_portion,
+    get_not_memorized_records,
+    get_mode_condition,
+)
+
 
 def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
@@ -98,20 +120,6 @@ def main_area(*args, active=None, auth=None):
     )
 
 
-def get_surah_name(page_id=None, item_id=None):
-    if item_id:
-        surah_id = items[item_id].surah_id
-    else:
-        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
-    surah_details = surahs[surah_id]
-    return surah_details.name
-
-
-def get_page_number(item_id):
-    page_id = items[item_id].page_id
-    return pages[page_id].page_number
-
-
 def get_page_description(
     item_id,
     link: str = None,
@@ -159,35 +167,6 @@ def group_by_type(data, current_type, feild=None):
     return sorted_grouped
 
 
-def get_not_memorized_records(auth, custom_where=None):
-    default = f"hafizs_items.memorized = 0 AND items.active != 0"
-    if custom_where:
-        default = f"{custom_where}"
-    not_memorized_tb = f"""
-        SELECT items.id, items.surah_id, items.surah_name,
-        hafizs_items.item_id, hafizs_items.memorized, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
-        FROM items 
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        LEFT JOIN pages ON items.page_id = pages.id
-        LEFT JOIN revisions ON items.id = revisions.item_id
-        WHERE {default};
-    """
-    return db.q(not_memorized_tb)
-
-
-def get_current_date(auth) -> str:
-    current_hafiz = hafizs[auth]
-    current_date = current_hafiz.current_date
-    if current_date is None:
-        current_date = hafizs.update(current_date=current_time(), id=auth).current_date
-    return current_date
-
-
-def get_daily_capacity(auth):
-    current_hafiz = hafizs[auth]
-    return current_hafiz.daily_capacity
-
-
 def get_srs_daily_limit(auth):
     # 50% percentage of daily capacity
     return math.ceil(get_daily_capacity(auth) * 0.5)
@@ -196,31 +175,6 @@ def get_srs_daily_limit(auth):
 def get_full_cycle_daily_limit(auth):
     # 100% percentage of daily capacity
     return get_daily_capacity(auth)
-
-
-def get_last_added_full_cycle_page(auth):
-    current_date = get_current_date(auth)
-    last_full_cycle_record = db.q(
-        f"""
-        SELECT hafizs_items.page_number FROM revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth}
-        ORDER BY revisions.revision_date DESC, revisions.item_id DESC
-        LIMIT 1
-    """
-    )
-    if last_full_cycle_record:
-        return last_full_cycle_record[0]["page_number"]
-
-
-def find_next_memorized_item_id(item_id):
-    memorized_and_srs_item_ids = [
-        i.item_id
-        for i in hafizs_items(
-            where=f"memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')"
-        )
-    ]
-    return find_next_greater(memorized_and_srs_item_ids, item_id)
 
 
 def populate_hafizs_items_stat_columns(item_id: int = None):
@@ -268,19 +222,6 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
-def get_hafizs_items(item_id):
-    current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-    if current_hafiz_items:
-        return current_hafiz_items[0]
-    else:
-        return ValueError(f"No hafizs_items found for item_id {item_id}")
-
-
-def get_mode_count(item_id, mode_code):
-    mode_records = revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
-    return len(mode_records)
-
-
 def get_actual_interval(item_id):
     hafiz_items_details = get_hafizs_items(item_id)
     current_date = get_current_date(hafiz_items_details.hafiz_id)
@@ -289,14 +230,6 @@ def get_actual_interval(item_id):
     if not last_review:
         return None
     return calculate_days_difference(last_review, current_date)
-
-
-def get_planned_next_interval(item_id):
-    return get_hafizs_items(item_id).next_interval
-
-
-def add_revision_record(**kwargs):
-    return revisions.insert(**kwargs)
 
 
 def render_rating(rating: int):
@@ -357,52 +290,6 @@ def rating_radio(
         label = None
 
     return Div(label, *options, cls=outer_cls)
-
-
-def get_mode_name(mode_code: str):
-    return modes[mode_code].name
-
-
-def get_last_item_id():
-    return items(where="active = 1", order_by="id DESC")[0].id
-
-
-def get_juz_name(page_id=None, item_id=None):
-    if item_id:
-        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
-        juz_number = db.q(qry)[0]["juz_number"]
-    else:
-        juz_number = pages[page_id].juz_number
-    return juz_number
-
-
-def get_mode_name_and_code():
-    all_modes = modes()
-    mode_code_list = [mode.code for mode in all_modes]
-    mode_name_list = [mode.name for mode in all_modes]
-    return mode_code_list, mode_name_list
-
-
-def get_current_plan_id():
-    unique_seq_plan_id = [
-        i.id for i in plans(where="completed <> 1", order_by="id DESC")
-    ]
-
-    if unique_seq_plan_id and not len(unique_seq_plan_id) > 1:
-        return unique_seq_plan_id[0]
-    return None
-
-
-def get_item_page_portion(item_id: int) -> float:
-    """
-    Calculates the portion of a page that a single item represents.
-    For example, if a page is divided into 4 items, each item represents 0.25 of the page.
-    """
-    page_no = items[item_id].page_id
-    total_parts = items(where=f"page_id = {page_no} and active = 1")
-    if not total_parts:
-        return 0
-    return 1 / len(total_parts)
 
 
 def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
@@ -583,19 +470,6 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
         id=row_id,
         cls=row_background_color(rating),
     )
-
-
-def get_mode_condition(mode_code: str):
-    # The full cycle mode is a special case, where it also shows the SRS pages
-    mode_code_mapping = {
-        FULL_CYCLE_MODE_CODE: [f"'{FULL_CYCLE_MODE_CODE}'", f"'{SRS_MODE_CODE}'"],
-    }
-    retrieved_mode_codes = mode_code_mapping.get(mode_code)
-    if retrieved_mode_codes is None:
-        mode_condition = f"mode_code = '{mode_code}'"
-    else:
-        mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
-    return mode_condition
 
 
 def render_bulk_action_bar(mode_code, current_date, plan_id):
