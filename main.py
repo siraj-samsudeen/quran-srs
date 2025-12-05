@@ -523,7 +523,9 @@ def update_revision_rating(
     else:
         revision = revisions.update({"rating": int(rating)}, rev_id)
         record["revision"] = revision
-        return render_range_row(records=record)
+        return render_range_row(
+            records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
+        )
 
 
 @app.post("/bulk_rate")
