@@ -1,26 +1,17 @@
+"""
+Hafiz View Module
+
+UI components for hafiz settings page.
+"""
+
 from fasthtml.common import *
 from monsterui.all import *
-from .utils import *
-from app.common_function import *
-from .globals import *
+from .utils import standardize_column
+from .common_view import main_area
 
 
-hafiz_app, rt = create_app_with_auth()
-
-
-@hafiz_app.get("/update_stats_column")
-def update_stats_column(req, auth, item_id: int = None):
-    if item_id:
-        populate_hafizs_items_stat_columns(item_id)
-    else:
-        populate_hafizs_items_stat_columns()
-
-    return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
-
-
-@hafiz_app.get("/settings")
-def settings_page(auth):
-    current_hafiz = hafizs[auth]
+def render_settings_form(current_hafiz):
+    """Render the hafiz settings form."""
 
     def render_field(label, field_type, required=True, **kwargs):
         field_name = standardize_column(label)
@@ -34,7 +25,7 @@ def settings_page(auth):
             **kwargs,
         )
 
-    form = Form(
+    return Form(
         render_field("Name", "text"),
         render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
@@ -53,6 +44,11 @@ def settings_page(auth):
         action="/hafiz/settings",
         method="POST",
     )
+
+
+def render_settings_page(current_hafiz, auth):
+    """Render the complete settings page."""
+    form = render_settings_form(current_hafiz)
     return main_area(
         Div(
             H1("Hafiz Preferences", cls=TextT.center),
@@ -64,16 +60,6 @@ def settings_page(auth):
     )
 
 
-@hafiz_app.post("/settings")
-def update_setings(auth, hafiz_data: Hafiz):
-
-    hafizs.update(
-        hafiz_data,
-        hafizs[auth].id,
-    )
-    return Redirect("/")
-
-
-@hafiz_app.get("/theme")
-def custom_theme_picker(auth):
+def render_theme_page(auth):
+    """Render the theme picker page."""
     return main_area(ThemePicker(), active="Settings", auth=auth)

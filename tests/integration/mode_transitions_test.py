@@ -25,8 +25,8 @@ from app.globals import (
     SRS_MODE_CODE,
     Revision,
 )
-from app.fixed_reps import update_rep_item, REP_MODES_CONFIG
-from app.srs_reps import (
+from app.fixed_reps_service import update_rep_item, REP_MODES_CONFIG
+from app.srs_reps_service import (
     start_srs,
     update_hafiz_item_for_srs,
     SRS_END_INTERVAL,

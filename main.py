@@ -12,11 +12,11 @@ from app.new_memorization import (
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
-from app.hafiz import hafiz_app
+from app.hafiz_controller import hafiz_app
 from app.common_function import *
 from app.globals import *
-from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
-from app.srs_reps import (
+from app.fixed_reps_service import REP_MODES_CONFIG, update_rep_item
+from app.srs_reps_service import (
     update_hafiz_item_for_srs,
     start_srs_for_ok_and_bad_rating,
 )
