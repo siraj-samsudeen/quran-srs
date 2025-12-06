@@ -3,6 +3,51 @@
 **Branch:** `phoenix-rebuild`
 
 ---
+## MVC Refactoring
+
+### Hafiz Module (Phoenix MVC Pattern) ✅
+- [x] Create hafiz_model.py with Hafiz dataclass and table reference
+- [x] Make hafiz_model.py self-contained (only imports db from globals)
+- [x] Implement table linking pattern (hafizs.cls = Hafiz)
+- [x] Create get_hafiz() and update_hafiz() model functions
+- [x] Update hafiz_controller.py to import from hafiz_model
+- [x] Remove Hafiz dataclass from globals.py
+- [x] Update all imports across codebase (app_setup, common_model, common_view, users_model)
+- [x] Add migration note in globals.py explaining Phoenix pattern
+- [x] Create hafiz_test.py with unit tests (2 tests)
+- [x] Create hafiz_test.py with integration tests (3 tests)
+- [x] Load test credentials from .env file in tests
+- [x] Verify all 5 hafiz tests passing
+- [x] Create app/revision_model.py with missing CRUD functions
+- [x] Implement cycle_full_cycle_plan_if_completed() for Close Date logic
+
+### common_function.py Cleanup (Layer Separation) ✅
+- [x] Move populate_hafizs_items_stat_columns() to common_model.py
+- [x] Move get_actual_interval() to common_model.py
+- [x] Move get_page_count() to common_model.py
+- [x] Move get_full_review_item_ids() to common_model.py
+- [x] Move get_srs_daily_limit() to common_model.py
+- [x] Move get_full_cycle_daily_limit() to common_model.py
+- [x] Move group_by_type() to utils.py
+- [x] Add re-exports in common_function.py for backward compatibility
+- [x] Update common_model.py imports (math, mode constants, utils)
+- [x] Verify all 8 mode transition tests still passing
+- [x] Reduce common_function.py to re-exports + 1 complex function
+
+### Remaining Modules to Refactor
+- [ ] Refactor profile.py to MVC (profile_controller, profile_model, profile_view)
+- [ ] Refactor new_memorization.py to MVC
+- [ ] Refactor admin.py to MVC
+- [ ] Refactor page_details.py to MVC
+- [ ] Refactor make_summary_table() (currently mixes service + view layers)
+
+### Future: Database Migration (After MVC Complete)
+- [ ] Switch from Fastlite to FastSQL (class-first with SQLAlchemy)
+- [ ] Configure PostgreSQL connection for Neon
+- [ ] Test with PostgreSQL locally
+- [ ] Deploy to Neon for production
+
+---
 
 ## User Journeys
 
