@@ -102,16 +102,7 @@
 
 4. **Test Coverage Gaps**: The mode transition tests cover the core algorithm but E2E tests may be duplicating integration test coverage.
 
-5. **Remove Re-exports, Use Direct Imports**: The `common_function.py` file currently re-exports functions from `common_model.py`, `common_view.py`, `app_setup.py`, and `utils.py`. This was a migration convenience but adds unnecessary indirection. Update all imports across the codebase to import directly from the source modules:
-   ```python
-   # Instead of:
-   from app.common_function import get_current_date, main_area
-
-   # Use direct imports:
-   from app.common_model import get_current_date
-   from app.common_view import main_area
-   ```
-   Then delete `common_function.py` (or keep only `make_summary_table()` until refactored).
+5. **~~Remove Re-exports, Use Direct Imports~~** ✅ DONE: Re-exports have been removed from `common_function.py`. All files now import directly from source modules (`common_model`, `common_view`, `app_setup`, `utils`). Only `make_summary_table()` remains in `common_function.py` (marked as TODO for future refactoring).
 
 ---
 
@@ -175,3 +166,169 @@ The `hafiz_test.py` follows this pattern exactly.
 **Alignment with FastHTML**: The implementation correctly uses FastHTML patterns (beforeware, TestClient, typed tables, FT components). The strict MVC organization is appropriate for this codebase size and complexity.
 
 **Recommended action:** Complete the remaining module refactoring, remove re-exports in favor of direct imports, and consider merging incrementally (hafiz MVC first, then other modules).
+
+---
+
+## Hafiz Module Deep Review: MVC Reference Implementation
+
+The hafiz module (`hafiz_controller.py`, `hafiz_model.py`, `hafiz_view.py`, `hafiz_test.py`) serves as the reference implementation for MVC refactoring. This section provides a detailed review.
+
+### Module Structure
+
+```
+app/
+├── hafiz_controller.py  (44 lines)  - Route handlers only
+├── hafiz_model.py       (33 lines)  - Dataclass + table + CRUD
+├── hafiz_view.py        (62 lines)  - UI components
+├── hafiz_test.py        (173 lines) - Colocated unit + integration tests
+tests/e2e/
+└── hafiz_test.py        (73 lines)  - Browser-based E2E tests
+```
+
+### What Works Well ✅
+
+1. **Controller is thin** - Routes only orchestrate, no business logic:
+   ```python
+   @hafiz_app.get("/settings")
+   def settings_page(auth):
+       current_hafiz = get_hafiz(auth)
+       return render_settings_page(current_hafiz, auth)
+   ```
+
+2. **Model is self-contained** - Dataclass + table linking + CRUD in one file:
+   ```python
+   @dataclass
+   class Hafiz:
+       id: int
+       name: str | None = None
+       ...
+
+   hafizs = db.t.hafizs
+   hafizs.cls = Hafiz  # Type linking
+
+   def get_hafiz(hafiz_id: int) -> Hafiz:
+       return hafizs[hafiz_id]
+   ```
+
+3. **View components are reusable** - Small, focused functions:
+   ```python
+   def render_settings_form(current_hafiz):  # Returns Form()
+   def render_settings_page(current_hafiz, auth):  # Wraps form in layout
+   ```
+
+4. **Tests cover all layers**:
+   - Unit tests: Test model functions directly
+   - Integration tests: Test routes with TestClient (no browser)
+   - E2E tests: Test user interactions with Playwright
+
+5. **Colocated tests** - `app/hafiz_test.py` lives next to the code it tests, making it easy to maintain.
+
+### Areas to Improve ⚠️
+
+1. **Hafiz CRUD is split across files**:
+   - `hafiz_model.py` has: `get_hafiz()`, `update_hafiz()`
+   - `users_model.py` has: `insert_hafiz()`, `delete_hafiz()`, `get_hafizs_for_user()`
+
+   **Recommendation**: Move all hafiz-related CRUD to `hafiz_model.py`. The users_model should only handle user-level operations.
+
+2. **Missing `__all__` exports**: Neither model nor view defines explicit exports. While Python doesn't require this, it helps with documentation and IDE support.
+
+   **Recommendation**: Add `__all__` to each module:
+   ```python
+   # hafiz_model.py
+   __all__ = ["Hafiz", "hafizs", "get_hafiz", "update_hafiz"]
+   ```
+
+3. **`update_stats_column` route is misplaced**: This route in `hafiz_controller.py` operates on `hafizs_items`, not hafiz settings. It's a utility function that doesn't belong here.
+
+   **Recommendation**: Either move to a dedicated admin/utility controller, or keep here with a clear comment explaining it's a convenience endpoint.
+
+4. **Test fixtures could be shared**: Both `app/hafiz_test.py` and `tests/e2e/hafiz_test.py` set up authentication. The `conftest.py` should provide shared auth fixtures.
+
+### Template for Other Modules
+
+When refactoring other modules, follow this pattern:
+
+**1. `{module}_model.py`**
+```python
+"""
+{Module} Model - Data access layer
+"""
+from dataclasses import dataclass
+from .globals import db
+
+@dataclass
+class {Entity}:
+    id: int
+    # ... fields
+
+# Table linking
+{table} = db.t.{table}
+{table}.cls = {Entity}
+
+# CRUD functions
+def get_{entity}(id: int) -> {Entity}: ...
+def update_{entity}(data: {Entity}, id: int): ...
+def delete_{entity}(id: int): ...
+def list_{entities}(where: str = None) -> list[{Entity}]: ...
+```
+
+**2. `{module}_view.py`**
+```python
+"""
+{Module} View - UI components
+"""
+from fasthtml.common import *
+from monsterui.all import *
+from .common_view import main_area
+
+def render_{entity}_form(entity): ...
+def render_{entity}_page(entity, auth): ...
+def render_{entity}_list(entities, auth): ...
+```
+
+**3. `{module}_controller.py`**
+```python
+"""
+{Module} Controller - Route handlers
+"""
+from fasthtml.common import *
+from .app_setup import create_app_with_auth
+from .{module}_model import get_{entity}, update_{entity}
+from .{module}_view import render_{entity}_page
+
+{module}_app, rt = create_app_with_auth()
+
+@{module}_app.get("/{entity}/{id}")
+def {entity}_detail(auth, id: int):
+    entity = get_{entity}(id)
+    return render_{entity}_page(entity, auth)
+```
+
+**4. `{module}_test.py`** (colocated)
+```python
+"""
+{Module} Tests - Unit and integration
+"""
+import pytest
+from starlette.testclient import TestClient
+
+# Unit tests - no HTTP
+def test_get_{entity}(): ...
+
+# Integration tests - TestClient
+@pytest.fixture
+def client(): ...
+
+def test_{entity}_page_get(client, auth_session): ...
+```
+
+### Verdict on Hafiz Module
+
+**Grade: B+**
+
+The hafiz module is a solid reference implementation with clear separation and good test coverage. The main issues are:
+1. Split CRUD across files (organizational)
+2. Misplaced utility route (architectural)
+
+These are minor issues that don't affect the pattern's validity. The module successfully demonstrates how to apply MVC to FastHTML.
