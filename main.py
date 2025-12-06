@@ -1,6 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
+from app.utils import *
 import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
@@ -12,11 +12,11 @@ from app.new_memorization import (
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
-from app.hafiz import hafiz_app
+from app.hafiz_controller import hafiz_app
 from app.common_function import *
-from globals import *
-from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
-from app.srs_reps import (
+from app.globals import *
+from app.fixed_reps_service import REP_MODES_CONFIG, update_rep_item
+from app.srs_reps_service import (
     update_hafiz_item_for_srs,
     start_srs_for_ok_and_bad_rating,
 )
@@ -523,7 +523,9 @@ def update_revision_rating(
     else:
         revision = revisions.update({"rating": int(rating)}, rev_id)
         record["revision"] = revision
-        return render_range_row(records=record)
+        return render_range_row(
+            records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
+        )
 
 
 @app.post("/bulk_rate")

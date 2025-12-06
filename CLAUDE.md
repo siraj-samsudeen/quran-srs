@@ -16,9 +16,12 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - Removed unused SRS recalculation logic from Close Date processing
 
 **Testing**:
-- Python Playwright tests in `tests/` directory for E2E testing with code coverage
-- Goal: Minimal E2E test suite (6-8 tests) with pytest-cov integration
-- Approach: E2E-first, add integration tests only if coverage gaps exist
+- **Strategy**: Test pyramid approach (Unit → Integration → E2E)
+- **See**: `docs/testing-approach.md` for comprehensive testing guide
+- **Test Types**:
+  - Unit tests (`tests/backend/`) - Pure Python, business logic
+  - Integration tests (`tests/integration/`) - TestClient for routes/HTMX
+  - E2E tests (`tests/ui/`) - Playwright for critical journeys only
 
 ## Development Commands
 
@@ -27,8 +30,11 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - **Run in test mode**: `ENV=test uv run main.py` (uses test database)
 - **Install dependencies**: `uv sync`
 - **Add new dependency**: `uv add <package-name>`
-- **Run tests**: `uv run pytest tests/e2e -v` (Playwright E2E tests)
-- **Run with coverage**: `uv run pytest tests/e2e --cov --cov-report=html`
+- **Run all tests**: `uv run pytest -v`
+- **Run unit tests**: `uv run pytest tests/backend -v` (fastest)
+- **Run integration tests**: `uv run pytest tests/integration -v` (TestClient)
+- **Run E2E tests**: `uv run pytest tests/ui -v` (Playwright)
+- **Run with coverage**: `uv run pytest --cov --cov-report=html`
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
 ### Environment Configuration
@@ -48,76 +54,74 @@ cp data_backup/quran_v10.db data/quran_test.db
 
 ### Testing Strategy
 
-**Phoenix LiveView-Inspired Architecture**:
-Our testing follows Phoenix's two-layer approach with strict separation of concerns:
+**See `docs/testing-approach.md` for complete testing guide.**
 
-**1. UI Tests** (`tests/ui/`) - Browser-based tests with Playwright
-- **Purpose**: Test complete user workflows through the browser
-- **Framework**: Playwright Python with pytest
-- **Running tests**:
-  ```bash
-  # Terminal 1: Start app in test mode
-  ENV=test uv run main.py
+Our testing follows a **test pyramid approach** optimized for FastHTML:
 
-  # Terminal 2: Run UI tests
-  uv run pytest tests/ui -v
-  ```
-- **Key Rules (Phoenix-style)**:
-  - ✅ **Setup**: Can seed test data via DB (arrange phase)
-  - ✅ **Action**: Interact through browser only
-  - ✅ **Assert**: Verify UI elements ONLY (no DB assertions)
-  - ❌ **Never**: Assert on database state directly
+**1. Unit Tests** (`tests/backend/`) - **Most tests, fastest**
+- Pure Python functions, business logic, algorithms
+- No HTTP, no database dependencies
+- Speed: ⚡⚡⚡ Instant (< 10ms per test)
 
-**2. Backend Tests** (`tests/backend/`) - Business logic tests
-- **Purpose**: Test business logic, algorithms, and data transformations
-- **Framework**: Pure Python with pytest (no browser)
-- **Running tests**:
-  ```bash
-  uv run pytest tests/backend -v
-  ```
-- **Key Rules**:
-  - ✅ **Setup**: Seed test data via DB
-  - ✅ **Action**: Call functions/methods directly
-  - ✅ **Assert**: Verify database state and return values
-  - ⚡ **Fast**: No browser overhead
+**2. Integration Tests** (`tests/integration/`) - **Middle layer**
+- FastHTML routes, HTMX fragments, form submissions
+- Uses Starlette's `TestClient` (no browser needed)
+- Speed: ⚡⚡ Fast (~50ms per test)
+- **Key Pattern**: Set `HX-Request: 1` header for HTMX tests
 
-**Run all tests**: `uv run pytest -v`
+**3. E2E Tests** (`tests/ui/`) - **Fewest tests, slowest**
+- Critical user journeys, JavaScript interactions (Alpine.js)
+- Uses Playwright (browser-based)
+- Speed: 🐌 Slow (~2-3s per test)
+- **Use only when**: Testing requires JavaScript or visual validation
 
-#### UI Test Example (Phoenix-style)
+**Running tests**:
+```bash
+# All tests
+uv run pytest -v
 
-```python
-def test_user_can_login(page, db_connection):
-    # Arrange: Seed data via DB (setup is allowed)
-    seed_user(db_connection, "test@example.com", "password123")
-
-    # Act: Interact through browser
-    page.goto("/users/login")
-    page.fill("input[name='email']", "test@example.com")
-    page.fill("input[name='password']", "password123")
-    page.click("button[type='submit']")
-
-    # Assert: Verify UI ONLY (no DB assertions!)
-    expect(page).to_have_url("/users/hafiz_selection")
-    expect(page.locator("text=Hafiz Selection")).to_be_visible()
+# By speed (fastest first)
+uv run pytest tests/backend -v       # Unit tests
+uv run pytest tests/integration -v   # Integration tests
+uv run pytest tests/ui -v            # E2E tests
 ```
 
-#### Backend Test Example
+#### Test Examples by Type
 
+**Unit Test** (tests/backend/):
 ```python
-def test_dr_to_wr_progression(db_connection):
-    # Arrange: Seed data
-    hafiz_id = create_test_hafiz(db_connection, "Test Hafiz")
-    seed_item_in_mode(db_connection, hafiz_id, item_id=1, mode="DR")
-    seed_revisions(db_connection, hafiz_id, item_id=1, count=6)
+def test_calculate_good_interval_phase1():
+    """Pure function test - no DB, no HTTP."""
+    from app.srs_interval_calc import calculate_good_interval
 
-    # Act: Call business logic directly
-    from app.fixed_reps import update_rep_item
-    update_rep_item(hafiz_id, item_id=1, mode_code="DR")
+    result = calculate_good_interval(base=7, good_streak=2)
+    assert result == 11  # 7 + (2 × 2)
+```
 
-    # Assert: Verify database state
-    item = get_hafizs_item(db_connection, hafiz_id, item_id=1)
-    assert item['mode_code'] == 'WR'
-    assert item['next_interval'] == 7
+**Integration Test** (tests/integration/):
+```python
+def test_login_redirects_to_hafiz_selection(client):
+    """Test HTTP endpoint with TestClient."""
+    response = client.post("/users/login", data={
+        "email": "test@example.com",
+        "password": "password123"
+    }, follow_redirects=False)
+
+    assert response.status_code in (302, 303)
+    assert response.headers["location"] == "/users/hafiz_selection"
+```
+
+**E2E Test** (tests/ui/):
+```python
+def test_alpine_tab_switching(page):
+    """Test JavaScript interaction - requires browser."""
+    page.goto("/")
+
+    # Click SRS tab (Alpine.js x-show)
+    page.locator("a:has-text('SRS')").click()
+
+    # Verify tab becomes active (CSS class change)
+    expect(page.locator("a:has-text('SRS')")).to_have_class(re.compile(r"tab-active"))
 ```
 
 #### TDD Workflow (Red-Green-Refactor)
@@ -236,6 +240,32 @@ git branch -d test-create-hafiz              # Clean up feature branch
 - Rely on database CASCADE DELETE for related records
 - Unique naming prevents interference between test runs
 
+#### Advanced Playwright Patterns
+
+**Use pytest markers for authentication** (instead of passing fixtures):
+```python
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_settings_page(page):
+    # Auto-logged in as hafiz 1
+    page.goto("/hafiz/settings")
+```
+
+**Validate HTMX requests** (not just UI):
+```python
+with page.expect_response("**/revision/rate/*") as response_info:
+    page.select_option("select.rating-dropdown", "1")
+
+response = response_info.value
+assert response.status == 200
+```
+
+**Interactive debugging**:
+```python
+page.pause()  # Opens Playwright inspector
+```
+
+See `docs/testing-approach.md` → "Advanced Playwright Patterns" for complete implementation.
+
 ### Database
 - **Path**: SQLite database at `data/quran_v10.db`
 - **Migrations**: Uses fastmigrate with numbered SQL files in `migrations/` directory (format: `0001-description.sql`)
@@ -274,6 +304,27 @@ Div(
     x_data=f"{{ activeTab: '{default_mode}' }}",
 )
 ```
+
+**MonsterUI LabelInput** - auto-derives `id` and `name` from label:
+```python
+# Verbose (unnecessary)
+LabelInput(
+    label="Email",
+    name="email",
+    type="email",
+    required=True,
+    placeholder="Email",
+)
+
+# Simplified (preferred)
+LabelInput("Email", type="email", required=True)
+```
+- First positional arg is `label`
+- `id` auto-derived from label (lowercased): `"Email"` → `id="email"`
+- `name` follows `id`
+- `placeholder` optional (omit unless needed)
+- Keep `type=` for email/password (not auto-inferred)
+- Keep `required=True` when needed
 
 ## Architecture Overview
 
@@ -407,34 +458,55 @@ The "Close Date" operation (`main.py:372-399`) is the core engine that:
   - **Graduation**: Returns to Full Cycle when `next_interval > 99`
   - Updates `next_review = current_date + next_interval` after each review
 
-### File Structure & MVC Pattern
+### File Structure & MVC+S Pattern
 
-The app follows an MVC-like pattern where applicable:
-- **Controllers** (`*_controller.py`): Route handlers and request processing
-- **Views** (`*_view.py`): UI components, forms, display logic
-- **Models** (`*_model.py`): Data access layer, business logic
+The app follows an **MVC + Service** pattern (inspired by Java Spring / Phoenix contexts):
+
+| Layer | File Suffix | Purpose | Example Functions |
+|-------|-------------|---------|-------------------|
+| **Controller** | `*_controller.py` | HTTP routes, request/response | Route handlers only |
+| **Service** | `*_service.py` | Business logic, workflows, algorithms | `update_rep_item()`, `start_srs()` |
+| **Model** | `*_model.py` | Data access, queries, CRUD | `get_items_by_type()`, `update_hafiz_item()` |
+| **View** | `*_view.py` | UI rendering, HTML components | `render_table()`, `render_form()` |
+
+**Flow:** Controller → Service (business logic) → Model (data) → View (rendering)
+
+**Naming Convention:**
+```
+app/
+├── hafiz_controller.py    # Routes: GET/POST /hafiz/*
+├── hafiz_service.py       # Business logic (if complex enough)
+├── hafiz_model.py         # Data queries
+├── hafiz_view.py          # UI components
+```
 
 **Main Application:**
-- `main.py`: Main app initialization, home page route with all summary tables, Close Date logic
-- `globals.py`: Database setup, mode constants (FULL_CYCLE_MODE_CODE, DAILY_REPS_MODE_CODE, etc.), table references
-- `utils.py`: Helper functions for dates, formatting, list operations
+- `main.py`: App initialization, home page routes, Close Date logic
+- `app/globals.py`: Database setup, mode constants, table references
+- `app/utils.py`: Pure utility functions (dates, formatting)
+- `app/app_setup.py`: App configuration, authentication beforeware
 
-**App Modules (mounted as sub-apps via FastHTML's Mount):**
-- `app/users_controller.py` + `app/users_view.py`: User authentication routes and UI
-- `app/revision.py` + `app/revision_view.py` + `app/revision_model.py`: Full MVC for revision CRUD operations
-- `app/new_memorization.py`: New memorization workflow
-- `app/profile.py`: Hafiz profile management
-- `app/hafiz.py`: Hafiz-specific settings (capacity, current_date override)
-- `app/admin.py`: Admin utilities and database management
-- `app/page_details.py`: Detailed item/page information views
-- `app/common_function.py`: Shared utilities (authentication beforeware, rendering helpers, data fetching)
-- `app/fixed_reps.py`: Daily/Weekly Reps logic with `REP_MODES_CONFIG` dict
-- `app/srs_reps.py`: SRS mode logic including interval calculations
+**Feature Modules:**
+- `app/users_*`: User authentication (controller, model, view)
+- `app/revision_*`: Revision CRUD (controller, model, view)
+- `app/hafiz_*`: Hafiz settings
+- `app/profile_*`: Memorization profile/status
+- `app/new_memorization_*`: New memorization workflow
+- `app/page_details_*`: Page/item detail views
+- `app/admin_*`: Admin utilities
+
+**Service Modules (business logic):**
+- `app/fixed_reps_service.py`: Daily/Weekly Reps mode transitions
+- `app/srs_reps_service.py`: SRS interval calculations and mode logic
+
+**Shared Modules:**
+- `app/common_function.py`: Shared utilities, re-exports from model/view
+- `app/common_model.py`: Shared data access functions
+- `app/common_view.py`: Shared UI components
 
 **Supporting Files:**
-- `docs/design.md`: Comprehensive design vision through user conversations
+- `docs/design.md`: Comprehensive design vision
 - `docs/srs-mode-design.md`: SRS algorithm specifications
-- `docs/user_personas.md`: User personas for design decisions
 
 ### Common Development Patterns
 
