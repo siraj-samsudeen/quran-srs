@@ -16,7 +16,6 @@ import pytest
 os.environ["ENV"] = "test"
 
 from app.globals import (
-    hafizs,
     hafizs_items,
     revisions,
     DAILY_REPS_MODE_CODE,
@@ -25,6 +24,7 @@ from app.globals import (
     SRS_MODE_CODE,
     Revision,
 )
+from app.hafiz_model import hafizs
 from app.fixed_reps_service import update_rep_item, REP_MODES_CONFIG
 from app.srs_reps_service import (
     start_srs,

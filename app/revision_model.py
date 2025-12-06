@@ -1,64 +1,64 @@
-from app.common_function import *
-from .globals import *
-
-
-def update_stats_and_interval(item_id: int, mode_code: str):
-    populate_hafizs_items_stat_columns(item_id=item_id)
-
-
-def get_revision_table_data(part_num: int = 1, size: int = 20):
-    start = (part_num - 1) * size
-    end = start + size
-    return revisions(order_by="id desc")[start:end]
+from .globals import revisions, plans, hafizs_items, FULL_CYCLE_MODE_CODE, SRS_MODE_CODE
 
 
 def get_revision_by_id(revision_id: int):
     return revisions[revision_id]
 
 
-def update_revision(revision_details: Revision):
-    return revisions.update(revision_details)
+def update_revision(revision_details):
+    revisions.update(revision_details, revision_details.id)
+    return revisions[revision_details.id]
 
 
 def delete_revision(revision_id: int):
-    return revisions.delete(revision_id)
+    revisions.delete(revision_id)
 
 
-def insert_revision(revision_details: Revision):
+def insert_revision(revision_details):
     return revisions.insert(revision_details)
 
 
 def insert_revisions_bulk(revision_list):
-    return revisions.insert_all(revision_list)
+    for revision in revision_list:
+        revisions.insert(revision)
 
 
-def get_items_by_page_id(page_id: int, active_only: bool = True):
-    where_clause = f"page_id = {page_id}"
-    if active_only:
-        where_clause += " AND active = 1"
-    return items(where=where_clause)
-
-
-def get_item_ids_by_page(page):
-    return [i.id for i in get_items_by_page_id(page)]
-
-
-def are_all_full_cycle_items_revised(plan_id: int) -> bool:
-    memorized_items = hafizs_items(
-        where=f"mode_code IN ('{SRS_MODE_CODE}', '{FULL_CYCLE_MODE_CODE}') AND memorized = 1 "
-    )
-    revised_records = revisions(
-        where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
-    )
-    # Check if all plan_item_ids are in revised_item_ids
-    return len(memorized_items) == len(revised_records)
+def get_revision_table_data(part_num: int = 1, size: int = 20):
+    offset = (part_num - 1) * size
+    all_revisions = revisions(order_by="revision_date DESC, id DESC")
+    return all_revisions[offset : offset + size]
 
 
 def cycle_full_cycle_plan_if_completed():
-    """Complete current plan and create new one if all pages are revised."""
-    current_plan_id = get_current_plan_id()
+    """
+    Check if current Full Cycle plan is completed.
+    If all memorized items have been revised, mark plan as complete and create new plan.
+    """
+    from app.common_model import get_current_plan_id
+    from app.users_model import create_new_plan
 
-    if current_plan_id:
-        if are_all_full_cycle_items_revised(current_plan_id):
-            plans.update({"completed": 1}, current_plan_id)
-            plans.insert(completed=0)
+    plan_id = get_current_plan_id()
+    if not plan_id:
+        return
+
+    # Get all memorized items that should be in Full Cycle
+    memorized_items = hafizs_items(
+        where=f"memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')"
+    )
+    memorized_item_ids = {item.item_id for item in memorized_items}
+
+    # Get items revised in current plan
+    plan_revisions = revisions(
+        where=f"plan_id = {plan_id} AND mode_code = '{FULL_CYCLE_MODE_CODE}'"
+    )
+    revised_item_ids = {rev.item_id for rev in plan_revisions}
+
+    # Check if all memorized items have been revised
+    if memorized_item_ids.issubset(revised_item_ids):
+        # Mark plan as completed
+        current_plan = plans[plan_id]
+        current_plan.completed = 1
+        plans.update(current_plan, plan_id)
+
+        # Create new plan
+        create_new_plan(current_plan.hafiz_id)

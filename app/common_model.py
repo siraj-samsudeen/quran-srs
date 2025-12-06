@@ -5,9 +5,9 @@ Pure data access functions - queries and simple CRUD operations.
 No UI rendering or complex business logic.
 """
 
+import math
 from .globals import (
     db,
-    hafizs,
     hafizs_items,
     items,
     modes,
@@ -17,8 +17,12 @@ from .globals import (
     surahs,
     FULL_CYCLE_MODE_CODE,
     SRS_MODE_CODE,
+    NEW_MEMORIZATION_MODE_CODE,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
 )
-from .utils import current_time, find_next_greater
+from .hafiz_model import hafizs
+from .utils import current_time, find_next_greater, calculate_days_difference, format_number
 
 
 def get_surah_name(page_id=None, item_id=None):
@@ -183,3 +187,149 @@ def get_mode_condition(mode_code: str):
     else:
         mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
     return mode_condition
+
+
+def get_srs_daily_limit(auth):
+    """Calculate SRS daily limit (50% of daily capacity)."""
+    return math.ceil(get_daily_capacity(auth) * 0.5)
+
+
+def get_full_cycle_daily_limit(auth):
+    """Calculate Full Cycle daily limit (100% of daily capacity)."""
+    return get_daily_capacity(auth)
+
+
+def populate_hafizs_items_stat_columns(item_id: int = None):
+    """Update streak and last_review stats in hafizs_items table."""
+
+    def get_item_id_summary(item_id: int):
+        items_rev_data = revisions(
+            where=f"item_id = {item_id}", order_by="revision_date ASC"
+        )
+        good_streak = 0
+        bad_streak = 0
+        last_review = ""
+
+        for rev in items_rev_data:
+            current_rating = rev.rating
+
+            if current_rating == -1:
+                bad_streak += 1
+                good_streak = 0
+            elif current_rating == 1:
+                good_streak += 1
+                bad_streak = 0
+            else:
+                good_streak = 0
+                bad_streak = 0
+
+            last_review = rev.revision_date
+
+        return {
+            "good_streak": good_streak,
+            "bad_streak": bad_streak,
+            "last_review": last_review,
+        }
+
+    if item_id is not None:
+        current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
+        if current_hafiz_items:
+            current_hafiz_items_id = current_hafiz_items[0].id
+            hafizs_items.update(get_item_id_summary(item_id), current_hafiz_items_id)
+        return None
+
+    for h_item in hafizs_items():
+        hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
+
+
+def get_actual_interval(item_id):
+    """Calculate actual days since last review."""
+    hafiz_items_details = get_hafizs_items(item_id)
+    current_date = get_current_date(hafiz_items_details.hafiz_id)
+
+    last_review = hafiz_items_details.last_review
+    if not last_review:
+        return None
+    return calculate_days_difference(last_review, current_date)
+
+
+def get_page_count(records: list = None, item_ids: list = None) -> float:
+    """Calculate total page count from revision records or item IDs."""
+    total_count = 0
+    if item_ids:
+        process_items = item_ids
+    elif records:
+        process_items = [record.item_id for record in records]
+    else:
+        return format_number(total_count)
+
+    for item_id in process_items:
+        total_count += get_item_page_portion(item_id)
+    return format_number(total_count)
+
+
+def get_full_review_item_ids(
+    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
+):
+    """Get item IDs for Full Cycle review based on plan and daily limit."""
+    current_date = get_current_date(auth)
+    plan_id = get_current_plan_id()
+
+    def get_next_item_range_from_item_id(
+        eligible_item_ids, start_item_id, total_page_count
+    ):
+        try:
+            start_index = eligible_item_ids.index(start_item_id)
+            item_ids_to_process = eligible_item_ids[start_index:]
+        except ValueError:
+            item_ids_to_process = eligible_item_ids
+
+        final_item_ids = []
+        current_page_count = 0
+        for item_id in item_ids_to_process:
+            if current_page_count >= total_page_count:
+                break
+            current_page_count += get_item_page_portion(item_id)
+            final_item_ids.append(item_id)
+
+        is_plan_finished = len(eligible_item_ids) == len(final_item_ids)
+
+        return is_plan_finished, final_item_ids
+
+    if plan_id is not None:
+        revised_items_in_plan = revisions(
+            where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id} AND revision_date != '{current_date}'",
+            order_by="revision_date DESC, id DESC",
+        )
+        revised_items_in_plan_set = {r.item_id for r in revised_items_in_plan}
+        eligible_item_ids = [i for i in item_ids if i not in revised_items_in_plan_set]
+
+        last_added_item_id = (
+            revised_items_in_plan[0].item_id if revised_items_in_plan else 0
+        )
+
+        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+    else:
+        eligible_item_ids = []
+        next_item_id = 0
+
+    is_plan_finished, next_item_ids = get_next_item_range_from_item_id(
+        eligible_item_ids, next_item_id, total_page_count
+    )
+
+    today_full_cycle_revisions = {
+        r.item_id
+        for r in revisions(
+            where=f"revision_date = '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}'"
+        )
+    }
+
+    today_revisioned_items = [
+        item["item_id"]
+        for item in mode_specific_hafizs_items_records
+        if item["item_id"] in today_full_cycle_revisions
+        and item["item_id"] not in next_item_ids
+    ]
+
+    final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
+    return is_plan_finished, final_item_ids

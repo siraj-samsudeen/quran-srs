@@ -11,8 +11,6 @@ from .common_view import main_area
 
 
 def render_settings_form(current_hafiz):
-    """Render the hafiz settings form."""
-
     def render_field(label, field_type, required=True, **kwargs):
         field_name = standardize_column(label)
         value = getattr(current_hafiz, field_name)
@@ -47,7 +45,6 @@ def render_settings_form(current_hafiz):
 
 
 def render_settings_page(current_hafiz, auth):
-    """Render the complete settings page."""
     form = render_settings_form(current_hafiz)
     return main_area(
         Div(
@@ -61,5 +58,4 @@ def render_settings_page(current_hafiz, auth):
 
 
 def render_theme_page(auth):
-    """Render the theme picker page."""
     return main_area(ThemePicker(), active="Settings", auth=auth)

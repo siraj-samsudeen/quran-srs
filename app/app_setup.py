@@ -7,7 +7,8 @@ Separated from common_function.py for cleaner architecture.
 
 from fasthtml.common import *
 from monsterui.all import *
-from .globals import users, hafizs, revisions, hafizs_items, plans
+from .globals import users, revisions, hafizs_items, plans
+from .hafiz_model import hafizs
 
 
 def user_auth(req, sess):

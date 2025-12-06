@@ -189,3 +189,29 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] User can import table from CSV (with preview)
 - [ ] Import preview shows data before committing
 - [ ] Import validates and displays errors
+
+---
+
+## Technical Debt & Refactoring
+
+### MVC Refactoring
+- [x] Document naming convention in CLAUDE.md
+- [x] Rename service files (fixed_reps → fixed_reps_service, srs_reps → srs_reps_service)
+- [x] Refactor hafiz.py to MVC (hafiz_controller.py + hafiz_view.py) - pilot
+- [x] Rename test folders (tests/ui → tests/e2e, tests/backend → tests/integration)
+- [x] Rename test files to {module}_test.py pattern
+- [ ] Refactor profile.py to MVC
+- [ ] Refactor new_memorization.py to MVC
+- [ ] Refactor admin.py to MVC
+- [ ] Refactor page_details.py to MVC
+
+### Dataclass Migration (Phase 2 - after MVC complete)
+- [x] Phase 1: Add explicit dataclass definitions in globals.py (for IDE support)
+- [ ] Phase 2: Switch to class-first pattern using db.create(Class)
+- [ ] Phase 3: Remove SQL migrations, let FastHTML/FastSQL manage schema
+
+### Database Migration (Phase 3 - after dataclass migration)
+- [ ] Switch from Fastlite to FastSQL (SQLAlchemy-based)
+- [ ] Configure PostgreSQL connection for Neon
+- [ ] Test with PostgreSQL locally
+- [ ] Deploy to Neon for production

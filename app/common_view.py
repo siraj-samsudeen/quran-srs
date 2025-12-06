@@ -8,7 +8,8 @@ No business logic - only presentation.
 from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
-from .globals import hafizs, items, revisions, RATING_MAP
+from .globals import items, revisions, RATING_MAP
+from .hafiz_model import hafizs
 from .common_model import (
     get_surah_name,
     get_page_number,

@@ -43,7 +43,16 @@ from .common_model import (
     get_item_page_portion,
     get_not_memorized_records,
     get_mode_condition,
+    get_srs_daily_limit,
+    get_full_cycle_daily_limit,
+    populate_hafizs_items_stat_columns,
+    get_actual_interval,
+    get_page_count,
+    get_full_review_item_ids,
 )
+
+# Re-export from utils for backward compatibility
+from .utils import group_by_type
 
 # Re-export from common_view for backward compatibility
 from .common_view import (
@@ -59,178 +68,6 @@ from .common_view import (
     render_summary_table,
     render_current_date,
 )
-
-
-def group_by_type(data, current_type, feild=None):
-    columns_map = {
-        "juz": "juz_number",
-        "surah": "surah_id",
-        "page": "page_number",
-        "item_id": "item_id",
-        "id": "id",
-    }
-    grouped = defaultdict(
-        list
-    )  # defaultdict() is creating the key as the each column_map number and value as the list of records
-    for row in data:
-        grouped[row[columns_map[current_type]]].append(
-            row if feild is None else row[feild]
-        )
-    sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
-    return sorted_grouped
-
-
-def get_srs_daily_limit(auth):
-    # 50% percentage of daily capacity
-    return math.ceil(get_daily_capacity(auth) * 0.5)
-
-
-def get_full_cycle_daily_limit(auth):
-    # 100% percentage of daily capacity
-    return get_daily_capacity(auth)
-
-
-def populate_hafizs_items_stat_columns(item_id: int = None):
-
-    def get_item_id_summary(item_id: int):
-        items_rev_data = revisions(
-            where=f"item_id = {item_id}", order_by="revision_date ASC"
-        )
-        good_streak = 0
-        bad_streak = 0
-        last_review = ""
-
-        for rev in items_rev_data:
-            current_rating = rev.rating
-
-            if current_rating == -1:
-                bad_streak += 1
-                good_streak = 0
-            elif current_rating == 1:
-                good_streak += 1
-                bad_streak = 0
-            else:
-                good_streak = 0
-                bad_streak = 0
-
-            last_review = rev.revision_date
-
-        return {
-            "good_streak": good_streak,
-            "bad_streak": bad_streak,
-            "last_review": last_review,
-        }
-
-    # Update the streak for a specific items if item_id is givien
-    if item_id is not None:
-        current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
-        if current_hafiz_items:
-            current_hafiz_items_id = current_hafiz_items[0].id
-            hafizs_items.update(get_item_id_summary(item_id), current_hafiz_items_id)
-
-        return None
-
-    # Update the streak for all the items in the hafizs_items
-    for h_item in hafizs_items():
-        hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
-
-
-def get_actual_interval(item_id):
-    hafiz_items_details = get_hafizs_items(item_id)
-    current_date = get_current_date(hafiz_items_details.hafiz_id)
-
-    last_review = hafiz_items_details.last_review
-    if not last_review:
-        return None
-    return calculate_days_difference(last_review, current_date)
-
-
-def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
-    total_count = 0
-    if item_ids:
-        process_items = item_ids
-    elif records:
-        process_items = [record.item_id for record in records]
-    else:
-        return format_number(total_count)
-
-    # Calculate page count
-    for item_id in process_items:
-        total_count += get_item_page_portion(item_id)
-    return format_number(total_count)
-
-
-def get_full_review_item_ids(
-    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
-):
-    current_date = get_current_date(auth)
-    plan_id = get_current_plan_id()
-
-    def get_next_item_range_from_item_id(
-        eligible_item_ids, start_item_id, total_page_count
-    ):
-        """Get items from a list starting from a specific number."""
-        try:
-            start_index = eligible_item_ids.index(start_item_id)
-            item_ids_to_process = eligible_item_ids[start_index:]
-        except ValueError:
-            item_ids_to_process = eligible_item_ids
-
-        final_item_ids = []
-        current_page_count = 0
-        for item_id in item_ids_to_process:
-            if current_page_count >= total_page_count:
-                break
-            current_page_count += get_item_page_portion(item_id)
-            final_item_ids.append(item_id)
-
-        is_plan_finished = len(eligible_item_ids) == len(final_item_ids)
-
-        return is_plan_finished, final_item_ids
-
-    if plan_id is not None:
-        # Filter out items that have been revised in the current plan (but not today)
-        revised_items_in_plan = revisions(
-            where=f"mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id} AND revision_date != '{current_date}'",
-            order_by="revision_date DESC, id DESC",
-        )
-        # Convert to set for faster lookup
-        revised_items_in_plan_set = {r.item_id for r in revised_items_in_plan}
-        eligible_item_ids = [i for i in item_ids if i not in revised_items_in_plan_set]
-
-        last_added_item_id = (
-            revised_items_in_plan[0].item_id if revised_items_in_plan else 0
-        )
-
-        # Find the next item to start the review from
-        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
-    else:
-        eligible_item_ids = []
-        next_item_id = 0
-
-    is_plan_finished, next_item_ids = get_next_item_range_from_item_id(
-        eligible_item_ids, next_item_id, total_page_count
-    )
-
-    # Get all item_ids revised today in full_cycle mode
-    today_full_cycle_revisions = {
-        r.item_id
-        for r in revisions(
-            where=f"revision_date = '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}'"
-        )
-    }
-
-    # Get items that have been revised today in full_cycle mode, but are not in the session_item_ids
-    today_revisioned_items = [
-        item["item_id"]
-        for item in mode_specific_hafizs_items_records
-        if item["item_id"] in today_full_cycle_revisions
-        and item["item_id"] not in next_item_ids
-    ]
-
-    # Combine and sort the item_ids
-    final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
-    return is_plan_finished, final_item_ids
 
 
 def make_summary_table(

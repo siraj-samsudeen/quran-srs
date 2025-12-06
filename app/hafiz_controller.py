@@ -6,8 +6,8 @@ Route handlers for hafiz settings.
 
 from fasthtml.common import *
 from .app_setup import create_app_with_auth
-from .globals import hafizs, Hafiz
 from .common_function import populate_hafizs_items_stat_columns
+from .hafiz_model import Hafiz, get_hafiz, update_hafiz
 from .hafiz_view import render_settings_page, render_theme_page
 
 
@@ -27,22 +27,17 @@ def update_stats_column(req, auth, item_id: int = None):
 
 @hafiz_app.get("/settings")
 def settings_page(auth):
-    """Display hafiz settings form."""
-    current_hafiz = hafizs[auth]
+    current_hafiz = get_hafiz(auth)
     return render_settings_page(current_hafiz, auth)
 
 
 @hafiz_app.post("/settings")
 def update_settings(auth, hafiz_data: Hafiz):
-    """Update hafiz settings."""
-    hafizs.update(
-        hafiz_data,
-        hafizs[auth].id,
-    )
+    current_hafiz = get_hafiz(auth)
+    update_hafiz(hafiz_data, current_hafiz.id)
     return Redirect("/")
 
 
 @hafiz_app.get("/theme")
 def theme_page(auth):
-    """Display theme picker."""
     return render_theme_page(auth)
