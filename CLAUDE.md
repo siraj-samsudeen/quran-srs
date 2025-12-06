@@ -240,6 +240,32 @@ git branch -d test-create-hafiz              # Clean up feature branch
 - Rely on database CASCADE DELETE for related records
 - Unique naming prevents interference between test runs
 
+#### Advanced Playwright Patterns
+
+**Use pytest markers for authentication** (instead of passing fixtures):
+```python
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_settings_page(page):
+    # Auto-logged in as hafiz 1
+    page.goto("/hafiz/settings")
+```
+
+**Validate HTMX requests** (not just UI):
+```python
+with page.expect_response("**/revision/rate/*") as response_info:
+    page.select_option("select.rating-dropdown", "1")
+
+response = response_info.value
+assert response.status == 200
+```
+
+**Interactive debugging**:
+```python
+page.pause()  # Opens Playwright inspector
+```
+
+See `docs/testing-approach.md` → "Advanced Playwright Patterns" for complete implementation.
+
 ### Database
 - **Path**: SQLite database at `data/quran_v10.db`
 - **Migrations**: Uses fastmigrate with numbered SQL files in `migrations/` directory (format: `0001-description.sql`)

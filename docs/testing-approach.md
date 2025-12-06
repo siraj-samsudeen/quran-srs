@@ -745,9 +745,236 @@ Keep it simple. Tests are documentation. String assertions are fast, readable, a
 
 ---
 
+## Advanced Playwright Patterns
+
+*Inspired by [Playwright & pytest that brings me joy](https://www.better-simple.com/django/2025/09/17/playwright-pytest-that-brings-me-joy/)*
+
+### Pytest Markers for Test Context
+
+**Problem:** Passing authentication fixtures explicitly clutters test signatures and hides test intent.
+
+**Solution:** Use pytest markers to declare test requirements, let fixtures auto-configure.
+
+**Before:**
+```python
+def test_settings_page(client, hafiz_session):
+    # Must pass hafiz_session fixture
+    response = client.get("/hafiz/settings", cookies=hafiz_session)
+    assert response.status_code == 200
+```
+
+**After:**
+```python
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_settings_page(page):
+    # Marker declares intent, fixture handles setup
+    page.goto("/hafiz/settings")
+    expect(page.locator("h1")).to_have_text("Hafiz Preferences")
+```
+
+**Benefits:**
+- ✅ Test intent is **explicit** (marker shows requirements at a glance)
+- ✅ Test signatures are **cleaner** (no fixture parameter clutter)
+- ✅ Easy to **scan** test files and see which tests need authentication
+- ✅ **Centralized** auth logic (fixture reads marker, configures once)
+
+**Implementation:**
+
+```python
+# tests/e2e/conftest.py
+import pytest
+import os
+
+@pytest.fixture
+def page(page, request):
+    """Auto-configure page based on test markers."""
+
+    # Check for authentication markers
+    hafiz_marker = request.node.get_closest_marker("requires_hafiz")
+
+    if hafiz_marker:
+        hafiz_id = hafiz_marker.kwargs.get("hafiz_id", 1)
+
+        # Login as user
+        page.goto("/users/login")
+        page.fill("input[name='email']", os.getenv("TEST_EMAIL"))
+        page.fill("input[name='password']", os.getenv("TEST_PASSWORD"))
+        page.click("button[type='submit']")
+
+        # Select hafiz
+        page.click(f"button[data-testid='switch-hafiz-{hafiz_id}']")
+
+    yield page
+```
+
+**Usage:**
+
+```python
+# No authentication needed
+def test_smoke(page):
+    page.goto("/")
+    expect(page).to_have_title("Quran SRS")
+
+# Requires hafiz 1
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_hafiz_settings(page):
+    page.goto("/hafiz/settings")
+    expect(page.locator("h1")).to_have_text("Hafiz Preferences")
+
+# Requires different hafiz
+@pytest.mark.requires_hafiz(hafiz_id=2)
+def test_hafiz_2_settings(page):
+    page.goto("/hafiz/settings")
+    # Tests run with hafiz 2 context
+```
+
+### HTMX Request Validation
+
+**Problem:** Testing only UI changes misses HTMX request failures that don't show visually.
+
+**Solution:** Use `page.expect_response()` to validate background requests.
+
+**Why it matters:**
+- Our app heavily uses HTMX for auto-submit rating dropdowns
+- HTMX swaps HTML fragments without page reloads
+- Backend errors might not show in UI but break functionality
+
+**Pattern:**
+
+```python
+def test_rating_dropdown_triggers_htmx(page):
+    page.goto("/")
+
+    # Validate HTMX request completes successfully
+    with page.expect_response("**/revision/rate/*") as response_info:
+        page.select_option("select.rating-dropdown", "1")
+
+    response = response_info.value
+    assert response.status == 200
+    assert response.ok
+```
+
+**Advanced: Check HTMX response headers:**
+
+```python
+def test_htmx_swap_response(page):
+    with page.expect_response("**/endpoint") as response_info:
+        page.click("button[hx-post]")
+
+    response = response_info.value
+
+    # Verify HTMX-specific headers
+    assert "hx-trigger" in response.headers or "hx-reswap" in response.headers
+
+    # Check response content
+    body = response.text()
+    assert "<tr" in body  # Expects table row HTML
+```
+
+**Where to apply:**
+- Rating dropdown auto-submit (tests/e2e/rating_test.py)
+- Bulk action bar HTMX swaps
+- Close Date processing with redirects
+- Any `hx-post`, `hx-get`, `hx-swap` interactions
+
+### Accessibility Testing (Optional)
+
+**Problem:** Accessibility issues only caught in manual review or production.
+
+**Solution:** Automated accessibility checks with axe-playwright.
+
+**Installation:**
+
+```bash
+uv add axe-playwright-python
+```
+
+**Implementation:**
+
+```python
+# tests/e2e/conftest.py
+import pytest
+from axe_playwright_python.sync_playwright import Axe
+
+@pytest.fixture
+def axe_check(page):
+    """Run accessibility checks on current page."""
+    def _check():
+        axe = Axe()
+        results = axe.run(page)
+
+        violations = results.get("violations", [])
+        if violations:
+            print(f"\n{len(violations)} accessibility violations:")
+            for v in violations:
+                print(f"  [{v['impact']}] {v['id']}: {v['description']}")
+
+        return violations
+
+    return _check
+```
+
+**Usage:**
+
+```python
+def test_login_page_accessibility(page, axe_check):
+    page.goto("/users/login")
+
+    violations = axe_check()
+    assert len(violations) == 0, "Accessibility violations found"
+
+def test_dashboard_accessibility(page, axe_check):
+    page.goto("/")
+
+    violations = axe_check()
+
+    # Allow known violations (document in issue tracker)
+    critical = [v for v in violations if v['impact'] == 'critical']
+    assert len(critical) == 0, "Critical accessibility issues found"
+```
+
+**When to use:**
+- Login/signup flows (must be accessible)
+- Main dashboard (complex tables)
+- Forms (hafiz settings, revision entry)
+- Any public-facing pages
+
+### Interactive Debugging
+
+**Pattern:** Use `page.pause()` for live debugging.
+
+```python
+def test_complex_interaction(page):
+    page.goto("/")
+
+    # Pause execution, open browser inspector
+    page.pause()
+
+    # Continue with test
+    page.click("button")
+```
+
+**Run with headed mode:**
+
+```bash
+# Shows browser window
+uv run pytest tests/e2e/test_file.py --headed
+
+# Alternative: PWDEBUG=1 (Playwright inspector)
+PWDEBUG=1 uv run pytest tests/e2e/test_file.py
+```
+
+**Benefits:**
+- ✅ Craft correct selectors by inspecting live elements
+- ✅ Verify page state at any point in test
+- ✅ Debug flaky tests interactively
+
+---
+
 ## References
 
 - [FastHTML Testing Guide](https://www.fastht.ml/docs/ref/concise_guide.html#testing) - Official docs
 - [FastHTML API: Tests](https://www.fastht.ml/docs/api/core.html#fasthtml-tests) - Test utilities
 - [parsel Documentation](https://parsel.readthedocs.io/) - When you need structural queries
 - [Scrapy Selectors](https://docs.scrapy.org/en/latest/topics/selectors.html) - parsel usage examples
+- [Playwright & pytest that brings me joy](https://www.better-simple.com/django/2025/09/17/playwright-pytest-that-brings-me-joy/) - Advanced patterns

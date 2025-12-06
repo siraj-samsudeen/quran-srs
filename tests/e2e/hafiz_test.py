@@ -1,90 +1,59 @@
 """
 Tests for Hafiz Management functionality.
 
-Tests the hafiz settings and selection:
-- Access settings page
-- Update hafiz settings (daily capacity)
-- Switch between multiple hafizs
+Uses pytest markers for authentication instead of explicit fixtures.
+Tests hafiz settings and selection workflows.
 """
 
-import os
 import pytest
 from playwright.sync_api import expect
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
-@pytest.fixture
-def authenticated_page(page):
-    """Login with credentials from .env and select hafiz."""
-    email = os.getenv("TEST_EMAIL")
-    password = os.getenv("TEST_PASSWORD")
-    hafiz = os.getenv("TEST_HAFIZ")
-
-    page.goto("/users/login")
-    page.fill("input[name='email']", email)
-    page.fill("input[name='password']", password)
-    page.click("button[type='submit']")
-
-    # After login, select hafiz to go to home page
-    page.click(f"button:has-text('{hafiz}')")
-
-    # Wait for home page to load
-    expect(page.locator("text=System Date")).to_be_visible()
-
-    yield page
-
-
-def test_settings_page_loads(authenticated_page):
-    """
-    Settings page loads with the expected form fields.
-    """
-    page = authenticated_page
-
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_settings_page_loads(page):
+    """Settings page loads with expected form fields."""
     # Navigate to Settings page
     page.click("a:has-text('Settings')")
 
-    # Wait for the settings page to load
+    # Verify page loaded
     expect(page.locator("h1:has-text('Hafiz Preferences')")).to_be_visible()
 
-    # Verify form fields are visible
+    # Verify form fields
     expect(page.locator("label:has-text('Name')")).to_be_visible()
     expect(page.locator("label:has-text('Daily Capacity')")).to_be_visible()
     expect(page.locator("label:has-text('Current Date')")).to_be_visible()
-
-    # Verify Update button is visible
     expect(page.locator("button:has-text('Update')")).to_be_visible()
 
 
-def test_settings_update_daily_capacity(authenticated_page):
-    """
-    Updating daily capacity saves the new value.
-    """
-    page = authenticated_page
-
-    # Navigate to Settings page
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_settings_update_daily_capacity(page):
+    """Updating daily capacity persists to database."""
+    # Navigate to Settings
     page.click("a:has-text('Settings')")
     expect(page.locator("h1:has-text('Hafiz Preferences')")).to_be_visible()
 
-    # Get current daily capacity
+    # Get current capacity
     capacity_input = page.locator("input[id='daily_capacity']")
     current_capacity = capacity_input.input_value()
 
-    # Calculate a new value (toggle between 3 and 4 to ensure change)
+    # Calculate new value (toggle between 3 and 4)
     new_capacity = "4" if current_capacity == "3" else "3"
 
-    # Clear and set new value
+    # Update value
     capacity_input.fill(new_capacity)
 
-    # Submit the form
-    page.click("button:has-text('Update')")
+    # Submit form and validate HTMX redirect
+    with page.expect_response("**/hafiz/settings") as response_info:
+        page.click("button:has-text('Update')")
 
-    # Wait for redirect back to home
+    response = response_info.value
+    assert response.status in (200, 302, 303)
+
+    # Wait for redirect
     page.wait_for_load_state("networkidle")
     expect(page.locator("text=System Date")).to_be_visible()
 
-    # Go back to settings and verify the value was saved
+    # Verify value persisted
     page.click("a:has-text('Settings')")
     expect(page.locator("h1:has-text('Hafiz Preferences')")).to_be_visible()
 
@@ -92,17 +61,12 @@ def test_settings_update_daily_capacity(authenticated_page):
     expect(updated_input).to_have_value(new_capacity)
 
 
-def test_hafiz_selection_page_accessible(authenticated_page):
-    """
-    Hafiz selection page is accessible from the navbar.
-    """
-    page = authenticated_page
-
-    # Click on the hafiz name in the navbar to go to selection page
+@pytest.mark.requires_hafiz(hafiz_id=1)
+def test_hafiz_selection_page_accessible(page):
+    """Hafiz selection page accessible from navbar."""
+    # Navigate to hafiz selection page
     page.click("a[href='/users/hafiz_selection']")
-
-    # Wait for the selection page to load
     page.wait_for_load_state("networkidle")
 
-    # Verify we're on the selection page - look for add hafiz form
+    # Verify add hafiz form visible
     expect(page.locator("input[name='name']")).to_be_visible()
