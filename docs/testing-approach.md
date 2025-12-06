@@ -410,6 +410,239 @@ def test_close_date_triggers_srs_entry(client, auth_session):
 
 ---
 
+## FastHTML/HTMX Testing Patterns
+
+*Patterns from [Testing FastHTML Dashboards](https://krokotsch.eu/posts/testing-fasthtml/)*
+
+### 1. HTMX Request Headers ⚠️ CRITICAL
+
+**Problem**: FastHTML/HTMX returns different responses based on the `HX-Request` header:
+- With header: Returns HTML fragment (what HTMX expects)
+- Without header: Returns full page with wrapper/layout
+
+**Solution**: Always set the header when testing HTMX endpoints:
+
+```python
+def test_htmx_fragment(client, hafiz_session):
+    """Test HTMX fragment response (not full page)."""
+    response = client.get(
+        "/hafiz/settings",
+        cookies=hafiz_session,
+        headers={"HX-Request": "true"}  # ← Critical for HTMX testing
+    )
+
+    assert response.status_code == 200
+    # Response is now just the fragment, not full page
+```
+
+**Alternative: Use fixture** (from line 287-289):
+```python
+def test_htmx_fragment(client, hafiz_session, htmx_headers):
+    """Use htmx_headers fixture for cleaner code."""
+    response = client.get(
+        "/hafiz/settings",
+        cookies=hafiz_session,
+        headers=htmx_headers  # {'hx-request': '1'}
+    )
+```
+
+**When to use**:
+- ✅ Testing routes that return HTMX fragments (forms, tables, partials)
+- ✅ Testing auto-submit dropdowns, inline edits
+- ❌ Testing full page loads (login, initial page render)
+
+---
+
+### 2. XPath for HTML Assertions
+
+**Problem**: String matching (`"text" in response.text`) is fragile and imprecise:
+- Matches text in comments, scripts, hidden elements
+- Can't verify HTML structure or attributes
+- Hard to debug when tests fail
+
+**Solution**: Use `lxml` with XPath for precise HTML assertions:
+
+**Before (fragile)**:
+```python
+assert "Hafiz Preferences" in response.text
+assert "Name" in response.text
+assert "Daily Capacity" in response.text
+```
+
+**After (precise)**:
+```python
+import lxml.html
+
+html = lxml.html.fromstring(response.text)
+
+# Verify heading exists
+assert html.xpath("//h1[text()='Hafiz Preferences']")
+
+# Verify form fields
+assert html.xpath("//label[text()='Name']")
+assert html.xpath("//input[@name='daily_capacity']")
+
+# Verify attributes
+assert html.xpath("//input[@name='daily_capacity' and @type='number']")
+
+# Verify disabled state
+assert html.xpath("//input[@name='current_date' and @disabled]")
+```
+
+**Common XPath patterns**:
+```python
+# Element with specific text
+html.xpath("//h1[text()='Title']")
+
+# Element with attribute
+html.xpath("//input[@name='email']")
+
+# Element with multiple attributes
+html.xpath("//input[@type='email' and @required]")
+
+# Element containing text (partial match)
+html.xpath("//p[contains(text(), 'Success')]")
+
+# Get attribute value
+html.xpath("//input[@name='capacity']/@value")[0]  # → "5"
+
+# Count elements
+len(html.xpath("//tr[@class='revision-row']"))  # → 3
+```
+
+**Installation**:
+```bash
+uv add lxml
+```
+
+**Benefits**:
+- ✅ More precise (won't match text in wrong places)
+- ✅ Can verify structure, not just content
+- ✅ Can check attributes, classes, states
+- ✅ Better error messages (shows actual HTML when fails)
+
+---
+
+### 3. Playwright Semantic Selectors
+
+**Problem**: CSS selectors (`input[id='email']`) are brittle:
+- Break when implementation changes (ID/class refactoring)
+- Don't reflect user intent (users don't see IDs)
+- Poor accessibility alignment
+
+**Solution**: Use Playwright's semantic selectors:
+
+**Before (brittle)**:
+```python
+page.click("a:has-text('Settings')")
+page.fill("input[id='daily_capacity']", "5")
+page.click("button:has-text('Update')")
+```
+
+**After (robust)**:
+```python
+# By role and name (most semantic)
+page.get_by_role("link", name="Settings").click()
+
+# By label (best for form fields)
+page.get_by_label("Daily Capacity").fill("5")
+
+# By role for buttons
+page.get_by_role("button", name="Update").click()
+
+# By text (for non-interactive elements)
+page.get_by_text("Hafiz Preferences")
+```
+
+**Common semantic selectors**:
+```python
+# Links
+page.get_by_role("link", name="Home")
+page.get_by_role("link", name="Settings")
+
+# Buttons
+page.get_by_role("button", name="Submit")
+page.get_by_role("button", name="Delete")
+
+# Form fields
+page.get_by_label("Email")
+page.get_by_label("Password")
+page.get_by_placeholder("Enter your name")
+
+# Headings
+page.get_by_role("heading", name="Dashboard")
+
+# Text content
+page.get_by_text("Welcome back")
+page.get_by_text("Success", exact=True)  # Exact match
+
+# Test IDs (fallback for dynamic content)
+page.get_by_test_id("switch-hafiz-1")
+```
+
+**Migration strategy**:
+1. Start with new tests (use semantic selectors from day 1)
+2. Refactor existing tests when they break (opportunistic)
+3. Don't rewrite working tests just for style (YAGNI)
+
+**Benefits**:
+- ✅ More resilient to DOM changes
+- ✅ Better accessibility (reflects user perspective)
+- ✅ More readable ("get by label Email" vs "input[id='email']")
+- ✅ Playwright auto-waits for elements
+
+---
+
+### 4. Module-Scoped Database Fixtures (Performance)
+
+**Problem**: Creating/destroying database for every test is slow:
+- SQLite file creation overhead
+- Schema migration overhead
+- Adds ~50-100ms per test
+
+**Solution**: Create DB once per module, clean data between tests:
+
+**Before (slow - 100ms per test)**:
+```python
+@pytest.fixture
+def test_db():
+    """Create fresh DB for every test."""
+    db = create_database()  # 50ms
+    run_migrations(db)      # 30ms
+    yield db
+    delete_database(db)     # 20ms
+    # Total: 100ms overhead per test
+```
+
+**After (fast - 10ms per test)**:
+```python
+@pytest.fixture(scope="module")
+def test_db_module():
+    """Create DB once per test module."""
+    db = create_database()  # 50ms once
+    run_migrations(db)      # 30ms once
+    yield db
+    delete_database(db)     # 20ms once
+
+@pytest.fixture
+def clean_db(test_db_module):
+    """Clean data between tests (fast)."""
+    yield test_db_module
+    # Just truncate tables (~5ms)
+    truncate_all_tables(test_db_module)
+```
+
+**When to use**:
+- ✅ When you have many tests in one module (10+ tests)
+- ✅ When database setup is expensive (migrations, seed data)
+- ✅ When tests are independent (no shared state dependencies)
+- ❌ When tests modify schema (use function-scoped)
+- ❌ For E2E tests with real server (use test database)
+
+**Trade-off**: Faster tests vs. risk of test pollution if cleanup fails.
+
+---
+
 ## Migration Examples
 
 ### **Authentication Test**

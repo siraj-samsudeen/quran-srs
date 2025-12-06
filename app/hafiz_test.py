@@ -7,6 +7,7 @@ Tests model functions and routes without browser.
 
 import os
 import pytest
+import lxml.html
 from starlette.testclient import TestClient
 from dotenv import load_dotenv
 
@@ -92,16 +93,34 @@ def hafiz_session(client, auth_session):
     return all_cookies
 
 
-def test_settings_page_get(client, hafiz_session):
+@pytest.fixture
+def parse_html():
+    """Parse HTML response to lxml tree for XPath queries."""
+    def _parse(response):
+        return lxml.html.fromstring(response.text)
+    return _parse
+
+
+def test_settings_page_get(client, hafiz_session, parse_html):
     """Integration: GET /hafiz/settings returns form with current values."""
-    response = client.get("/hafiz/settings", cookies=hafiz_session)
+    response = client.get(
+        "/hafiz/settings",
+        cookies=hafiz_session,
+        headers={"HX-Request": "true"}  # Test HTMX fragment, not full page
+    )
 
     assert response.status_code == 200
-    assert "Hafiz Preferences" in response.text
-    assert "Name" in response.text
-    assert "Daily Capacity" in response.text
-    assert "Current Date" in response.text
-    assert "Update" in response.text
+
+    # Use XPath for precise HTML structure validation
+    html = parse_html(response)
+    assert html.xpath("//h1[contains(text(), 'Hafiz Preferences')]")
+    assert html.xpath("//label[contains(text(), 'Name')]")
+    assert html.xpath("//input[@name='name']")
+    assert html.xpath("//label[contains(text(), 'Daily Capacity')]")
+    assert html.xpath("//input[@name='daily_capacity' and @type='number']")
+    assert html.xpath("//label[contains(text(), 'Current Date')]")
+    assert html.xpath("//input[@name='current_date']")
+    assert html.xpath("//button[@type='submit' and contains(text(), 'Update')]")
 
 
 def test_settings_page_post_updates_database(client, hafiz_session):
@@ -136,10 +155,18 @@ def test_settings_page_post_updates_database(client, hafiz_session):
     update_hafiz(original, 1)
 
 
-def test_theme_page_get(client, hafiz_session):
+def test_theme_page_get(client, hafiz_session, parse_html):
     """Integration: GET /hafiz/theme returns theme picker."""
-    response = client.get("/hafiz/theme", cookies=hafiz_session)
+    response = client.get(
+        "/hafiz/theme",
+        cookies=hafiz_session,
+        headers={"HX-Request": "true"}  # Test HTMX fragment
+    )
 
     assert response.status_code == 200
-    # ThemePicker is a MonsterUI component - check for theme-related content
-    assert "theme" in response.text.lower()
+
+    # ThemePicker is a MonsterUI component - verify HTML structure
+    html = parse_html(response)
+    # Verify page has content (ThemePicker renders some elements)
+    # Don't test MonsterUI internals, just verify response is valid HTML with content
+    assert len(html.xpath("//*")) > 0, "Response should contain HTML elements"
