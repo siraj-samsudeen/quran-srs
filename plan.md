@@ -34,6 +34,31 @@
 - [x] Verify all 8 mode transition tests still passing
 - [x] Reduce common_function.py to re-exports + 1 complex function
 
+### Remove Re-exports from common_function.py (Per Reviewer Feedback)
+**Issue:** common_function.py re-exports functions from app_setup, common_model, common_view, and utils for backward compatibility. This adds unnecessary indirection.
+
+**Goal:** Remove re-exports and update all imports to use direct imports from source modules.
+
+**Files to update (11 files):**
+- [ ] main.py - Replace `from app.common_function import *` with direct imports
+- [ ] app/users_model.py - Update to import from source modules
+- [ ] app/srs_reps_service.py - Update to import from source modules
+- [ ] app/revision_view.py - Update to import from source modules
+- [ ] app/revision.py - Update to import from source modules
+- [ ] app/profile.py - Update to import from source modules
+- [ ] app/page_details.py - Update to import from source modules
+- [ ] app/new_memorization.py - Update to import from source modules
+- [ ] app/fixed_reps_service.py - Update to import from source modules
+- [ ] app/admin.py - Update to import from source modules
+- [ ] Remove all re-exports from common_function.py (keep only make_summary_table)
+- [ ] Run all tests to verify nothing broke
+
+**Source module mapping:**
+- `create_app_with_auth`, `user_auth`, `*_bware`, `*_toast`, `*_header` → `app.app_setup`
+- `get_current_date`, `get_page_count`, `add_revision_record`, etc. → `app.common_model`
+- `main_area`, `render_*`, `rating_dropdown`, etc. → `app.common_view`
+- `group_by_type` → `app.utils`
+
 ### Remaining Modules to Refactor
 - [ ] Refactor profile.py to MVC (profile_controller, profile_model, profile_view)
 - [ ] Refactor new_memorization.py to MVC
