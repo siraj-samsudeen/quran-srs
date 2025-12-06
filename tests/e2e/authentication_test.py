@@ -2,16 +2,12 @@
 Phase 1: User Authentication
 
 Tests for user signup, login, and logout flows.
-
-Signup disabled for private beta - bot abuse prevention.
-To re-enable: enable signup routes in app/users_controller.py and remove skip markers below.
 """
 
 import pytest
 from playwright.sync_api import expect
 
 
-@pytest.mark.skip(reason="Signup disabled for private beta - bot abuse prevention")
 def test_signup_page_displays_form(page):
     # User visits signup page
     page.goto("http://localhost:5001/users/signup")
@@ -38,7 +34,6 @@ def test_signup_page_displays_form(page):
     expect(page.get_by_role("link", name="Login")).to_be_visible()
 
 
-@pytest.mark.skip(reason="Signup disabled for private beta - bot abuse prevention")
 def test_user_can_submit_signup_form_successfully(page):
     # User visits signup page
     page.goto("http://localhost:5001/users/signup")

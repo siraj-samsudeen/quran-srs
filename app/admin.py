@@ -2,9 +2,9 @@ from fasthtml.common import *
 from monsterui.all import *
 from io import BytesIO
 import pandas as pd
-from utils import *
+from .utils import *
 from app.common_function import *
-from globals import *
+from .globals import *
 
 
 tables = db.t

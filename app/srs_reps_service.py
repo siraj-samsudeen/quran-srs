@@ -11,8 +11,8 @@ Key concepts:
 - Graduation: After consecutive Good ratings (not based on interval threshold)
 """
 
-from globals import *
-from utils import *
+from .globals import *
+from .utils import *
 from fasthtml.common import *
 from monsterui.all import *
 from app.common_function import (
