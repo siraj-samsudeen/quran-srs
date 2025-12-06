@@ -80,11 +80,9 @@
    hafizs.cls = Hafiz  # Now queries return typed Hafiz objects
    ```
 
-3. **Backward Compatibility**: Re-exports in `common_function.py` ensure existing code doesn't break while allowing gradual migration.
+3. **Testing Strategy**: Three-tier testing (unit → integration → E2E) aligns with FastHTML official recommendations. The 70/20/10 split is sensible.
 
-4. **Testing Strategy**: Three-tier testing (unit → integration → E2E) aligns with FastHTML official recommendations. The 70/20/10 split is sensible.
-
-5. **Colocated Tests**: `app/hafiz_test.py` demonstrates the pattern of keeping tests near the code they test.
+4. **Colocated Tests**: `app/hafiz_test.py` demonstrates the pattern of keeping tests near the code they test.
 
 ---
 
@@ -103,6 +101,17 @@
    - `profile.py` (monolithic, no MVC split)
 
 4. **Test Coverage Gaps**: The mode transition tests cover the core algorithm but E2E tests may be duplicating integration test coverage.
+
+5. **Remove Re-exports, Use Direct Imports**: The `common_function.py` file currently re-exports functions from `common_model.py`, `common_view.py`, `app_setup.py`, and `utils.py`. This was a migration convenience but adds unnecessary indirection. Update all imports across the codebase to import directly from the source modules:
+   ```python
+   # Instead of:
+   from app.common_function import get_current_date, main_area
+
+   # Use direct imports:
+   from app.common_model import get_current_date
+   from app.common_view import main_area
+   ```
+   Then delete `common_function.py` (or keep only `make_summary_table()` until refactored).
 
 ---
 
@@ -135,14 +144,6 @@ Based on the [FastHTML LLM context](https://gist.github.com/decodingchris/1da7b1
 | Components as functions returning FT | `render_settings_page()`, `rating_dropdown()` | ✅ Aligned |
 | HTMX for interactivity | `hx_get`, `hx_post`, `hx_swap` used throughout | ✅ Aligned |
 
-### Divergence from FastHTML Philosophy ⚠️
-
-| Concern | Details |
-|---------|---------|
-| **Over-engineering risk** | FastHTML encourages simple, single-file apps for smaller projects. The Phoenix MVC pattern adds 6+ files per module which may be overkill for this app size. |
-| **Not strictly MVC** | FastHTML docs state it's "not strictly MVC" and allows flexible organization. The rigid `*_controller.py`, `*_model.py`, `*_view.py` naming may fight the framework's philosophy. |
-| **Re-export complexity** | The `common_function.py` re-exports add indirection. FastHTML favors direct imports via `from fasthtml.common import *`. |
-
 ### FastHTML Testing Guidance
 
 The refactoring's testing approach **aligns well** with official recommendations:
@@ -165,14 +166,12 @@ The `hafiz_test.py` follows this pattern exactly.
 
 3. **Component pattern is good**: Reusable functions like `render_settings_form()` returning FT elements follow FastHTML's component model.
 
-4. **Consider simpler organization**: For a ~15-route app, the full Phoenix MVC split may introduce unnecessary complexity. FastHTML's philosophy favors "hypermedia-based" simplicity over traditional enterprise patterns.
-
 ---
 
 ## Verdict
 
 **Good progress on establishing the MVC pattern.** The hafiz module serves as a solid reference implementation. The testing infrastructure is well-designed. However, the refactoring is ~40% complete based on the `plan.md` checklist.
 
-**Alignment with FastHTML**: The implementation correctly uses FastHTML patterns (beforeware, TestClient, typed tables, FT components). However, the strict MVC file organization diverges from FastHTML's "flexible, Pythonic" philosophy.
+**Alignment with FastHTML**: The implementation correctly uses FastHTML patterns (beforeware, TestClient, typed tables, FT components). The strict MVC organization is appropriate for this codebase size and complexity.
 
-**Recommended action:** Either complete the remaining module refactoring, or split into smaller PRs (merge hafiz MVC now, continue others separately). Consider whether the full MVC split is necessary for all modules, or if simpler organization would suffice for smaller modules.
+**Recommended action:** Complete the remaining module refactoring, remove re-exports in favor of direct imports, and consider merging incrementally (hafiz MVC first, then other modules).
