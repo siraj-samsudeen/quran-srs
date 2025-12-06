@@ -1,6 +1,7 @@
 from datetime import datetime
 from dataclasses import dataclass
-from globals import *
+from .globals import *
+from .hafiz_model import Hafiz, hafizs
 from app.common_function import *
 
 
@@ -22,11 +23,6 @@ def get_user_by_email(email: str):
 def insert_user(user: User):
     """Insert new user record"""
     return users.insert(user)
-
-
-def delete_user(user_id: int):
-    """Delete user record"""
-    users.delete(user_id)
 
 
 def get_hafizs_for_user(user_id: int):
