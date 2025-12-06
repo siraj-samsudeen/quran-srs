@@ -807,6 +807,15 @@ def page(page, request):
     yield page
 ```
 
+**Register the marker** in `pyproject.toml` to avoid warnings:
+
+```toml
+[tool.pytest.ini_options]
+markers = [
+    "requires_hafiz: mark test to auto-login and select a specific hafiz",
+]
+```
+
 **Usage:**
 
 ```python
