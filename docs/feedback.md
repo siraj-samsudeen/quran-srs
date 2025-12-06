@@ -120,8 +120,59 @@
 
 ---
 
+## Comparison Against Official FastHTML Guidance
+
+Based on the [FastHTML LLM context](https://gist.github.com/decodingchris/1da7b1ae6b58bd2259a986581e77fbdc) and [FastHTML by example](https://gist.github.com/jph00/f1cfe4f94a12cb4fd57ad7fc43ebd1d0):
+
+### Alignment with FastHTML Patterns ✅
+
+| FastHTML Guidance | Refactoring Implementation | Status |
+|-------------------|---------------------------|--------|
+| Use `fast_app()` for app creation | `create_app_with_auth()` wraps `fast_app()` | ✅ Aligned |
+| Beforeware for authentication | `user_bware`, `hafiz_bware` in `app_setup.py` | ✅ Aligned |
+| `table.cls = Dataclass` for typed queries | `hafizs.cls = Hafiz` pattern used | ✅ Aligned |
+| TestClient for testing views | Used in `hafiz_test.py` integration tests | ✅ Aligned |
+| Components as functions returning FT | `render_settings_page()`, `rating_dropdown()` | ✅ Aligned |
+| HTMX for interactivity | `hx_get`, `hx_post`, `hx_swap` used throughout | ✅ Aligned |
+
+### Divergence from FastHTML Philosophy ⚠️
+
+| Concern | Details |
+|---------|---------|
+| **Over-engineering risk** | FastHTML encourages simple, single-file apps for smaller projects. The Phoenix MVC pattern adds 6+ files per module which may be overkill for this app size. |
+| **Not strictly MVC** | FastHTML docs state it's "not strictly MVC" and allows flexible organization. The rigid `*_controller.py`, `*_model.py`, `*_view.py` naming may fight the framework's philosophy. |
+| **Re-export complexity** | The `common_function.py` re-exports add indirection. FastHTML favors direct imports via `from fasthtml.common import *`. |
+
+### FastHTML Testing Guidance
+
+The refactoring's testing approach **aligns well** with official recommendations:
+
+```python
+# FastHTML docs: "Use Starlette's TestClient to validate view output"
+from starlette.testclient import TestClient
+client = TestClient(app)
+response = client.get('/')
+assert "Welcome" in response.text
+```
+
+The `hafiz_test.py` follows this pattern exactly.
+
+### Key Observations
+
+1. **Database pattern is correct**: The `db.t.tablename` + `table.cls = Dataclass` pattern matches FastHTML's fastlite integration.
+
+2. **Route definitions are idiomatic**: Using `@hafiz_app.get("/settings")` aligns with FastHTML's decorator-based routing.
+
+3. **Component pattern is good**: Reusable functions like `render_settings_form()` returning FT elements follow FastHTML's component model.
+
+4. **Consider simpler organization**: For a ~15-route app, the full Phoenix MVC split may introduce unnecessary complexity. FastHTML's philosophy favors "hypermedia-based" simplicity over traditional enterprise patterns.
+
+---
+
 ## Verdict
 
 **Good progress on establishing the MVC pattern.** The hafiz module serves as a solid reference implementation. The testing infrastructure is well-designed. However, the refactoring is ~40% complete based on the `plan.md` checklist.
 
-**Recommended action:** Either complete the remaining module refactoring, or split into smaller PRs (merge hafiz MVC now, continue others separately).
+**Alignment with FastHTML**: The implementation correctly uses FastHTML patterns (beforeware, TestClient, typed tables, FT components). However, the strict MVC file organization diverges from FastHTML's "flexible, Pythonic" philosophy.
+
+**Recommended action:** Either complete the remaining module refactoring, or split into smaller PRs (merge hafiz MVC now, continue others separately). Consider whether the full MVC split is necessary for all modules, or if simpler organization would suffice for smaller modules.
