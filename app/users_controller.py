@@ -3,7 +3,12 @@ from monsterui.all import *
 from hmac import compare_digest
 from .users_model import *
 from .users_view import *
-from .common_function import *
+from .app_setup import (
+    create_app_with_auth,
+    error_toast,
+    warning_toast,
+    success_toast,
+)
 
 
 # Redirect target for login failures

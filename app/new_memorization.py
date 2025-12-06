@@ -2,7 +2,13 @@ from fasthtml.common import *
 from monsterui.all import *
 from .utils import *
 from datetime import datetime
-from app.common_function import *
+from .app_setup import create_app_with_auth
+from .common_model import (
+    get_hafizs_items,
+    get_current_date,
+    get_not_memorized_records,
+)
+from .common_view import main_area, get_page_description
 from .globals import *
 
 NEW_MEMORIZATION_RATING = 1

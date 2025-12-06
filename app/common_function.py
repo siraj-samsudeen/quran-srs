@@ -1,73 +1,33 @@
-from fasthtml.common import *
-import fasthtml.common as fh
-from monsterui.all import *
-from .utils import *
-from collections import defaultdict
-from .globals import *
-import math
+"""
+Common Function Module
 
-# Re-export from app_setup for backward compatibility
-from .app_setup import (
-    user_auth,
-    user_bware,
-    hafiz_auth,
-    hafiz_bware,
-    hyperscript_header,
-    alpinejs_header,
-    daisyui_css,
-    style_css,
-    favicon,
-    create_app_with_auth,
-    error_toast,
-    success_toast,
-    warning_toast,
+Contains make_summary_table - a complex function that orchestrates
+filtering and displaying revision tables for different modes.
+
+TODO: This function should be refactored into:
+- Model: get_items_for_summary(mode_code, auth)
+- View: render_summary_table(items, mode_code)
+"""
+
+from .utils import day_diff, get_day_from_date
+from .globals import (
+    db,
+    revisions,
+    NEW_MEMORIZATION_MODE_CODE,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    SRS_MODE_CODE,
+    FULL_CYCLE_MODE_CODE,
 )
-
-# Re-export from common_model for backward compatibility
 from .common_model import (
-    get_surah_name,
-    get_page_number,
     get_current_date,
-    get_daily_capacity,
-    get_last_added_full_cycle_page,
-    find_next_memorized_item_id,
-    get_hafizs_items,
-    get_mode_count,
-    get_planned_next_interval,
-    add_revision_record,
-    get_mode_name,
-    get_last_item_id,
-    get_juz_name,
-    get_mode_name_and_code,
-    get_current_plan_id,
-    get_item_page_portion,
-    get_not_memorized_records,
     get_mode_condition,
-    get_srs_daily_limit,
+    get_last_added_full_cycle_page,
     get_full_cycle_daily_limit,
-    populate_hafizs_items_stat_columns,
-    get_actual_interval,
-    get_page_count,
+    get_srs_daily_limit,
     get_full_review_item_ids,
 )
-
-# Re-export from utils for backward compatibility
-from .utils import group_by_type
-
-# Re-export from common_view for backward compatibility
-from .common_view import (
-    main_area,
-    get_page_description,
-    render_rating,
-    rating_dropdown,
-    rating_radio,
-    row_background_color,
-    create_count_link,
-    render_range_row,
-    render_bulk_action_bar,
-    render_summary_table,
-    render_current_date,
-)
+from .common_view import render_summary_table
 
 
 def make_summary_table(

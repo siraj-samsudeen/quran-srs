@@ -1,7 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
 from .utils import *
-from app.common_function import *
+from .app_setup import create_app_with_auth
+from .common_view import main_area
 from .globals import *
 
 profile_app, rt = create_app_with_auth()

@@ -2,7 +2,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from .globals import *
 from .hafiz_model import Hafiz, hafizs
-from app.common_function import *
+from .common_model import get_page_number
 
 
 @dataclass

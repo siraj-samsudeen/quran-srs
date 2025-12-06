@@ -1,7 +1,15 @@
 from fasthtml.common import *
 from monsterui.all import *
 from .utils import *
-from app.common_function import *
+from .common_model import get_current_date
+from .common_view import (
+    main_area,
+    get_page_description,
+    render_rating,
+    rating_dropdown,
+    rating_radio,
+)
+from .hafiz_model import hafizs
 from app.revision_model import get_revision_table_data
 from .globals import *
 

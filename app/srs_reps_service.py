@@ -12,14 +12,7 @@ Key concepts:
 
 from .globals import *
 from .utils import *
-from fasthtml.common import *
-from monsterui.all import *
-from app.common_function import (
-    get_hafizs_items,
-    get_current_date,
-    get_page_description,
-    render_rating,
-)
+from .common_model import get_hafizs_items, get_current_date
 
 # Starting intervals when entering SRS mode
 SRS_START_INTERVAL = {

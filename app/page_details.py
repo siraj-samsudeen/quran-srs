@@ -1,7 +1,15 @@
 from fasthtml.common import *
 from monsterui.all import *
 from .utils import *
-from app.common_function import *
+from .app_setup import create_app_with_auth
+from .common_model import (
+    get_mode_name_and_code,
+    get_juz_name,
+    get_hafizs_items,
+    get_actual_interval,
+    get_mode_name,
+)
+from .common_view import main_area, get_page_description
 from .globals import *
 
 

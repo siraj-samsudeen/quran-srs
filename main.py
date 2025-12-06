@@ -13,7 +13,26 @@ from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
 from app.hafiz_controller import hafiz_app
-from app.common_function import *
+from app.app_setup import create_app_with_auth
+from app.common_model import (
+    get_page_count,
+    get_current_date,
+    get_mode_name,
+    get_current_plan_id,
+    get_full_cycle_daily_limit,
+    get_hafizs_items,
+    get_actual_interval,
+    populate_hafizs_items_stat_columns,
+    add_revision_record,
+)
+from app.common_view import (
+    get_page_description,
+    render_current_date,
+    main_area,
+    render_range_row,
+    create_count_link,
+)
+from app.common_function import make_summary_table
 from app.globals import *
 from app.fixed_reps_service import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps_service import (

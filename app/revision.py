@@ -1,7 +1,22 @@
 from fasthtml.common import *
 from monsterui.all import *
 from .utils import *
-from app.common_function import *
+from .app_setup import create_app_with_auth, error_toast
+from .common_model import (
+    get_page_number,
+    get_current_date,
+    get_full_cycle_daily_limit,
+    get_surah_name,
+    get_juz_name,
+    populate_hafizs_items_stat_columns,
+    find_next_memorized_item_id,
+    get_last_item_id,
+)
+from .common_view import (
+    main_area,
+    get_page_description,
+    rating_dropdown,
+)
 from app.revision_view import *
 from app.revision_model import *
 from .globals import *

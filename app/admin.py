@@ -3,7 +3,8 @@ from monsterui.all import *
 from io import BytesIO
 import pandas as pd
 from .utils import *
-from app.common_function import *
+from .app_setup import create_app_with_auth
+from .common_view import main_area
 from .globals import *
 
 
