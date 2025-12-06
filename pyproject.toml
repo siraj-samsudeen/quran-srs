@@ -17,6 +17,9 @@ dependencies = [
 pythonpath = "."
 testpaths = ["app", "tests"]
 python_files = ["*_test.py"]
+markers = [
+    "requires_hafiz: mark test to auto-login and select a specific hafiz",
+]
 
 [dependency-groups]
 dev = [
