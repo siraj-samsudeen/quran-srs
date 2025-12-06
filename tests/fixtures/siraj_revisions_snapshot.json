@@ -1,0 +1,252 @@
+[
+  {
+    "id": 1,
+    "hafiz_id": 1,
+    "item_id": 1,
+    "revision_date": "2025-10-01",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 1,
+    "next_interval": null
+  },
+  {
+    "id": 2,
+    "hafiz_id": 1,
+    "item_id": 1,
+    "revision_date": "2025-11-01",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 3,
+    "hafiz_id": 1,
+    "item_id": 2,
+    "revision_date": "2025-09-15",
+    "rating": 0,
+    "mode_code": "FC",
+    "plan_id": 1,
+    "next_interval": null
+  },
+  {
+    "id": 4,
+    "hafiz_id": 1,
+    "item_id": 2,
+    "revision_date": "2025-10-15",
+    "rating": -1,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 5,
+    "hafiz_id": 1,
+    "item_id": 3,
+    "revision_date": "2025-11-01",
+    "rating": 0,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 6,
+    "hafiz_id": 1,
+    "item_id": 3,
+    "revision_date": "2025-11-10",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 12
+  },
+  {
+    "id": 7,
+    "hafiz_id": 1,
+    "item_id": 3,
+    "revision_date": "2025-11-25",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 15
+  },
+  {
+    "id": 8,
+    "hafiz_id": 1,
+    "item_id": 4,
+    "revision_date": "2025-11-15",
+    "rating": -1,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 9,
+    "hafiz_id": 1,
+    "item_id": 4,
+    "revision_date": "2025-11-20",
+    "rating": -1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 5
+  },
+  {
+    "id": 10,
+    "hafiz_id": 1,
+    "item_id": 4,
+    "revision_date": "2025-11-28",
+    "rating": -1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 7
+  },
+  {
+    "id": 11,
+    "hafiz_id": 1,
+    "item_id": 5,
+    "revision_date": "2025-10-01",
+    "rating": 0,
+    "mode_code": "FC",
+    "plan_id": 1,
+    "next_interval": null
+  },
+  {
+    "id": 12,
+    "hafiz_id": 1,
+    "item_id": 5,
+    "revision_date": "2025-10-15",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 15
+  },
+  {
+    "id": 13,
+    "hafiz_id": 1,
+    "item_id": 5,
+    "revision_date": "2025-11-05",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 20
+  },
+  {
+    "id": 14,
+    "hafiz_id": 1,
+    "item_id": 5,
+    "revision_date": "2025-11-20",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 30
+  },
+  {
+    "id": 15,
+    "hafiz_id": 1,
+    "item_id": 6,
+    "revision_date": "2025-09-01",
+    "rating": -1,
+    "mode_code": "FC",
+    "plan_id": 1,
+    "next_interval": null
+  },
+  {
+    "id": 16,
+    "hafiz_id": 1,
+    "item_id": 6,
+    "revision_date": "2025-10-01",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 20
+  },
+  {
+    "id": 17,
+    "hafiz_id": 1,
+    "item_id": 6,
+    "revision_date": "2025-10-25",
+    "rating": 0,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 25
+  },
+  {
+    "id": 18,
+    "hafiz_id": 1,
+    "item_id": 6,
+    "revision_date": "2025-11-15",
+    "rating": 0,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 40
+  },
+  {
+    "id": 19,
+    "hafiz_id": 1,
+    "item_id": 7,
+    "revision_date": "2025-09-01",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 1,
+    "next_interval": null
+  },
+  {
+    "id": 20,
+    "hafiz_id": 1,
+    "item_id": 7,
+    "revision_date": "2025-10-01",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 21,
+    "hafiz_id": 1,
+    "item_id": 7,
+    "revision_date": "2025-11-01",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 3,
+    "next_interval": null
+  },
+  {
+    "id": 22,
+    "hafiz_id": 1,
+    "item_id": 7,
+    "revision_date": "2025-11-30",
+    "rating": 1,
+    "mode_code": "FC",
+    "plan_id": 4,
+    "next_interval": null
+  },
+  {
+    "id": 23,
+    "hafiz_id": 1,
+    "item_id": 8,
+    "revision_date": "2025-10-15",
+    "rating": 0,
+    "mode_code": "FC",
+    "plan_id": 2,
+    "next_interval": null
+  },
+  {
+    "id": 24,
+    "hafiz_id": 1,
+    "item_id": 8,
+    "revision_date": "2025-10-25",
+    "rating": 1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 15
+  },
+  {
+    "id": 25,
+    "hafiz_id": 1,
+    "item_id": 8,
+    "revision_date": "2025-11-10",
+    "rating": -1,
+    "mode_code": "SR",
+    "plan_id": null,
+    "next_interval": 35
+  }
+]

@@ -35,14 +35,13 @@ def post(login: Login, sess):
     return hafizs_selection_redir
 
 
-# Signup disabled for private beta - bot abuse prevention
-# @rt("/signup")
-def get_signup(sess):
+@rt("/signup")
+def get(sess):
     return render_signup_form()
 
 
-# @rt("/signup")
-def post_signup(user: User, confirm_password: str, sess):
+@rt("/signup")
+def post(user: User, confirm_password: str, sess):
     if user.password != confirm_password:
         add_toast(sess, "Passwords do not match!", "warning")
         return signup_redir

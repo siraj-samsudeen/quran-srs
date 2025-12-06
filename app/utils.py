@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from collections import defaultdict
 import bisect
 import re
 import sqlite3
@@ -274,3 +275,22 @@ def render_date(date: str):
 def get_day_from_date(date: str):
     if date:
         return datetime.strptime(date, "%Y-%m-%d").day
+
+
+
+def group_by_type(data, current_type, feild=None):
+    """Group data by a specific field type (juz, surah, page, item_id, id)."""
+    columns_map = {
+        "juz": "juz_number",
+        "surah": "surah_id",
+        "page": "page_number",
+        "item_id": "item_id",
+        "id": "id",
+    }
+    grouped = defaultdict(list)
+    for row in data:
+        grouped[row[columns_map[current_type]]].append(
+            row if feild is None else row[feild]
+        )
+    sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+    return sorted_grouped

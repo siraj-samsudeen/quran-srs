@@ -1,6 +1,6 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
+from app.utils import *
 import pandas as pd
 from app.users_controller import users_app
 from app.revision import revision_app
@@ -12,11 +12,11 @@ from app.new_memorization import (
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
-from app.hafiz import hafiz_app
+from app.hafiz_controller import hafiz_app
 from app.common_function import *
-from globals import *
-from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
-from app.srs_reps import (
+from app.globals import *
+from app.fixed_reps_service import REP_MODES_CONFIG, update_rep_item
+from app.srs_reps_service import (
     update_hafiz_item_for_srs,
     start_srs_for_ok_and_bad_rating,
 )
@@ -338,14 +338,20 @@ def index(auth, sess):
 
 
 def update_hafiz_item_for_full_cycle(rev):
-    hafiz_item_details = get_hafizs_items(rev.item_id)
-    currrent_date = get_current_date(rev.hafiz_id)
-    # when a SRS page is revised in full-cycle mode, we need to move the next review of that page using the current next_interval
-    if hafiz_item_details.mode_code == SRS_MODE_CODE:
-        hafiz_item_details.next_review = add_days_to_date(
-            currrent_date, hafiz_item_details.next_interval
-        )
+    """Update hafiz item when Full Cycle revision is recorded.
 
+    Option B: When a SRS item is reviewed in FC mode, the rating affects SRS.
+    This triggers full SRS recalculation instead of just rescheduling.
+    """
+    hafiz_item_details = get_hafizs_items(rev.item_id)
+
+    # When a SRS page is revised in Full Cycle mode, trigger SRS recalculation
+    # (Option B: any revision affects SRS, not just SRS-mode revisions)
+    if hafiz_item_details.mode_code == SRS_MODE_CODE:
+        update_hafiz_item_for_srs(rev)
+        return
+
+    # Normal FC item: just update last_interval
     hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
     hafizs_items.update(hafiz_item_details)
 
@@ -523,7 +529,9 @@ def update_revision_rating(
     else:
         revision = revisions.update({"rating": int(rating)}, rev_id)
         record["revision"] = revision
-        return render_range_row(records=record)
+        return render_range_row(
+            records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
+        )
 
 
 @app.post("/bulk_rate")

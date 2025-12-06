@@ -1,5 +1,291 @@
 # Dev Log
 
+## MVC Refactoring (Dec 2025)
+
+### Overview
+
+This refactoring established the Phoenix MVC pattern as the standard for the codebase, starting with the hafiz module as a reference implementation.
+
+**Key Achievements:**
+- Hafiz module fully refactored to Phoenix MVC pattern
+- common_function.py cleaned up (163 lines moved to proper layers)
+- All tests passing (13/13)
+- Pattern documented for future refactoring
+
+### Phoenix MVC Pattern
+
+**Core Principle:** Schemas live with their contexts (models), not in a central globals file.
+
+**Before (Database-First):**
+```python
+# globals.py
+@dataclass
+class Hafiz:
+    id: int
+    name: str | None = None
+    # ...
+
+hafizs = db.t.hafizs
+hafizs.cls = Hafiz
+```
+
+**After (Phoenix Pattern):**
+```python
+# hafiz_model.py
+from .globals import db
+
+@dataclass
+class Hafiz:
+    id: int
+    name: str | None = None
+    # ...
+
+hafizs = db.t.hafizs  # Get table reference
+hafizs.cls = Hafiz    # Link schema to table
+
+def get_hafiz(hafiz_id: int) -> Hafiz:
+    return hafizs[hafiz_id]
+```
+
+**Why This Pattern:**
+- ✅ Self-contained: Schema visible when reading model
+- ✅ Encapsulation: Model only imports `db` from globals
+- ✅ IDE support: Autocomplete works with explicit dataclass
+- ✅ Phoenix-like: Matches Ecto schema pattern
+
+### Table Linking Pattern
+
+FastHTML uses `table.cls = Dataclass` to link Python dataclasses to database tables:
+
+```python
+hafizs = db.t.hafizs  # Get table reference
+hafizs.cls = Hafiz    # Link dataclass
+
+# Now queries return Hafiz objects:
+result = hafizs[1]
+assert isinstance(result, Hafiz)  # ✅ True
+print(result.name)  # ✅ IDE autocomplete works
+```
+
+**Without linking:**
+```python
+result = hafizs[1]  # Returns generic dict-like object
+print(result.name)  # ❌ No autocomplete, no type checking
+```
+
+### Hafiz Module Structure
+
+**Files:**
+- `app/hafiz_model.py` - Dataclass, table reference, CRUD functions
+- `app/hafiz_controller.py` - HTTP routes only
+- `app/hafiz_view.py` - UI rendering components
+- `app/hafiz_test.py` - Unit tests (2) + Integration tests (3)
+
+**Model Layer (hafiz_model.py:1):**
+```python
+from dataclasses import dataclass
+from .globals import db  # ONLY imports db
+
+@dataclass
+class Hafiz:
+    """Hafiz profile belonging to a user."""
+    id: int
+    name: str | None = None
+    daily_capacity: int | None = None
+    user_id: int | None = None
+    current_date: str | None = None
+
+hafizs = db.t.hafizs
+hafizs.cls = Hafiz
+
+def get_hafiz(hafiz_id: int) -> Hafiz:
+    return hafizs[hafiz_id]
+
+def update_hafiz(hafiz_data: Hafiz, hafiz_id: int) -> None:
+    hafizs.update(hafiz_data, hafiz_id)
+```
+
+**Controller Layer (hafiz_controller.py:1):**
+```python
+from .hafiz_model import Hafiz, get_hafiz, update_hafiz
+from .hafiz_view import render_settings_page
+
+@hafiz_app.get("/settings")
+def settings_page(auth):
+    current_hafiz = get_hafiz(auth)
+    return render_settings_page(current_hafiz, auth)
+```
+
+**View Layer (hafiz_view.py:1):**
+```python
+def render_settings_page(current_hafiz, auth):
+    return main_area(
+        render_settings_form(current_hafiz),
+        active="Settings",
+        auth=auth,
+    )
+```
+
+### Testing Strategy
+
+**Unit Tests (app/hafiz_test.py:23):**
+- Pure Python functions
+- No HTTP, no browser
+- Fast (< 10ms per test)
+
+```python
+def test_get_hafiz():
+    hafiz = get_hafiz(1)
+    assert isinstance(hafiz, Hafiz)
+    assert hafiz.id == 1
+```
+
+**Integration Tests (app/hafiz_test.py:93):**
+- FastHTML routes with TestClient
+- No browser needed
+- Fast (~50ms per test)
+
+```python
+def test_settings_page_get(client, hafiz_session):
+    response = client.get("/hafiz/settings", cookies=hafiz_session)
+    assert response.status_code == 200
+    assert "Hafiz Preferences" in response.text
+```
+
+**E2E Tests (tests/ui/):**
+- Playwright browser tests
+- Only for JavaScript interactions
+- Slow (~2-3s per test)
+
+### common_function.py Cleanup
+
+**Problem:** common_function.py was a 356-line mixed bag:
+- Re-exports from other modules
+- Model layer functions (DB queries)
+- Utility functions (pure data manipulation)
+- Complex business logic (mixing layers)
+
+**Solution:** Move functions to proper layers.
+
+**Moved to common_model.py (Data Layer):**
+```python
+# Statistical updates
+populate_hafizs_items_stat_columns(item_id)
+
+# Queries and calculations
+get_actual_interval(item_id)
+get_page_count(records, item_ids)
+get_full_review_item_ids(auth, total_page_count, ...)
+
+# Business logic that queries data
+get_srs_daily_limit(auth)
+get_full_cycle_daily_limit(auth)
+```
+
+**Moved to utils.py (Pure Utility):**
+```python
+# Data manipulation (no DB)
+group_by_type(data, current_type, field)
+```
+
+**Kept in common_function.py:**
+```python
+# Re-exports for backward compatibility
+from .common_model import (...)
+from .common_view import (...)
+from .utils import group_by_type
+
+# Complex function needing deeper refactor
+def make_summary_table(mode_code, auth, ...):
+    # Mixes business logic + view rendering
+    # TODO: Split into service + view layers
+```
+
+### Impact
+
+**Before:**
+- 356 lines in common_function.py
+- Mixed layers (model/view/utility)
+- Unclear where to add new functions
+
+**After:**
+- 193 lines in common_function.py (46% reduction)
+- Clear layer separation
+- Re-exports maintain backward compatibility
+- Model has 163 new lines (proper home for data functions)
+
+### Lessons Learned
+
+#### 1. Self-Contained Models
+
+Each model should only import `db` from globals, not table references:
+
+```python
+# ✅ Good (hafiz_model.py)
+from .globals import db
+hafizs = db.t.hafizs
+
+# ❌ Bad (previous pattern)
+from .globals import hafizs
+```
+
+This makes models self-contained and reduces coupling.
+
+#### 2. Backward Compatibility via Re-Exports
+
+Keep existing imports working while refactoring:
+
+```python
+# common_function.py
+from .common_model import (
+    populate_hafizs_items_stat_columns,
+    get_page_count,
+    # ... all moved functions
+)
+```
+
+Allows gradual migration - old imports still work.
+
+#### 3. Test Environment Setup
+
+Integration tests need environment setup:
+
+```python
+# hafiz_test.py
+import os
+from dotenv import load_dotenv
+
+os.environ["ENV"] = "test"  # Use test database
+load_dotenv()  # Load credentials from .env
+```
+
+Without this, tests fail authentication.
+
+#### 4. Missing Functions Break Silently
+
+Creating revision_model.py revealed missing functions:
+- `get_revision_by_id()`
+- `update_revision()`
+- `cycle_full_cycle_plan_if_completed()`
+
+These were being called but never implemented. Refactoring exposed the gaps.
+
+### Next Steps
+
+Apply this pattern to remaining modules:
+1. profile.py → profile_controller.py, profile_model.py, profile_view.py
+2. new_memorization.py → (same pattern)
+3. admin.py → (same pattern)
+4. page_details.py → (same pattern)
+
+Each refactor should:
+- Create self-contained model with dataclass
+- Add unit + integration tests
+- Move business logic to model/service layer
+- Keep view layer pure (UI rendering only)
+
+---
+
 ## FastHTML Authentication Concepts (Nov 2025)
 
 ### HTTP is Stateless
@@ -118,3 +404,85 @@ The key insight: inline `style="display: none"` provides a *default hidden state
 When combining Alpine.js with HTMX for reactive UI that gets replaced:
 - Use inline `style="display: none"` instead of `x-cloak` for elements that should start hidden after HTMX swap
 - `@click` handlers provide immediate feedback before HTMX round-trip completes
+
+---
+
+## 2025-12-05: SRS Algorithm Change - From Prime Numbers to Streak-Based
+
+### Background
+
+The SRS (Spaced Repetition System) algorithm determines when items should be reviewed
+based on past performance. The previous implementation used prime number sequences
+for interval progression.
+
+### Why We Changed
+
+The prime-based algorithm had several issues:
+
+1. **Hard to tune**: Prime jumps are fixed (7→11 is +4, 11→13 is +2). Can't adjust
+   growth rates for different phases of memorization.
+
+2. **Unintuitive for users**: "Why did my interval jump from 11 to 13?" has no
+   satisfying answer beyond "because 13 is the next prime."
+
+3. **Bad rating handling**: Dividing by penalties (35% of actual) then looking up
+   in the prime sequence created inconsistent behavior.
+
+4. **No phase awareness**: Same sequence whether at 7 days or 50 days.
+
+### The New Algorithm
+
+**Streak-based with phase multipliers:**
+
+| Phase | Good | Ok | Bad |
+|-------|------|-----|-----|
+| 0-14 days | `interval + (streak × 2)` | +2 | `÷ (streak + 1)` |
+| 14-30 days | `interval + (streak × 1.5)` | +1 | `÷ (streak + 1)` |
+| 30-40 days | `interval + (streak × 1)` | stay | Drop to 30 |
+| 40+ days | `interval + 3` (fixed) | cap at 40 | Drop to 30 |
+
+**Key design decisions:**
+
+1. **40-day threshold**: Observation that degradation starts around 40 days.
+   Ok ratings cap here; only Good can push beyond.
+
+2. **30-day floor**: Bad rating at 30+ drops to 30, bringing items back to
+   the "ideal zone" for focused work.
+
+3. **Graduation by streak**: 3 consecutive Good = mastery. More meaningful than
+   "interval > 99 days".
+
+4. **Phase-aware growth**: Different multipliers for building (fast), strengthening
+   (moderate), and maintenance (slow) phases.
+
+### Option B: FC Reviews Affect SRS
+
+When a SRS item is reviewed during Full Cycle:
+- **Old behavior**: Just reschedule, don't recalculate
+- **New behavior**: Full SRS recalculation (any revision affects SRS)
+
+Rationale: The user DID review the page. The rating should count regardless of
+which mode triggered the review. If they got Good in FC, it should count toward
+graduation. If Bad, it should affect the interval.
+
+### Backward Compatibility
+
+- Old `next_interval` values stored on revisions are preserved
+- `populate_hafizs_items_stat_columns()` reads intervals from revision history,
+  does NOT recalculate them
+- This ensures algorithm changes don't retroactively affect historical data
+
+### Testing Strategy
+
+Tests use MECE (Mutually Exclusive, Collectively Exhaustive) framework:
+- 76 unit tests for pure calculation functions
+- 14 integration tests including backward compatibility
+- Synthetic fixtures (committed) for CI
+- Full production fixtures (gitignored) for local verification
+
+### Files Changed
+
+- `app/srs_interval_calc.py` - New pure calculation module
+- `app/srs_reps.py` - Rewritten to use new calculations
+- `main.py` - Option B: FC review triggers SRS recalc
+- `app/common_function.py` - History replay preserves intervals
