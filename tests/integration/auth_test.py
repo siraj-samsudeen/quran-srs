@@ -8,21 +8,24 @@ from app.globals import users
 from app.hafiz_model import hafizs
 
 
-def test_auth_journey(client):
+def test_auth_journey(client, unique_id):
     """
     Complete auth journey:
     1. Signup → redirects to login + user created in DB
     2. Login → redirects to hafiz_selection
     3. Logout → redirects to login
     """
+    email = f"journey_{unique_id}@test.com"
+    name = f"Journey Test User {unique_id}"
+
     # 1. Signup
     response = client.post(
         "/users/signup",
         data={
-            "email": "journey@test.com",
+            "email": email,
             "password": "testpass123",
             "confirm_password": "testpass123",
-            "name": "Journey Test User",
+            "name": name,
         },
         follow_redirects=False,
     )
@@ -30,15 +33,15 @@ def test_auth_journey(client):
     assert "/users/login" in response.headers["location"]
 
     # Verify user was created in database
-    user = users(where="email = 'journey@test.com'")
+    user = users(where=f"email = '{email}'")
     assert len(user) == 1
-    assert user[0].name == "Journey Test User"
+    assert user[0].name == name
 
     # 2. Login
     response = client.post(
         "/users/login",
         data={
-            "email": "journey@test.com",
+            "email": email,
             "password": "testpass123",
         },
         follow_redirects=False,
@@ -52,27 +55,31 @@ def test_auth_journey(client):
     assert "/users/login" in response.headers["location"]
 
 
-def test_hafiz_journey(client):
+def test_hafiz_journey(client, unique_id):
     """
     Hafiz creation and selection journey:
     1. Signup and login
     2. Create hafiz → redirects to hafiz_selection
     3. Select hafiz → redirects to home page
     """
+    email = f"hafiz_test_{unique_id}@test.com"
+    user_name = f"Hafiz Test User {unique_id}"
+    hafiz_name = f"Test Hafiz {unique_id}"
+
     # Setup: Create user and login
     client.post(
         "/users/signup",
         data={
-            "email": "hafiz_test@test.com",
+            "email": email,
             "password": "testpass123",
             "confirm_password": "testpass123",
-            "name": "Hafiz Test User",
+            "name": user_name,
         },
     )
     client.post(
         "/users/login",
         data={
-            "email": "hafiz_test@test.com",
+            "email": email,
             "password": "testpass123",
         },
     )
@@ -81,7 +88,7 @@ def test_hafiz_journey(client):
     response = client.post(
         "/users/add_hafiz",
         data={
-            "name": "Test Hafiz",
+            "name": hafiz_name,
             "daily_capacity": 5,
         },
         follow_redirects=False,
@@ -90,7 +97,7 @@ def test_hafiz_journey(client):
     assert "/users/hafiz_selection" in response.headers["location"]
 
     # Verify hafiz was created in database and get the ID
-    hafiz = hafizs(where="name = 'Test Hafiz'")
+    hafiz = hafizs(where=f"name = '{hafiz_name}'")
     assert len(hafiz) == 1
     assert hafiz[0].daily_capacity == 5
     hafiz_id = hafiz[0].id
@@ -98,7 +105,7 @@ def test_hafiz_journey(client):
     # 2. Visit hafiz_selection to verify hafiz appears
     response = client.get("/users/hafiz_selection")
     assert response.status_code == 200
-    assert "Test Hafiz" in response.text
+    assert hafiz_name in response.text
 
     # 3. Select hafiz using the actual ID from database
     response = client.post(

@@ -1,4 +1,5 @@
 import os
+import time
 import pytest
 import lxml.html
 from dotenv import load_dotenv
@@ -7,6 +8,17 @@ from starlette.testclient import TestClient
 # Set test environment before importing app
 os.environ["ENV"] = "test"
 load_dotenv()
+
+
+# =============================================================================
+# Test Utilities
+# =============================================================================
+
+
+@pytest.fixture
+def unique_id():
+    """Generate a unique ID for test data to avoid collisions."""
+    return int(time.time() * 1000)
 
 
 # =============================================================================
