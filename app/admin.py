@@ -4,6 +4,7 @@ from io import BytesIO
 import pandas as pd
 from .utils import *
 from .app_setup import create_app_with_auth
+from .common_model import populate_hafizs_items_stat_columns
 from .common_view import main_area
 from .globals import *
 
@@ -11,6 +12,26 @@ from .globals import *
 tables = db.t
 
 admin_app, rt = create_app_with_auth()
+
+
+# =============================================================================
+# Utility Routes
+# =============================================================================
+
+
+@admin_app.get("/update_stats_column")
+def update_stats_column(req, auth, item_id: int = None):
+    """Trigger recalculation of hafizs_items statistics.
+
+    Can be called for a specific item or all items.
+    Redirects back to the referring page.
+    """
+    if item_id:
+        populate_hafizs_items_stat_columns(item_id)
+    else:
+        populate_hafizs_items_stat_columns()
+
+    return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
 
 def tables_main_area(*args, active_table=None, auth=None):

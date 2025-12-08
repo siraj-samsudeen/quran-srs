@@ -3,17 +3,12 @@ Hafiz Module Tests
 
 Unit tests and integration tests for hafiz module.
 Tests model functions and routes without browser.
+
+Note: Integration test fixtures (client, auth_session, hafiz_session, parse_html)
+are defined in tests/conftest.py and shared across all test files.
 """
 
-import os
 import pytest
-import lxml.html
-from starlette.testclient import TestClient
-from dotenv import load_dotenv
-
-os.environ["ENV"] = "test"
-load_dotenv()
-
 from app.hafiz_model import Hafiz, get_hafiz, update_hafiz
 
 
@@ -58,47 +53,8 @@ def test_update_hafiz():
 
 # =============================================================================
 # Integration Tests - TestClient, no browser
+# Uses fixtures from tests/conftest.py: client, auth_session, hafiz_session, parse_html
 # =============================================================================
-
-
-@pytest.fixture
-def client():
-    """Create test client for the app."""
-    from main import app
-    return TestClient(app)
-
-
-@pytest.fixture
-def auth_session(client):
-    """Login and return authenticated session cookies."""
-    response = client.post("/users/login", data={
-        "email": os.getenv("TEST_EMAIL"),
-        "password": os.getenv("TEST_PASSWORD"),
-    })
-    return response.cookies
-
-
-@pytest.fixture
-def hafiz_session(client, auth_session):
-    """Select hafiz and return session with both user and hafiz auth."""
-    # Select hafiz by posting to hafiz_selection
-    response = client.post(
-        "/users/hafiz_selection",
-        data={"current_hafiz_id": "1"},
-        cookies=auth_session,
-        follow_redirects=False,
-    )
-    # Merge cookies from both auth and hafiz selection
-    all_cookies = {**auth_session, **response.cookies}
-    return all_cookies
-
-
-@pytest.fixture
-def parse_html():
-    """Parse HTML response to lxml tree for XPath queries."""
-    def _parse(response):
-        return lxml.html.fromstring(response.text)
-    return _parse
 
 
 def test_settings_page_get(client, hafiz_session, parse_html):

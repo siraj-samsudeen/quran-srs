@@ -1,10 +1,20 @@
 from fasthtml.common import *
 from monsterui.all import *
 from hmac import compare_digest
-from .users_model import *
+from .users_model import Login, get_user_by_email, insert_user, reset_table_filters
 from .users_view import *
+from .hafiz_model import (
+    Hafiz,
+    get_hafiz,
+    insert_hafiz,
+    delete_hafiz,
+    get_hafizs_for_user,
+    populate_hafiz_items,
+    create_new_plan,
+)
 from .app_setup import (
     create_app_with_auth,
+    add_toast,
     error_toast,
     warning_toast,
     success_toast,
@@ -113,7 +123,7 @@ def post(hafiz: Hafiz, sess):
 
 @rt("/delete_hafiz/{hafiz_id}")
 def delete(hafiz_id: int, sess):
-    hafiz = get_hafiz_by_id(hafiz_id)
+    hafiz = get_hafiz(hafiz_id)
     if hafiz.user_id != sess["user_auth"]:
         return RedirectResponse("/users/hafiz_selection", status_code=303)
 

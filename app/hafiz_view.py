@@ -9,6 +9,12 @@ from monsterui.all import *
 from .utils import standardize_column
 from .common_view import main_area
 
+__all__ = [
+    "render_settings_form",
+    "render_settings_page",
+    "render_theme_page",
+]
+
 
 def render_settings_form(current_hafiz):
     def render_field(label, field_type, required=True, **kwargs):
