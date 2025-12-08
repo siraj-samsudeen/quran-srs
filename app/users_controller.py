@@ -9,9 +9,8 @@ from .hafiz_model import (
     insert_hafiz,
     delete_hafiz,
     get_hafizs_for_user,
-    populate_hafiz_items,
-    create_new_plan,
 )
+from .hafiz_service import setup_new_hafiz
 from .app_setup import (
     create_app_with_auth,
     add_toast,
@@ -115,9 +114,7 @@ def post(current_hafiz_id: int, sess):
 def post(hafiz: Hafiz, sess):
     hafiz.user_id = sess["user_auth"]
     new_hafiz = insert_hafiz(hafiz)
-    hafiz_id = new_hafiz.id
-    populate_hafiz_items(hafiz_id)
-    create_new_plan(hafiz_id)
+    setup_new_hafiz(new_hafiz.id)
     return RedirectResponse("/users/hafiz_selection", status_code=303)
 
 
