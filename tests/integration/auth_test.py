@@ -89,22 +89,21 @@ def test_hafiz_journey(client):
     assert response.status_code in (302, 303)
     assert "/users/hafiz_selection" in response.headers["location"]
 
-    # Verify hafiz was created in database
+    # Verify hafiz was created in database and get the ID
     hafiz = hafizs(where="name = 'Test Hafiz'")
     assert len(hafiz) == 1
     assert hafiz[0].daily_capacity == 5
+    hafiz_id = hafiz[0].id
 
-    # 2. Visit hafiz_selection to get the hafiz id
+    # 2. Visit hafiz_selection to verify hafiz appears
     response = client.get("/users/hafiz_selection")
     assert response.status_code == 200
     assert "Test Hafiz" in response.text
 
-    # 3. Select hafiz (need to find the hafiz id from the response)
-    # The form posts current_hafiz_id - we need to extract it
-    # For simplicity, assume hafiz id is 1 (first created in test db)
+    # 3. Select hafiz using the actual ID from database
     response = client.post(
         "/users/hafiz_selection",
-        data={"current_hafiz_id": 1},
+        data={"current_hafiz_id": hafiz_id},
         follow_redirects=False,
     )
     assert response.status_code in (302, 303)
