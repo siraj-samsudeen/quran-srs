@@ -23,7 +23,7 @@ from dataclasses import dataclass
 class User:
     """User account (can have multiple hafiz profiles)."""
 
-    id: int
+    id: int | None = None
     name: str | None = None
     email: str | None = None
     password: str | None = None
