@@ -508,6 +508,96 @@ app/
 - `docs/design.md`: Comprehensive design vision
 - `docs/srs-mode-design.md`: SRS algorithm specifications
 
+### Hafiz Module: Reference Implementation Patterns
+
+The hafiz module (`hafiz_controller.py`, `hafiz_model.py`, `hafiz_view.py`, `hafiz_service.py`) serves as the reference implementation for the MVC+S pattern. Follow these patterns when refactoring other modules.
+
+#### Pattern 1: Accessing Hafiz Records
+
+**Prefer function calls over direct table access:**
+```python
+# ✅ Preferred - Consistent API, testable, room for future enhancements
+current_hafiz = get_hafiz(auth)
+
+# ⚠️ Works but less consistent
+current_hafiz = hafizs[auth]
+```
+
+**Why:**
+- Provides explicit public API
+- Easier to add error handling/logging later
+- Makes code more testable and mockable
+- Consistent across codebase
+
+#### Pattern 2: Self-Contained Models
+
+**Each model imports only from globals, never from other models:**
+```python
+# hafiz_model.py
+from .globals import db, hafizs_items, plans  # ✅ Good
+from .utils import get_page_number             # ✅ Good (pure utility)
+from .common_model import get_current_date     # ❌ Bad - circular import risk
+```
+
+**Why:**
+- Avoids circular import issues
+- Keeps dependencies clear and unidirectional
+- Makes models independently testable
+- Globals → Utils → Models (one-way flow)
+
+**Exception:** Pure utility functions from `utils.py` are safe to import (no database dependencies).
+
+#### Pattern 3: CRUD vs Business Logic Separation
+
+**Model = Simple CRUD only:**
+```python
+# hafiz_model.py
+def get_hafiz(hafiz_id: int) -> Hafiz:
+    """Get hafiz record by ID."""
+    return hafizs[hafiz_id]  # ✅ Simple data access
+
+def update_hafiz(hafiz_data: Hafiz, hafiz_id: int) -> None:
+    """Update hafiz record."""
+    hafizs.update(hafiz_data, hafiz_id)  # ✅ Simple data access
+```
+
+**Service = Complex workflows:**
+```python
+# hafiz_service.py
+def setup_new_hafiz(hafiz_id: int) -> None:
+    """Setup workflow for new hafiz."""
+    populate_hafiz_items(hafiz_id)  # ✅ Orchestrates multiple model calls
+    create_new_plan(hafiz_id)       # ✅ Business logic coordination
+```
+
+**Why:**
+- Models stay simple and predictable (CRUD = Create, Read, Update, Delete)
+- Services handle complex workflows and business rules
+- Easier to test each layer independently
+- Clear separation of concerns
+
+**Rule of thumb:** If a function calls multiple model functions or has conditional logic, it belongs in a service.
+
+#### Pattern 4: Explicit `__all__` Exports
+
+**Always define public API:**
+```python
+# hafiz_model.py
+__all__ = [
+    "Hafiz",           # Dataclass
+    "hafizs",          # Table reference
+    "get_hafiz",       # Public functions
+    "update_hafiz",
+    # ... other public functions
+]
+```
+
+**Why:**
+- Documents intended public API
+- Improves IDE autocomplete
+- Prevents accidental `import *` pollution
+- Makes refactoring safer (know what's being used externally)
+
 ### Common Development Patterns
 
 **Adding/Removing Revisions:**
