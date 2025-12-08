@@ -3,6 +3,7 @@ from monsterui.all import *
 from hmac import compare_digest
 from .users_model import Login, get_user_by_email, insert_user, reset_table_filters
 from .users_view import *
+from .globals import User
 from .hafiz_model import (
     Hafiz,
     get_hafiz,
