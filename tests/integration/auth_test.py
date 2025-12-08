@@ -97,3 +97,9 @@ def test_hafiz_journey(client):
     )
     assert response.status_code in (302, 303)
     assert response.headers["location"] == "/"
+
+    # 4. Verify home page loads with system date and Close Date button
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "System Date:" in response.text
+    assert "Close Date" in response.text
