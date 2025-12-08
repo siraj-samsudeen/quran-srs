@@ -35,7 +35,7 @@ def cycle_full_cycle_plan_if_completed():
     If all memorized items have been revised, mark plan as complete and create new plan.
     """
     from app.common_model import get_current_plan_id
-    from app.users_model import create_new_plan
+    from app.hafiz_model import create_new_plan
 
     plan_id = get_current_plan_id()
     if not plan_id:
