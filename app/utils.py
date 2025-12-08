@@ -294,3 +294,15 @@ def group_by_type(data, current_type, feild=None):
         )
     sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
     return sorted_grouped
+
+
+def get_page_number(item_id: int) -> int:
+    """Get page number for a given item.
+
+    Note: This function is in utils.py (not common_model.py) to avoid circular imports.
+    hafiz_model needs this function, but common_model needs hafizs from hafiz_model.
+    """
+    from .globals import items, pages
+
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number

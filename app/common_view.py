@@ -12,12 +12,11 @@ from .globals import items, revisions, RATING_MAP
 from .hafiz_model import hafizs
 from .common_model import (
     get_surah_name,
-    get_page_number,
     get_current_date,
     get_current_plan_id,
     get_mode_condition,
 )
-from .utils import date_to_human_readable
+from .utils import date_to_human_readable, get_page_number
 
 
 def main_area(*args, active=None, auth=None):

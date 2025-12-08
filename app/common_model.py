@@ -35,12 +35,6 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
-def get_page_number(item_id):
-    """Get page number for a given item."""
-    page_id = items[item_id].page_id
-    return pages[page_id].page_number
-
-
 def get_current_date(auth) -> str:
     """Get current date for a hafiz, initializing if needed."""
     current_hafiz = hafizs[auth]

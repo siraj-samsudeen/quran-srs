@@ -3,7 +3,6 @@ from monsterui.all import *
 from .utils import *
 from .app_setup import create_app_with_auth, error_toast
 from .common_model import (
-    get_page_number,
     get_current_date,
     get_full_cycle_daily_limit,
     get_surah_name,

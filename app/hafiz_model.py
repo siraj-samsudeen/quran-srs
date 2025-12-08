@@ -6,7 +6,7 @@ Schema definition and data access for hafiz operations.
 
 from dataclasses import dataclass
 from .globals import db, hafizs_items, plans, FULL_CYCLE_MODE_CODE
-from .common_model import get_page_number
+from .utils import get_page_number
 
 __all__ = [
     "Hafiz",
