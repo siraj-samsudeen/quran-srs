@@ -59,9 +59,13 @@ def insert_hafiz(hafiz: Hafiz) -> Hafiz:
     return hafizs.insert(hafiz)
 
 
-def delete_hafiz(hafiz_id: int) -> None:
-    """Delete hafiz record (cascade will handle related records)."""
-    hafizs.delete(hafiz_id)
+def delete_hafiz(hafiz_id: int) -> Hafiz:
+    """Delete hafiz record (cascade will handle related records).
+
+    Returns:
+        Hafiz: The deleted hafiz record (useful for confirmations/audit)
+    """
+    return hafizs.delete(hafiz_id)
 
 
 def get_hafizs_for_user(user_id: int) -> list[Hafiz]:
@@ -76,7 +80,7 @@ def get_hafizs_for_user(user_id: int) -> list[Hafiz]:
 
 def populate_hafiz_items(hafiz_id: int) -> None:
     """Populate hafizs_items for a new or existing hafiz with missing items."""
-    # Reset xtra attributes
+    # Clear hafiz_id filter to query across all hafizs
     hafizs_items.xtra()
     # This query will return all the missing items for that hafiz or all items for new hafiz
     # and we will add the items in to the hafizs_items table
@@ -104,7 +108,7 @@ def create_new_plan(hafiz_id: int):
     Returns:
         Plan: The newly created plan record
     """
-    # Reset xtra attributes
+    # Clear any table filters before inserting
     plans.xtra()
     return plans.insert(
         hafiz_id=hafiz_id,
