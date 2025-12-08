@@ -17,9 +17,10 @@ def test_01_user_can_signup_and_login():
     1. Visit /users/signup
     2. Fill in email, password, name
     3. Submit form
-    4. Verify redirect to hafiz selection
-    5. Login with same credentials
-    6. Verify successful login
+    4. Verify redirect to /users/hafiz_selection
+    5. Logout
+    6. Login with same credentials
+    7. Verify redirect to /users/hafiz_selection
     """
     pass
 
