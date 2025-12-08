@@ -126,6 +126,232 @@ def render_settings_page(current_hafiz, auth):
     )
 ```
 
+### Session Key Naming Convention
+
+**Decision:** Use `sess["user_id"]` for user authentication and `sess["auth"]` for hafiz selection.
+
+**Pattern:**
+```python
+sess["user_id"] = user_id     # ✅ User authentication (explicit)
+sess["auth"] = {              # ✅ Hafiz context (FastHTML convention, but as dict!)
+    "hafiz_id": hafiz_id,
+    "user_id": user_id,
+}
+```
+
+**Why use a dict for `sess["auth"]`?**
+
+Instead of storing just the hafiz_id as an integer, we store a **dict with multiple context values**:
+- ✅ **Self-documenting**: `auth["hafiz_id"]` is clearer than cryptic integer
+- ✅ **Extensible**: Can add more fields (`hafiz_name`, permissions, etc.) without changing structure
+- ✅ **Explicit**: No guessing what the integer represents
+
+**Example usage in routes:**
+```python
+def settings_page(auth):  # auth is dict: {"hafiz_id": int, "user_id": int}
+    hafiz_id = auth["hafiz_id"]  # ✅ Clear what we're accessing
+    user_id = auth["user_id"]    # ✅ Both IDs available
+    current_hafiz = get_hafiz(hafiz_id)
+```
+
+**Why `sess["auth"]` instead of `sess["hafiz_context"]`?**
+
+FastHTML only recognizes **specific reserved parameter names** for auto-injection. The `auth` parameter is one of these reserved names (like `sess`, `req`, etc.). Custom names like `hafiz_id` or `hafiz_context` are **not recognized** and will be ignored.
+
+**What happens if you use a custom name?**
+```python
+# This FAILS - FastHTML warning: "hafiz_id has no type annotation and is not a recognised special name"
+req.scope['hafiz_id'] = sess.get("auth")  # Set in beforeware
+def my_route(hafiz_id):  # FastHTML ignores this, hafiz_id = None
+```
+
+**The flow:**
+1. `sess["auth"] = {"hafiz_id": 1, "user_id": 123}` (store dict in session)
+2. `req.scope["auth"] = sess.get("auth")` (beforeware)
+3. `def my_route(auth)` (auth dict auto-injected from req.scope)
+
+### FastHTML Auth Parameter Injection (CRITICAL Pattern)
+
+**IMPORTANT:** FastHTML has specific requirements for `auth` parameter auto-injection to work.
+
+#### The Pattern (What Works)
+
+**Beforeware:**
+```python
+def hafiz_auth(req, sess):
+    """Check hafiz selection and set up query filters."""
+    # CRITICAL: Chained assignment sets BOTH req.scope AND local variable
+    # auth is a dict: {"hafiz_id": int, "user_id": int}
+    auth = req.scope['auth'] = sess.get("auth", None)
+    if not auth:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    # Validate hafiz exists
+    hafiz_id = auth.get("hafiz_id")
+    if not hafiz_id:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    try:
+        get_hafiz(hafiz_id)
+    except NotFoundError:
+        del sess["auth"]
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    # Apply xtra filters
+    revisions.xtra(hafiz_id=hafiz_id)
+    hafizs_items.xtra(hafiz_id=hafiz_id)
+    plans.xtra(hafiz_id=hafiz_id)
+```
+
+**Routes:**
+```python
+@hafiz_app.get("/settings")
+def settings_page(auth):  # ⚠️ NO TYPE HINT on auth! (auth is dict)
+    hafiz_id = auth["hafiz_id"]  # ✅ Self-documenting
+    current_hafiz = get_hafiz(hafiz_id)
+    return render_settings_page(current_hafiz, hafiz_id)
+```
+
+#### Critical Requirements
+
+1. **✅ Session key MUST be `sess["auth"]`** (FastHTML convention)
+2. **✅ MUST set `req.scope['auth']`** in beforeware (chained assignment pattern)
+3. **✅ Parameter MUST be named `auth`** (FastHTML reserved name - cannot use `hafiz_id` or other names)
+4. **✅ NO type hint on `auth` parameter** (no `: int` annotation)
+
+**Why `auth` specifically?** FastHTML only recognizes specific reserved parameter names for auto-injection: `auth`, `sess`, `req`, etc. Custom names like `hafiz_id` are **ignored** and default to `None`, causing errors.
+
+#### What Breaks Auto-Injection
+
+❌ **Type hints on auth parameter:**
+```python
+def settings_page(auth: int):  # BREAKS injection!
+```
+
+❌ **Wrong session key:**
+```python
+sess["hafiz_id"] = hafiz_id  # BREAKS injection!
+```
+
+❌ **Not setting req.scope:**
+```python
+auth = sess.get("auth", None)  # Missing req.scope['auth'] =
+```
+
+#### Why No Type Hints?
+
+FastHTML's parameter resolution checks type annotations to determine how to inject parameters:
+- **With type hint** (`auth: int`): FastHTML looks for query param, form data, or path param
+- **Without type hint** (`auth`): FastHTML checks `req.scope` for matching key
+
+This is FastHTML's convention used throughout the codebase (revision.py, admin.py, etc.).
+
+#### Attempted Alternatives (Failed)
+
+**❌ Pre-fetching with dataclass injection:**
+```python
+# Beforeware
+req.scope["current_hafiz"] = get_hafiz(hafiz_id)
+
+# Route
+def settings_page(current_hafiz: Hafiz):  # FastHTML treats as form param!
+```
+**Why it failed:** FastHTML's `_is_body()` check identifies dataclass annotations as body/form parameters, even when present in `req.scope`.
+
+**Decision:** Stick with FastHTML's `auth` convention (no type hints, manual `get_hafiz()` in routes).
+
+### Modular Routing with Sub-Apps
+
+FastHTML uses **sub-apps with `Mount()`** for modular routing, equivalent to FastAPI's `APIRouter` pattern.
+
+#### Pattern
+
+Each controller module creates its own sub-app:
+
+```python
+# hafiz_controller.py
+from .app_setup import create_app_with_auth
+
+hafiz_app, rt = create_app_with_auth()  # Create sub-app
+
+@hafiz_app.get("/settings")  # Route: /hafiz/settings (after mounting)
+def settings_page(auth, sess):
+    current_hafiz = get_hafiz(auth)
+    return render_settings_page(current_hafiz, auth)
+```
+
+Main app mounts all sub-apps with path prefixes:
+
+```python
+# main.py
+from app.hafiz_controller import hafiz_app
+from app.users_controller import users_app
+
+app, rt = create_app_with_auth(
+    routes=[
+        Mount("/hafiz", hafiz_app, name="hafiz"),  # All hafiz_app routes under /hafiz
+        Mount("/users", users_app, name="users"),  # All users_app routes under /users
+    ]
+)
+```
+
+#### Why This Pattern?
+
+**Benefits:**
+- ✅ **Modularity**: Each controller is self-contained (routes + logic in one file)
+- ✅ **Namespace isolation**: `/hafiz/*` routes live in `hafiz_controller.py`
+- ✅ **Independent auth**: Each sub-app can have different beforeware (e.g., skip auth for `/users/login`)
+- ✅ **Testability**: Can test each sub-app independently with `TestClient(hafiz_app)`
+- ✅ **Clean main.py**: Just mounts sub-apps, no individual route imports
+
+**Comparison with other frameworks:**
+- **FastAPI**: `APIRouter` + `app.include_router(router)`
+- **Flask**: `Blueprint` + `app.register_blueprint(bp)`
+- **Django**: `include()` in URLconf
+- **FastHTML**: Sub-app + `Mount()` in routes list
+
+This is the standard pattern across all modern web frameworks for organizing routes.
+
+### CRUD Design Decisions
+
+#### Why `update_hafiz()` Returns `None`
+
+FastHTML's `table.update()` doesn't return the updated record by default. To return it, we'd need an extra query:
+
+```python
+def update_hafiz(hafiz: Hafiz, hafiz_id: int) -> Hafiz:
+    hafizs.update(hafiz, hafiz_id)
+    return hafizs[hafiz_id]  # Extra database query
+```
+
+**Decision:** Follow FastHTML convention and return `None`. No current caller needs the return value (YAGNI principle).
+
+**Tradeoff:**
+- ✅ Pro: No extra database query
+- ✅ Pro: Consistent with FastHTML's design
+- ❌ Con: Inconsistent with `insert_hafiz()` and `delete_hafiz()` (they do return records)
+
+#### Why `hafiz_id` is Separate from `hafiz.id` in `update_hafiz()`
+
+The ID parameter comes from a **trusted source** (session/auth), not from form data:
+
+```python
+# Controller (hafiz_controller.py:30)
+def update_settings(auth, hafiz: Hafiz, sess):
+    current_hafiz = get_hafiz(auth)
+    update_hafiz(hafiz, current_hafiz.id)  # ✅ ID from auth (trusted)
+    # NOT: update_hafiz(hafiz, hafiz.id)  # ❌ ID from form (untrusted)
+```
+
+**Security concern:** User could manipulate form data to include `id=999` (trying to update someone else's hafiz). Separate parameter forces caller to explicitly provide the ID from a trusted source.
+
+**Pattern:**
+```python
+def update_hafiz(hafiz: Hafiz, hafiz_id: int) -> None:
+    # hafiz_id is separate from hafiz.id to prevent ID tampering via form input
+    hafizs.update(hafiz, hafiz_id)
+```
+
 ### Testing Strategy
 
 **Unit Tests (app/hafiz_test.py:23):**
@@ -310,7 +536,7 @@ Middleware that runs before every route handler:
 
 ```python
 def auth_before(req, sess):
-    auth = sess.get("auth")           # Read from session
+    hafiz_id = sess.get("hafiz_id")   # Read from session
     req.scope["auth"] = auth          # Store validated data
     if not auth:
         return RedirectResponse("/login", status_code=303)  # Intercept

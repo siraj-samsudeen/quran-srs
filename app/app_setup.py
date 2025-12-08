@@ -8,17 +8,17 @@ Separated from common_function.py for cleaner architecture.
 from fasthtml.common import *
 from monsterui.all import *
 from .globals import users, revisions, hafizs_items, plans
-from .hafiz_model import hafizs
+from .hafiz_model import get_hafiz
 
 
 def user_auth(req, sess):
     """Check user authentication - redirects to login if not authenticated."""
-    user_id = req.scope["user_auth"] = sess.get("user_auth", None)
+    user_id = req.scope["user_id"] = sess.get("user_id", None)
     if user_id:
         try:
             users[user_id]
         except NotFoundError:
-            del sess["user_auth"]
+            del sess["user_id"]
             user_id = None
     if not user_id:
         return RedirectResponse("/users/login", status_code=303)
@@ -31,15 +31,23 @@ user_bware = Beforeware(
 
 
 def hafiz_auth(req, sess):
-    """Check hafiz selection - redirects to hafiz_selection if not selected."""
-    hafiz_id = req.scope["auth"] = sess.get("auth", None)
-    if hafiz_id:
-        try:
-            hafizs[hafiz_id]
-        except NotFoundError:
-            del sess["auth"]
-            hafiz_id = None
+    """Check hafiz selection and set up query filters."""
+    # CRITICAL: Use 'auth' (FastHTML reserved name) for automatic parameter injection
+    # auth is a dict: {"hafiz_id": int, "user_id": int}
+    auth = req.scope['auth'] = sess.get("auth", None)
+    if not auth:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    # Validate hafiz exists
+    hafiz_id = auth.get("hafiz_id")
     if not hafiz_id:
+        return RedirectResponse("/users/hafiz_selection", status_code=303)
+
+    try:
+        get_hafiz(hafiz_id)
+    except NotFoundError:
+        # Hafiz was deleted, clear session and redirect
+        del sess["auth"]
         return RedirectResponse("/users/hafiz_selection", status_code=303)
 
     # Apply xtra filters for hafiz-specific queries

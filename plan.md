@@ -275,6 +275,12 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] Refactor admin.py to MVC
 - [ ] Refactor page_details.py to MVC
 
+### Hafiz Module Improvements
+- [ ] Move `create_new_plan()` from hafiz creation to first hafiz switch (lazy initialization)
+  - Current: `setup_new_hafiz()` calls both `populate_hafiz_items()` and `create_new_plan()` immediately
+  - Future: Only call `populate_hafiz_items()` on creation; defer `create_new_plan()` to first switch
+  - Benefit: Faster hafiz creation, plan only created when hafiz is actually used
+
 ### Dataclass Migration (Phase 2 - after MVC complete)
 - [x] Phase 1: Add explicit dataclass definitions in globals.py (for IDE support)
 - [ ] Phase 2: Switch to class-first pattern using db.create(Class)

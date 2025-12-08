@@ -7,7 +7,7 @@ For business logic, see hafiz_service.py. For UI, see hafiz_view.py and hafiz_co
 """
 
 from dataclasses import dataclass
-from .globals import db, hafizs_items, plans, FULL_CYCLE_MODE_CODE
+from .globals import db, hafizs_items, plans, Plan, FULL_CYCLE_MODE_CODE
 from .utils import get_page_number
 
 __all__ = [
@@ -27,10 +27,14 @@ __all__ = [
 class Hafiz:
     """Hafiz profile belonging to a user."""
 
-    id: int
-    name: str | None = None
+    # Required fields
+    id: int  # For new inserts, FastHTML handles id=None → auto-increment
+    name: str  # Every hafiz must have a name
+
+    # Optional fields
     daily_capacity: int | None = None
     user_id: int | None = None
+    # String format (YYYY-MM-DD) matches SQLite's date storage and simplifies comparisons
     current_date: str | None = None  # Virtual date for this hafiz
 
 
@@ -44,33 +48,30 @@ hafizs.cls = Hafiz
 # =============================================================================
 
 
-def get_hafiz(hafiz_id: int) -> Hafiz:
-    """Get hafiz record by ID."""
-    return hafizs[hafiz_id]
-
-
-def update_hafiz(hafiz_data: Hafiz, hafiz_id: int) -> None:
-    """Update hafiz record."""
-    hafizs.update(hafiz_data, hafiz_id)
-
-
 def insert_hafiz(hafiz: Hafiz) -> Hafiz:
-    """Insert new hafiz record."""
     return hafizs.insert(hafiz)
 
 
+def get_hafiz(hafiz_id: int) -> Hafiz:
+    return hafizs[hafiz_id]
+
+
+def get_hafizs_for_user(user_id: int) -> list[Hafiz]:
+    return hafizs(where=f"user_id={user_id}")
+
+
+def update_hafiz(hafiz: Hafiz, hafiz_id: int) -> None:
+    # hafiz_id is separate from hafiz.id to prevent ID tampering via form input
+    hafizs.update(hafiz, hafiz_id)
+
+
 def delete_hafiz(hafiz_id: int) -> Hafiz:
-    """Delete hafiz record (cascade will handle related records).
+    """Also deletes related records via CASCADE: hafizs_items, plans, revisions.
 
     Returns:
         Hafiz: The deleted hafiz record (useful for confirmations/audit)
     """
     return hafizs.delete(hafiz_id)
-
-
-def get_hafizs_for_user(user_id: int) -> list[Hafiz]:
-    """Get all hafizs associated with a user."""
-    return hafizs(where=f"user_id={user_id}")
 
 
 # =============================================================================
@@ -80,36 +81,43 @@ def get_hafizs_for_user(user_id: int) -> list[Hafiz]:
 
 def populate_hafiz_items(hafiz_id: int) -> None:
     """Populate hafizs_items for a new or existing hafiz with missing items."""
-    # Clear hafiz_id filter to query across all hafizs
+    # TODO: Make this lazy - don't insert 604+ records upfront on hafiz creation
+    # Instead, create hafizs_items on-demand when user first accesses a page/mode
+    # Benefit: Faster hafiz creation, only populate what's actually used
+
+    # CRITICAL: Clear auto-filter before querying
+    # Use case: User (logged in as Hafiz A) creates new Hafiz B → calls setup_new_hafiz(hafiz_id=B)
+    # Beforeware has already set xtra(hafiz_id=A) from session
+    # Without clearing: query would only see items for Hafiz A, not target Hafiz B
     hafizs_items.xtra()
-    # This query will return all the missing items for that hafiz or all items for new hafiz
-    # and we will add the items in to the hafizs_items table
+
+    # Find items that exist in items table but not in hafizs_items for this hafiz
     qry = f"""
-    SELECT items.id from items
-    LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {hafiz_id}
-    WHERE items.active <> 0 AND hafizs_items.item_id IS Null;
+        SELECT items.id
+        FROM items
+        LEFT JOIN hafizs_items
+            ON items.id = hafizs_items.item_id
+            AND hafizs_items.hafiz_id = {hafiz_id}
+        WHERE items.active <> 0              -- Only active Quran items
+            AND hafizs_items.item_id IS NULL -- Item doesn't exist for this hafiz yet
     """
-    ct = db.q(qry)
-    missing_item_ids = [r["id"] for r in ct]
+    missing_item_ids = [r["id"] for r in db.q(qry)]
 
-    if missing_item_ids:
-        for missing_item_id in missing_item_ids:
-            hafizs_items.insert(
-                hafiz_id=hafiz_id,
-                item_id=missing_item_id,
-                page_number=get_page_number(missing_item_id),
-                mode_code=FULL_CYCLE_MODE_CODE,
-            )
+    for missing_item_id in missing_item_ids:
+        # TODO: Replace with insert wrapper for consistency with CRUD pattern
+        hafizs_items.insert(
+            hafiz_id=hafiz_id,
+            item_id=missing_item_id,
+            page_number=get_page_number(missing_item_id),
+            mode_code=FULL_CYCLE_MODE_CODE,
+        )
 
 
-def create_new_plan(hafiz_id: int):
-    """Create initial revision plan for a new hafiz.
-
-    Returns:
-        Plan: The newly created plan record
-    """
-    # Clear any table filters before inserting
+def create_new_plan(hafiz_id: int) -> Plan:
+    """Create initial revision plan for a new hafiz."""
+    # Clear auto-filter (same reason as populate_hafiz_items above)
     plans.xtra()
+    # TODO: Replace with insert wrapper for consistency with CRUD pattern
     return plans.insert(
         hafiz_id=hafiz_id,
         completed=0,
