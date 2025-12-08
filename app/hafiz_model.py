@@ -97,7 +97,11 @@ def populate_hafiz_items(hafiz_id: int) -> None:
 
 
 def create_new_plan(hafiz_id: int):
-    """Create initial revision plan for a new hafiz."""
+    """Create initial revision plan for a new hafiz.
+
+    Returns:
+        Plan: The newly created plan record
+    """
     # Reset xtra attributes
     plans.xtra()
     return plans.insert(
