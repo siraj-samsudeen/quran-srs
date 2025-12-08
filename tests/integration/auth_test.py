@@ -4,12 +4,14 @@ Tests the complete user journey from signup to selecting a hafiz.
 """
 
 import pytest
+from app.globals import users
+from app.hafiz_model import hafizs
 
 
 def test_auth_journey(client):
     """
     Complete auth journey:
-    1. Signup → redirects to login
+    1. Signup → redirects to login + user created in DB
     2. Login → redirects to hafiz_selection
     3. Logout → redirects to login
     """
@@ -26,6 +28,11 @@ def test_auth_journey(client):
     )
     assert response.status_code in (302, 303)
     assert "/users/login" in response.headers["location"]
+
+    # Verify user was created in database
+    user = users(where="email = 'journey@test.com'")
+    assert len(user) == 1
+    assert user[0].name == "Journey Test User"
 
     # 2. Login
     response = client.post(
@@ -81,6 +88,11 @@ def test_hafiz_journey(client):
     )
     assert response.status_code in (302, 303)
     assert "/users/hafiz_selection" in response.headers["location"]
+
+    # Verify hafiz was created in database
+    hafiz = hafizs(where="name = 'Test Hafiz'")
+    assert len(hafiz) == 1
+    assert hafiz[0].daily_capacity == 5
 
     # 2. Visit hafiz_selection to get the hafiz id
     response = client.get("/users/hafiz_selection")
