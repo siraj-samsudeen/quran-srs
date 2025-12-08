@@ -23,8 +23,8 @@ def update_hafiz_item_for_new_memorization(rev):
     hafizs_items.update(hafiz_item_details)
 
 
-def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
-    not_memorized = get_not_memorized_records(auth)
+def get_closest_unmemorized_item_id(hafiz_id: int, last_newly_memorized_item_id: int):
+    not_memorized = get_not_memorized_records(hafiz_id)
     grouped_by_item_id = group_by_type(not_memorized, "id")
     not_memorized_item_ids = list(grouped_by_item_id.keys())
 
@@ -47,7 +47,7 @@ def get_closest_unmemorized_item_id(auth, last_newly_memorized_item_id: int):
 
 
 def render_new_memorization_checkbox(
-    auth, item_id=None, page_id=None, label_text=None, **kwrgs
+    hafiz_id: int, item_id=None, page_id=None, label_text=None, **kwrgs
 ):
     label = label_text or ""
 
@@ -74,7 +74,7 @@ def render_new_memorization_checkbox(
         )
     else:
         current_revision_data = revisions(
-            where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {auth};"
+            where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {hafiz_id};"
         )
         check_form = Form(
             LabelCheckboxX(
@@ -103,7 +103,7 @@ def render_navigation_item(
 
 
 def render_row_based_on_type(
-    auth,
+    hafiz_id: int,
     type_number: str,
     records: list,
     current_type,
@@ -178,11 +178,11 @@ def render_row_based_on_type(
     }
     if len(item_ids) == 1 and not row_link and current_type == "page":
         link_content = render_new_memorization_checkbox(
-            auth=auth, item_id=item_ids[0], **render_attrs
+            hafiz_id=hafiz_id, item_id=item_ids[0], **render_attrs
         )
     elif len(item_ids) > 1 and current_type == "page":
         link_content = render_new_memorization_checkbox(
-            auth=auth, page_id=type_number, **render_attrs
+            hafiz_id=hafiz_id, page_id=type_number, **render_attrs
         )
     else:
         link_content = A(
@@ -205,12 +205,13 @@ def render_row_based_on_type(
 def update_status_as_newly_memorized(
     auth, request, item_id: str, is_checked: bool = False, rating: int = None
 ):
+    hafiz_id = auth["hafiz_id"]
     qry = f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}';"
     revisions_data = revisions(where=qry)
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     if not revisions_data and is_checked:
         revisions.insert(
-            hafiz_id=auth,
+            hafiz_id=hafiz_id,
             item_id=item_id,
             revision_date=current_date,
             rating=(NEW_MEMORIZATION_RATING if rating is None else rating),
@@ -232,11 +233,12 @@ def update_status_as_newly_memorized(
 def bulk_update_status_as_newly_memorized(
     request, item_ids: list[int], auth, rating: int = None
 ):
-    current_date = get_current_date(auth)
+    hafiz_id = auth["hafiz_id"]
+    current_date = get_current_date(hafiz_id)
 
     for item_id in item_ids:
         revisions.insert(
-            hafiz_id=auth,
+            hafiz_id=hafiz_id,
             item_id=item_id,
             revision_date=current_date,
             rating=(NEW_MEMORIZATION_RATING if rating is None else rating),
@@ -265,13 +267,14 @@ def delete(auth, request, item_id: str):
 
 @new_memorization_app.get("/{current_type}")
 def new_memorization(auth, current_type: str):
+    hafiz_id = auth["hafiz_id"]
     if not current_type:
         current_type = "surah"
-    ct = get_not_memorized_records(auth)
+    ct = get_not_memorized_records(hafiz_id)
     grouped = group_by_type(ct, current_type)
     not_memorized_rows = [
         render_row_based_on_type(
-            auth=auth,
+            hafiz_id=hafiz_id,
             type_number=type_number,
             records=records,
             current_type=current_type,
@@ -311,11 +314,11 @@ def new_memorization(auth, current_type: str):
     )
 
     where_query = f"""
-    revisions.mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revisions.hafiz_id = {auth} AND items.active != 0 
-    ORDER BY revisions.revision_date DESC, revisions.id DESC 
+    revisions.mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revisions.hafiz_id = {hafiz_id} AND items.active != 0
+    ORDER BY revisions.revision_date DESC, revisions.id DESC
     LIMIT 10;
     """
-    newly_memorized = get_not_memorized_records(auth, where_query)
+    newly_memorized = get_not_memorized_records(hafiz_id, where_query)
     grouped = group_by_type(newly_memorized, "item_id")
 
     # Sort grouped items by earliest revision_date in each list of records
@@ -328,13 +331,13 @@ def new_memorization(auth, current_type: str):
         reverse=True,
     )
 
-    def render_recently_memorized_row(type_number: str, records: list, auth):
+    def render_recently_memorized_row(type_number: str, records: list, hafiz_id: int):
         revision_date = records[0]["revision_date"]
 
         next_page_item_id, display_next = (0, "")
         if type_number:
             next_page_item_id, display_next = get_closest_unmemorized_item_id(
-                auth, type_number
+                hafiz_id, type_number
             )
         render_attrs = {
             "hx_select": f"#recently_memorized_table",
@@ -347,7 +350,7 @@ def new_memorization(auth, current_type: str):
             Td(date_to_human_readable(revision_date)),
             Td(
                 render_new_memorization_checkbox(
-                    auth=auth,
+                    hafiz_id=hafiz_id,
                     item_id=next_page_item_id,
                     label_text=display_next,
                     **render_attrs,
@@ -369,7 +372,7 @@ def new_memorization(auth, current_type: str):
         render_recently_memorized_row(
             type_number,
             records,
-            auth=auth,
+            hafiz_id=hafiz_id,
         )
         for type_number, records in sorted_grouped_items
         if type_number is not None
@@ -412,7 +415,7 @@ def new_memorization(auth, current_type: str):
         ),
         Div(modal),
         active="New Memorization",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -420,6 +423,7 @@ def new_memorization(auth, current_type: str):
 def load_descendant_items_for_new_memorization(
     auth, current_type: str, type_number: int, title: str, description: str
 ):
+    hafiz_id = auth["hafiz_id"]
     if current_type == "juz":
         condition = f"pages.juz_number = {type_number}"
     elif current_type == "surah":
@@ -431,7 +435,7 @@ def load_descendant_items_for_new_memorization(
 
     qry = f"""SELECT items.id, items.surah_id, pages.page_number, pages.juz_number, hafizs_items.memorized FROM items
                           LEFT JOIN pages ON items.page_id = pages.id
-                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+                          LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {hafiz_id}
                           WHERE items.active != 0 AND hafizs_items.memorized = 0 AND {condition}"""
     ct = db.q(qry)
 

@@ -20,7 +20,7 @@ admin_app, rt = create_app_with_auth()
 
 
 @admin_app.get("/update_stats_column")
-def update_stats_column(req, auth, item_id: int = None):
+def update_stats_column(req, item_id: int = None):
     """Trigger recalculation of hafizs_items statistics.
 
     Can be called for a specific item or all items.
@@ -34,7 +34,7 @@ def update_stats_column(req, auth, item_id: int = None):
     return RedirectResponse(req.headers.get("referer", "/"), status_code=303)
 
 
-def tables_main_area(*args, active_table=None, auth=None):
+def tables_main_area(*args, active_table=None, hafiz_id=None):
     is_active = lambda x: "uk-active" if x == active_table else None
 
     tables_list = [
@@ -66,7 +66,7 @@ def tables_main_area(*args, active_table=None, auth=None):
             cls=(FlexT.block, FlexT.wrap),
         ),
         active="Tables",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -91,6 +91,7 @@ def parse_primary_key(table: str, primary_key: str):
 
 @admin_app.get("/backups")
 def list_backups(auth):
+    hafiz_id = auth["hafiz_id"]
     files = [f for f in os.listdir("data/backup") if f.endswith(".db")]
     files = sorted(files, reverse=True)
 
@@ -111,7 +112,7 @@ def list_backups(auth):
             Ul(*map(render_dbs, files)),
             cls="space-y-6",
         ),
-        auth=auth,
+        hafiz_id=hafiz_id,
         active="Admin",
     )
 
@@ -145,11 +146,13 @@ def backup_active_db():
 
 @admin_app.get("/tables")
 def list_tables(auth):
-    return tables_main_area(auth=auth)
+    hafiz_id = auth["hafiz_id"]
+    return tables_main_area(hafiz_id=hafiz_id)
 
 
 @admin_app.get("/tables/{table}")
 def view_table(table: str, auth):
+    hafiz_id = auth["hafiz_id"]
     records = db.q(f"SELECT * FROM {table}")
     columns = get_column_headers(table)
     if table == "modes":
@@ -219,7 +222,7 @@ def view_table(table: str, auth):
             cls="space-y-3",
         ),
         active_table=table,
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -261,6 +264,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
 
 @admin_app.get("/tables/{table}/{primary_key}/edit")
 def edit_record_view(table: str, primary_key: str, auth):
+    hafiz_id = auth["hafiz_id"]
     primary_key = parse_primary_key(table, primary_key)
 
     current_table = tables[table]
@@ -284,7 +288,7 @@ def edit_record_view(table: str, primary_key: str, auth):
     return tables_main_area(
         Titled(f"Edit page", fill_form(form, current_data)),
         active_table=table,
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -321,6 +325,7 @@ def delete_record(table: str, primary_key: str):
 
 @admin_app.get("/tables/{table}/new")
 def new_record_view(table: str, auth):
+    hafiz_id = auth["hafiz_id"]
     column_with_types = get_column_and_its_type(table)
     return tables_main_area(
         Titled(
@@ -330,7 +335,7 @@ def new_record_view(table: str, auth):
             ),
         ),
         active_table=table,
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 

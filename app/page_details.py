@@ -18,6 +18,7 @@ page_details_app, rt = create_app_with_auth()
 
 @page_details_app.get("/")
 def page_details_view(auth):
+    hafiz_id = auth["hafiz_id"]
     mode_code_list, mode_name_list = get_mode_name_and_code()
 
     # To get the count of the records under each modes to display
@@ -27,7 +28,7 @@ def page_details_view(auth):
         mode_case_statements.append(case_stmt)
     mode_cases = ",\n".join(mode_case_statements)
 
-    display_pages_query = f"""SELECT 
+    display_pages_query = f"""SELECT
                             items.id,
                             items.surah_id,
                             pages.page_number,
@@ -37,7 +38,7 @@ def page_details_view(auth):
                         FROM revisions
                         LEFT JOIN items ON revisions.item_id = items.id
                         LEFT JOIN pages ON items.page_id = pages.id
-                        WHERE revisions.hafiz_id = {auth} AND items.active != 0
+                        WHERE revisions.hafiz_id = {hafiz_id} AND items.active != 0
                         GROUP BY items.id
                         ORDER BY pages.page_number;"""
     hafiz_items_with_details = db.q(display_pages_query)
@@ -98,12 +99,13 @@ def page_details_view(auth):
         Title("Page Details"),
         table,
         active="Page Details",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
 @page_details_app.get("/{item_id}")
 def display_page_level_details(auth, item_id: int):
+    hafiz_id = auth["hafiz_id"]
     # Prevent editing description for inactive items
     is_active_item = bool(items(where=f"id = {item_id} and active != 0"))
     if not is_active_item:
@@ -147,7 +149,7 @@ def display_page_level_details(auth, item_id: int):
         ctn = []
 
         first_revision_data = revisions(
-            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_code IN ({", ".join([repr(code) for code in mode_code_list])})",
+            where=f"item_id = {item_id} and hafiz_id = {hafiz_id} and mode_code IN ({", ".join([repr(code) for code in mode_code_list])})",
             order_by="revision_date ASC",
             limit=1,
         )
@@ -249,7 +251,7 @@ def display_page_level_details(auth, item_id: int):
             END AS intervals_since_last_revision
             FROM revisions
             JOIN modes ON revisions.mode_code = modes.code
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_code IN ({", ".join(repr(code) for code in mode_codes)})
+            WHERE item_id = {item_id} AND hafiz_id = {hafiz_id} AND revisions.mode_code IN ({", ".join(repr(code) for code in mode_codes)})
             ORDER BY revision_date ASC;
         """
 
@@ -291,7 +293,7 @@ def display_page_level_details(auth, item_id: int):
             return f"""SELECT items.id, pages.page_number FROM revisions
                        LEFT JOIN items ON revisions.item_id = items.id
                        LEFT JOIN pages ON items.page_id = pages.id
-                       WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id {operator} {current_item_id}
+                       WHERE revisions.hafiz_id = {hafiz_id} AND items.active != 0 AND items.id {operator} {current_item_id}
                        ORDER BY items.id {sort_order} LIMIT 1;"""
 
         prev_result = db.q(build_nav_query("<", "DESC"))
@@ -364,7 +366,7 @@ def display_page_level_details(auth, item_id: int):
             ),
         ),
         active="Page Details",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 

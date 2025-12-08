@@ -35,29 +35,29 @@ def get_surah_name(page_id=None, item_id=None):
     return surah_details.name
 
 
-def get_current_date(auth) -> str:
+def get_current_date(hafiz_id: int) -> str:
     """Get current date for a hafiz, initializing if needed."""
-    current_hafiz = hafizs[auth]
+    current_hafiz = hafizs[hafiz_id]
     current_date = current_hafiz.current_date
     if current_date is None:
-        current_date = hafizs.update(current_date=current_time(), id=auth).current_date
+        current_date = hafizs.update(current_date=current_time(), id=hafiz_id).current_date
     return current_date
 
 
-def get_daily_capacity(auth):
+def get_daily_capacity(hafiz_id: int):
     """Get daily capacity for a hafiz."""
-    current_hafiz = hafizs[auth]
+    current_hafiz = hafizs[hafiz_id]
     return current_hafiz.daily_capacity
 
 
-def get_last_added_full_cycle_page(auth):
+def get_last_added_full_cycle_page(hafiz_id: int):
     """Get the last page added to full cycle revision."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     last_full_cycle_record = db.q(
         f"""
         SELECT hafizs_items.page_number FROM revisions
-        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {auth}
+        LEFT JOIN hafizs_items ON revisions.item_id = hafizs_items.item_id AND hafizs_items.hafiz_id = {hafiz_id}
+        WHERE revisions.revision_date < '{current_date}' AND revisions.mode_code = '{FULL_CYCLE_MODE_CODE}' AND revisions.hafiz_id = {hafiz_id}
         ORDER BY revisions.revision_date DESC, revisions.item_id DESC
         LIMIT 1
     """
@@ -153,7 +153,7 @@ def get_item_page_portion(item_id: int) -> float:
     return 1 / len(total_parts)
 
 
-def get_not_memorized_records(auth, custom_where=None):
+def get_not_memorized_records(hafiz_id: int, custom_where=None):
     """Get records for items not yet memorized."""
     default = f"hafizs_items.memorized = 0 AND items.active != 0"
     if custom_where:
@@ -162,7 +162,7 @@ def get_not_memorized_records(auth, custom_where=None):
         SELECT items.id, items.surah_id, items.surah_name,
         hafizs_items.item_id, hafizs_items.memorized, hafizs_items.hafiz_id, pages.juz_number, pages.page_number, revisions.revision_date, revisions.id AS revision_id
         FROM items
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {hafiz_id}
         LEFT JOIN pages ON items.page_id = pages.id
         LEFT JOIN revisions ON items.id = revisions.item_id
         WHERE {default};
@@ -183,14 +183,14 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
-def get_srs_daily_limit(auth):
+def get_srs_daily_limit(hafiz_id: int):
     """Calculate SRS daily limit (50% of daily capacity)."""
-    return math.ceil(get_daily_capacity(auth) * 0.5)
+    return math.ceil(get_daily_capacity(hafiz_id) * 0.5)
 
 
-def get_full_cycle_daily_limit(auth):
+def get_full_cycle_daily_limit(hafiz_id: int):
     """Calculate Full Cycle daily limit (100% of daily capacity)."""
-    return get_daily_capacity(auth)
+    return get_daily_capacity(hafiz_id)
 
 
 def populate_hafizs_items_stat_columns(item_id: int = None):
@@ -263,10 +263,10 @@ def get_page_count(records: list = None, item_ids: list = None) -> float:
 
 
 def get_full_review_item_ids(
-    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
+    hafiz_id: int, total_page_count, mode_specific_hafizs_items_records, item_ids
 ):
     """Get item IDs for Full Cycle review based on plan and daily limit."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     plan_id = get_current_plan_id()
 
     def get_next_item_range_from_item_id(

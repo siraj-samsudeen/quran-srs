@@ -33,17 +33,19 @@ def post(type: str, page: str, plan_id: int):
 
 @revision_app.get("/")
 def revision(auth, idx: int | None = 1):
-    return render_revision_table(auth, idx)
+    hafiz_id = auth["hafiz_id"]
+    return render_revision_table(hafiz_id, idx)
 
 
 @rt("/edit/{revision_id}")
 def get(revision_id: int, auth, req):
+    hafiz_id = auth["hafiz_id"]
     current_revision = get_revision_by_id(revision_id).__dict__
     # Convert rating to string in order to make the `fill_form` to select the option.
     current_revision["rating"] = str(current_revision["rating"])
     item_id = current_revision["item_id"]
     form = create_revision_form(
-        "edit", auth=auth, backlink=req.headers.get("referer", "/")
+        "edit", hafiz_id=hafiz_id, backlink=req.headers.get("referer", "/")
     )
     return main_area(
         Titled(
@@ -55,12 +57,12 @@ def get(revision_id: int, auth, req):
             fill_form(form, current_revision),
         ),
         active="Revision",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
 @rt("/edit")
-def post(revision_details: Revision, backlink: str, auth):
+def post(revision_details: Revision, backlink: str):
     # setting the plan_id to None if it is 0
     # as it get defaults to 0 if the field is empty.
     revision_details.plan_id = set_zero_to_none(revision_details.plan_id)
@@ -72,7 +74,7 @@ def post(revision_details: Revision, backlink: str, auth):
 
 
 @rt("/delete/{revision_id}")
-def delete(revision_id: int, auth):
+def delete(revision_id: int):
     current_revision = get_revision_by_id(revision_id)
     delete_revision(revision_id)
     update_stats_and_interval(
@@ -81,7 +83,7 @@ def delete(revision_id: int, auth):
 
 
 @revision_app.delete("/")
-def revision_delete_all(ids: List[int], auth):
+def revision_delete_all(ids: List[int]):
     for id in ids:
         current_revision = revisions[id]
         revisions.delete(id)
@@ -100,6 +102,7 @@ def bulk_edit_redirect(ids: List[str]):
 
 @revision_app.get("/bulk_edit")
 def bulk_edit_view(ids: str, auth):
+    hafiz_id = auth["hafiz_id"]
     ids = ids.split(",")
 
     # Sort the ids based on the page number
@@ -185,12 +188,12 @@ def bulk_edit_view(ids: str, auth):
             method="POST",
         ),
         active="Revision",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
 @revision_app.post("/")
-async def bulk_edit_save(revision_date: str, req, auth):
+async def bulk_edit_save(revision_date: str, req):
     form_data = await req.form()
     ids_to_update = form_data.getlist("ids")
 
@@ -261,6 +264,7 @@ def get(
     max_page: int = 605,
     date: str = None,
 ):
+    hafiz_id = auth["hafiz_id"]
     if item_id is not None:
         page = get_page_number(item_id)
     elif page is not None:
@@ -299,7 +303,7 @@ def get(
                 item_id, is_bold=False, custom_text=f" - {items[item_id].start_text}"
             ),
             fill_form(
-                create_revision_form("add", auth=auth),
+                create_revision_form("add", hafiz_id=hafiz_id),
                 {
                     "item_id": item_id,
                     "plan_id": plan_id,
@@ -308,7 +312,7 @@ def get(
             ),
         ),
         active="Home",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -354,11 +358,12 @@ def get(
     max_item_id: int = get_last_item_id(),
     max_page_id: int = 605,
 ):
+    hafiz_id = auth["hafiz_id"]
     if revision_date is None:
-        revision_date = get_current_date(auth)
+        revision_date = get_current_date(hafiz_id)
 
     if not length or length < 0:
-        length = get_full_cycle_daily_limit(auth)
+        length = get_full_cycle_daily_limit(hafiz_id)
 
     if item_id is not None:
         page = get_page_number(item_id)
@@ -371,7 +376,7 @@ def get(
 
         # TODO: Later: handle this in the parse_page_string function
         if not length or length <= 0:
-            length = int(get_full_cycle_daily_limit(auth))
+            length = int(get_full_cycle_daily_limit(hafiz_id))
 
         item_list = get_item_ids_by_page(page)
         item_id = item_list[0]
@@ -389,15 +394,15 @@ def get(
     if is_part:
         length = 1
 
-    def get_item_ids_from_page_start(auth, plan_id, start_page, length):
+    def get_item_ids_from_page_start(hafiz_id, plan_id, start_page, length):
         """Returns a list of unrevised and memorized item IDs for a specific user,
         starting from a given page number with given length."""
         qry = f"""
         SELECT hafizs_items.item_id, hafizs_items.page_number
         FROM hafizs_items
-        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') 
-        AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
+        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {hafiz_id}
+        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}')
+        AND hafizs_items.hafiz_id = {hafiz_id} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
         ORDER BY hafizs_items.page_number ASC
         LIMIT {length};
         """
@@ -405,7 +410,7 @@ def get(
         return [row["item_id"] for row in rows]
 
     item_ids = get_item_ids_from_page_start(
-        auth=auth, plan_id=plan_id, start_page=page, length=length
+        hafiz_id=hafiz_id, plan_id=plan_id, start_page=page, length=length
     )
 
     # To start from the not added item id
@@ -555,7 +560,7 @@ def get(
         ),
         Script(src="/public/script.js"),
         active="Home",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -569,6 +574,7 @@ async def post(
     req,
     length: int = 0,
 ):
+    hafiz_id = auth["hafiz_id"]
     plan_id = set_zero_to_none(plan_id)
     form_data = await req.form()
     item_ids = form_data.getlist("ids")
@@ -582,7 +588,7 @@ async def post(
                     Revision(
                         item_id=int(item_id),
                         rating=int(value),
-                        hafiz_id=auth,
+                        hafiz_id=hafiz_id,
                         revision_date=revision_date,
                         mode_code=FULL_CYCLE_MODE_CODE,
                         plan_id=plan_id,

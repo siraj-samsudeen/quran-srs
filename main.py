@@ -221,8 +221,8 @@ def datewise_summary_table(show=None, hafiz_id=None):
     return datewise_table
 
 
-def create_stat_table(auth):
-    current_date = get_current_date(auth)
+def create_stat_table(hafiz_id: int):
+    current_date = get_current_date(hafiz_id)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
     today_completed_count = get_page_count(
@@ -280,9 +280,9 @@ def get_full_cycle_revised_length(current_date):
     return get_page_count(records=revised_records)
 
 
-def get_full_cycle_limit_and_revised_count(auth):
-    current_date = get_current_date(auth)
-    page_limit = get_full_cycle_daily_limit(auth)
+def get_full_cycle_limit_and_revised_count(hafiz_id: int):
+    current_date = get_current_date(hafiz_id)
+    page_limit = get_full_cycle_daily_limit(hafiz_id)
     revised_count = get_full_cycle_revised_length(current_date)
     if revised_count >= page_limit:
         page_limit = revised_count + ADD_EXTRA_ROWS
@@ -291,9 +291,10 @@ def get_full_cycle_limit_and_revised_count(auth):
 
 @rt
 def index(auth, sess):
+    hafiz_id = auth["hafiz_id"]
 
     # Set the full cycle progress, for auto adding extra rows
-    page_limit, revised_count = get_full_cycle_limit_and_revised_count(auth)
+    page_limit, revised_count = get_full_cycle_limit_and_revised_count(hafiz_id)
     sess["full_cycle_progress"] = {
         "limit": page_limit,
         "revised": revised_count,
@@ -301,10 +302,10 @@ def index(auth, sess):
 
     # Build panels - each returns (mode_code, panel) tuple
     mode_panels = [
-        make_summary_table(FULL_CYCLE_MODE_CODE, auth, total_page_count=page_limit),
-        make_summary_table(SRS_MODE_CODE, auth),
-        make_summary_table(DAILY_REPS_MODE_CODE, auth),
-        make_summary_table(WEEKLY_REPS_MODE_CODE, auth),
+        make_summary_table(FULL_CYCLE_MODE_CODE, hafiz_id, total_page_count=page_limit),
+        make_summary_table(SRS_MODE_CODE, hafiz_id),
+        make_summary_table(DAILY_REPS_MODE_CODE, hafiz_id),
+        make_summary_table(WEEKLY_REPS_MODE_CODE, hafiz_id),
     ]
     # Filter to only modes with content
     mode_panels = [(code, panel) for code, panel in mode_panels if panel is not None]
@@ -334,7 +335,7 @@ def index(auth, sess):
     ]
 
     header = DivLAligned(
-        render_current_date(auth),
+        render_current_date(hafiz_id),
         A(
             Button(
                 "Close Date",
@@ -352,7 +353,7 @@ def index(auth, sess):
             x_data=f"{{ activeTab: '{FULL_CYCLE_MODE_CODE}' }}",
         ),
         active="Home",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
@@ -371,7 +372,8 @@ def update_hafiz_item_for_full_cycle(rev):
 
 @app.get("/close_date")
 def close_date_confirmation_page(auth):
-    header = render_current_date(auth)
+    hafiz_id = auth["hafiz_id"]
+    header = render_current_date(hafiz_id)
     action_buttons = DivLAligned(
         Button(
             "Confirm",
@@ -389,15 +391,16 @@ def close_date_confirmation_page(auth):
         ),
     )
     return main_area(
-        Div(header, create_stat_table(auth), action_buttons, cls="space-y-4"),
+        Div(header, create_stat_table(hafiz_id), action_buttons, cls="space-y-4"),
         active="Home",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )
 
 
 @app.post("/close_date")
 def change_the_current_date(auth):
-    hafiz_data = hafizs[auth]
+    hafiz_id = auth["hafiz_id"]
+    hafiz_data = hafizs[hafiz_id]
 
     # Check if many days have elapsed - if so, skip directly to today
     today = current_time()
@@ -423,7 +426,7 @@ def change_the_current_date(auth):
         # update all the non-mode specific columns (including the last_review column)
         populate_hafizs_items_stat_columns(item_id=rev.item_id)
 
-    start_srs_for_ok_and_bad_rating(auth)
+    start_srs_for_ok_and_bad_rating(hafiz_id)
 
     # Check if the full cycle plan is completed, if so close and create a new plan
     cycle_full_cycle_plan_if_completed()
@@ -437,7 +440,8 @@ def change_the_current_date(auth):
 
 @app.get("/report")
 def datewise_summary_table_view(auth):
-    return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
+    hafiz_id = auth["hafiz_id"]
+    return main_area(datewise_summary_table(hafiz_id=hafiz_id), active="Report", hafiz_id=hafiz_id)
 
 
 def update_full_cycle_progress(sess, page_count):
@@ -478,6 +482,7 @@ def update_status_from_index(
     rating: int,
     plan_id: int = None,
 ):
+    hafiz_id = auth["hafiz_id"]
     # Add or update the revision record
     revision = add_revision_record(
         item_id=item_id,
@@ -495,7 +500,7 @@ def update_status_from_index(
             increment_full_cycle_limit(sess)
             return make_summary_table(
                 mode_code=mode_code,
-                auth=auth,
+                hafiz_id=hafiz_id,
                 total_page_count=get_full_cycle_limit(sess),
             ), HtmxResponseHeaders(
                 retarget=f"#{mode_code}_tbody",
@@ -505,7 +510,7 @@ def update_status_from_index(
 
     # Get item data and current date
     item = items[int(item_id)]
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
 
     # Return the updated row
     return render_range_row(
@@ -551,7 +556,7 @@ def update_revision_rating(
 def bulk_rate(
     sess,
     auth,
-    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values 
+    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values
     # (from checked checkboxes), FastHTML collects them into a list
     item_ids: list[str],
     rating: int,
@@ -559,6 +564,7 @@ def bulk_rate(
     date: str,
     plan_id: str = "",
 ):
+    hafiz_id = auth["hafiz_id"]
     plan_id_int = int(plan_id) if plan_id else None
 
     # Add revision records for each item
@@ -578,11 +584,11 @@ def bulk_rate(
         if is_full_cycle_limit_reached(sess):
             increment_full_cycle_limit(sess)
 
-    page_limit, _ = get_full_cycle_limit_and_revised_count(auth)
+    page_limit, _ = get_full_cycle_limit_and_revised_count(hafiz_id)
 
     return make_summary_table(
         mode_code=mode_code,
-        auth=auth,
+        hafiz_id=hafiz_id,
         total_page_count=page_limit if mode_code == FULL_CYCLE_MODE_CODE else 0,
         table_only=True,
     )

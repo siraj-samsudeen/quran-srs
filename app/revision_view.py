@@ -101,7 +101,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
     return tuple(paginated)
 
 
-def create_revision_form(type, auth, backlink="/"):
+def create_revision_form(type, hafiz_id: int, backlink="/"):
     def _option(obj):
         name = obj.name
         id = obj.id
@@ -119,7 +119,7 @@ def create_revision_form(type, auth, backlink="/"):
             "Revision Date",
             name="revision_date",
             type="date",
-            value=get_current_date(auth),
+            value=get_current_date(hafiz_id),
             cls="space-y-2 col-span-2",
         ),
     )
@@ -144,7 +144,7 @@ def create_revision_form(type, auth, backlink="/"):
     )
 
 
-def render_revision_table(auth, idx: int | None = 1):
+def render_revision_table(hafiz_id: int, idx: int | None = 1):
     table = Table(
         Thead(
             Tr(
@@ -167,5 +167,5 @@ def render_revision_table(auth, idx: int | None = 1):
             Div(table, cls="uk-overflow-auto"),
         ),
         active="Revision",
-        auth=auth,
+        hafiz_id=hafiz_id,
     )

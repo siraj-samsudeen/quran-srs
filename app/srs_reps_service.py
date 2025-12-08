@@ -91,9 +91,9 @@ def get_interval_triplet(target_interval: int, interval_list: list[int]) -> list
     return [left, interval_list[i], right]
 
 
-def start_srs(item_id: int, auth: int, rating: int) -> None:
+def start_srs(item_id: int, hafiz_id: int, rating: int) -> None:
     """Move an item from Full Cycle into SRS mode."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     next_interval = SRS_START_INTERVAL[rating]
     next_review_date = add_days_to_date(current_date, next_interval)
 
@@ -190,9 +190,9 @@ def update_hafiz_item_for_srs(rev) -> None:
     revisions.update(rev, rev.id)
 
 
-def start_srs_for_ok_and_bad_rating(auth: int) -> None:
+def start_srs_for_ok_and_bad_rating(hafiz_id: int) -> None:
     """Called during Close Date: move today's Ok/Bad Full Cycle items into SRS."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
 
     # Build query in readable stages
     query_base = """
@@ -208,7 +208,7 @@ def start_srs_for_ok_and_bad_rating(auth: int) -> None:
         # Only process today's revisions (during Close Date)
         f"revisions.revision_date = '{current_date}'",
         # Filter to current hafiz
-        f"revisions.hafiz_id = {auth}",
+        f"revisions.hafiz_id = {hafiz_id}",
         # Only Ok (0) or Bad (-1) ratings trigger SRS entry
         "revisions.rating IN (-1, 0)",
         # The revision was performed in Full Cycle mode
@@ -223,4 +223,4 @@ def start_srs_for_ok_and_bad_rating(auth: int) -> None:
 
     # Execute and process results
     for item in db.q(query):
-        start_srs(item["item_id"], auth, rating=item["rating"])
+        start_srs(item["item_id"], hafiz_id, rating=item["rating"])

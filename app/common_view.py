@@ -19,12 +19,12 @@ from .common_model import (
 from .utils import date_to_human_readable, get_page_number
 
 
-def main_area(*args, active=None, auth=None):
+def main_area(*args, active=None, hafiz_id=None):
     """Render main application layout with navbar."""
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href="/")
     hafiz_name = A(
-        f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
+        f"{hafizs[hafiz_id].name if hafiz_id is not None else "Select hafiz"}",
         href="/users/hafiz_selection",
         method="GET",
     )
@@ -315,9 +315,9 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
     )
 
 
-def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
+def render_summary_table(hafiz_id: int, mode_code, item_ids, is_plan_finished):
     """Render the summary table for a mode with item rows."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     plan_id = get_current_plan_id()
 
     # Query all today's revisions once for efficiency
@@ -394,9 +394,9 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
     return (mode_code, table)
 
 
-def render_current_date(auth):
+def render_current_date(hafiz_id: int):
     """Render the current system date display."""
-    current_date = get_current_date(auth)
+    current_date = get_current_date(hafiz_id)
     return P(
         Span("System Date: ", cls=TextPresets.bold_lg),
         Span(date_to_human_readable(current_date), data_testid="system-date"),
