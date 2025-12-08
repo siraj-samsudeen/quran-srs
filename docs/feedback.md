@@ -177,12 +177,14 @@ The hafiz module (`hafiz_controller.py`, `hafiz_model.py`, `hafiz_view.py`, `haf
 
 ```
 app/
-├── hafiz_controller.py  (44 lines)  - Route handlers only
-├── hafiz_model.py       (33 lines)  - Dataclass + table + CRUD
-├── hafiz_view.py        (62 lines)  - UI components
-├── hafiz_test.py        (173 lines) - Colocated unit + integration tests
-tests/e2e/
-└── hafiz_test.py        (73 lines)  - Browser-based E2E tests
+├── hafiz_controller.py  (32 lines)  - Route handlers only
+├── hafiz_model.py       (106 lines) - Dataclass + table + CRUD (all hafiz operations)
+├── hafiz_view.py        (68 lines)  - UI components with __all__ exports
+├── hafiz_test.py        (129 lines) - Colocated unit + integration tests
+tests/
+├── conftest.py          (65 lines)  - Shared auth fixtures (client, auth_session, hafiz_session)
+└── e2e/
+    └── hafiz_test.py    (73 lines)  - Browser-based E2E tests
 ```
 
 ### What Works Well ✅
@@ -223,27 +225,29 @@ tests/e2e/
 
 5. **Colocated tests** - `app/hafiz_test.py` lives next to the code it tests, making it easy to maintain.
 
-### Areas to Improve ⚠️
+### Areas to Improve ⚠️ → All Fixed ✅
 
-1. **Hafiz CRUD is split across files**:
-   - `hafiz_model.py` has: `get_hafiz()`, `update_hafiz()`
-   - `users_model.py` has: `insert_hafiz()`, `delete_hafiz()`, `get_hafizs_for_user()`
+1. ~~**Hafiz CRUD is split across files**~~ ✅ DONE: All hafiz CRUD functions consolidated in `hafiz_model.py`:
+   - `get_hafiz()`, `update_hafiz()`, `insert_hafiz()`, `delete_hafiz()`
+   - `get_hafizs_for_user()`, `populate_hafiz_items()`, `create_new_plan()`
+   - `users_model.py` now only handles user-level operations
 
-   **Recommendation**: Move all hafiz-related CRUD to `hafiz_model.py`. The users_model should only handle user-level operations.
-
-2. **Missing `__all__` exports**: Neither model nor view defines explicit exports. While Python doesn't require this, it helps with documentation and IDE support.
-
-   **Recommendation**: Add `__all__` to each module:
+2. ~~**Missing `__all__` exports**~~ ✅ DONE: Added explicit exports to both modules:
    ```python
    # hafiz_model.py
-   __all__ = ["Hafiz", "hafizs", "get_hafiz", "update_hafiz"]
+   __all__ = ["Hafiz", "hafizs", "get_hafiz", "update_hafiz", "insert_hafiz", ...]
+
+   # hafiz_view.py
+   __all__ = ["render_settings_form", "render_settings_page", "render_theme_page"]
    ```
 
-3. **`update_stats_column` route is misplaced**: This route in `hafiz_controller.py` operates on `hafizs_items`, not hafiz settings. It's a utility function that doesn't belong here.
+3. ~~**`update_stats_column` route is misplaced**~~ ✅ DONE: Moved to `admin.py` at `/admin/update_stats_column`. Updated reference in `page_details.py`.
 
-   **Recommendation**: Either move to a dedicated admin/utility controller, or keep here with a clear comment explaining it's a convenience endpoint.
-
-4. **Test fixtures could be shared**: Both `app/hafiz_test.py` and `tests/e2e/hafiz_test.py` set up authentication. The `conftest.py` should provide shared auth fixtures.
+4. ~~**Test fixtures could be shared**~~ ✅ DONE: Added shared fixtures to `tests/conftest.py`:
+   - `client` - TestClient for the app
+   - `auth_session` - Login cookies
+   - `hafiz_session` - Auth + hafiz selection cookies
+   - `parse_html` - lxml parser for XPath assertions
 
 ### Template for Other Modules
 
@@ -325,10 +329,14 @@ def test_{entity}_page_get(client, auth_session): ...
 
 ### Verdict on Hafiz Module
 
-**Grade: B+**
+**Grade: A**
 
-The hafiz module is a solid reference implementation with clear separation and good test coverage. The main issues are:
-1. Split CRUD across files (organizational)
-2. Misplaced utility route (architectural)
+The hafiz module is now a complete reference implementation:
+- ✅ Clear MVC separation (controller/model/view)
+- ✅ All CRUD consolidated in model
+- ✅ Explicit `__all__` exports
+- ✅ Proper route placement
+- ✅ Shared test fixtures
+- ✅ Comprehensive test coverage (unit + integration + E2E)
 
-These are minor issues that don't affect the pattern's validity. The module successfully demonstrates how to apply MVC to FastHTML.
+This module serves as the template for refactoring remaining modules.
