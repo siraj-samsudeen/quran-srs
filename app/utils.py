@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from collections import defaultdict
 import bisect
 import re
 import sqlite3
@@ -274,3 +275,34 @@ def render_date(date: str):
 def get_day_from_date(date: str):
     if date:
         return datetime.strptime(date, "%Y-%m-%d").day
+
+
+
+def group_by_type(data, current_type, feild=None):
+    """Group data by a specific field type (juz, surah, page, item_id, id)."""
+    columns_map = {
+        "juz": "juz_number",
+        "surah": "surah_id",
+        "page": "page_number",
+        "item_id": "item_id",
+        "id": "id",
+    }
+    grouped = defaultdict(list)
+    for row in data:
+        grouped[row[columns_map[current_type]]].append(
+            row if feild is None else row[feild]
+        )
+    sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
+    return sorted_grouped
+
+
+def get_page_number(item_id: int) -> int:
+    """Get page number for a given item.
+
+    Note: This function is in utils.py (not common_model.py) to avoid circular imports.
+    hafiz_model needs this function, but common_model needs hafizs from hafiz_model.
+    """
+    from .globals import items, pages
+
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number

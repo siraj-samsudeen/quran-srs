@@ -199,6 +199,7 @@ When figuring something out or exploring unfamiliar territory:
   RED-GREEN-REFACTOR breakdown happens during implementation, not in planning.
 - Use Context7 MCP to check the latest docs for any library across languages
 - In Phoenix projects, always check AGENTS.md and usage rules first before answering anything about code or starting to code
+- always comment on things that are not understandable just by reading the code. e.g. current_date: str - not clear why date is stored as a str just by reading code. 
 
 ---
 

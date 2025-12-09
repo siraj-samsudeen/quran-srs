@@ -24,11 +24,10 @@ def render_login_form():
             action="/users/login",
             method="post",
         ),
-        # Signup disabled for private beta - bot abuse prevention
-        # P(
-        #     "Don't have an account? ",
-        #     A("Register", href="/users/signup", cls=TextT.primary),
-        # ),
+        P(
+            "Don't have an account? ",
+            A("Register", href="/users/signup", cls=TextT.primary),
+        ),
         cls="space-y-6",
     )
 

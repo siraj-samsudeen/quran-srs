@@ -1,9 +1,24 @@
 from fasthtml.common import *
 from monsterui.all import *
 from hmac import compare_digest
-from .users_model import *
+from .users_model import Login, get_user_by_email, insert_user, reset_table_filters
 from .users_view import *
-from .common_function import *
+from .globals import User
+from .hafiz_model import (
+    Hafiz,
+    get_hafiz,
+    insert_hafiz,
+    delete_hafiz,
+    get_hafizs_for_user,
+)
+from .hafiz_service import setup_new_hafiz
+from .app_setup import (
+    create_app_with_auth,
+    add_toast,
+    error_toast,
+    warning_toast,
+    success_toast,
+)
 
 
 # Redirect target for login failures
@@ -31,18 +46,17 @@ def post(login: Login, sess):
         error_toast(sess, "Incorrect password!")
         return login_redir
 
-    sess["user_auth"] = u.id
+    sess["user_id"] = u.id
     return hafizs_selection_redir
 
 
-# Signup disabled for private beta - bot abuse prevention
-# @rt("/signup")
-def get_signup(sess):
+@rt("/signup")
+def get(sess):
     return render_signup_form()
 
 
-# @rt("/signup")
-def post_signup(user: User, confirm_password: str, sess):
+@rt("/signup")
+def post(user: User, confirm_password: str, sess):
     if user.password != confirm_password:
         add_toast(sess, "Passwords do not match!", "warning")
         return signup_redir
@@ -56,7 +70,7 @@ def post_signup(user: User, confirm_password: str, sess):
     # Create new user
     try:
         new_user = insert_user(user)
-        sess["user_auth"] = new_user.id
+        sess["user_id"] = new_user.id
         success_toast(sess, "Account created successfully!")
         return login_redir
     except Exception as e:
@@ -66,9 +80,9 @@ def post_signup(user: User, confirm_password: str, sess):
 
 @rt("/logout")
 def get(sess):
-    user_auth = sess.get("user_auth", None)
+    user_auth = sess.get("user_id", None)
     if user_auth is not None:
-        del sess["user_auth"]
+        del sess["user_id"]
     auth = sess.get("auth", None)
     if auth is not None:
         del sess["auth"]
@@ -79,12 +93,15 @@ def get(sess):
 def get(sess):
     reset_table_filters()
     auth = sess.get("auth", None)
-    user_auth = sess.get("user_auth", None)
-    if user_auth is None:
+    user_id = sess.get("user_id", None)
+    if user_id is None:
         return login_redir
 
-    user_hafizs = get_hafizs_for_user(user_auth)
-    cards = [render_hafiz_card(h, auth) for h in user_hafizs]
+    # Extract current hafiz_id from auth dict (if exists)
+    current_hafiz_id = auth.get("hafiz_id") if auth else None
+
+    user_hafizs = get_hafizs_for_user(user_id)
+    cards = [render_hafiz_card(h, current_hafiz_id) for h in user_hafizs]
 
     hafiz_form = render_add_hafiz_form()
 
@@ -93,24 +110,26 @@ def get(sess):
 
 @rt("/hafiz_selection")
 def post(current_hafiz_id: int, sess):
-    sess["auth"] = current_hafiz_id
+    # Store auth as dict with both hafiz_id and user_id
+    sess["auth"] = {
+        "hafiz_id": current_hafiz_id,
+        "user_id": sess.get("user_id"),
+    }
     return RedirectResponse("/", status_code=303)
 
 
 @rt("/add_hafiz")
 def post(hafiz: Hafiz, sess):
-    hafiz.user_id = sess["user_auth"]
+    hafiz.user_id = sess["user_id"]
     new_hafiz = insert_hafiz(hafiz)
-    hafiz_id = new_hafiz.id
-    populate_hafiz_items(hafiz_id)
-    create_new_plan(hafiz_id)
+    setup_new_hafiz(new_hafiz.id)
     return RedirectResponse("/users/hafiz_selection", status_code=303)
 
 
 @rt("/delete_hafiz/{hafiz_id}")
 def delete(hafiz_id: int, sess):
-    hafiz = get_hafiz_by_id(hafiz_id)
-    if hafiz.user_id != sess["user_auth"]:
+    hafiz = get_hafiz(hafiz_id)
+    if hafiz.user_id != sess["user_id"]:
         return RedirectResponse("/users/hafiz_selection", status_code=303)
 
     delete_hafiz(hafiz_id)

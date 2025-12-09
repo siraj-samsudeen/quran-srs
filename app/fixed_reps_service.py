@@ -1,4 +1,11 @@
-from app.common_function import *
+from .utils import add_days_to_date
+from .common_model import get_hafizs_items, get_current_date, get_mode_count
+from .globals import (
+    hafizs_items,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    FULL_CYCLE_MODE_CODE,
+)
 
 REP_MODES_CONFIG = {
     DAILY_REPS_MODE_CODE: {
