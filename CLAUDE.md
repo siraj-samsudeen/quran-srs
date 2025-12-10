@@ -16,9 +16,12 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - Removed unused SRS recalculation logic from Close Date processing
 
 **Testing**:
-- Python Playwright tests in `tests/` directory for E2E testing with code coverage
-- Goal: Minimal E2E test suite (6-8 tests) with pytest-cov integration
-- Approach: E2E-first, add integration tests only if coverage gaps exist
+- **Strategy**: Test pyramid approach (Unit → Integration → E2E)
+- **See**: `docs/testing-approach.md` for comprehensive testing guide
+- **Test Types**:
+  - Unit tests (`tests/backend/`) - Pure Python, business logic
+  - Integration tests (`tests/integration/`) - TestClient for routes/HTMX
+  - E2E tests (`tests/e2e/`) - Playwright for critical journeys only
 
 ## Development Commands
 
