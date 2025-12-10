@@ -2,7 +2,7 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
-from globals import *
+from database import *
 
 
 hafiz_app, rt = create_app_with_auth()

@@ -274,3 +274,21 @@ def render_date(date: str):
 def get_day_from_date(date: str):
     if date:
         return datetime.strptime(date, "%Y-%m-%d").day
+
+
+def table_to_dataclass_name(table_name: str) -> str:
+    """Convert table name to dataclass name.
+
+    Examples:
+        'hafizs' -> 'Hafiz'
+        'items' -> 'Item'
+        'hafizs_items' -> 'Hafiz_Items'
+    """
+    parts = table_name.split("_")
+    dataclass_parts = []
+    for i, part in enumerate(parts):
+        # Only singularize the first part; keep subsequent parts as-is
+        if i == 0 and part.endswith("s"):
+            part = part[:-1]
+        dataclass_parts.append(part.capitalize())
+    return "_".join(dataclass_parts)

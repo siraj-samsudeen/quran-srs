@@ -3,7 +3,7 @@ from monsterui.all import *
 from utils import *
 from app.common_function import *
 from app.revision_model import get_revision_table_data
-from globals import *
+from database import *
 
 
 def action_buttons():

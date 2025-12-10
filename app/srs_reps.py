@@ -10,7 +10,11 @@ Key concepts:
 - Rating affects next interval: Bad→shorter, Ok→same, Good→longer
 """
 
-from globals import *
+from constants import *
+from database import (
+    db,
+    hafizs_items,
+)
 from utils import *
 from fasthtml.common import *
 from monsterui.all import *

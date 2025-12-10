@@ -2,8 +2,9 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from datetime import datetime
+from constants import *
 from app.common_function import *
-from globals import *
+from database import *
 
 NEW_MEMORIZATION_RATING = 1
 

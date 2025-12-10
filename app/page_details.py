@@ -1,8 +1,9 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
+from constants import *
 from app.common_function import *
-from globals import *
+from database import *
 
 
 page_details_app, rt = create_app_with_auth()

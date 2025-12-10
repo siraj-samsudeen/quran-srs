@@ -3,7 +3,21 @@ import fasthtml.common as fh
 from monsterui.all import *
 from utils import *
 from collections import defaultdict
-from globals import *
+from constants import *
+from database import (
+    db,
+    hafizs,
+    hafizs_items,
+    items,
+    modes,
+    pages,
+    plans,
+    revisions,
+    surahs,
+    users,
+    Hafiz_Items,
+    Revision,
+)
 import math
 
 
