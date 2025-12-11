@@ -308,6 +308,7 @@ def index(auth, sess):
         return A(
             f"{icon} {get_mode_name(mode_code)}",
             cls="tab",
+            role="tab",
             **{
                 "@click": f"activeTab = '{mode_code}'",
                 ":class": f"activeTab === '{mode_code}' ? 'tab-active [--tab-bg:oklch(var(--p)/0.1)] [--tab-border-color:oklch(var(--p))]' : ''",

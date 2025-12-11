@@ -23,14 +23,14 @@ load_dotenv()
 
 def test_full_cycle_tab_is_active_by_default(authenticated_page: Page):
     """Full Cycle tab is active on page load."""
-    fc_tab = authenticated_page.locator("a:has-text('Full cycle')")
+    fc_tab = authenticated_page.get_by_role("tab", name="Full cycle")
     expect(fc_tab).to_be_visible()
-    expect(authenticated_page.locator("table").first).to_be_visible()
+    expect(authenticated_page.get_by_role("table").first).to_be_visible()
 
 
 def test_clicking_srs_tab_activates_it(authenticated_page: Page):
     """Clicking SRS tab applies the active class."""
-    srs_tab = authenticated_page.locator("a:has-text('SRS - Variable Reps')")
+    srs_tab = authenticated_page.get_by_role("tab", name="SRS - Variable Reps")
     srs_tab.click()
     expect(srs_tab).to_have_class(re.compile(r"tab-active"))
 
@@ -39,10 +39,10 @@ def test_switching_tabs_shows_correct_mode_content(authenticated_page: Page):
     """Tab switching changes active state correctly."""
     page = authenticated_page
 
-    fc_tab = page.locator("a.tab:has-text('Full Cycle')")
+    fc_tab = page.get_by_role("tab", name="Full Cycle")
     expect(fc_tab).to_have_class(re.compile(r"tab-active"))
 
-    srs_tab = page.locator("a.tab:has-text('SRS')")
+    srs_tab = page.get_by_role("tab", name="SRS", exact=False)
     if srs_tab.is_visible():
         srs_tab.click()
         expect(srs_tab).to_have_class(re.compile(r"tab-active"))
@@ -93,6 +93,7 @@ def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
     """Bulk action bar disappears when all checkboxes are unchecked."""
     page = authenticated_page
 
+    # Note: Using CSS class selector because checkboxes don't have accessible labels
     checkbox = page.locator(".bulk-select-checkbox").first
     checkbox.click()
 
@@ -120,6 +121,7 @@ def test_select_all_checkbox_selects_all_unrated_items(authenticated_page: Page)
 
     expect(page.get_by_text(f"Selected: {visible_count}")).to_be_visible()
 
+    # Note: Using CSS class selector because checkboxes don't have accessible labels
     all_checkboxes = page.locator(".bulk-select-checkbox")
     for i in range(all_checkboxes.count()):
         if all_checkboxes.nth(i).is_visible():
@@ -130,6 +132,7 @@ def test_select_all_checkbox_unchecks_all(authenticated_page: Page):
     """Clicking select-all again unchecks all checkboxes."""
     page = authenticated_page
 
+    # Note: Using CSS class selector because select-all doesn't have accessible label
     select_all = page.locator(".select-all-checkbox").first
     select_all.click()
 
@@ -144,6 +147,7 @@ def test_bulk_action_bar_hides_after_rating_applied(authenticated_page: Page):
     """Bulk action bar disappears after rating is applied via HTMX."""
     page = authenticated_page
 
+    # Note: Using CSS class selector because checkboxes don't have accessible labels
     page.locator(".bulk-select-checkbox").first.click()
 
     bulk_bar = page.locator("text=Selected:").first
@@ -176,7 +180,10 @@ def login_and_select_hafiz(page: Page, base_url: str):
 
 
 def get_visible_checkboxes(page: Page):
-    """Get list of checkboxes that are currently visible (active tab only)."""
+    """Get list of checkboxes that are currently visible (active tab only).
+
+    Note: Using CSS class selector because checkboxes don't have accessible labels.
+    """
     all_checkboxes = page.locator(".bulk-select-checkbox")
     visible = []
     for i in range(all_checkboxes.count()):
