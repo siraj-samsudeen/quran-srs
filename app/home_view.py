@@ -183,7 +183,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                         Td(
                             sum(
                                 [
-                                    len(i["revision_data"])
+                                    get_page_count(item_ids=[r["item_id"] for r in i["revision_data"]])
                                     for i in mode_with_ids_and_pages
                                 ]
                             ),
@@ -194,7 +194,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                     else ()
                 ),
                 Td(get_mode_name(o["mode_code"])),
-                Td(len(o["revision_data"])),
+                Td(get_page_count(item_ids=[r["item_id"] for r in o["revision_data"]])),
                 Td(_render_pages_range(o["revision_data"])),
             )
             for o in mode_with_ids_and_pages
