@@ -1,4 +1,8 @@
-"""Integration test fixtures using FastHTML's Client (TestClient)."""
+"""Integration test fixtures using FastHTML's Client (TestClient).
+
+Integration tests use dev database with master data (items, pages, surahs, modes).
+Test users are cleaned up after each test to avoid pollution.
+"""
 
 import pytest
 from fasthtml.core import Client

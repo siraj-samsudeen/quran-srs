@@ -5,6 +5,13 @@ Tests for client-side JavaScript interactions powered by Alpine.js:
 - Tab switching
 - Bulk selection UI (checkboxes, count updates)
 - Dynamic UI state management
+
+E2E Test Setup:
+- Requires app running at BASE_URL (default: http://localhost:5001)
+- Uses real user credentials from .env: TEST_EMAIL, TEST_PASSWORD, TEST_HAFIZ
+- Works with dev database (real prod data) - no isolation needed
+
+Run: uv run pytest tests/e2e -v
 """
 
 import os
@@ -71,13 +78,24 @@ def test_bulk_action_bar_shows_when_checkbox_selected(authenticated_page: Page):
     expect(page.get_by_role("button", name="Bad").first).to_be_visible()
 
 
-def test_bulk_action_bar_count_updates_with_multiple_selections(authenticated_page: Page):
-    """Count updates as checkboxes are checked/unchecked."""
+def test_bulk_action_bar_count_updates_with_multiple_selections(
+    authenticated_page: Page, base_url: str
+):
+    """Count updates as checkboxes are checked/unchecked.
+
+    Note: If fewer than 2 items in Full Cycle mode, will delete revisions to create test data.
+    """
     page = authenticated_page
 
     visible_checkboxes = get_visible_checkboxes(page)
+
+    # If insufficient data, create it by deleting revisions
     if len(visible_checkboxes) < 2:
-        pytest.skip("Need at least 2 visible checkboxes in active tab")
+        ensure_minimum_items_for_bulk_test(page, base_url, minimum=5)
+        # Return to home and re-check
+        page.goto(base_url)
+        expect(page.get_by_text("System Date")).to_be_visible()
+        visible_checkboxes = get_visible_checkboxes(page)
 
     visible_checkboxes[0].click()
     expect(page.get_by_text("Selected: 1")).to_be_visible()
@@ -101,11 +119,13 @@ def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
     expect(bulk_bar).to_be_visible()
 
     # Note: Using evaluate() because bulk bar overlay blocks checkbox click
-    page.evaluate("""
+    page.evaluate(
+        """
         const cb = document.querySelector('.bulk-select-checkbox:checked');
         cb.checked = false;
         cb.dispatchEvent(new Event('change', { bubbles: true }));
-    """)
+    """
+    )
 
     expect(bulk_bar).not_to_be_visible()
 
@@ -190,6 +210,24 @@ def get_visible_checkboxes(page: Page):
         if all_checkboxes.nth(i).is_visible():
             visible.append(all_checkboxes.nth(i))
     return visible
+
+
+def ensure_minimum_items_for_bulk_test(page: Page, base_url: str, minimum: int = 2):
+    """Delete revisions to ensure at least `minimum` items appear in Full Cycle mode."""
+    page.on("dialog", lambda dialog: dialog.accept())
+
+    page.goto(f"{base_url}/revision/")
+
+    # Check the first N checkboxes
+    checkboxes = page.locator("input[type='checkbox']")
+    for i in range(min(minimum, checkboxes.count())):
+        checkboxes.nth(i).check()
+
+    # Click Bulk Delete
+    page.get_by_role("button", name="Bulk Delete").click()
+
+    # Wait for navigation back to home
+    page.wait_for_timeout(500)
 
 
 # ============================================================================

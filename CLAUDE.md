@@ -275,28 +275,24 @@ def delete_user(user_id: int):
 ## Development Commands
 
 ### Python Environment
-- **Run the application**: `uv run main.py` (uses uv, NOT `python main.py`)
-- **Run in test mode**: `ENV=test uv run main.py` (uses test database)
+- **Run the application**: `uv run main.py`
 - **Install dependencies**: `uv sync`
 - **Add new dependency**: `uv add <package-name>`
-- **Run tests**: `uv run pytest tests/e2e -v` (Playwright E2E tests)
-- **Run with coverage**: `uv run pytest tests/e2e --cov --cov-report=html`
+- **Run tests**: `uv run pytest -v` (runs all tests)
+- **Run with coverage**: `uv run pytest --cov --cov-report=html`
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
-### Environment Configuration
+### Database Configuration
 
-The application uses an `ENV` environment variable to determine which database to use:
+The application uses `data/quran_v10.db` for development and testing.
 
-| ENV Value | Database Path | Use Case |
-|-----------|---------------|----------|
-| `test` | `data/quran_test.db` | E2E tests (isolated from dev data) |
-| `dev` (default) | `data/quran_v10.db` | Local development |
-| `prod` | `data/quran_v10.db` | Production (future: separate path) |
-
-**Setup test database (one-time)**:
+**Get latest production data**:
 ```bash
-cp data_backup/quran_v10.db data/quran_test.db
+python scripts/download_prod_backup.py  # Download from prod
+python scripts/init_from_backup.py      # Initialize dev database
 ```
+
+See `scripts/README.md` for complete backup/restore workflows.
 
 ### Testing Strategy
 
@@ -326,8 +322,8 @@ Our testing follows a strict separation between feature testing (fast) and journ
 - **Framework**: Playwright Python with pytest (browser-based)
 - **Running tests**:
   ```bash
-  # Terminal 1: Start app in test mode
-  ENV=test uv run main.py
+  # Terminal 1: Start app (uses dev database)
+  uv run main.py
 
   # Terminal 2: Run E2E tests
   uv run pytest tests/e2e -v

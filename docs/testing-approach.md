@@ -706,7 +706,7 @@ def clean_db(test_db_module):
 - ✅ When database setup is expensive (migrations, seed data)
 - ✅ When tests are independent (no shared state dependencies)
 - ❌ When tests modify schema (use function-scoped)
-- ❌ For E2E tests with real server (use test database)
+- ❌ For E2E tests with real server (use dev database with cleanup)
 
 **Trade-off**: Faster tests vs. risk of test pollution if cleanup fails.
 

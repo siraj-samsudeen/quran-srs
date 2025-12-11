@@ -10,8 +10,8 @@ from fastmigrate.core import (
 from utils import table_to_dataclass_name, current_time
 
 # Database configuration per environment
+# Note: Tests use dev database - no separate test database
 DB_CONFIG = {
-    "test": "data/quran_test.db",
     "dev": "data/quran_v10.db",
     "prod": "data/quran_v10.db",
 }
@@ -44,7 +44,7 @@ def get_database_connection():
 
 
 def get_database_path():
-    """Get database path based on ENV (test/dev/prod)."""
+    """Get database path based on ENV (dev/prod). Defaults to dev."""
     env = os.getenv("ENV", "dev")
     return DB_CONFIG.get(env, DB_CONFIG["dev"])
 
