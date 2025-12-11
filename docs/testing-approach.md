@@ -33,6 +33,66 @@ This document outlines our testing strategy for the Quran SRS FastHTML applicati
 
 ---
 
+## 🚨 CRITICAL: When to Use Playwright vs TestClient
+
+**Playwright is EXPENSIVE (2-3s per test) - Use ONLY for complete user journeys:**
+
+| Scenario | Tool | Example |
+|----------|------|---------|
+| ❌ Testing signup form submission | ~~Playwright~~ | ~~`test_user_can_signup.py`~~ |
+| ✅ Testing signup form submission | **TestClient** | `tests/integration/test_authentication.py` |
+| ❌ Testing login redirect | ~~Playwright~~ | ~~`test_user_can_login.py`~~ |
+| ✅ Testing login redirect | **TestClient** | `tests/integration/test_authentication.py` |
+| ❌ Testing create hafiz endpoint | ~~Playwright~~ | ~~`test_create_hafiz.py`~~ |
+| ✅ Testing create hafiz endpoint | **TestClient** | `tests/integration/test_hafiz.py` |
+| ✅ Testing complete user journey | **Playwright** | `tests/e2e/test_journey_first_cycle.py` |
+
+**Rule of Thumb:**
+- **Feature testing** (individual endpoints/actions) → Use **TestClient** (40-60x faster)
+- **Journey testing** (multi-step user workflows) → Use **Playwright** (only for critical paths)
+
+**Why?**
+- TestClient gives you **code coverage** for features WITHOUT browser overhead
+- Playwright tests should tell a **user story**, not test individual features
+- One journey test (signup → login → create hafiz) is better than three Playwright feature tests
+
+**Examples:**
+
+```python
+# ❌ BAD: Playwright for individual feature
+def test_user_can_signup(page):
+    page.goto("/users/signup")
+    page.fill("[name='email']", "test@example.com")
+    page.click("button[type='submit']")
+    expect(page).to_have_url("/users/login")
+
+# ✅ GOOD: TestClient for individual feature
+def test_user_can_signup(client):
+    response = client.post("/users/signup", data={"email": "test@example.com"})
+    assert response.status_code in (302, 303)
+    assert response.headers["location"] == "/users/login"
+
+# ✅ GOOD: Playwright for complete journey
+def test_journey_new_user_first_cycle(page):
+    # Phase 1: Signup
+    page.goto("/users/signup")
+    # ... signup flow
+
+    # Phase 2: Login
+    page.goto("/users/login")
+    # ... login flow
+
+    # Phase 3: Create hafiz
+    # ... create hafiz flow
+
+    # Phase 4-6: Mark pages, complete cycle, verify plan
+    # ... (complete user story)
+```
+
+---
+
+---
+
 ## FastHTML Testing Tools
 
 ### **Option 1: FastHTML's `Client` (Recommended)**
@@ -118,20 +178,28 @@ def test_tab_count(client, auth_session):
 
 ### **Tier 3: End-to-End (5% of tests)**
 
-**Playwright for real user journeys**:
+**Playwright for complete user journeys ONLY**:
 
 ```python
-def test_complete_hafiz_workflow(page):
-    # Multi-step E2E test
+def test_journey_new_user_first_cycle(page):
+    # Complete user story: signup → login → create hafiz → first cycle
     page.goto("/users/signup")
-    # ... complete user journey
+    # Phase 1: Signup
+    # Phase 2: Login
+    # Phase 3: Create hafiz
+    # Phase 4-6: Mark pages, complete cycle, verify plan
 ```
 
-**When to use**:
-- JavaScript interactions (Alpine.js)
-- Multi-step user journeys
-- Visual verification
-- Critical smoke tests
+**When to use (JOURNEYS ONLY)**:
+- ✅ Complete user workflows (signup → login → create → use)
+- ✅ JavaScript interactions (Alpine.js tabs, dynamic UI)
+- ✅ Critical smoke tests (app loads, major features work)
+
+**When NOT to use (use TestClient instead)**:
+- ❌ Testing individual features (signup, login, create)
+- ❌ Testing API endpoints
+- ❌ Testing redirects or status codes
+- ❌ Getting code coverage
 
 ---
 
@@ -235,13 +303,14 @@ app/
 tests/
 ├── integration/                # Cross-module integration (20%)
 │   ├── conftest.py            # Client, htmx_headers, auth_session
+│   ├── test_authentication.py # Login/signup features (TestClient)
 │   ├── test_close_date.py     # Touches multiple modules
 │   └── test_srs_entry.py      # FC → SRS transition
 │
 └── e2e/                        # E2E user journeys (10%)
     ├── conftest.py            # Playwright fixtures
-    ├── test_authentication.py # Login/logout flow
-    └── test_hafiz_selection.py # Hafiz switching
+    ├── test_journey_1a_first_cycle.py  # New user → first full cycle
+    └── test_journey_1b_srs_entry.py    # Full cycle → SRS transition
 ```
 
 **Key Points**:

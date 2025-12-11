@@ -189,3 +189,14 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] User can import table from CSV (with preview)
 - [ ] Import preview shows data before committing
 - [ ] Import validates and displays errors
+
+---
+
+## Future Improvements
+
+### Testing Infrastructure
+- [ ] Implement module-scoped database fixtures for integration tests (per `docs/testing-approach.md` lines 596-643)
+  - Current: Simple session-scoped `test_user` with manual cleanup
+  - Recommended: Module-scoped DB creation + function-scoped table truncation
+  - Benefit: ~10ms per test (vs current approach), guaranteed test isolation
+  - When: Add when integration test count exceeds 10+ tests per module

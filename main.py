@@ -12,13 +12,19 @@ from app.new_memorization import (
 from app.admin import admin_app
 from app.page_details import page_details_app
 from app.profile import profile_app
-from app.hafiz import hafiz_app
+from app.hafiz_controller import hafiz_app
 from app.common_function import *
-from globals import *
+from database import *
+from constants import *
 from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
 from app.srs_reps import (
     update_hafiz_item_for_srs,
     start_srs_for_ok_and_bad_rating,
+)
+from app.home_view import (
+    datewise_summary_table,
+    split_page_range,
+    update_hafiz_item_for_full_cycle,
 )
 
 ADD_EXTRA_ROWS = 1

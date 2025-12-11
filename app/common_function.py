@@ -36,7 +36,7 @@ def user_auth(req, sess):
 
 user_bware = Beforeware(
     user_auth,
-    skip=["/users/login", "/users/logout"],  # "/users/signup" disabled for private beta
+    skip=["/users/login", "/users/logout", "/users/signup"],
 )
 
 
@@ -50,7 +50,7 @@ def hafiz_auth(req, sess):
             del sess["auth"]
             hafiz_id = None
     if not hafiz_id:
-        return RedirectResponse("/users/hafiz_selection", status_code=303)
+        return RedirectResponse("/hafiz/selection", status_code=303)
 
     revisions.xtra(hafiz_id=hafiz_id)
     hafizs_items.xtra(hafiz_id=hafiz_id)
@@ -62,10 +62,11 @@ hafiz_bware = Beforeware(
     skip=[
         "/users/login",
         "/users/logout",
-        # "/users/signup",  # disabled for private beta
-        r"/users/\d+$",  # for deleting the user
-        "/users/hafiz_selection",
-        "/users/add_hafiz",
+        "/users/signup",
+        r"/users/delete/\d+$",
+        "/users/account",  # User-level settings, no hafiz required
+        "/hafiz/selection",
+        "/hafiz/add",
     ],
 )
 
@@ -118,7 +119,7 @@ def main_area(*args, active=None, auth=None):
     title = A("Quran SRS", href="/")
     hafiz_name = A(
         f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
-        href="/users/hafiz_selection",
+        href="/hafiz/selection",
         method="GET",
     )
 
@@ -472,10 +473,6 @@ def get_mode_name_and_code():
     return mode_code_list, mode_name_list
 
 
-def delete_hafiz(hafiz_id: int):
-    hafizs.delete(hafiz_id)
-
-
 def get_current_plan_id():
     unique_seq_plan_id = [
         i.id for i in plans(where="completed <> 1", order_by="id DESC")
@@ -806,6 +803,95 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
     return (mode_code, table)
 
 
+# === Mode Filter Predicates ===
+# Named predicates for filtering items per mode, extracted for testability
+
+
+def _is_review_due(item: dict, current_date: str) -> bool:
+    """Check if item is due for review today or overdue."""
+    return day_diff(item["next_review"], current_date) >= 0
+
+
+def _is_reviewed_today(item: dict, current_date: str) -> bool:
+    """Check if item was reviewed today."""
+    return item["last_review"] == current_date
+
+
+def _has_memorized(item: dict) -> bool:
+    """Check if item is marked as memorized."""
+    return item["memorized"]
+
+
+def _has_revisions_in_mode(item: dict) -> bool:
+    """Check if item has any revisions in its current mode."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'"))
+
+
+def _has_revisions_today_in_mode(item: dict, current_date: str) -> bool:
+    """Check if item has revisions in its current mode today."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{current_date}'"
+        )
+    )
+
+
+def _was_newly_memorized_today(item: dict, current_date: str) -> bool:
+    """Check if item was newly memorized today (has NM revision today)."""
+    item_id = item["item_id"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+        )
+    )
+
+
+def should_include_in_daily_reps(item: dict, current_date: str) -> bool:
+    """Predicate for Daily Reps mode: due for review OR reviewed today (unless just memorized)."""
+    is_due = _is_review_due(item, current_date) and not _was_newly_memorized_today(
+        item, current_date
+    )
+    reviewed_in_mode = (
+        _is_reviewed_today(item, current_date)
+        and item["mode_code"] == DAILY_REPS_MODE_CODE
+    )
+    return is_due or reviewed_in_mode
+
+
+def should_include_in_weekly_reps(item: dict, current_date: str) -> bool:
+    """Predicate for Weekly Reps mode: must be in WR mode AND (due OR reviewed today with history)."""
+    if item["mode_code"] != WEEKLY_REPS_MODE_CODE:
+        return False
+    return _is_review_due(item, current_date) or (
+        _is_reviewed_today(item, current_date) and _has_revisions_in_mode(item)
+    )
+
+
+def should_include_in_srs(item: dict, current_date: str) -> bool:
+    """Predicate for SRS mode: due for review OR has revisions today."""
+    return _is_review_due(item, current_date) or _has_revisions_today_in_mode(
+        item, current_date
+    )
+
+
+def should_include_in_full_cycle(item: dict, current_date: str) -> bool:
+    """Predicate for Full Cycle mode: item must be memorized."""
+    return _has_memorized(item)
+
+
+# Mode to predicate mapping
+MODE_PREDICATES = {
+    DAILY_REPS_MODE_CODE: should_include_in_daily_reps,
+    WEEKLY_REPS_MODE_CODE: should_include_in_weekly_reps,
+    SRS_MODE_CODE: should_include_in_srs,
+    FULL_CYCLE_MODE_CODE: should_include_in_full_cycle,
+}
+
+
 def make_summary_table(
     mode_code: str,
     auth: str,
@@ -813,41 +899,6 @@ def make_summary_table(
     table_only=False,
 ):
     current_date = get_current_date(auth)
-
-    def is_review_due(item: dict) -> bool:
-        """Check if item is due for review today or overdue."""
-        return day_diff(item["next_review"], current_date) >= 0
-
-    def is_reviewed_today(item: dict) -> bool:
-        return item["last_review"] == current_date
-
-    def has_mode_code(item: dict, mode_code: str) -> bool:
-        return item["mode_code"] == mode_code
-
-    def has_memorized(item: dict) -> bool:
-        return item["memorized"]
-
-    def has_revisions(item: dict) -> bool:
-        """Check if item has revisions for current mode."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}'"
-            )
-        )
-
-    def has_revisions_today(item: dict) -> bool:
-        """Check if item has revisions for current mode today."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}' AND revision_date = '{current_date}'"
-            )
-        )
-
-    def has_newly_memorized_for_today(item: dict) -> bool:
-        newly_memorized_record = revisions(
-            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
-        )
-        return len(newly_memorized_record) == 1
 
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
@@ -857,24 +908,12 @@ def make_summary_table(
     """
     mode_specific_hafizs_items_records = db.q(qry)
 
-    # Route-specific condition builders
-    route_conditions = {
-        DAILY_REPS_MODE_CODE: lambda item: (
-            (is_review_due(item) and not has_newly_memorized_for_today(item))
-            or (is_reviewed_today(item) and has_mode_code(item, DAILY_REPS_MODE_CODE))
-        ),
-        WEEKLY_REPS_MODE_CODE: lambda item: (
-            has_mode_code(item, WEEKLY_REPS_MODE_CODE)
-            and (
-                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
-            )
-        ),
-        SRS_MODE_CODE: lambda item: (is_review_due(item) or has_revisions_today(item)),
-        FULL_CYCLE_MODE_CODE: lambda item: has_memorized(item),
-    }
-
+    # Filter using named predicates
+    predicate = MODE_PREDICATES[mode_code]
     filtered_records = [
-        i for i in mode_specific_hafizs_items_records if route_conditions[mode_code](i)
+        item
+        for item in mode_specific_hafizs_items_records
+        if predicate(item, current_date)
     ]
 
     def get_unique_item_ids(records):

@@ -2,6 +2,9 @@ import os
 import pytest
 from dotenv import load_dotenv
 
+# Set test environment BEFORE any imports
+os.environ["ENV"] = "test"
+
 # Load .env file
 load_dotenv()
 

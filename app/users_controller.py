@@ -1,27 +1,44 @@
+"""
+User Controller - Authentication, Account Management, Hafiz Selection
+
+Handles the complete user journey from signup through hafiz management.
+Routes are organized by feature area for readability.
+"""
+
 from fasthtml.common import *
 from monsterui.all import *
 from hmac import compare_digest
 from .users_model import *
 from .users_view import *
+from .hafiz_model import *
+from .hafiz_view import *
 from .common_function import *
 
 
-# Redirect target for login failures
+# ============================================================================
+# CONSTANTS & CONFIGURATION
+# ============================================================================
+
 login_redir = Redirect("/users/login")
 signup_redir = Redirect("/users/signup")
-hafizs_selection_redir = Redirect("/users/hafiz_selection")
+hafizs_selection_redir = Redirect("/hafiz/selection")
 
-# Create FastHTML app instance for users
 users_app, rt = create_app_with_auth()
 
 
+# ============================================================================
+# AUTHENTICATION - Login & Logout
+# ============================================================================
+
 @rt("/login")
 def get(sess):
+    """Display login form"""
     return render_login_form()
 
 
 @rt("/login")
 def post(login: Login, sess):
+    """Authenticate user and redirect to hafiz selection"""
     u = get_user_by_email(login.email)
     if u is None:
         error_toast(sess, "This email is not registered!")
@@ -35,27 +52,40 @@ def post(login: Login, sess):
     return hafizs_selection_redir
 
 
-# Signup disabled for private beta - bot abuse prevention
-# @rt("/signup")
-def get_signup(sess):
+@rt("/logout")
+def get(sess):
+    """Clear session and redirect to login"""
+    if "user_auth" in sess:
+        del sess["user_auth"]
+    if "auth" in sess:
+        del sess["auth"]
+    return RedirectResponse("/users/login", status_code=303)
+
+
+# ============================================================================
+# REGISTRATION - User Signup
+# ============================================================================
+
+@rt("/signup")
+def get(sess):
+    """Display signup form"""
     return render_signup_form()
 
 
-# @rt("/signup")
-def post_signup(user: User, confirm_password: str, sess):
+@rt("/signup")
+def post(user: User, confirm_password: str, sess):
+    """Create new user account"""
     if user.password != confirm_password:
         add_toast(sess, "Passwords do not match!", "warning")
         return signup_redir
 
-    # Check if user already exists
     existing_user = get_user_by_email(user.email)
     if existing_user:
         warning_toast(sess, "This email is already registered!")
         return login_redir
 
-    # Create new user
     try:
-        new_user = insert_user(user)
+        new_user = users.insert(user)
         sess["user_auth"] = new_user.id
         success_toast(sess, "Account created successfully!")
         return login_redir
@@ -64,54 +94,54 @@ def post_signup(user: User, confirm_password: str, sess):
         return signup_redir
 
 
-@rt("/logout")
-def get(sess):
-    user_auth = sess.get("user_auth", None)
-    if user_auth is not None:
-        del sess["user_auth"]
-    auth = sess.get("auth", None)
-    if auth is not None:
-        del sess["auth"]
-    return RedirectResponse("/users/login", status_code=303)
+# ============================================================================
+# ACCOUNT MANAGEMENT - Profile & Settings
+# ============================================================================
 
-
-@rt("/hafiz_selection")
+@rt("/account")
 def get(sess):
-    reset_table_filters()
-    auth = sess.get("auth", None)
+    """Display user account settings"""
     user_auth = sess.get("user_auth", None)
     if user_auth is None:
         return login_redir
 
-    user_hafizs = get_hafizs_for_user(user_auth)
-    cards = [render_hafiz_card(h, auth) for h in user_hafizs]
-
-    hafiz_form = render_add_hafiz_form()
-
-    return render_hafiz_selection_page(cards, hafiz_form)
+    user = users[user_auth]
+    return render_profile_form(user)
 
 
-@rt("/hafiz_selection")
-def post(current_hafiz_id: int, sess):
-    sess["auth"] = current_hafiz_id
-    return RedirectResponse("/", status_code=303)
+@rt("/account")
+def post(sess, name: str, email: str, password: str = "", confirm_password: str = ""):
+    """Update user profile (name, email, password)"""
+    user_auth = sess.get("user_auth", None)
+    if user_auth is None:
+        return login_redir
+
+    if password:
+        if password != confirm_password:
+            error_toast(sess, "Passwords do not match!")
+            return Redirect("/users/account")
+        users.update({"name": name, "email": email, "password": password}, user_auth)
+    else:
+        users.update({"name": name, "email": email}, user_auth)
+
+    success_toast(sess, "Profile updated successfully!")
+    return Redirect("/users/account")
 
 
-@rt("/add_hafiz")
-def post(hafiz: Hafiz, sess):
-    hafiz.user_id = sess["user_auth"]
-    new_hafiz = insert_hafiz(hafiz)
-    hafiz_id = new_hafiz.id
-    populate_hafiz_items(hafiz_id)
-    create_new_plan(hafiz_id)
-    return RedirectResponse("/users/hafiz_selection", status_code=303)
+@rt("/delete/{user_id}")
+def delete(user_id: int, sess):
+    """Delete user account and all related data (cascade)"""
+    if sess.get("user_auth") != user_id:
+        error_toast(sess, "Unauthorized!")
+        return Redirect("/hafiz/selection")
+
+    users.delete(user_id)
+
+    if "user_auth" in sess:
+        del sess["user_auth"]
+    if "auth" in sess:
+        del sess["auth"]
+
+    return RedirectResponse("/users/login", status_code=303)
 
 
-@rt("/delete_hafiz/{hafiz_id}")
-def delete(hafiz_id: int, sess):
-    hafiz = get_hafiz_by_id(hafiz_id)
-    if hafiz.user_id != sess["user_auth"]:
-        return RedirectResponse("/users/hafiz_selection", status_code=303)
-
-    delete_hafiz(hafiz_id)
-    return RedirectResponse("/users/hafiz_selection", status_code=303)

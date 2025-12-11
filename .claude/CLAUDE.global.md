@@ -148,6 +148,102 @@ cls="checkbox bulk-select-checkbox",
 
 ---
 
+## Model Files & Dataclasses
+
+### Explicit Dataclass Definitions
+Each model file must explicitly define its dataclass at the top, even though database.py auto-generates them:
+
+```python
+# app/users_model.py
+from dataclasses import dataclass
+from database import *
+
+@dataclass
+class User:
+    id: int
+    name: str
+    email: str
+    password: str
+
+def create_user(email: str, password: str, name: str) -> int:
+    user = User(email=email, password=password, name=name)
+    return users.insert(user).id
+```
+
+**Why:**
+- Makes schema visible in code without checking database
+- Type hints work correctly in IDEs
+- Test can verify explicit dataclass matches auto-generated one
+
+### Wrapper Function Policy
+
+**Only create wrapper functions if they:**
+1. **Significantly improve readability** by hiding complex syntax
+2. **Encapsulate multiple steps** that would be hard to replicate
+
+**Remove all other wrappers:**
+```python
+# ❌ Bad - no added value
+def insert_user(user: User):
+    return users.insert(user)
+
+def get_hafiz_by_id(hafiz_id: int):
+    return hafizs[hafiz_id]
+
+# ✅ Good - call database directly
+new_user = users.insert(user)
+hafiz = hafizs[hafiz_id]
+```
+
+**Keep wrappers that hide query complexity:**
+```python
+# ✅ Good - hides where clause, significantly more readable
+def get_hafizs_for_user(user_id: int):
+    return hafizs(where=f"user_id={user_id}")
+
+# Production code uses wrapper:
+user_hafizs = get_hafizs_for_user(user_auth)  # Clear intent
+
+# Test code can use direct calls for explicitness:
+user_hafizs = hafizs(where=f"user_id={user_id}")  # Shows what's being tested
+```
+
+**Keep wrappers that encapsulate multi-step logic:**
+```python
+# ✅ Good - encapsulates try/except logic that would be replicated
+def get_user_by_email(email: str):
+    try:
+        return users(where=f"email = '{email}'")[0]
+    except IndexError:
+        return None
+```
+
+### Redundant Docstrings
+Remove docstrings that just repeat the function name:
+```python
+# ❌ Bad - redundant
+def get_user_by_email(email: str):
+    """Get user by email address"""
+    ...
+
+# ✅ Good - no docstring needed, name is clear
+def get_user_by_email(email: str):
+    try:
+        return users(where=f"email = '{email}'")[0]
+    except IndexError:
+        return None
+```
+
+Keep docstrings that add context:
+```python
+# ✅ Good - explains cascade behavior
+def delete_user(user_id: int):
+    """Delete user record (cascade deletes hafizs and related data)"""
+    users.delete(user_id)
+```
+
+---
+
 ## Instructions to Claude
 
 ### Formatting
@@ -247,6 +343,12 @@ To override pytest-playwright's built-in `base_url` fixture, use `scope="session
 def base_url():
     return os.getenv("BASE_URL", "http://localhost:5001")
 ```
+
+### Python Package Structure
+Modern Python (3.3+) supports implicit namespace packages (PEP 420):
+- No need for `__init__.py` files in test directories
+- pytest works fine with `pythonpath = "."` in `pyproject.toml`
+- Keep packages clean - only add `__init__.py` if you need to execute initialization code
 
 ### Alpine.js + HTMX Integration
 When combining Alpine.js with HTMX for elements that get replaced:
