@@ -721,6 +721,20 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
     )
 
 
+def render_surah_header(surah_id, juz_number):
+    """Render a surah section header row with surah name and juz indicator."""
+    surah_name = surahs[surah_id].name
+    return Tr(
+        Td(
+            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
+            colspan=4,
+            cls="bg-base-200 py-1 px-2",
+        ),
+        cls="surah-header",
+    )
+
+
 def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
@@ -739,16 +753,20 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
         for item_id in item_ids
     ]
 
-    # Render rows
-    body_rows = [
-        render_range_row(
-            records,
-            current_date,
-            mode_code,
-            plan_id,
+    # Group items by surah and render with headers
+    body_rows = []
+    current_surah_id = None
+    for records in items_with_revisions:
+        item = records["item"]
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+        # Add the item row
+        body_rows.append(
+            render_range_row(records, current_date, mode_code, plan_id)
         )
-        for records in items_with_revisions
-    ]
     if not body_rows:
         return (mode_code, None)
 
