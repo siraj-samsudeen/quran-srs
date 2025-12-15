@@ -648,7 +648,14 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
 
     return Tr(
         checkbox_cell,
-        Td(get_page_description(item_id)),
+        Td(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
         Td(
             records["item"].start_text or "-",
             cls="text-lg",
@@ -774,9 +781,9 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
                         ),
                         cls="w-8 text-center",
                     ),
-                    Th("Page", cls="min-w-24"),
-                    Th("Start Text", cls="min-w-24"),
-                    Th("Rating", cls="min-w-16"),
+                    Th("Pg", cls="w-12 text-center"),
+                    Th("Start Text"),
+                    Th("Rating", cls="w-20"),
                 )
             ),
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
