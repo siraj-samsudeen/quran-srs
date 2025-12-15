@@ -595,7 +595,7 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False):
     """Render a single table row for an item in the summary table.
 
     Args:
@@ -603,6 +603,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
         current_date: Current date for the hafiz
         mode_code: Mode code
         plan_id: Plan ID (optional, for full cycle)
+        hide_start_text: If True, hide start text (for consecutive pages)
     """
     item_id = records["item"].id
     rating = records["revision"].rating if records["revision"] else None
@@ -657,8 +658,11 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
             cls="w-12 text-center",
         ),
         Td(
-            records["item"].start_text or "-",
+            Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", data_hidden="true")
+            if hide_start_text
+            else Span(records["item"].start_text or "-"),
             cls="text-lg",
+            data_item_id=item_id,
         ),
         Td(
             Form(
@@ -754,8 +758,10 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
     ]
 
     # Group items by surah and render with headers
+    # Track consecutive pages to hide start text for recall practice
     body_rows = []
     current_surah_id = None
+    prev_page_id = None
     for records in items_with_revisions:
         item = records["item"]
         # Add surah header when surah changes
@@ -763,10 +769,15 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
             current_surah_id = item.surah_id
             juz_number = get_juz_name(item_id=item.id)
             body_rows.append(render_surah_header(current_surah_id, juz_number))
+            # Reset consecutive tracking on surah change
+            prev_page_id = None
+        # Check if this is a consecutive page (hide start text for recall)
+        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
         # Add the item row
         body_rows.append(
-            render_range_row(records, current_date, mode_code, plan_id)
+            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive)
         )
+        prev_page_id = item.page_id
     if not body_rows:
         return (mode_code, None)
 
