@@ -658,11 +658,15 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
             cls="w-12 text-center",
         ),
         Td(
-            Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", data_hidden="true")
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(records["item"].start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
             if hide_start_text
             else Span(records["item"].start_text or "-"),
             cls="text-lg",
-            data_item_id=item_id,
         ),
         Td(
             Form(
