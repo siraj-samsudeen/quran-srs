@@ -688,6 +688,45 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
+def render_pagination_controls(mode_code, current_page, total_pages, total_items):
+    """Render pagination controls for navigating between pages."""
+    prev_disabled = current_page <= 1
+    next_disabled = current_page >= total_pages
+
+    prev_button = Button(
+        "← Previous",
+        hx_get=f"/page/{mode_code}?page={current_page - 1}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        disabled=prev_disabled,
+    )
+
+    next_button = Button(
+        "Next →",
+        hx_get=f"/page/{mode_code}?page={current_page + 1}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        disabled=next_disabled,
+    )
+
+    page_info = Span(
+        f"Page {current_page} of {total_pages} ({total_items} items)",
+        cls="text-sm font-medium",
+    )
+
+    return Div(
+        Div(
+            prev_button,
+            page_info,
+            next_button,
+            cls="flex justify-between items-center gap-4",
+        ),
+        cls="p-3 border-t bg-gray-50",
+    )
+
+
 def render_bulk_action_bar(mode_code, current_date, plan_id):
     """Render a sticky bulk action bar for applying ratings to selected items."""
     plan_id_val = plan_id or ""
@@ -725,22 +764,37 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
     )
 
 
-def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
+    # Calculate pagination
+    total_items = len(item_ids)
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))  # Clamp page to valid range
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = item_ids
+        total_pages = 1
+
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
-    today_revisions = revisions(
-        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
-    )
+    if paginated_item_ids:
+        today_revisions = revisions(
+            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, paginated_item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
+        )
+    else:
+        today_revisions = []
     # Create lookup dictionary: item_id -> rating
     revisions_lookup = {rev.item_id: rev for rev in today_revisions}
 
     # Query all items data once
     items_with_revisions = [
         {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
-        for item_id in item_ids
+        for item_id in paginated_item_ids
     ]
 
     # Render rows
@@ -773,7 +827,12 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
 
     bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
 
-    table = Div(
+    # Render pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
+
+    table_content = [
         Table(
             Thead(
                 Tr(
@@ -796,7 +855,15 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
             hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
             hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         ),
-        bulk_bar,
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
         id=f"summary_table_{mode_code}",
         x_data="{ count: 0 }",
     )
@@ -897,6 +964,8 @@ def make_summary_table(
     auth: str,
     total_page_count=0,
     table_only=False,
+    page=1,
+    items_per_page=None,
 ):
     current_date = get_current_date(auth)
 
@@ -961,6 +1030,8 @@ def make_summary_table(
         mode_code=mode_code,
         item_ids=item_ids,
         is_plan_finished=is_plan_finished,
+        page=page,
+        items_per_page=items_per_page,
     )
     if table_only:
         return result[1]  # Just the table element for HTMX swap

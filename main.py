@@ -286,9 +286,22 @@ def index(auth, sess):
         "revised": revised_count,
     }
 
+    # Initialize pagination state if not exists
+    if "pagination" not in sess:
+        sess["pagination"] = {}
+
+    # Get current page for Full Cycle mode from session (default to 1)
+    fc_page = sess["pagination"].get(FULL_CYCLE_MODE_CODE, 1)
+
     # Build panels - each returns (mode_code, panel) tuple
     mode_panels = [
-        make_summary_table(FULL_CYCLE_MODE_CODE, auth, total_page_count=page_limit),
+        make_summary_table(
+            FULL_CYCLE_MODE_CODE,
+            auth,
+            total_page_count=page_limit,
+            page=fc_page,
+            items_per_page=5
+        ),
         make_summary_table(SRS_MODE_CODE, auth),
         make_summary_table(DAILY_REPS_MODE_CODE, auth),
         make_summary_table(WEEKLY_REPS_MODE_CODE, auth),
@@ -428,6 +441,36 @@ def datewise_summary_table_view(auth):
     return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
+@app.get("/page/{mode_code}")
+def change_page(sess, auth, mode_code: str, page: int = 1):
+    """Handle pagination for mode-specific tables."""
+    # Store current page in session
+    if "pagination" not in sess:
+        sess["pagination"] = {}
+    sess["pagination"][mode_code] = page
+
+    # Get pagination parameters based on mode
+    if mode_code == FULL_CYCLE_MODE_CODE:
+        page_limit, _ = get_full_cycle_limit_and_revised_count(auth)
+        items_per_page = 5
+        return make_summary_table(
+            mode_code=mode_code,
+            auth=auth,
+            total_page_count=page_limit,
+            table_only=True,
+            page=page,
+            items_per_page=items_per_page,
+        )
+    else:
+        # For other modes, return without pagination for now
+        return make_summary_table(
+            mode_code=mode_code,
+            auth=auth,
+            table_only=True,
+            page=page,
+        )
+
+
 def update_full_cycle_progress(sess, page_count):
     if sess["full_cycle_progress"]:
         sess["full_cycle_progress"]["revised"] += page_count
@@ -481,10 +524,14 @@ def update_status_from_index(
         update_full_cycle_progress(sess, page_count)
         if is_full_cycle_limit_reached(sess):
             increment_full_cycle_limit(sess)
+            # Get current page from session
+            current_page = sess.get("pagination", {}).get(mode_code, 1)
             return make_summary_table(
                 mode_code=mode_code,
                 auth=auth,
                 total_page_count=get_full_cycle_limit(sess),
+                page=current_page,
+                items_per_page=5,
             ), HtmxResponseHeaders(
                 retarget=f"#{mode_code}_tbody",
                 reselect=f"#{mode_code}_tbody",
@@ -537,7 +584,7 @@ def update_revision_rating(
 def bulk_rate(
     sess,
     auth,
-    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values 
+    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values
     # (from checked checkboxes), FastHTML collects them into a list
     item_ids: list[str],
     rating: int,
@@ -566,11 +613,16 @@ def bulk_rate(
 
     page_limit, _ = get_full_cycle_limit_and_revised_count(auth)
 
+    # Get current page from session
+    current_page = sess.get("pagination", {}).get(mode_code, 1)
+
     return make_summary_table(
         mode_code=mode_code,
         auth=auth,
         total_page_count=page_limit if mode_code == FULL_CYCLE_MODE_CODE else 0,
         table_only=True,
+        page=current_page,
+        items_per_page=5 if mode_code == FULL_CYCLE_MODE_CODE else None,
     )
 
 
