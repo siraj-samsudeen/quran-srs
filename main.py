@@ -372,7 +372,50 @@ def update_hafiz_item_for_full_cycle(rev):
 
 @app.get("/close_date")
 def close_date_confirmation_page(auth):
+    hafiz_data = hafizs[auth]
+    today = current_time()
+    days_elapsed = day_diff(hafiz_data.current_date, today)
+
     header = render_current_date(auth)
+
+    # Show skip option when more than 1 day has elapsed
+    skip_section = None
+    if days_elapsed > 1:
+        min_date = add_days_to_date(hafiz_data.current_date, 1)
+        yesterday = add_days_to_date(today, -1)
+        # Build date-to-label mapping for Alpine.js
+        date_labels = f"'{today}': 'Today', '{yesterday}': 'Yesterday'"
+        current_date = hafiz_data.current_date
+        skip_section = Div(
+            Input(
+                type="checkbox",
+                name="skip_enabled",
+                value="true",
+                cls="checkbox checkbox-primary",
+                data_testid="skip-to-today-checkbox",
+            ),
+            Span(
+                cls="ml-2",
+                x_text="'Skip ' + daysToSkip + ' days to'",
+            ),
+            Span(
+                cls="ml-3 font-semibold text-primary",
+                x_text=f"dateLabels[selectedDate] || new Date(selectedDate).toLocaleDateString('en-US', {{weekday: 'short', month: 'short', day: 'numeric'}})",
+            ),
+            Input(
+                type="date",
+                name="skip_to_date",
+                value=today,
+                min=min_date,
+                max=today,
+                cls="input input-bordered input-sm w-auto ml-3",
+                data_testid="skip-to-date-input",
+                **{"@change": "selectedDate = $el.value; daysToSkip = Math.round((new Date($el.value) - new Date(currentDate)) / 86400000)"},
+            ),
+            cls="flex items-center",
+            x_data=f"{{ selectedDate: '{today}', currentDate: '{current_date}', daysToSkip: {days_elapsed}, dateLabels: {{ {date_labels} }} }}",
+        )
+
     action_buttons = DivLAligned(
         Button(
             "Confirm",
@@ -380,6 +423,7 @@ def close_date_confirmation_page(auth):
             hx_target="body",
             hx_push_url="true",
             hx_disabled_elt="this",
+            hx_include="[name='skip_enabled'], [name='skip_to_date']",
             cls=(ButtonT.primary, "p-2"),
             data_testid="confirm-close-btn",
         ),
@@ -389,24 +433,26 @@ def close_date_confirmation_page(auth):
             cls=(ButtonT.default, "p-2"),
         ),
     )
+
+    content = [header, create_stat_table(auth)]
+    if skip_section:
+        content.append(skip_section)
+    content.append(action_buttons)
+
     return main_area(
-        Div(header, create_stat_table(auth), action_buttons, cls="space-y-4"),
+        Div(*content, cls="space-y-4"),
         active="Home",
         auth=auth,
     )
 
 
 @app.post("/close_date")
-def change_the_current_date(auth):
+def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = None):
     hafiz_data = hafizs[auth]
 
-    # Check if many days have elapsed - if so, skip directly to today
-    today = current_time()
-    days_elapsed = day_diff(hafiz_data.current_date, today)
-
-    if days_elapsed > 1:
-        # Skip directly to today instead of processing each day
-        hafiz_data.current_date = today
+    # Skip to selected date if checkbox is checked
+    if skip_enabled == "true" and skip_to_date:
+        hafiz_data.current_date = skip_to_date
         hafizs.update(hafiz_data)
         return Redirect("/")
 

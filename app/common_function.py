@@ -454,7 +454,8 @@ def get_mode_name(mode_code: str):
 
 
 def get_last_item_id():
-    return items(where="active = 1", order_by="id DESC")[0].id
+    result = items(where="active = 1", order_by="id DESC")
+    return result[0].id if result else 0
 
 
 def get_juz_name(page_id=None, item_id=None):

@@ -14,6 +14,7 @@ from constants import *
 from database import (
     db,
     hafizs_items,
+    revisions,
 )
 from utils import *
 from fasthtml.common import *
