@@ -38,7 +38,44 @@ from database import (
 )
 
 
-ADD_EXTRA_ROWS = 5
+def get_today_vs_yesterday_stats(auth):
+    """Calculate today vs yesterday page counts and comparison."""
+    current_date = get_current_date(auth)
+    today = current_date
+    yesterday = sub_days_to_date(today, 1)
+
+    today_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
+    yesterday_count = get_page_count(revisions(where=f"revision_date = '{yesterday}'"))
+
+    difference = today_count - yesterday_count
+
+    if difference > 0:
+        direction = "up"
+        arrow = "↑"
+        color = "text-green-600"
+    elif difference < 0:
+        direction = "down"
+        arrow = "↓"
+        color = "text-red-600"
+    else:
+        direction = "same"
+        arrow = "="
+        color = "text-gray-600"
+
+    return today_count, yesterday_count, difference, direction, arrow, color
+
+
+def render_pages_revised_indicator(auth):
+    """Render compact today vs yesterday pages indicator."""
+    today, yesterday, _, _, arrow, color = get_today_vs_yesterday_stats(auth)
+
+    return Span(
+        Span(f"{today}", data_testid="pages-today", cls="font-semibold"),
+        Span(" vs ", cls="text-gray-500 text-sm"),
+        Span(f"{yesterday}", data_testid="pages-yesterday", cls="font-semibold"),
+        Span(f" {arrow}", cls=f"{color} font-bold ml-1", data_testid="pages-indicator"),
+        cls="text-sm whitespace-nowrap",
+    )
 
 
 def get_revision_data(mode_code: str, revision_date: str):
@@ -285,7 +322,7 @@ def get_full_cycle_limit_and_revised_count(auth, plan_id):
     page_limit = get_full_cycle_daily_limit(auth)
     revised_count = get_full_cycle_revised_length(current_date, plan_id)
     if revised_count >= page_limit:
-        page_limit = revised_count + ADD_EXTRA_ROWS
+        page_limit = revised_count + FULL_CYCLE_EXTRA_ROWS
     return page_limit, revised_count
 
 
@@ -317,7 +354,7 @@ def get_full_cycle_limit(sess):
 def increment_full_cycle_limit(sess):
     """Increment the Full Cycle limit in session to add extra rows."""
     if sess.get("full_cycle_progress"):
-        sess["full_cycle_progress"]["limit"] += ADD_EXTRA_ROWS
+        sess["full_cycle_progress"]["limit"] += FULL_CYCLE_EXTRA_ROWS
 
 
 # Update logic

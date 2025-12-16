@@ -25,9 +25,8 @@ from app.home_view import (
     datewise_summary_table,
     split_page_range,
     update_hafiz_item_for_full_cycle,
+    render_pages_revised_indicator,
 )
-
-ADD_EXTRA_ROWS = 1
 
 
 app, rt = create_app_with_auth(
@@ -272,7 +271,7 @@ def get_full_cycle_limit_and_revised_count(auth):
     page_limit = get_full_cycle_daily_limit(auth)
     revised_count = get_full_cycle_revised_length(current_date)
     if revised_count >= page_limit:
-        page_limit = revised_count + ADD_EXTRA_ROWS
+        page_limit = revised_count + FULL_CYCLE_EXTRA_ROWS
     return page_limit, revised_count
 
 
@@ -300,7 +299,7 @@ def index(auth, sess):
             auth,
             total_page_count=page_limit,
             page=fc_page,
-            items_per_page=5
+            items_per_page=ITEMS_PER_PAGE,
         ),
         make_summary_table(SRS_MODE_CODE, auth),
         make_summary_table(DAILY_REPS_MODE_CODE, auth),
@@ -335,7 +334,11 @@ def index(auth, sess):
     ]
 
     header = DivLAligned(
-        render_current_date(auth),
+        Div(
+            render_current_date(auth),
+            render_pages_revised_indicator(auth),
+            cls="flex flex-col sm:flex-row sm:gap-4 sm:items-center",
+        ),
         A(
             Button(
                 "Close Date",
@@ -498,7 +501,7 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
     # Get pagination parameters based on mode
     if mode_code == FULL_CYCLE_MODE_CODE:
         page_limit, _ = get_full_cycle_limit_and_revised_count(auth)
-        items_per_page = 5
+        items_per_page = ITEMS_PER_PAGE
         return make_summary_table(
             mode_code=mode_code,
             auth=auth,
@@ -518,7 +521,7 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
 
 
 def update_full_cycle_progress(sess, page_count):
-    if sess["full_cycle_progress"]:
+    if sess.get("full_cycle_progress"):
         sess["full_cycle_progress"]["revised"] += page_count
 
 
@@ -532,15 +535,14 @@ def is_full_cycle_limit_reached(sess):
 
 
 def get_full_cycle_limit(sess):
-    if sess["full_cycle_progress"]:
+    if sess.get("full_cycle_progress"):
         return sess["full_cycle_progress"]["limit"]
-    else:
-        return 0
+    return 0
 
 
 def increment_full_cycle_limit(sess):
-    if sess["full_cycle_progress"]:
-        sess["full_cycle_progress"]["limit"] += ADD_EXTRA_ROWS
+    if sess.get("full_cycle_progress"):
+        sess["full_cycle_progress"]["limit"] += FULL_CYCLE_EXTRA_ROWS
 
 
 # This route is responsible for adding and deleting record for all the summary table on the home page
@@ -577,10 +579,10 @@ def update_status_from_index(
                 auth=auth,
                 total_page_count=get_full_cycle_limit(sess),
                 page=current_page,
-                items_per_page=5,
+                items_per_page=ITEMS_PER_PAGE,
             ), HtmxResponseHeaders(
-                retarget=f"#{mode_code}_tbody",
-                reselect=f"#{mode_code}_tbody",
+                retarget=f"#summary_table_{mode_code}",
+                reselect=f"#summary_table_{mode_code}",
                 reswap="outerHTML",
             )
 
@@ -668,7 +670,7 @@ def bulk_rate(
         total_page_count=page_limit if mode_code == FULL_CYCLE_MODE_CODE else 0,
         table_only=True,
         page=current_page,
-        items_per_page=5 if mode_code == FULL_CYCLE_MODE_CODE else None,
+        items_per_page=ITEMS_PER_PAGE if mode_code == FULL_CYCLE_MODE_CODE else None,
     )
 
 
