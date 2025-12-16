@@ -18,7 +18,6 @@ from app.common_function import get_page_number
 class Hafiz:
     id: int | None = None
     name: str | None = None
-    daily_capacity: int | None = None
     user_id: int | None = None
     current_date: str | None = None
 

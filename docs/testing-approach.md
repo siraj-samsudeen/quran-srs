@@ -419,7 +419,6 @@ def test_hafiz_creation(client, auth_session):
     """Test creating a new hafiz."""
     response = client.post("/hafiz/create", data={
         "name": "Test Hafiz",
-        "daily_capacity": 5
     }, cookies=auth_session)
 
     assert response.status_code == 200
@@ -430,7 +429,6 @@ def test_hafiz_deletion(client, auth_session):
     # Create hafiz first
     client.post("/hafiz/create", data={
         "name": "To Delete",
-        "daily_capacity": 5
     }, cookies=auth_session)
 
     # Then delete
@@ -549,10 +547,10 @@ assert html.xpath("//h1[text()='Hafiz Preferences']")
 
 # Verify form fields
 assert html.xpath("//label[text()='Name']")
-assert html.xpath("//input[@name='daily_capacity']")
+assert html.xpath("//input[@name='name']")
 
 # Verify attributes
-assert html.xpath("//input[@name='daily_capacity' and @type='number']")
+assert html.xpath("//input[@name='name' and @type='text']")
 
 # Verify disabled state
 assert html.xpath("//input[@name='current_date' and @disabled]")
@@ -604,7 +602,7 @@ uv add lxml
 **Before (brittle)**:
 ```python
 page.click("a:has-text('Settings')")
-page.fill("input[id='daily_capacity']", "5")
+page.fill("input[id='name']", "Test Hafiz")
 page.click("button:has-text('Update')")
 ```
 

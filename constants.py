@@ -10,3 +10,9 @@ ITEMS_PER_PAGE = 5
 FULL_CYCLE_EXTRA_ROWS = 5  # Extra rows added when Full Cycle limit is reached
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
+
+# Pagination configuration (applies to all modes)
+ITEMS_PER_PAGE = 5
+
+# Default length for bulk revision entry (pages)
+DEFAULT_REVISION_LENGTH = 20

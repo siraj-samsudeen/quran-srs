@@ -241,3 +241,105 @@ def authenticated_page(page: Page, base_url: str):
     login_and_select_hafiz(page, base_url)
     expect(page.get_by_text("System Date")).to_be_visible()
     yield page
+
+
+# ============================================================================
+# Pagination Tests (HTMX + Session State)
+#
+# MECE Test Coverage:
+# 1. Pagination info displays when there are enough items
+# 2. Navigation works - next/prev change pages correctly
+# 3. First page - prev button is disabled
+# ============================================================================
+
+
+def get_pagination_locators(page: Page, mode_code: str):
+    """Return pagination-related locators for a given mode."""
+    return {
+        "controls": page.locator(f"[data-testid='pagination-controls-{mode_code}']"),
+        "next": page.locator(f"[data-testid='pagination-next-{mode_code}']"),
+        "prev": page.locator(f"[data-testid='pagination-prev-{mode_code}']"),
+        "info": page.locator(f"[data-testid='pagination-info-{mode_code}']"),
+        "tbody": page.locator(f"#{mode_code}_tbody tr"),
+    }
+
+
+def test_pagination_info_displays_when_multiple_pages(authenticated_page: Page):
+    """Pagination controls and info appear when there are enough items to paginate."""
+    page = authenticated_page
+    loc = get_pagination_locators(page, "FC")
+
+    if not loc["controls"].is_visible():
+        pytest.skip("Not enough items for pagination")
+
+    info_text = loc["info"].text_content()
+    assert "Page 1" in info_text
+
+
+def test_pagination_next_and_prev_navigate_correctly(authenticated_page: Page):
+    """Next button advances to next page, Prev button returns to previous page."""
+    page = authenticated_page
+    loc = get_pagination_locators(page, "FC")
+
+    if not loc["controls"].is_visible():
+        pytest.skip("Not enough items for pagination")
+    if loc["next"].is_disabled():
+        pytest.skip("Only one page available")
+
+    loc["next"].click()
+    expect(loc["info"]).to_contain_text("Page 2")
+
+    loc["prev"].click()
+    expect(loc["info"]).to_contain_text("Page 1")
+
+
+def test_pagination_prev_disabled_on_first_page(authenticated_page: Page):
+    """Previous button is disabled when on the first page."""
+    page = authenticated_page
+    loc = get_pagination_locators(page, "FC")
+
+    if not loc["controls"].is_visible():
+        pytest.skip("Not enough items for pagination")
+
+    expect(loc["prev"]).to_be_disabled()
+
+
+def test_srs_pagination_navigation(authenticated_page: Page):
+    """SRS tab pagination works the same as Full Cycle."""
+    page = authenticated_page
+
+    srs_tab = page.get_by_role("tab", name="SRS - Variable Reps")
+    srs_tab.click()
+    expect(srs_tab).to_have_class(re.compile(r"tab-active"))
+
+    loc = get_pagination_locators(page, "SR")
+
+    if not loc["controls"].is_visible():
+        pytest.skip("Not enough SRS items for pagination")
+    if loc["next"].is_disabled():
+        pytest.skip("Only one page of SRS items available")
+
+    expect(loc["prev"]).to_be_disabled()
+    loc["next"].click()
+    expect(loc["info"]).to_contain_text("Page 2")
+
+
+def test_bulk_rating_preserves_pagination_controls(authenticated_page: Page):
+    """Bulk rating on a paginated page keeps pagination controls visible."""
+    page = authenticated_page
+    loc = get_pagination_locators(page, "FC")
+
+    if not loc["controls"].is_visible():
+        pytest.skip("Not enough items for pagination")
+
+    checkbox = page.locator("#FC_tbody .bulk-select-checkbox").first
+    if not checkbox.is_visible():
+        pytest.skip("No unrated items to select")
+
+    checkbox.click()
+    page.get_by_role("button", name="Good").first.click()
+
+    expect(loc["controls"]).to_be_visible()
+    expect(loc["info"]).to_contain_text("Page")
+
+

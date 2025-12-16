@@ -113,14 +113,6 @@ def render_add_hafiz_form():
             "Add Hafiz",
             Form(
                 LabelInput(label="Name", name="name", required=True),
-                LabelInput(
-                    label="Daily Capacity",
-                    name="daily_capacity",
-                    type="number",
-                    min="1",
-                    value="10",
-                    required=True,
-                ),
                 Button("Add Hafiz"),
                 action="/hafiz/add",
                 method="post",

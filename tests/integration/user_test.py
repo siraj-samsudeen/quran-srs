@@ -256,7 +256,7 @@ def test_user_deletion_cascades_to_all_related_data(client):
 
     hafiz_response = client.post(
         "/hafiz/add",
-        data={"name": "Test Hafiz", "daily_capacity": 10},
+        data={"name": "Test Hafiz"},
         follow_redirects=False,
     )
 

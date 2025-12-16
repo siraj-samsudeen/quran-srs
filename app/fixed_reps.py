@@ -26,6 +26,8 @@ def update_rep_item(rev):
         return  # Not a rep mode we can handle
 
     hafiz_item = get_hafizs_items(rev.item_id)
+    if hafiz_item is None:
+        return  # Skip if no hafiz_items record exists
     current_date = get_current_date(rev.hafiz_id)
 
     hafiz_item.last_interval = hafiz_item.next_interval
