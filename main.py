@@ -365,33 +365,38 @@ def close_date_confirmation_page(auth):
 
     header = render_current_date(auth)
 
-    # Show skip-to-today checkbox when more than 1 day has elapsed
-    skip_checkbox = None
+    # Show skip option when more than 1 day has elapsed
+    skip_section = None
     if days_elapsed > 1:
-        skip_checkbox = Div(
-            Div(
-                P(
-                    f"⚠️ {days_elapsed} days have passed since your last close date.",
-                    cls="text-warning font-semibold",
-                ),
-                P(
-                    "Check the box below to skip directly to today, or leave unchecked to advance one day at a time.",
-                    cls="text-sm text-base-content/70",
-                ),
-                cls="space-y-1",
+        min_date = add_days_to_date(hafiz_data.current_date, 1)
+        yesterday = add_days_to_date(today, -1)
+        # Build date-to-label mapping for Alpine.js
+        date_labels = f"'{today}': 'Today', '{yesterday}': 'Yesterday'"
+        skip_section = Div(
+            Input(
+                type="checkbox",
+                name="skip_enabled",
+                value="true",
+                cls="checkbox checkbox-primary",
+                data_testid="skip-to-today-checkbox",
             ),
-            Label(
-                Input(
-                    type="checkbox",
-                    name="skip_to_today",
-                    value="true",
-                    cls="checkbox checkbox-primary mr-2",
-                    data_testid="skip-to-today-checkbox",
-                ),
-                f"Bring forward to today ({today})",
-                cls="flex items-center cursor-pointer mt-2",
+            Span(f"Skip {days_elapsed} days to", cls="ml-2"),
+            Span(
+                cls="ml-3 font-semibold text-primary",
+                x_text=f"dateLabels[selectedDate] || new Date(selectedDate).toLocaleDateString('en-US', {{weekday: 'short', month: 'short', day: 'numeric'}})",
             ),
-            cls="p-4 bg-warning/10 border border-warning/30 rounded-lg",
+            Input(
+                type="date",
+                name="skip_to_date",
+                value=today,
+                min=min_date,
+                max=today,
+                cls="input input-bordered input-sm w-auto ml-3",
+                data_testid="skip-to-date-input",
+                **{"@change": "selectedDate = $el.value"},
+            ),
+            cls="flex items-center",
+            x_data=f"{{ selectedDate: '{today}', dateLabels: {{ {date_labels} }} }}",
         )
 
     action_buttons = DivLAligned(
@@ -401,7 +406,7 @@ def close_date_confirmation_page(auth):
             hx_target="body",
             hx_push_url="true",
             hx_disabled_elt="this",
-            hx_include="[name='skip_to_today']",
+            hx_include="[name='skip_enabled'], [name='skip_to_date']",
             cls=(ButtonT.primary, "p-2"),
             data_testid="confirm-close-btn",
         ),
@@ -413,8 +418,8 @@ def close_date_confirmation_page(auth):
     )
 
     content = [header, create_stat_table(auth)]
-    if skip_checkbox:
-        content.append(skip_checkbox)
+    if skip_section:
+        content.append(skip_section)
     content.append(action_buttons)
 
     return main_area(
@@ -425,16 +430,12 @@ def close_date_confirmation_page(auth):
 
 
 @app.post("/close_date")
-def change_the_current_date(auth, skip_to_today: str = None):
+def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = None):
     hafiz_data = hafizs[auth]
 
-    # Check if many days have elapsed and user chose to skip to today
-    today = current_time()
-    days_elapsed = day_diff(hafiz_data.current_date, today)
-
-    if days_elapsed > 1 and skip_to_today == "true":
-        # Skip directly to today instead of processing each day
-        hafiz_data.current_date = today
+    # Skip to selected date if checkbox is checked
+    if skip_enabled == "true" and skip_to_date:
+        hafiz_data.current_date = skip_to_date
         hafizs.update(hafiz_data)
         return Redirect("/")
 
