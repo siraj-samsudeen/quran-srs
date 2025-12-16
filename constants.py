@@ -5,4 +5,8 @@ DAILY_REPS_MODE_CODE = "DR"
 WEEKLY_REPS_MODE_CODE = "WR"
 SRS_MODE_CODE = "SR"
 
+# Pagination
+ITEMS_PER_PAGE = 5
+FULL_CYCLE_EXTRA_ROWS = 5  # Extra rows added when Full Cycle limit is reached
+
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}

@@ -729,7 +729,10 @@ def render_pagination_controls(mode_code, current_page, total_pages, total_items
 
 
 def render_bulk_action_bar(mode_code, current_date, plan_id):
-    """Render a sticky bulk action bar for applying ratings to selected items."""
+    """Render a sticky bulk action bar for applying ratings to selected items.
+
+    Note: Bulk selection is page-local - selections reset when navigating pages or applying filters.
+    """
     plan_id_val = plan_id or ""
 
     def bulk_button(rating_value, label, btn_cls):
@@ -747,7 +750,8 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
 
     return Div(
         Div(
-            Span("Selected: ", cls="font-medium"),
+            # Label clarifies that selection scope is limited to current page
+            Span("Selected on this page: ", cls="font-medium"),
             Span(x_text="count", cls="font-bold"),
             cls="text-sm",
         ),
@@ -808,8 +812,17 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
         )
         for records in items_with_revisions
     ]
+    # Show empty-state message when no items on current page (keeps table structure intact)
     if not body_rows:
-        return (mode_code, None)
+        body_rows = [
+            Tr(
+                Td(
+                    "No pages to review on this page.",
+                    colspan=4,  # spans checkbox, page, start text, rating columns
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
 
     if is_plan_finished:
         body_rows.append(
