@@ -730,13 +730,29 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
             cls=(btn_cls, "px-4 py-2"),
         )
 
-    return Div(
-        Div(
-            # Label clarifies that selection scope is limited to current page
-            Span("Selected on this page: ", cls="font-medium"),
-            Span(x_text="count", cls="font-bold"),
-            cls="text-sm",
+    # Select all checkbox - toggles all items
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
         ),
+        # Show "Select All" when not all selected, "Clear All" when all selected
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    return Div(
+        select_all_checkbox,
         Div(
             bulk_button(1, "Good", ButtonT.primary),
             bulk_button(0, "Ok", ButtonT.secondary),
@@ -745,9 +761,6 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
         ),
         id=f"bulk-bar-{mode_code}",
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
-        # x-show controls visibility when count changes; style ensures hidden by default after HTMX swap
-        x_show="count > 0",
-        style="display: none",
     )
 
 
@@ -867,21 +880,6 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
 
     table_content = [
         Table(
-            Thead(
-                Tr(
-                    Th(
-                        fh.Input(
-                            type="checkbox",
-                            cls="checkbox select-all-checkbox",
-                            **{"@change": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked); count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0"},
-                        ),
-                        cls="w-8 text-center",
-                    ),
-                    Th(cls="w-12"),
-                    Th(),
-                    Th(cls="w-20"),
-                ),
-            ),
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
             cls=(TableT.middle, TableT.divider, TableT.sm),
             # To prevent scroll jumping
