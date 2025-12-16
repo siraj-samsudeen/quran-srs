@@ -603,7 +603,7 @@ def update_status_from_index(
 
     # Update the pages revised indicator using out-of-band swap
     updated_indicator = render_pages_revised_indicator(auth)
-    updated_indicator.attrs["hx_swap_oob"] = "true"
+    updated_indicator.attrs["hx-swap-oob"] = "true"
 
     return updated_row, updated_indicator
 
@@ -636,7 +636,7 @@ def update_revision_rating(
 
     # Update the pages revised indicator using out-of-band swap
     updated_indicator = render_pages_revised_indicator(auth)
-    updated_indicator.attrs["hx_swap_oob"] = "true"
+    updated_indicator.attrs["hx-swap-oob"] = "true"
 
     return updated_row, updated_indicator
 
