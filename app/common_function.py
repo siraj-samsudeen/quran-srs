@@ -877,10 +877,10 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
                         ),
                         cls="w-8 text-center",
                     ),
-                    Th("Pg", cls="w-12 text-center"),
-                    Th("Start Text"),
-                    Th("Rating", cls="w-20"),
-                )
+                    Th(cls="w-12"),
+                    Th(),
+                    Th(cls="w-20"),
+                ),
             ),
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
             cls=(TableT.middle, TableT.divider, TableT.sm),
@@ -1046,6 +1046,10 @@ def make_summary_table(
         )
     else:
         is_plan_finished = False
+
+    # Hide tab entirely if no items to display
+    if not item_ids:
+        return None
 
     result = render_summary_table(
         auth=auth,

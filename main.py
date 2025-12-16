@@ -80,8 +80,8 @@ def index(auth, sess):
             items_per_page=ITEMS_PER_PAGE,
         ),
     ]
-    # Filter to only modes with content
-    mode_panels = [(code, panel) for code, panel in mode_panels if panel is not None]
+    # Filter out modes with no items (make_summary_table returns None for empty modes)
+    mode_panels = [panel for panel in mode_panels if panel is not None]
 
     mode_icons = {
         FULL_CYCLE_MODE_CODE: "🔄",
@@ -90,10 +90,22 @@ def index(auth, sess):
         WEEKLY_REPS_MODE_CODE: "📅",
     }
 
+    # Short names for mobile display
+    mode_short_names = {
+        FULL_CYCLE_MODE_CODE: "FC",
+        SRS_MODE_CODE: "SRS",
+        DAILY_REPS_MODE_CODE: "Daily",
+        WEEKLY_REPS_MODE_CODE: "Weekly",
+    }
+
     def make_tab_button(mode_code):
         icon = mode_icons.get(mode_code, "")
+        full_name = get_mode_name(mode_code)
+        short_name = mode_short_names.get(mode_code, mode_code)
         return A(
-            f"{icon} {get_mode_name(mode_code)}",
+            Span(icon, cls="mr-1"),
+            Span(full_name, cls="hidden sm:inline"),  # Full name on desktop
+            Span(short_name, cls="sm:hidden"),  # Short name on mobile
             cls="tab",
             role="tab",
             **{
