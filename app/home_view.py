@@ -23,7 +23,6 @@ from app.common_function import (
     get_mode_name,
     get_page_count,
     get_page_description,
-    get_full_cycle_daily_limit,
     create_count_link,
     get_hafizs_items,
     get_actual_interval,
@@ -36,9 +35,6 @@ from database import (
     modes,
     revisions,
 )
-
-
-ADD_EXTRA_ROWS = 5
 
 
 def get_revision_data(mode_code: str, revision_date: str):
@@ -269,55 +265,6 @@ def create_stat_table(auth):
             ),
         ),
     )
-
-
-def get_full_cycle_revised_length(current_date, plan_id):
-    """Get the count of Full Cycle revisions for today."""
-    revised_records = revisions(
-        where=f"revision_date = '{current_date}' AND mode_code = '{FULL_CYCLE_MODE_CODE}' AND plan_id = {plan_id}"
-    )
-    return get_page_count(records=revised_records)
-
-
-def get_full_cycle_limit_and_revised_count(auth, plan_id):
-    """Calculate the Full Cycle page limit and current revised count."""
-    current_date = get_current_date(auth)
-    page_limit = get_full_cycle_daily_limit(auth)
-    revised_count = get_full_cycle_revised_length(current_date, plan_id)
-    if revised_count >= page_limit:
-        page_limit = revised_count + ADD_EXTRA_ROWS
-    return page_limit, revised_count
-
-
-# Session-based progress tracking helpers
-
-def update_full_cycle_progress(sess, page_count):
-    """Update the session's Full Cycle progress counter."""
-    if sess.get("full_cycle_progress"):
-        sess["full_cycle_progress"]["revised"] += page_count
-
-
-def is_full_cycle_limit_reached(sess):
-    """Check if the Full Cycle daily limit has been reached."""
-    if "full_cycle_progress" in sess:
-        return (
-            sess["full_cycle_progress"]["revised"]
-            >= sess["full_cycle_progress"]["limit"]
-        )
-    return False
-
-
-def get_full_cycle_limit(sess):
-    """Get the current Full Cycle limit from session."""
-    if sess.get("full_cycle_progress"):
-        return sess["full_cycle_progress"]["limit"]
-    return 0
-
-
-def increment_full_cycle_limit(sess):
-    """Increment the Full Cycle limit in session to add extra rows."""
-    if sess.get("full_cycle_progress"):
-        sess["full_cycle_progress"]["limit"] += ADD_EXTRA_ROWS
 
 
 # Update logic

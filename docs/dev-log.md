@@ -91,9 +91,8 @@ class Hafiz:
     """Hafiz profile belonging to a user."""
     id: int
     name: str | None = None
-    daily_capacity: int | None = None
     user_id: int | None = None
-    current_date: str | None = None
+    current_date: str | None = None  # Virtual date for this hafiz (stored as string for SQLite)
 
 hafizs = db.t.hafizs
 hafizs.cls = Hafiz

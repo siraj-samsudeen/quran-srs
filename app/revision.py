@@ -345,7 +345,7 @@ def get(
         revision_date = get_current_date(auth)
 
     if not length or length < 0:
-        length = get_full_cycle_daily_limit(auth)
+        length = DEFAULT_REVISION_LENGTH
 
     if item_id is not None:
         page = get_page_number(item_id)
@@ -358,7 +358,7 @@ def get(
 
         # TODO: Later: handle this in the parse_page_string function
         if not length or length <= 0:
-            length = int(get_full_cycle_daily_limit(auth))
+            length = DEFAULT_REVISION_LENGTH
 
         item_list = get_item_ids_by_page(page)
         item_id = item_list[0]

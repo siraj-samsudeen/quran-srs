@@ -92,7 +92,6 @@ def settings_page(auth):
 
     form = Form(
         render_field("Name", "text"),
-        render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
         DivFullySpaced(
             DivLAligned(

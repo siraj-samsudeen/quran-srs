@@ -191,9 +191,8 @@ class User:
 class Hafiz:
     id: int | None = None
     name: str | None = None
-    daily_capacity: int | None = None
     user_id: int | None = None
-    current_date: str | None = None
+    current_date: str | None = None  # Virtual date for this hafiz (stored as string for SQLite compatibility)
 ```
 
 **Why:**
@@ -404,7 +403,6 @@ def test_journey_first_full_cycle(page):
 
     # Phase 3: Create hafiz
     page.fill("[name='name']", "Test Hafiz")
-    page.fill("[name='daily_capacity']", "5")
     page.click("button:has-text('Add Hafiz')")
 
     # Phase 4-6: Mark pages, complete cycle, etc.
@@ -517,11 +515,11 @@ git branch -d test-create-hafiz              # Clean up feature branch
 
 2. **Waiting for HTMX Updates**:
    ```python
-   # Playwright auto-waits for elements
-   expect(page.locator("text=Success")).to_be_visible()
+   # Use expect() which auto-waits - no manual timeouts needed
+   expect(loc["info"]).to_contain_text("Page 2")
 
-   # Or explicit wait for HTMX processing
-   page.wait_for_timeout(1000)  # 1 second
+   # ❌ Avoid manual timeouts
+   page.wait_for_timeout(500)  # Flaky and slow
    ```
 
 3. **Newly Created Resources**:
@@ -545,6 +543,34 @@ git branch -d test-create-hafiz              # Clean up feature branch
 - Tests should be self-contained: create → use → delete
 - Rely on database CASCADE DELETE for related records
 - Unique naming prevents interference between test runs
+
+**MECE Test Design:**
+Tests should be Mutually Exclusive and Collectively Exhaustive:
+- Each test covers ONE distinct behavior
+- Together, tests cover all behaviors of the feature
+- Example for pagination:
+  ```
+  # 1. Pagination info displays when there are enough items
+  # 2. Navigation works - next/prev change pages correctly
+  # 3. First page - prev button is disabled
+  ```
+
+**E2E Test Anti-Patterns:**
+- ❌ Don't test implementation details (e.g., checking specific text format like "(X items, Y pages)")
+- ❌ Don't compare row content between navigations - data can change
+- ❌ Don't iterate through all pages to reach the last page - too slow
+- ❌ Don't hardcode test IDs per mode - use helper functions with parameters:
+  ```python
+  # ✅ Good - parameterized helper
+  def get_pagination_locators(page: Page, mode_code: str):
+      return {
+          "controls": page.locator(f"[data-testid='pagination-controls-{mode_code}']"),
+          "next": page.locator(f"[data-testid='pagination-next-{mode_code}']"),
+      }
+
+  # ❌ Bad - hardcoded per mode
+  page.locator("[data-testid='pagination-next-FC']")
+  ```
 
 ### Database
 - **Path**: SQLite database at `data/quran_v10.db`
@@ -638,7 +664,7 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
 
 **Key UI Components** (`app/users_view.py`):
 - `render_hafiz_card(hafiz, auth)`: Conditional rendering based on `is_current_hafiz`
-- `render_add_hafiz_form()`: Minimalist form (name + daily_capacity only)
+- `render_add_hafiz_form()`: Minimalist form (name only)
 - `render_hafiz_selection_page(cards, hafiz_form)`: Grid layout with flexbox wrapping
 
 ### Database Schema Key Points
@@ -650,8 +676,8 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
 - `hafizs`: Hafiz profiles (one-to-many with users)
   - `name`: Hafiz name
   - `user_id`: Foreign key to users (ON DELETE CASCADE)
-  - `daily_capacity`: Number of pages for daily revision
   - `current_date`: Virtual date for this hafiz (allows independent timelines)
+  - **Note**: `daily_capacity` was removed in migration 0022. Full Cycle mode now shows all unreviewed items with pagination.
 
 - `items`: Quran content broken into items (full pages or page parts)
   - `page_id`: Page number (1-604)

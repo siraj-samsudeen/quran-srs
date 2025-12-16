@@ -273,21 +273,6 @@ def get_current_date(auth) -> str:
     return current_date
 
 
-def get_daily_capacity(auth):
-    current_hafiz = hafizs[auth]
-    return current_hafiz.daily_capacity
-
-
-def get_srs_daily_limit(auth):
-    # 50% percentage of daily capacity
-    return math.ceil(get_daily_capacity(auth) * 0.5)
-
-
-def get_full_cycle_daily_limit(auth):
-    # 100% percentage of daily capacity
-    return get_daily_capacity(auth)
-
-
 def get_last_added_full_cycle_page(auth):
     current_date = get_current_date(auth)
     last_full_cycle_record = db.q(
@@ -358,12 +343,12 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
-def get_hafizs_items(item_id):
+def get_hafizs_items(item_id) -> Hafiz_Items | None:
+    """Get hafiz_items record for the given item_id, or None if not found."""
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         return current_hafiz_items[0]
-    else:
-        return ValueError(f"No hafizs_items found for item_id {item_id}")
+    return None
 
 
 def get_mode_count(item_id, mode_code):
@@ -373,6 +358,8 @@ def get_mode_count(item_id, mode_code):
 
 def get_actual_interval(item_id):
     hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
     current_date = get_current_date(hafiz_items_details.hafiz_id)
 
     last_review = hafiz_items_details.last_review
@@ -382,7 +369,10 @@ def get_actual_interval(item_id):
 
 
 def get_planned_next_interval(item_id):
-    return get_hafizs_items(item_id).next_interval
+    hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
+    return hafiz_items_details.next_interval
 
 
 def add_revision_record(**kwargs):
@@ -511,33 +501,10 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
-def get_full_review_item_ids(
-    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
-):
+def get_full_review_item_ids(auth, mode_specific_hafizs_items_records, item_ids):
+    """Get all eligible Full Cycle items (not yet revised in current plan + revised today)."""
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
-
-    def get_next_item_range_from_item_id(
-        eligible_item_ids, start_item_id, total_page_count
-    ):
-        """Get items from a list starting from a specific number."""
-        try:
-            start_index = eligible_item_ids.index(start_item_id)
-            item_ids_to_process = eligible_item_ids[start_index:]
-        except ValueError:
-            item_ids_to_process = eligible_item_ids
-
-        final_item_ids = []
-        current_page_count = 0
-        for item_id in item_ids_to_process:
-            if current_page_count >= total_page_count:
-                break
-            current_page_count += get_item_page_portion(item_id)
-            final_item_ids.append(item_id)
-
-        is_plan_finished = len(eligible_item_ids) == len(final_item_ids)
-
-        return is_plan_finished, final_item_ids
 
     if plan_id is not None:
         # Filter out items that have been revised in the current plan (but not today)
@@ -549,19 +516,11 @@ def get_full_review_item_ids(
         revised_items_in_plan_set = {r.item_id for r in revised_items_in_plan}
         eligible_item_ids = [i for i in item_ids if i not in revised_items_in_plan_set]
 
-        last_added_item_id = (
-            revised_items_in_plan[0].item_id if revised_items_in_plan else 0
-        )
-
-        # Find the next item to start the review from
-        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+        # Check if plan is finished (no more items to review)
+        is_plan_finished = len(eligible_item_ids) == 0
     else:
         eligible_item_ids = []
-        next_item_id = 0
-
-    is_plan_finished, next_item_ids = get_next_item_range_from_item_id(
-        eligible_item_ids, next_item_id, total_page_count
-    )
+        is_plan_finished = False
 
     # Get all item_ids revised today in full_cycle mode
     today_full_cycle_revisions = {
@@ -571,16 +530,16 @@ def get_full_review_item_ids(
         )
     }
 
-    # Get items that have been revised today in full_cycle mode, but are not in the session_item_ids
+    # Get items that have been revised today in full_cycle mode, but are not in eligible_item_ids
     today_revisioned_items = [
         item["item_id"]
         for item in mode_specific_hafizs_items_records
         if item["item_id"] in today_full_cycle_revisions
-        and item["item_id"] not in next_item_ids
+        and item["item_id"] not in eligible_item_ids
     ]
 
     # Combine and sort the item_ids
-    final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
+    final_item_ids = sorted(list(set(eligible_item_ids + today_revisioned_items)))
     return is_plan_finished, final_item_ids
 
 
@@ -689,32 +648,41 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
-def render_pagination_controls(mode_code, current_page, total_pages, total_items):
+def render_pagination_controls(mode_code, current_page, total_pages, total_items, info_text=None):
     """Render pagination controls for navigating between pages."""
     prev_disabled = current_page <= 1
     next_disabled = current_page >= total_pages
 
+    # Compute bounded page values to avoid out-of-range requests
+    prev_page = max(1, current_page - 1)
+    next_page = min(total_pages, current_page + 1)
+
     prev_button = Button(
         "← Previous",
-        hx_get=f"/page/{mode_code}?page={current_page - 1}",
+        hx_get=f"/page/{mode_code}?page={prev_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
         cls=(ButtonT.secondary, "px-4 py-2"),
         disabled=prev_disabled,
+        data_testid=f"pagination-prev-{mode_code}",
     )
 
     next_button = Button(
         "Next →",
-        hx_get=f"/page/{mode_code}?page={current_page + 1}",
+        hx_get=f"/page/{mode_code}?page={next_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
         cls=(ButtonT.secondary, "px-4 py-2"),
         disabled=next_disabled,
+        data_testid=f"pagination-next-{mode_code}",
     )
 
+    # Use custom info_text if provided, otherwise default format
+    default_info = f"Page {current_page} of {total_pages} ({total_items} items)"
     page_info = Span(
-        f"Page {current_page} of {total_pages} ({total_items} items)",
+        info_text or default_info,
         cls="text-sm font-medium",
+        data_testid=f"pagination-info-{mode_code}",
     )
 
     return Div(
@@ -725,6 +693,7 @@ def render_pagination_controls(mode_code, current_page, total_pages, total_items
             cls="flex justify-between items-center gap-4",
         ),
         cls="p-3 border-t bg-gray-50",
+        data_testid=f"pagination-controls-{mode_code}",
     )
 
 
@@ -771,6 +740,13 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
 
     # Calculate pagination
     total_items = len(item_ids)
+
+    # Calculate page-equivalents for all modes (items can be partial pages)
+    if item_ids:
+        total_page_equivalents = sum(get_item_page_portion(item_id) for item_id in item_ids)
+    else:
+        total_page_equivalents = 0
+
     if items_per_page and items_per_page > 0:
         total_pages = math.ceil(total_items / items_per_page)
         page = max(1, min(page, total_pages))  # Clamp page to valid range
@@ -831,7 +807,12 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
     # Render pagination controls
     pagination_controls = None
     if items_per_page and total_pages > 1:
-        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
+        # Show page-equivalents when item count differs from page count (due to split pages)
+        if total_items != int(total_page_equivalents):
+            info_text = f"Page {page} of {total_pages} ({total_items} items, {format_number(total_page_equivalents)} pages)"
+        else:
+            info_text = None
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items, info_text)
 
     table_content = [
         Table(
@@ -963,7 +944,6 @@ MODE_PREDICATES = {
 def make_summary_table(
     mode_code: str,
     auth: str,
-    total_page_count=0,
     table_only=False,
     page=1,
     items_per_page=None,
@@ -992,11 +972,11 @@ def make_summary_table(
     if mode_code == SRS_MODE_CODE:
         exclude_start_page = get_last_added_full_cycle_page(auth)
 
-        # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
+        # Exclude upcoming pages from SRS (pages not yet reviewed in Full Cycle)
+        # Hardcoded to 60 pages (~3 days worth at typical 20 pages/day)
         if exclude_start_page is not None:
-            exclude_end_page = exclude_start_page + (
-                get_full_cycle_daily_limit(auth) * 3
-            )
+            SRS_EXCLUSION_ZONE = 60
+            exclude_end_page = exclude_start_page + SRS_EXCLUSION_ZONE
 
             filtered_records = [
                 record
@@ -1005,21 +985,11 @@ def make_summary_table(
                 or record["page_number"] > exclude_end_page
             ]
 
-        item_ids = get_unique_item_ids(filtered_records)
-
-        # On a daily basis, This will rotate the items to show (first/last) pages, to ensure that the user can focus on all the pages.
-        srs_daily_limit = get_srs_daily_limit(auth)
-        if get_day_from_date(current_date) % 2 == 0:
-            item_ids = item_ids[:srs_daily_limit]
-        else:
-            item_ids = item_ids[-srs_daily_limit:]
-    else:
-        item_ids = get_unique_item_ids(filtered_records)
+    item_ids = get_unique_item_ids(filtered_records)
 
     if mode_code == FULL_CYCLE_MODE_CODE:
         is_plan_finished, item_ids = get_full_review_item_ids(
             auth=auth,
-            total_page_count=total_page_count,
             mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
             item_ids=item_ids,
         )
