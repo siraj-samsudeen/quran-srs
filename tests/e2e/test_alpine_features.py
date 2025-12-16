@@ -301,15 +301,15 @@ def test_pagination_next_and_prev_navigate_correctly(authenticated_page: Page):
     expect(loc["info"]).to_contain_text("Page 1")
 
 
-def test_pagination_prev_disabled_on_first_page(authenticated_page: Page):
-    """Previous button is disabled when on the first page."""
+def test_pagination_prev_hidden_on_first_page(authenticated_page: Page):
+    """Previous button is hidden when on the first page."""
     page = authenticated_page
     loc = get_pagination_locators(page, "FC")
 
     if not loc["controls"].is_visible():
         pytest.skip("Not enough items for pagination")
 
-    expect(loc["prev"]).to_be_disabled()
+    expect(loc["prev"]).not_to_be_visible()
 
 
 def test_srs_pagination_navigation(authenticated_page: Page):
