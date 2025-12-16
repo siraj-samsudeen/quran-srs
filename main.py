@@ -372,6 +372,7 @@ def close_date_confirmation_page(auth):
         yesterday = add_days_to_date(today, -1)
         # Build date-to-label mapping for Alpine.js
         date_labels = f"'{today}': 'Today', '{yesterday}': 'Yesterday'"
+        current_date = hafiz_data.current_date
         skip_section = Div(
             Input(
                 type="checkbox",
@@ -380,7 +381,10 @@ def close_date_confirmation_page(auth):
                 cls="checkbox checkbox-primary",
                 data_testid="skip-to-today-checkbox",
             ),
-            Span(f"Skip {days_elapsed} days to", cls="ml-2"),
+            Span(
+                cls="ml-2",
+                x_text="'Skip ' + daysToSkip + ' days to'",
+            ),
             Span(
                 cls="ml-3 font-semibold text-primary",
                 x_text=f"dateLabels[selectedDate] || new Date(selectedDate).toLocaleDateString('en-US', {{weekday: 'short', month: 'short', day: 'numeric'}})",
@@ -393,10 +397,10 @@ def close_date_confirmation_page(auth):
                 max=today,
                 cls="input input-bordered input-sm w-auto ml-3",
                 data_testid="skip-to-date-input",
-                **{"@change": "selectedDate = $el.value"},
+                **{"@change": "selectedDate = $el.value; daysToSkip = Math.round((new Date($el.value) - new Date(currentDate)) / 86400000)"},
             ),
             cls="flex items-center",
-            x_data=f"{{ selectedDate: '{today}', dateLabels: {{ {date_labels} }} }}",
+            x_data=f"{{ selectedDate: '{today}', currentDate: '{current_date}', daysToSkip: {days_elapsed}, dateLabels: {{ {date_labels} }} }}",
         )
 
     action_buttons = DivLAligned(
