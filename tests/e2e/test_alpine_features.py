@@ -25,39 +25,44 @@ load_dotenv()
 
 # ============================================================================
 # Tab Switching Tests (Alpine.js x-show)
+#
+# MECE Test Coverage:
+# 1. Default state - Full Cycle tab is active on load
+# 2. Click behavior - clicking tab activates it and deactivates others
 # ============================================================================
 
 
 def test_full_cycle_tab_is_active_by_default(authenticated_page: Page):
     """Full Cycle tab is active on page load."""
     fc_tab = authenticated_page.get_by_role("tab", name="Full cycle")
-    expect(fc_tab).to_be_visible()
+    expect(fc_tab).to_have_class(re.compile(r"tab-active"))
     expect(authenticated_page.get_by_role("table").first).to_be_visible()
 
 
-def test_clicking_srs_tab_activates_it(authenticated_page: Page):
-    """Clicking SRS tab applies the active class."""
-    srs_tab = authenticated_page.get_by_role("tab", name="SRS - Variable Reps")
-    srs_tab.click()
-    expect(srs_tab).to_have_class(re.compile(r"tab-active"))
-
-
-def test_switching_tabs_shows_correct_mode_content(authenticated_page: Page):
-    """Tab switching changes active state correctly."""
+def test_clicking_tab_switches_active_state(authenticated_page: Page):
+    """Clicking a tab activates it and deactivates the previous tab."""
     page = authenticated_page
 
     fc_tab = page.get_by_role("tab", name="Full Cycle")
+    srs_tab = page.get_by_role("tab", name="SRS", exact=False)
+
+    # Initial state: FC active
     expect(fc_tab).to_have_class(re.compile(r"tab-active"))
 
-    srs_tab = page.get_by_role("tab", name="SRS", exact=False)
-    if srs_tab.is_visible():
-        srs_tab.click()
-        expect(srs_tab).to_have_class(re.compile(r"tab-active"))
-        expect(fc_tab).not_to_have_class(re.compile(r"tab-active"))
+    # Click SRS: SRS becomes active, FC deactivates
+    srs_tab.click()
+    expect(srs_tab).to_have_class(re.compile(r"tab-active"))
+    expect(fc_tab).not_to_have_class(re.compile(r"tab-active"))
 
 
 # ============================================================================
 # Bulk Selection Tests (Alpine.js @change handlers)
+#
+# MECE Test Coverage:
+# 1. Bar visibility - shows when checkbox selected, hides when all unchecked
+# 2. Count updates - increments/decrements as checkboxes are toggled
+# 3. Select-all - selects all, clicking again deselects all
+# 4. HTMX integration - bar hides after bulk rating is applied
 # ============================================================================
 
 
@@ -65,14 +70,17 @@ def test_bulk_action_bar_shows_when_checkbox_selected(authenticated_page: Page):
     """Bulk action bar appears when checking a checkbox."""
     page = authenticated_page
 
-    bulk_bar = page.locator("text=Selected:").first
+    visible_checkboxes = get_visible_checkboxes(page)
+    if len(visible_checkboxes) == 0:
+        pytest.skip("No unrated items with checkboxes visible")
+
+    bulk_bar = page.locator("text=Selected on this page:").first
     expect(bulk_bar).not_to_be_visible()
 
-    # Note: Using CSS class selector because checkboxes don't have accessible labels
-    page.locator(".bulk-select-checkbox").first.click()
+    visible_checkboxes[0].click()
 
     expect(bulk_bar).to_be_visible()
-    expect(page.locator("text=Selected: 1").first).to_be_visible()
+    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
     expect(page.get_by_role("button", name="Good").first).to_be_visible()
     expect(page.get_by_role("button", name="Ok").first).to_be_visible()
     expect(page.get_by_role("button", name="Bad").first).to_be_visible()
@@ -98,13 +106,13 @@ def test_bulk_action_bar_count_updates_with_multiple_selections(
         visible_checkboxes = get_visible_checkboxes(page)
 
     visible_checkboxes[0].click()
-    expect(page.get_by_text("Selected: 1")).to_be_visible()
+    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
 
     visible_checkboxes[1].click()
-    expect(page.get_by_text("Selected: 2")).to_be_visible()
+    expect(page.get_by_text("Selected on this page: 2")).to_be_visible()
 
     visible_checkboxes[0].click()
-    expect(page.get_by_text("Selected: 1")).to_be_visible()
+    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
 
 
 def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
@@ -115,7 +123,7 @@ def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
     checkbox = page.locator(".bulk-select-checkbox").first
     checkbox.click()
 
-    bulk_bar = page.locator("text=Selected:").first
+    bulk_bar = page.locator("text=Selected on this page:").first
     expect(bulk_bar).to_be_visible()
 
     # Note: Using evaluate() because bulk bar overlay blocks checkbox click
@@ -139,7 +147,7 @@ def test_select_all_checkbox_selects_all_unrated_items(authenticated_page: Page)
     # Note: Using CSS class selector because select-all doesn't have accessible label
     page.locator(".select-all-checkbox").first.click()
 
-    expect(page.get_by_text(f"Selected: {visible_count}")).to_be_visible()
+    expect(page.get_by_text(f"Selected on this page: {visible_count}")).to_be_visible()
 
     # Note: Using CSS class selector because checkboxes don't have accessible labels
     all_checkboxes = page.locator(".bulk-select-checkbox")
@@ -156,7 +164,7 @@ def test_select_all_checkbox_unchecks_all(authenticated_page: Page):
     select_all = page.locator(".select-all-checkbox").first
     select_all.click()
 
-    bulk_bar = page.locator("text=Selected:").first
+    bulk_bar = page.locator("text=Selected on this page:").first
     expect(bulk_bar).to_be_visible()
 
     select_all.click()
@@ -170,7 +178,7 @@ def test_bulk_action_bar_hides_after_rating_applied(authenticated_page: Page):
     # Note: Using CSS class selector because checkboxes don't have accessible labels
     page.locator(".bulk-select-checkbox").first.click()
 
-    bulk_bar = page.locator("text=Selected:").first
+    bulk_bar = page.locator("text=Selected on this page:").first
     expect(bulk_bar).to_be_visible()
 
     page.get_by_role("button", name="Good").first.click()

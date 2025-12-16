@@ -23,8 +23,27 @@ load_dotenv()
 
 
 # ============================================================================
-# Test Functions (What This File Tests)
+# Pages Revised Indicator Tests (HTMX OOB Swaps)
+#
+# MECE Test Coverage:
+# 1. Indicator displays on page load with correct format ("X vs Y arrow")
+# 2. Adding rating via dropdown - indicator count increases
+# 3. Removing rating via dropdown - indicator count decreases
+# 4. Bulk rating items - indicator updates
 # ============================================================================
+
+
+def test_indicator_displays_on_page_load(authenticated_page: Page):
+    """Indicator shows 'today vs yesterday' format on page load."""
+    page = authenticated_page
+
+    indicator = page.locator("#pages-revised-indicator")
+    expect(indicator).to_be_visible()
+
+    # Verify format: should contain "vs" and an arrow indicator
+    text = indicator.inner_text()
+    assert " vs " in text, f"Expected 'X vs Y' format, got: {text}"
+    assert any(arrow in text for arrow in ["↑", "↓", "="]), f"Expected arrow indicator, got: {text}"
 
 
 def test_indicator_updates_when_adding_rating_via_dropdown(
@@ -33,20 +52,18 @@ def test_indicator_updates_when_adding_rating_via_dropdown(
     """Indicator updates immediately when rating is added via dropdown."""
     page = authenticated_page
 
-    # Get initial indicator value
-    indicator = page.locator("#pages-revised-indicator")
-    initial_text = indicator.inner_text()
+    # Get initial "today" count from indicator (format: "X vs Y arrow")
+    initial_today = int(page.locator("[data-testid='pages-today']").inner_text())
 
-    # Find first unrated item and add a rating
-    first_dropdown = page.locator("select.select-sm").first
-    first_dropdown.select_option("1")  # Select "Good"
+    # Find an unrated dropdown (one with "-" selected) and add a rating
+    unrated_dropdown = page.locator("select.select-sm:has(option[value='None']:checked)").first
+    if not unrated_dropdown.is_visible():
+        pytest.skip("No unrated items available")
 
-    # Wait for HTMX to complete
-    page.wait_for_timeout(500)
+    unrated_dropdown.select_option("1")  # Select "Good"
 
-    # Verify indicator updated (should show increase)
-    updated_text = indicator.inner_text()
-    assert updated_text != initial_text, "Indicator should update after adding rating"
+    # Verify indicator updated (today count should increase by 1)
+    expect(page.locator("[data-testid='pages-today']")).to_contain_text(str(initial_today + 1))
 
 
 def test_indicator_updates_when_removing_rating_via_dropdown(
@@ -85,16 +102,16 @@ def test_indicator_updates_when_bulk_rating_items(
     indicator = page.locator("#pages-revised-indicator")
     initial_text = indicator.inner_text()
 
-    # Select multiple checkboxes
-    checkboxes = page.locator(".bulk-select-checkbox").all()
-    if len(checkboxes) < 2:
+    # Select multiple visible checkboxes
+    visible_checkboxes = get_visible_checkboxes(page)
+    if len(visible_checkboxes) < 2:
         pytest.skip("Need at least 2 unrated items for bulk test")
 
-    checkboxes[0].check()
-    checkboxes[1].check()
+    visible_checkboxes[0].check()
+    visible_checkboxes[1].check()
 
     # Click bulk "Good" button
-    page.get_by_role("button", name="✅ Good").click()
+    page.get_by_role("button", name="Good").click()
     page.wait_for_timeout(500)
 
     # Verify indicator updated
@@ -105,6 +122,16 @@ def test_indicator_updates_when_bulk_rating_items(
 # ============================================================================
 # Helper Functions (Implementation Details)
 # ============================================================================
+
+
+def get_visible_checkboxes(page: Page):
+    """Get list of checkboxes that are currently visible (active tab only)."""
+    all_checkboxes = page.locator(".bulk-select-checkbox")
+    visible = []
+    for i in range(all_checkboxes.count()):
+        if all_checkboxes.nth(i).is_visible():
+            visible.append(all_checkboxes.nth(i))
+    return visible
 
 
 def login_and_select_hafiz(page: Page, base_url: str):
