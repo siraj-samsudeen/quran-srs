@@ -359,7 +359,41 @@ def update_hafiz_item_for_full_cycle(rev):
 
 @app.get("/close_date")
 def close_date_confirmation_page(auth):
+    hafiz_data = hafizs[auth]
+    today = current_time()
+    days_elapsed = day_diff(hafiz_data.current_date, today)
+
     header = render_current_date(auth)
+
+    # Show skip-to-today checkbox when more than 1 day has elapsed
+    skip_checkbox = None
+    if days_elapsed > 1:
+        skip_checkbox = Div(
+            Div(
+                P(
+                    f"⚠️ {days_elapsed} days have passed since your last close date.",
+                    cls="text-warning font-semibold",
+                ),
+                P(
+                    "Check the box below to skip directly to today, or leave unchecked to advance one day at a time.",
+                    cls="text-sm text-base-content/70",
+                ),
+                cls="space-y-1",
+            ),
+            Label(
+                Input(
+                    type="checkbox",
+                    name="skip_to_today",
+                    value="true",
+                    cls="checkbox checkbox-primary mr-2",
+                    data_testid="skip-to-today-checkbox",
+                ),
+                f"Bring forward to today ({today})",
+                cls="flex items-center cursor-pointer mt-2",
+            ),
+            cls="p-4 bg-warning/10 border border-warning/30 rounded-lg",
+        )
+
     action_buttons = DivLAligned(
         Button(
             "Confirm",
@@ -367,6 +401,7 @@ def close_date_confirmation_page(auth):
             hx_target="body",
             hx_push_url="true",
             hx_disabled_elt="this",
+            hx_include="[name='skip_to_today']",
             cls=(ButtonT.primary, "p-2"),
             data_testid="confirm-close-btn",
         ),
@@ -376,22 +411,28 @@ def close_date_confirmation_page(auth):
             cls=(ButtonT.default, "p-2"),
         ),
     )
+
+    content = [header, create_stat_table(auth)]
+    if skip_checkbox:
+        content.append(skip_checkbox)
+    content.append(action_buttons)
+
     return main_area(
-        Div(header, create_stat_table(auth), action_buttons, cls="space-y-4"),
+        Div(*content, cls="space-y-4"),
         active="Home",
         auth=auth,
     )
 
 
 @app.post("/close_date")
-def change_the_current_date(auth):
+def change_the_current_date(auth, skip_to_today: str = None):
     hafiz_data = hafizs[auth]
 
-    # Check if many days have elapsed - if so, skip directly to today
+    # Check if many days have elapsed and user chose to skip to today
     today = current_time()
     days_elapsed = day_diff(hafiz_data.current_date, today)
 
-    if days_elapsed > 1:
+    if days_elapsed > 1 and skip_to_today == "true":
         # Skip directly to today instead of processing each day
         hafiz_data.current_date = today
         hafizs.update(hafiz_data)
