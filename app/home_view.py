@@ -74,6 +74,7 @@ def render_pages_revised_indicator(auth):
         Span(" vs ", cls="text-gray-500 text-sm"),
         Span(f"{yesterday}", data_testid="pages-yesterday", cls="font-semibold"),
         Span(f" {arrow}", cls=f"{color} font-bold ml-1", data_testid="pages-indicator"),
+        id="pages-revised-indicator",
         cls="text-sm whitespace-nowrap",
     )
 

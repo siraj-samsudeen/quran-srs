@@ -590,8 +590,8 @@ def update_status_from_index(
     item = items[int(item_id)]
     current_date = get_current_date(auth)
 
-    # Return the updated row
-    return render_range_row(
+    # Return the updated row AND the updated indicator (out-of-band swap)
+    updated_row = render_range_row(
         {
             "item": item,
             "revision": revision,
@@ -601,9 +601,16 @@ def update_status_from_index(
         plan_id,
     )
 
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = render_pages_revised_indicator(auth)
+    updated_indicator.attrs["hx_swap_oob"] = "true"
+
+    return updated_row, updated_indicator
+
 
 @app.put("/edit/{rev_id}")
 def update_revision_rating(
+    auth,
     rev_id: int,
     date: str,
     mode_code: str,
@@ -619,13 +626,19 @@ def update_revision_rating(
     if rating == "None":
         revisions.delete(rev_id)
         record["revision"] = None
-        return render_range_row(
+        updated_row = render_range_row(
             records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
         )
     else:
         revision = revisions.update({"rating": int(rating)}, rev_id)
         record["revision"] = revision
-        return render_range_row(records=record)
+        updated_row = render_range_row(records=record)
+
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = render_pages_revised_indicator(auth)
+    updated_indicator.attrs["hx_swap_oob"] = "true"
+
+    return updated_row, updated_indicator
 
 
 @app.post("/bulk_rate")
@@ -664,7 +677,7 @@ def bulk_rate(
     # Get current page from session
     current_page = sess.get("pagination", {}).get(mode_code, 1)
 
-    return make_summary_table(
+    updated_table = make_summary_table(
         mode_code=mode_code,
         auth=auth,
         total_page_count=page_limit if mode_code == FULL_CYCLE_MODE_CODE else 0,
@@ -672,6 +685,12 @@ def bulk_rate(
         page=current_page,
         items_per_page=ITEMS_PER_PAGE if mode_code == FULL_CYCLE_MODE_CODE else None,
     )
+
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = render_pages_revised_indicator(auth)
+    updated_indicator.attrs["hx_swap_oob"] = "true"
+
+    return updated_table, updated_indicator
 
 
 serve()
