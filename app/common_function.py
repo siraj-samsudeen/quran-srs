@@ -3,7 +3,21 @@ import fasthtml.common as fh
 from monsterui.all import *
 from utils import *
 from collections import defaultdict
-from globals import *
+from constants import *
+from database import (
+    db,
+    hafizs,
+    hafizs_items,
+    items,
+    modes,
+    pages,
+    plans,
+    revisions,
+    surahs,
+    users,
+    Hafiz_Items,
+    Revision,
+)
 import math
 
 
@@ -22,7 +36,7 @@ def user_auth(req, sess):
 
 user_bware = Beforeware(
     user_auth,
-    skip=["/users/login", "/users/logout"],  # "/users/signup" disabled for private beta
+    skip=["/users/login", "/users/logout", "/users/signup"],
 )
 
 
@@ -36,7 +50,7 @@ def hafiz_auth(req, sess):
             del sess["auth"]
             hafiz_id = None
     if not hafiz_id:
-        return RedirectResponse("/users/hafiz_selection", status_code=303)
+        return RedirectResponse("/hafiz/selection", status_code=303)
 
     revisions.xtra(hafiz_id=hafiz_id)
     hafizs_items.xtra(hafiz_id=hafiz_id)
@@ -48,10 +62,11 @@ hafiz_bware = Beforeware(
     skip=[
         "/users/login",
         "/users/logout",
-        # "/users/signup",  # disabled for private beta
-        r"/users/\d+$",  # for deleting the user
-        "/users/hafiz_selection",
-        "/users/add_hafiz",
+        "/users/signup",
+        r"/users/delete/\d+$",
+        "/users/account",  # User-level settings, no hafiz required
+        "/hafiz/selection",
+        "/hafiz/add",
     ],
 )
 
@@ -104,7 +119,7 @@ def main_area(*args, active=None, auth=None):
     title = A("Quran SRS", href="/")
     hafiz_name = A(
         f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
-        href="/users/hafiz_selection",
+        href="/hafiz/selection",
         method="GET",
     )
 
@@ -258,21 +273,6 @@ def get_current_date(auth) -> str:
     return current_date
 
 
-def get_daily_capacity(auth):
-    current_hafiz = hafizs[auth]
-    return current_hafiz.daily_capacity
-
-
-def get_srs_daily_limit(auth):
-    # 50% percentage of daily capacity
-    return math.ceil(get_daily_capacity(auth) * 0.5)
-
-
-def get_full_cycle_daily_limit(auth):
-    # 100% percentage of daily capacity
-    return get_daily_capacity(auth)
-
-
 def get_last_added_full_cycle_page(auth):
     current_date = get_current_date(auth)
     last_full_cycle_record = db.q(
@@ -343,12 +343,12 @@ def populate_hafizs_items_stat_columns(item_id: int = None):
         hafizs_items.update(get_item_id_summary(h_item.item_id), h_item.id)
 
 
-def get_hafizs_items(item_id):
+def get_hafizs_items(item_id) -> Hafiz_Items | None:
+    """Get hafiz_items record for the given item_id, or None if not found."""
     current_hafiz_items = hafizs_items(where=f"item_id = {item_id}")
     if current_hafiz_items:
         return current_hafiz_items[0]
-    else:
-        return ValueError(f"No hafizs_items found for item_id {item_id}")
+    return None
 
 
 def get_mode_count(item_id, mode_code):
@@ -358,6 +358,8 @@ def get_mode_count(item_id, mode_code):
 
 def get_actual_interval(item_id):
     hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
     current_date = get_current_date(hafiz_items_details.hafiz_id)
 
     last_review = hafiz_items_details.last_review
@@ -367,7 +369,10 @@ def get_actual_interval(item_id):
 
 
 def get_planned_next_interval(item_id):
-    return get_hafizs_items(item_id).next_interval
+    hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
+    return hafiz_items_details.next_interval
 
 
 def add_revision_record(**kwargs):
@@ -439,7 +444,8 @@ def get_mode_name(mode_code: str):
 
 
 def get_last_item_id():
-    return items(where="active = 1", order_by="id DESC")[0].id
+    result = items(where="active = 1", order_by="id DESC")
+    return result[0].id if result else 0
 
 
 def get_juz_name(page_id=None, item_id=None):
@@ -456,10 +462,6 @@ def get_mode_name_and_code():
     mode_code_list = [mode.code for mode in all_modes]
     mode_name_list = [mode.name for mode in all_modes]
     return mode_code_list, mode_name_list
-
-
-def delete_hafiz(hafiz_id: int):
-    hafizs.delete(hafiz_id)
 
 
 def get_current_plan_id():
@@ -499,33 +501,10 @@ def get_page_count(records: list[Revision] = None, item_ids: list = None) -> flo
     return format_number(total_count)
 
 
-def get_full_review_item_ids(
-    auth, total_page_count, mode_specific_hafizs_items_records, item_ids
-):
+def get_full_review_item_ids(auth, mode_specific_hafizs_items_records, item_ids):
+    """Get all eligible Full Cycle items (not yet revised in current plan + revised today)."""
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
-
-    def get_next_item_range_from_item_id(
-        eligible_item_ids, start_item_id, total_page_count
-    ):
-        """Get items from a list starting from a specific number."""
-        try:
-            start_index = eligible_item_ids.index(start_item_id)
-            item_ids_to_process = eligible_item_ids[start_index:]
-        except ValueError:
-            item_ids_to_process = eligible_item_ids
-
-        final_item_ids = []
-        current_page_count = 0
-        for item_id in item_ids_to_process:
-            if current_page_count >= total_page_count:
-                break
-            current_page_count += get_item_page_portion(item_id)
-            final_item_ids.append(item_id)
-
-        is_plan_finished = len(eligible_item_ids) == len(final_item_ids)
-
-        return is_plan_finished, final_item_ids
 
     if plan_id is not None:
         # Filter out items that have been revised in the current plan (but not today)
@@ -537,19 +516,11 @@ def get_full_review_item_ids(
         revised_items_in_plan_set = {r.item_id for r in revised_items_in_plan}
         eligible_item_ids = [i for i in item_ids if i not in revised_items_in_plan_set]
 
-        last_added_item_id = (
-            revised_items_in_plan[0].item_id if revised_items_in_plan else 0
-        )
-
-        # Find the next item to start the review from
-        next_item_id = find_next_greater(eligible_item_ids, last_added_item_id)
+        # Check if plan is finished (no more items to review)
+        is_plan_finished = len(eligible_item_ids) == 0
     else:
         eligible_item_ids = []
-        next_item_id = 0
-
-    is_plan_finished, next_item_ids = get_next_item_range_from_item_id(
-        eligible_item_ids, next_item_id, total_page_count
-    )
+        is_plan_finished = False
 
     # Get all item_ids revised today in full_cycle mode
     today_full_cycle_revisions = {
@@ -559,16 +530,16 @@ def get_full_review_item_ids(
         )
     }
 
-    # Get items that have been revised today in full_cycle mode, but are not in the session_item_ids
+    # Get items that have been revised today in full_cycle mode, but are not in eligible_item_ids
     today_revisioned_items = [
         item["item_id"]
         for item in mode_specific_hafizs_items_records
         if item["item_id"] in today_full_cycle_revisions
-        and item["item_id"] not in next_item_ids
+        and item["item_id"] not in eligible_item_ids
     ]
 
     # Combine and sort the item_ids
-    final_item_ids = sorted(list(set(next_item_ids + today_revisioned_items)))
+    final_item_ids = sorted(list(set(eligible_item_ids + today_revisioned_items)))
     return is_plan_finished, final_item_ids
 
 
@@ -692,8 +663,58 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
+def render_pagination_controls(mode_code, current_page, total_pages, total_items, info_text=None):
+    """Render pagination controls for navigating between pages."""
+    is_first_page = current_page <= 1
+    is_last_page = current_page >= total_pages
+
+    # Compute bounded page values to avoid out-of-range requests
+    prev_page = max(1, current_page - 1)
+    next_page = min(total_pages, current_page + 1)
+
+    prev_button = Button(
+        "👈",
+        hx_get=f"/page/{mode_code}?page={prev_page}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        data_testid=f"pagination-prev-{mode_code}",
+    ) if not is_first_page else Span()
+
+    next_button = Button(
+        "👉",
+        hx_get=f"/page/{mode_code}?page={next_page}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        data_testid=f"pagination-next-{mode_code}",
+    ) if not is_last_page else Span()
+
+    # Use custom info_text if provided, otherwise default format
+    default_info = f"Page {current_page} of {total_pages} ({total_items} items)"
+    page_info = Span(
+        info_text or default_info,
+        cls="text-sm font-medium",
+        data_testid=f"pagination-info-{mode_code}",
+    )
+
+    return Div(
+        Div(
+            prev_button,
+            page_info,
+            next_button,
+            cls="flex justify-between items-center gap-4",
+        ),
+        cls="p-3 border-t bg-gray-50",
+        data_testid=f"pagination-controls-{mode_code}",
+    )
+
+
 def render_bulk_action_bar(mode_code, current_date, plan_id):
-    """Render a sticky bulk action bar for applying ratings to selected items."""
+    """Render a sticky bulk action bar for applying ratings to selected items.
+
+    Note: Bulk selection is page-local - selections reset when navigating pages or applying filters.
+    """
     plan_id_val = plan_id or ""
 
     def bulk_button(rating_value, label, btn_cls):
@@ -711,7 +732,8 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
 
     return Div(
         Div(
-            Span("Selected: ", cls="font-medium"),
+            # Label clarifies that selection scope is limited to current page
+            Span("Selected on this page: ", cls="font-medium"),
             Span(x_text="count", cls="font-bold"),
             cls="text-sm",
         ),
@@ -743,22 +765,44 @@ def render_surah_header(surah_id, juz_number):
     )
 
 
-def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
+    # Calculate pagination
+    total_items = len(item_ids)
+
+    # Calculate page-equivalents for all modes (items can be partial pages)
+    if item_ids:
+        total_page_equivalents = sum(get_item_page_portion(item_id) for item_id in item_ids)
+    else:
+        total_page_equivalents = 0
+
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))  # Clamp page to valid range
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = item_ids
+        total_pages = 1
+
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
-    today_revisions = revisions(
-        where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
-    )
+    if paginated_item_ids:
+        today_revisions = revisions(
+            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, paginated_item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
+        )
+    else:
+        today_revisions = []
     # Create lookup dictionary: item_id -> rating
     revisions_lookup = {rev.item_id: rev for rev in today_revisions}
 
     # Query all items data once
     items_with_revisions = [
         {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
-        for item_id in item_ids
+        for item_id in paginated_item_ids
     ]
 
     # Group items by surah and render with headers
@@ -782,8 +826,17 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
             render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive)
         )
         prev_page_id = item.page_id
+    # Show empty-state message when no items on current page (keeps table structure intact)
     if not body_rows:
-        return (mode_code, None)
+        body_rows = [
+            Tr(
+                Td(
+                    "No pages to review on this page.",
+                    colspan=4,  # spans checkbox, page, start text, rating columns
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
 
     if is_plan_finished:
         body_rows.append(
@@ -802,7 +855,17 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
 
     bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
 
-    table = Div(
+    # Render pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        # Show page-equivalents when item count differs from page count (due to split pages)
+        if total_items != int(total_page_equivalents):
+            info_text = f"Page {page} of {total_pages} ({total_items} items, {format_number(total_page_equivalents)} pages)"
+        else:
+            info_text = None
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items, info_text)
+
+    table_content = [
         Table(
             Thead(
                 Tr(
@@ -825,55 +888,118 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished):
             hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
             hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         ),
-        bulk_bar,
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
         id=f"summary_table_{mode_code}",
         x_data="{ count: 0 }",
     )
     return (mode_code, table)
 
 
+# === Mode Filter Predicates ===
+# Named predicates for filtering items per mode, extracted for testability
+
+
+def _is_review_due(item: dict, current_date: str) -> bool:
+    """Check if item is due for review today or overdue."""
+    return day_diff(item["next_review"], current_date) >= 0
+
+
+def _is_reviewed_today(item: dict, current_date: str) -> bool:
+    """Check if item was reviewed today."""
+    return item["last_review"] == current_date
+
+
+def _has_memorized(item: dict) -> bool:
+    """Check if item is marked as memorized."""
+    return item["memorized"]
+
+
+def _has_revisions_in_mode(item: dict) -> bool:
+    """Check if item has any revisions in its current mode."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'"))
+
+
+def _has_revisions_today_in_mode(item: dict, current_date: str) -> bool:
+    """Check if item has revisions in its current mode today."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{current_date}'"
+        )
+    )
+
+
+def _was_newly_memorized_today(item: dict, current_date: str) -> bool:
+    """Check if item was newly memorized today (has NM revision today)."""
+    item_id = item["item_id"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+        )
+    )
+
+
+def should_include_in_daily_reps(item: dict, current_date: str) -> bool:
+    """Predicate for Daily Reps mode: due for review OR reviewed today (unless just memorized)."""
+    is_due = _is_review_due(item, current_date) and not _was_newly_memorized_today(
+        item, current_date
+    )
+    reviewed_in_mode = (
+        _is_reviewed_today(item, current_date)
+        and item["mode_code"] == DAILY_REPS_MODE_CODE
+    )
+    return is_due or reviewed_in_mode
+
+
+def should_include_in_weekly_reps(item: dict, current_date: str) -> bool:
+    """Predicate for Weekly Reps mode: must be in WR mode AND (due OR reviewed today with history)."""
+    if item["mode_code"] != WEEKLY_REPS_MODE_CODE:
+        return False
+    return _is_review_due(item, current_date) or (
+        _is_reviewed_today(item, current_date) and _has_revisions_in_mode(item)
+    )
+
+
+def should_include_in_srs(item: dict, current_date: str) -> bool:
+    """Predicate for SRS mode: due for review OR has revisions today."""
+    return _is_review_due(item, current_date) or _has_revisions_today_in_mode(
+        item, current_date
+    )
+
+
+def should_include_in_full_cycle(item: dict, current_date: str) -> bool:
+    """Predicate for Full Cycle mode: item must be memorized."""
+    return _has_memorized(item)
+
+
+# Mode to predicate mapping
+MODE_PREDICATES = {
+    DAILY_REPS_MODE_CODE: should_include_in_daily_reps,
+    WEEKLY_REPS_MODE_CODE: should_include_in_weekly_reps,
+    SRS_MODE_CODE: should_include_in_srs,
+    FULL_CYCLE_MODE_CODE: should_include_in_full_cycle,
+}
+
+
 def make_summary_table(
     mode_code: str,
     auth: str,
-    total_page_count=0,
     table_only=False,
+    page=1,
+    items_per_page=None,
 ):
     current_date = get_current_date(auth)
-
-    def is_review_due(item: dict) -> bool:
-        """Check if item is due for review today or overdue."""
-        return day_diff(item["next_review"], current_date) >= 0
-
-    def is_reviewed_today(item: dict) -> bool:
-        return item["last_review"] == current_date
-
-    def has_mode_code(item: dict, mode_code: str) -> bool:
-        return item["mode_code"] == mode_code
-
-    def has_memorized(item: dict) -> bool:
-        return item["memorized"]
-
-    def has_revisions(item: dict) -> bool:
-        """Check if item has revisions for current mode."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}'"
-            )
-        )
-
-    def has_revisions_today(item: dict) -> bool:
-        """Check if item has revisions for current mode today."""
-        return bool(
-            revisions(
-                where=f"item_id = {item['item_id']} AND mode_code = '{item['mode_code']}' AND revision_date = '{current_date}'"
-            )
-        )
-
-    def has_newly_memorized_for_today(item: dict) -> bool:
-        newly_memorized_record = revisions(
-            where=f"item_id = {item['item_id']} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
-        )
-        return len(newly_memorized_record) == 1
 
     qry = f"""
         SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
@@ -883,24 +1009,12 @@ def make_summary_table(
     """
     mode_specific_hafizs_items_records = db.q(qry)
 
-    # Route-specific condition builders
-    route_conditions = {
-        DAILY_REPS_MODE_CODE: lambda item: (
-            (is_review_due(item) and not has_newly_memorized_for_today(item))
-            or (is_reviewed_today(item) and has_mode_code(item, DAILY_REPS_MODE_CODE))
-        ),
-        WEEKLY_REPS_MODE_CODE: lambda item: (
-            has_mode_code(item, WEEKLY_REPS_MODE_CODE)
-            and (
-                is_review_due(item) or (is_reviewed_today(item) and has_revisions(item))
-            )
-        ),
-        SRS_MODE_CODE: lambda item: (is_review_due(item) or has_revisions_today(item)),
-        FULL_CYCLE_MODE_CODE: lambda item: has_memorized(item),
-    }
-
+    # Filter using named predicates
+    predicate = MODE_PREDICATES[mode_code]
     filtered_records = [
-        i for i in mode_specific_hafizs_items_records if route_conditions[mode_code](i)
+        item
+        for item in mode_specific_hafizs_items_records
+        if predicate(item, current_date)
     ]
 
     def get_unique_item_ids(records):
@@ -909,11 +1023,11 @@ def make_summary_table(
     if mode_code == SRS_MODE_CODE:
         exclude_start_page = get_last_added_full_cycle_page(auth)
 
-        # Exclude 3 days worth of pages from SRS (upcoming pages not yet reviewed)
+        # Exclude upcoming pages from SRS (pages not yet reviewed in Full Cycle)
+        # Hardcoded to 60 pages (~3 days worth at typical 20 pages/day)
         if exclude_start_page is not None:
-            exclude_end_page = exclude_start_page + (
-                get_full_cycle_daily_limit(auth) * 3
-            )
+            SRS_EXCLUSION_ZONE = 60
+            exclude_end_page = exclude_start_page + SRS_EXCLUSION_ZONE
 
             filtered_records = [
                 record
@@ -922,21 +1036,11 @@ def make_summary_table(
                 or record["page_number"] > exclude_end_page
             ]
 
-        item_ids = get_unique_item_ids(filtered_records)
-
-        # On a daily basis, This will rotate the items to show (first/last) pages, to ensure that the user can focus on all the pages.
-        srs_daily_limit = get_srs_daily_limit(auth)
-        if get_day_from_date(current_date) % 2 == 0:
-            item_ids = item_ids[:srs_daily_limit]
-        else:
-            item_ids = item_ids[-srs_daily_limit:]
-    else:
-        item_ids = get_unique_item_ids(filtered_records)
+    item_ids = get_unique_item_ids(filtered_records)
 
     if mode_code == FULL_CYCLE_MODE_CODE:
         is_plan_finished, item_ids = get_full_review_item_ids(
             auth=auth,
-            total_page_count=total_page_count,
             mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
             item_ids=item_ids,
         )
@@ -948,6 +1052,8 @@ def make_summary_table(
         mode_code=mode_code,
         item_ids=item_ids,
         is_plan_finished=is_plan_finished,
+        page=page,
+        items_per_page=items_per_page,
     )
     if table_only:
         return result[1]  # Just the table element for HTMX swap

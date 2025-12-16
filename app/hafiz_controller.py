@@ -2,10 +2,66 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from app.common_function import *
-from globals import *
+from app.hafiz_model import get_hafizs_for_user, populate_hafiz_items, create_new_plan, reset_table_filters
+from app.hafiz_view import render_hafiz_card, render_add_hafiz_form, render_hafiz_selection_page
+from database import *
 
 
 hafiz_app, rt = create_app_with_auth()
+
+
+# ============================================================================
+# HAFIZ SELECTION & MANAGEMENT
+# ============================================================================
+
+@rt("/selection")
+def get(sess):
+    """Display hafiz selection page with all user's hafizs"""
+    reset_table_filters()
+    auth = sess.get("auth", None)
+    user_auth = sess.get("user_auth", None)
+    if user_auth is None:
+        return Redirect("/users/login")
+
+    user_hafizs = get_hafizs_for_user(user_auth)
+    cards = [render_hafiz_card(h, auth) for h in user_hafizs]
+    hafiz_form = render_add_hafiz_form()
+
+    return render_hafiz_selection_page(cards, hafiz_form)
+
+
+@rt("/selection")
+def post(current_hafiz_id: int, sess):
+    """Select a hafiz (sets active hafiz in session)"""
+    sess["auth"] = current_hafiz_id
+    return RedirectResponse("/", status_code=303)
+
+
+@rt("/add")
+def post(hafiz: Hafiz, sess):
+    """Create new hafiz profile with initial data"""
+    hafiz.user_id = sess["user_auth"]
+    new_hafiz = hafizs.insert(hafiz)
+    hafiz_id = new_hafiz.id
+    populate_hafiz_items(hafiz_id)
+    create_new_plan(hafiz_id)
+    return RedirectResponse("/hafiz/selection", status_code=303)
+
+
+@rt("/delete/{hafiz_id}")
+def delete(hafiz_id: int, sess):
+    """Delete hafiz profile and all related data"""
+    hafiz = hafizs[hafiz_id]
+    if hafiz.user_id != sess["user_auth"]:
+        return RedirectResponse("/hafiz/selection", status_code=303)
+
+    hafizs.delete(hafiz_id)
+    return RedirectResponse("/hafiz/selection", status_code=303)
+
+
+# ============================================================================
+# HAFIZ SETTINGS
+# ============================================================================
 
 
 @hafiz_app.get("/update_stats_column")
@@ -36,7 +92,6 @@ def settings_page(auth):
 
     form = Form(
         render_field("Name", "text"),
-        render_field("Daily Capacity", "number", False),
         render_field("Current Date", "date"),
         DivFullySpaced(
             DivLAligned(

@@ -10,7 +10,12 @@ Key concepts:
 - Rating affects next interval: Bad→shorter, Ok→same, Good→longer
 """
 
-from globals import *
+from constants import *
+from database import (
+    db,
+    hafizs_items,
+    revisions,
+)
 from utils import *
 from fasthtml.common import *
 from monsterui.all import *
@@ -117,6 +122,8 @@ def start_srs(item_id: int, auth: int, rating: int) -> None:
 def get_actual_interval(item_id: int) -> int | None:
     """Return days since last review (may differ from planned if reviewed early/late)."""
     hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
     current_date = get_current_date(hafiz_items_details.hafiz_id)
 
     last_review = hafiz_items_details.last_review
@@ -132,7 +139,10 @@ def apply_rating_penalty(actual_interval: int, rating: int) -> int:
 
 
 def get_planned_next_interval(item_id: int) -> int | None:
-    return get_hafizs_items(item_id).next_interval
+    hafiz_items_details = get_hafizs_items(item_id)
+    if hafiz_items_details is None:
+        return None
+    return hafiz_items_details.next_interval
 
 
 def get_next_interval_based_on_rating(current_interval: int, rating: int) -> int:
@@ -169,6 +179,8 @@ def get_next_interval(item_id: int, rating: int) -> int | None:
 def update_hafiz_item_for_srs(rev) -> None:
     """Process SRS revision: schedule next review or graduate to Full Cycle if interval > 99."""
     hafiz_items_details = get_hafizs_items(rev.item_id)
+    if hafiz_items_details is None:
+        return  # Skip if no hafiz_items record exists
     current_date = get_current_date(rev.hafiz_id)
     next_interval = get_next_interval(item_id=rev.item_id, rating=rev.rating)
 

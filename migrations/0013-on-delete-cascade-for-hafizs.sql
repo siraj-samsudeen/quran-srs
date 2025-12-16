@@ -1,6 +1,7 @@
 -- Revisions
 PRAGMA foreign_keys = 0;
 
+DROP TABLE IF EXISTS sqlitestudio_temp_table;
 CREATE TABLE sqlitestudio_temp_table AS SELECT *
                                           FROM revisions;
 
@@ -53,6 +54,7 @@ PRAGMA foreign_keys = 1;
 -- Hafizs_items
 PRAGMA foreign_keys = 0;
 
+DROP TABLE IF EXISTS sqlitestudio_temp_table;
 CREATE TABLE sqlitestudio_temp_table AS SELECT *
                                           FROM hafizs_items;
 
@@ -135,6 +137,7 @@ PRAGMA foreign_keys = 1;
 -- Hafizs_users
 PRAGMA foreign_keys = 0;
 
+DROP TABLE IF EXISTS sqlitestudio_temp_table;
 CREATE TABLE sqlitestudio_temp_table AS SELECT *
                                           FROM hafizs_users;
 
@@ -172,6 +175,7 @@ PRAGMA foreign_keys = 1;
 -- Plans
 PRAGMA foreign_keys = 0;
 
+DROP TABLE IF EXISTS sqlitestudio_temp_table;
 CREATE TABLE sqlitestudio_temp_table AS SELECT *
                                           FROM plans;
 

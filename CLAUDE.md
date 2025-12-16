@@ -16,108 +16,416 @@ Quran SRS is a sophisticated Spaced Repetition System designed to help with Qura
 - Removed unused SRS recalculation logic from Close Date processing
 
 **Testing**:
-- Python Playwright tests in `tests/` directory for E2E testing with code coverage
-- Goal: Minimal E2E test suite (6-8 tests) with pytest-cov integration
-- Approach: E2E-first, add integration tests only if coverage gaps exist
+- **Strategy**: Test pyramid approach (Unit → Integration → E2E)
+- **See**: `docs/testing-approach.md` for comprehensive testing guide
+- **Test Types**:
+  - Unit tests (`tests/backend/`) - Pure Python, business logic
+  - Integration tests (`tests/integration/`) - TestClient for routes/HTMX
+  - E2E tests (`tests/e2e/`) - Playwright for critical journeys only
+
+## Code Organization - TOC Ordering
+
+This codebase follows **DHH's "Table of Contents" ordering** - files are organized to read like a story from top to bottom. The most important information appears first, with implementation details below.
+
+### Controller Files (`*_controller.py`)
+
+**Purpose:** Define HTTP routes and handle user requests
+
+**Ordering:**
+```python
+# 1. CONSTANTS & CONFIGURATION
+#    - Redirect targets, app setup
+
+# 2. ROUTE HANDLERS (grouped by feature/resource)
+#    - Authentication (login, logout)
+#    - Registration (signup)
+#    - Account management (view, update, delete)
+#    - Resource-specific operations
+#
+#    Within each group: GET → POST → DELETE
+
+# 3. PRIVATE HELPERS (if any)
+#    - Supporting functions used by routes
+```
+
+**Example:** `app/users_controller.py`
+- Constants & Configuration
+- Authentication (login, logout)
+- Registration (signup)
+- Account Management (view, update, delete)
+- Hafiz Management (selection, create, delete)
+
+### Model Files (`*_model.py`)
+
+**Purpose:** Database operations and business logic
+
+**Ordering:**
+```python
+# 1. DATACLASSES & TYPES
+#    - Type definitions, dataclasses
+
+# 2. CRUD OPERATIONS (grouped by domain)
+#    - Create, Read, Update, Delete operations
+#    - Query helpers (get_by_email, get_by_id, etc.)
+#
+#    Order: Primary resource → Related resources
+
+# 3. UTILITIES & HELPERS
+#    - Initialization functions
+#    - Data transformation utilities
+```
+
+**Example:** `app/users_model.py`
+- Dataclasses & Types (Login, User)
+- User Operations (create, get, update, delete)
+- Hafiz Operations (create, get, delete)
+- Initialization Utilities (populate_hafiz_items, create_new_plan)
+
+### View Files (`*_view.py`)
+
+**Purpose:** UI components and form rendering
+
+**Ordering:**
+```python
+# 1. HIGH-LEVEL VIEWS (what users see first)
+#    - Authentication views (login, signup)
+#
+# 2. MID-LEVEL VIEWS (main features)
+#    - Account management views
+#    - Resource management views
+#
+# 3. LOW-LEVEL COMPONENTS (building blocks)
+#    - Form components
+#    - Card components
+#    - Layout utilities
+```
+
+**Example:** `app/users_view.py`
+- Authentication Views (login, signup forms)
+- Account Management Views (profile form)
+- Hafiz Management Views (hafiz card, add form, selection page)
+
+### Test Files (`test_*.py`)
+
+**Purpose:** Verify functionality through automated testing
+
+**Ordering:**
+```python
+# 1. TEST FUNCTIONS (what this file tests)
+#    - Grouped by feature/scenario
+#    - Most critical tests first
+#
+# 2. HELPER FUNCTIONS (implementation details)
+#    - Setup helpers (login_user, create_hafiz, etc.)
+#    - Assertion helpers
+#
+# 3. FIXTURES (test setup)
+#    - Module-scoped fixtures
+#    - Function-scoped fixtures
+```
+
+**Example:** `tests/e2e/test_alpine_features.py`
+- Tab Switching Tests (Alpine.js x-show)
+- Bulk Selection Tests (Alpine.js @change handlers)
+- Helper Functions (login_and_select_hafiz, get_visible_checkboxes)
+- Fixtures (authenticated_page)
+
+**Example:** `tests/integration/user_test.py`
+- Signup Tests
+- Login Tests
+- Logout Tests
+- Account Page Tests
+- Account Update Tests
+- User Deletion Tests
+
+### Why This Organization?
+
+**Readability:** Files tell a story - high-level → mid-level → low-level
+**Reviewability:** Most important code appears first, making PR reviews faster
+**Maintainability:** Clear sections make it easy to find and update code
+**Consistency:** Same pattern across all modules reduces cognitive load
+
+**Philosophy:** "Classes should read like a story. The most important stuff belongs at the top."
+
+---
+
+## Model Files & Code Organization Principles
+
+### Domain Separation (Critical!)
+
+**Hafiz-related functionality belongs ONLY in hafiz files:**
+- `app/hafiz_model.py` - Hafiz database operations
+- `app/hafiz_view.py` - Hafiz UI components
+- `app/hafiz_controller.py` - Hafiz routes (if separated)
+
+**User-related functionality belongs ONLY in user files:**
+- `app/users_model.py` - User database operations
+- `app/users_view.py` - User UI components
+- `app/users_controller.py` - User routes
+
+**`app/common_function.py` is for truly shared utilities ONLY:**
+- ❌ NO hafiz-specific functions
+- ❌ NO user-specific functions
+- ✅ YES cross-cutting concerns (authentication, rendering helpers, shared utilities)
+
+### Explicit Dataclass Definitions
+
+Each model file must explicitly define its dataclass, even though `database.py` auto-generates them:
+
+```python
+# app/users_model.py
+from dataclasses import dataclass
+from database import *
+
+@dataclass
+class User:
+    id: int | None
+    name: str | None
+    email: str | None
+    password: str | None
+```
+
+**For dataclasses used in forms** (FastHTML route parameters), add default values:
+```python
+@dataclass
+class Hafiz:
+    id: int | None = None
+    name: str | None = None
+    user_id: int | None = None
+    current_date: str | None = None  # Virtual date for this hafiz (stored as string for SQLite compatibility)
+```
+
+**Why:**
+- Makes schema visible without checking database
+- Type hints work in IDEs
+- Test can verify consistency (`tests/unit/test_dataclass_consistency.py`)
+- Default values allow partial initialization for forms
+
+### Wrapper Function Policy
+
+**Only create wrapper functions if they:**
+1. **Significantly improve readability** by hiding complex syntax
+2. **Encapsulate multiple steps** that would be replicated
+
+**Remove all wrappers that add no value:**
+```python
+# ❌ Bad - no readability improvement
+def insert_user(user: User):
+    return users.insert(user)
+
+def get_hafiz_by_id(hafiz_id: int):
+    return hafizs[hafiz_id]
+
+# ✅ Good - call database directly
+new_user = users.insert(email=email, password=password, name=name)
+hafiz = hafizs[hafiz_id]
+```
+
+**Keep wrappers that hide query complexity:**
+```python
+# ✅ Good - significantly more readable
+def get_hafizs_for_user(user_id: int):
+    return hafizs(where=f"user_id={user_id}")
+
+# Production code:
+user_hafizs = get_hafizs_for_user(user_auth)
+
+# Test code can use direct calls for explicitness:
+user_hafizs = hafizs(where=f"user_id={user_id}")
+```
+
+**Keep wrappers with multi-step logic:**
+```python
+# ✅ Good - encapsulates try/except that would be replicated
+def get_user_by_email(email: str):
+    try:
+        return users(where=f"email = '{email}'")[0]
+    except IndexError:
+        return None
+```
+
+### Redundant Docstrings
+
+Remove docstrings that just repeat the function name:
+```python
+# ❌ Bad - redundant
+def get_user_by_email(email: str):
+    """Get user by email address"""
+    ...
+
+# ✅ Good - no docstring, name is self-explanatory
+def get_user_by_email(email: str):
+    try:
+        return users(where=f"email = '{email}'")[0]
+    except IndexError:
+        return None
+```
+
+Keep docstrings that add value:
+```python
+# ✅ Good - explains cascade behavior
+def delete_user(user_id: int):
+    """Delete user record (cascade deletes hafizs and related data)"""
+    users.delete(user_id)
+```
+
+---
 
 ## Development Commands
 
 ### Python Environment
-- **Run the application**: `uv run main.py` (uses uv, NOT `python main.py`)
-- **Run in test mode**: `ENV=test uv run main.py` (uses test database)
+- **Run the application**: `uv run main.py`
 - **Install dependencies**: `uv sync`
 - **Add new dependency**: `uv add <package-name>`
-- **Run tests**: `uv run pytest tests/e2e -v` (Playwright E2E tests)
-- **Run with coverage**: `uv run pytest tests/e2e --cov --cov-report=html`
+- **Run tests**: `uv run pytest -v` (runs all tests)
+- **Run with coverage**: `uv run pytest --cov --cov-report=html`
 - **Base URL**: `http://localhost:5001` (configurable via BASE_URL env var)
 
-### Environment Configuration
+### Database Configuration
 
-The application uses an `ENV` environment variable to determine which database to use:
+The application uses `data/quran_v10.db` for development and testing.
 
-| ENV Value | Database Path | Use Case |
-|-----------|---------------|----------|
-| `test` | `data/quran_test.db` | E2E tests (isolated from dev data) |
-| `dev` (default) | `data/quran_v10.db` | Local development |
-| `prod` | `data/quran_v10.db` | Production (future: separate path) |
-
-**Setup test database (one-time)**:
+**Get latest production data**:
 ```bash
-cp data_backup/quran_v10.db data/quran_test.db
+python scripts/download_prod_backup.py  # Download from prod
+python scripts/init_from_backup.py      # Initialize dev database
 ```
+
+See `scripts/README.md` for complete backup/restore workflows.
 
 ### Testing Strategy
 
-**Phoenix LiveView-Inspired Architecture**:
-Our testing follows Phoenix's two-layer approach with strict separation of concerns:
+**Test Pyramid Approach**:
+Our testing follows a strict separation between feature testing (fast) and journey testing (comprehensive):
 
-**1. UI Tests** (`tests/ui/`) - Browser-based tests with Playwright
-- **Purpose**: Test complete user workflows through the browser
-- **Framework**: Playwright Python with pytest
+**1. Unit Tests** (`tests/unit/`) - Pure Python logic
+- **Purpose**: Test pure functions, calculations, algorithms
+- **Framework**: Pure Python with pytest (no browser, no HTTP)
+- **Running tests**: `uv run pytest tests/unit -v`
+- **Speed**: ~10ms per test
+- **Example**: SRS interval calculations, date utilities
+
+**2. Integration Tests** (`tests/integration/`) - Feature-level testing with TestClient
+- **Purpose**: Test individual FEATURES for code coverage (signup, login, create hafiz, etc.)
+- **Framework**: FastHTML TestClient (HTTP requests, no browser)
+- **Running tests**: `uv run pytest tests/integration -v`
+- **Speed**: ~50ms per test
+- **Key Rules**:
+  - ✅ **Setup**: Seed test data via DB
+  - ✅ **Action**: HTTP requests via TestClient
+  - ✅ **Assert**: Verify HTTP response (status, redirects, content)
+  - ⚡ **Fast**: 40-60x faster than Playwright
+
+**3. E2E Tests** (`tests/e2e/`) - User journey testing with Playwright
+- **Purpose**: Test complete USER JOURNEYS ONLY (not individual features)
+- **Framework**: Playwright Python with pytest (browser-based)
 - **Running tests**:
   ```bash
-  # Terminal 1: Start app in test mode
-  ENV=test uv run main.py
+  # Terminal 1: Start app (uses dev database)
+  uv run main.py
 
-  # Terminal 2: Run UI tests
-  uv run pytest tests/ui -v
+  # Terminal 2: Run E2E tests
+  uv run pytest tests/e2e -v
   ```
-- **Key Rules (Phoenix-style)**:
+- **Speed**: ~2-3s per test
+- **Key Rules**:
   - ✅ **Setup**: Can seed test data via DB (arrange phase)
   - ✅ **Action**: Interact through browser only
   - ✅ **Assert**: Verify UI elements ONLY (no DB assertions)
-  - ❌ **Never**: Assert on database state directly
+  - ❌ **Never**: Test individual features (use integration tests instead)
+  - ⚠️ **Expensive**: Only for critical end-to-end user journeys
 
-**2. Backend Tests** (`tests/backend/`) - Business logic tests
-- **Purpose**: Test business logic, algorithms, and data transformations
-- **Framework**: Pure Python with pytest (no browser)
-- **Running tests**:
-  ```bash
-  uv run pytest tests/backend -v
-  ```
-- **Key Rules**:
-  - ✅ **Setup**: Seed test data via DB
-  - ✅ **Action**: Call functions/methods directly
-  - ✅ **Assert**: Verify database state and return values
-  - ⚡ **Fast**: No browser overhead
+**Critical Distinction:**
+- ❌ **DON'T** write Playwright tests for individual features (signup, login, create hafiz)
+- ✅ **DO** write Playwright tests for complete user journeys (signup → login → create hafiz → first cycle → plan completion)
+- ✅ **DO** write integration tests (TestClient) for individual features
+
+**Test Writing Guidelines:**
+- **No obvious comments**: Remove comments that just restate what the code does (e.g., `# User logs in` before `login_user()`)
+- **Extract helpers**: Each helper function should represent one user action with a descriptive name
+- **One step = one line**: Journey tests should read like a story (3-5 lines for the whole flow)
+- **Semantic selectors**: Use `get_by_role`, `get_by_label`, `get_by_text` - document exceptions with inline comments
+- **Document exceptions only**: If you must use CSS/name selectors, add a comment explaining why
+
+**Unit Test Philosophy (Don't Be Pedantic):**
+- **Don't test Python's standard library**: Trust that `datetime`, `itertools`, etc. work correctly
+- **Simple wrappers need minimal tests**: One sanity test is enough for functions that just wrap standard library (e.g., `flatten_list` wrapping `itertools.chain`)
+- **Test your logic, not frameworks**: Focus on custom algorithms, edge cases, and error handling
+- **Examples of what NOT to test**:
+  - ❌ Testing that `datetime.strptime()` correctly parses different day values (01, 15, 31)
+  - ❌ Testing that `timedelta` addition works across months/years
+  - ❌ Testing multiple input variations when function just calls a standard library function
+- **Examples of what TO test**:
+  - ✅ Custom algorithms (compact_format, find_next_greater, find_gaps)
+  - ✅ Edge cases in YOUR code (None/empty string handling)
+  - ✅ Error handling (try/except blocks, validation)
+  - ✅ Business logic specific to your application
+- **Test organization**: Use test classes to group related tests (e.g., `class TestCompactFormat:`) - provides clean logical grouping without comment noise
+- **DRY in tests**: Extract helper functions when duplication emerges, use descriptive names
 
 **Run all tests**: `uv run pytest -v`
 
-#### UI Test Example (Phoenix-style)
+#### Integration Test Example (Feature-level with TestClient)
 
 ```python
-def test_user_can_login(page, db_connection):
-    # Arrange: Seed data via DB (setup is allowed)
-    seed_user(db_connection, "test@example.com", "password123")
+def test_user_can_login(client):
+    # Arrange: Seed test user
+    seed_user("test@example.com", "password123")
 
-    # Act: Interact through browser
-    page.goto("/users/login")
-    page.fill("input[name='email']", "test@example.com")
-    page.fill("input[name='password']", "password123")
-    page.click("button[type='submit']")
+    # Act: POST to login endpoint
+    response = client.post("/users/login", data={
+        "email": "test@example.com",
+        "password": "password123"
+    }, follow_redirects=False)
 
-    # Assert: Verify UI ONLY (no DB assertions!)
-    expect(page).to_have_url("/users/hafiz_selection")
-    expect(page.locator("text=Hafiz Selection")).to_be_visible()
+    # Assert: Verify redirect (no browser needed!)
+    assert response.status_code in (302, 303)
+    assert response.headers["location"] == "/users/hafiz_selection"
 ```
 
-#### Backend Test Example
+#### E2E Test Example (Complete User Journey)
 
 ```python
-def test_dr_to_wr_progression(db_connection):
-    # Arrange: Seed data
-    hafiz_id = create_test_hafiz(db_connection, "Test Hafiz")
-    seed_item_in_mode(db_connection, hafiz_id, item_id=1, mode="DR")
-    seed_revisions(db_connection, hafiz_id, item_id=1, count=6)
+def test_journey_first_full_cycle(page):
+    # Complete user journey: signup → login → create hafiz → mark pages → first cycle
 
-    # Act: Call business logic directly
-    from app.fixed_reps import update_rep_item
-    update_rep_item(hafiz_id, item_id=1, mode_code="DR")
+    # Phase 1: Signup
+    page.goto("/users/signup")
+    page.fill("[name='email']", "test@example.com")
+    page.fill("[name='password']", "password123")
+    page.click("button[type='submit']")
 
-    # Assert: Verify database state
-    item = get_hafizs_item(db_connection, hafiz_id, item_id=1)
-    assert item['mode_code'] == 'WR'
-    assert item['next_interval'] == 7
+    # Phase 2: Login
+    page.goto("/users/login")
+    page.fill("[name='email']", "test@example.com")
+    page.fill("[name='password']", "password123")
+    page.click("button[type='submit']")
+
+    # Phase 3: Create hafiz
+    page.fill("[name='name']", "Test Hafiz")
+    page.click("button:has-text('Add Hafiz')")
+
+    # Phase 4-6: Mark pages, complete cycle, etc.
+    # ... (full journey continues)
+
+    # Assert: Journey completed successfully
+    expect(page.get_by_text("Plan completed")).to_be_visible()
+```
+
+#### Unit Test Example (Pure Logic)
+
+```python
+def test_srs_interval_calculation():
+    # Arrange
+    base_interval = 7
+    good_streak = 2
+
+    # Act
+    from app.srs_interval_calc import calculate_good_interval
+    result = calculate_good_interval(base=base_interval, good_streak=good_streak)
+
+    # Assert: Pure calculation, no DB/HTTP
+    assert result == 11  # 7 + (2 × 2)
 ```
 
 #### TDD Workflow (Red-Green-Refactor)
@@ -207,11 +515,11 @@ git branch -d test-create-hafiz              # Clean up feature branch
 
 2. **Waiting for HTMX Updates**:
    ```python
-   # Playwright auto-waits for elements
-   expect(page.locator("text=Success")).to_be_visible()
+   # Use expect() which auto-waits - no manual timeouts needed
+   expect(loc["info"]).to_contain_text("Page 2")
 
-   # Or explicit wait for HTMX processing
-   page.wait_for_timeout(1000)  # 1 second
+   # ❌ Avoid manual timeouts
+   page.wait_for_timeout(500)  # Flaky and slow
    ```
 
 3. **Newly Created Resources**:
@@ -235,6 +543,34 @@ git branch -d test-create-hafiz              # Clean up feature branch
 - Tests should be self-contained: create → use → delete
 - Rely on database CASCADE DELETE for related records
 - Unique naming prevents interference between test runs
+
+**MECE Test Design:**
+Tests should be Mutually Exclusive and Collectively Exhaustive:
+- Each test covers ONE distinct behavior
+- Together, tests cover all behaviors of the feature
+- Example for pagination:
+  ```
+  # 1. Pagination info displays when there are enough items
+  # 2. Navigation works - next/prev change pages correctly
+  # 3. First page - prev button is disabled
+  ```
+
+**E2E Test Anti-Patterns:**
+- ❌ Don't test implementation details (e.g., checking specific text format like "(X items, Y pages)")
+- ❌ Don't compare row content between navigations - data can change
+- ❌ Don't iterate through all pages to reach the last page - too slow
+- ❌ Don't hardcode test IDs per mode - use helper functions with parameters:
+  ```python
+  # ✅ Good - parameterized helper
+  def get_pagination_locators(page: Page, mode_code: str):
+      return {
+          "controls": page.locator(f"[data-testid='pagination-controls-{mode_code}']"),
+          "next": page.locator(f"[data-testid='pagination-next-{mode_code}']"),
+      }
+
+  # ❌ Bad - hardcoded per mode
+  page.locator("[data-testid='pagination-next-FC']")
+  ```
 
 ### Database
 - **Path**: SQLite database at `data/quran_v10.db`
@@ -328,7 +664,7 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
 
 **Key UI Components** (`app/users_view.py`):
 - `render_hafiz_card(hafiz, auth)`: Conditional rendering based on `is_current_hafiz`
-- `render_add_hafiz_form()`: Minimalist form (name + daily_capacity only)
+- `render_add_hafiz_form()`: Minimalist form (name only)
 - `render_hafiz_selection_page(cards, hafiz_form)`: Grid layout with flexbox wrapping
 
 ### Database Schema Key Points
@@ -340,8 +676,8 @@ This allows one account (parent/teacher) to manage multiple hafiz profiles (chil
 - `hafizs`: Hafiz profiles (one-to-many with users)
   - `name`: Hafiz name
   - `user_id`: Foreign key to users (ON DELETE CASCADE)
-  - `daily_capacity`: Number of pages for daily revision
   - `current_date`: Virtual date for this hafiz (allows independent timelines)
+  - **Note**: `daily_capacity` was removed in migration 0022. Full Cycle mode now shows all unreviewed items with pagination.
 
 - `items`: Quran content broken into items (full pages or page parts)
   - `page_id`: Page number (1-604)

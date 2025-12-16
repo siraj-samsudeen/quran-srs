@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 # Load .env file
 load_dotenv()
 
+# No ENV setting - all tests use dev database with master data
+# Integration tests will clean up test users, E2E tests use TEST_USER
+
 
 @pytest.fixture(scope="session")
 def base_url():

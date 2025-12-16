@@ -4,7 +4,7 @@ from io import BytesIO
 import pandas as pd
 from utils import *
 from app.common_function import *
-from globals import *
+from database import *
 
 
 tables = db.t
@@ -102,23 +102,13 @@ def download_backup(file: str):
 @admin_app.get("/backup")
 def backup_active_db():
     """Create backup with WAL flush to ensure all data is included"""
-    db_path = get_database_path()
-    if not os.path.exists(db_path):
-        return Titled("Error", P("Database file not found"))
-
-    # First flush WAL to ensure all data is in main DB
     try:
-        import sqlite3
-
-        conn = sqlite3.connect(db_path)
-        conn.execute("PRAGMA wal_checkpoint(FULL);")
-        conn.close()
+        backup_path = backup_database("data/backup")
+        return FileResponse(backup_path, filename="quran_backup.db")
+    except FileNotFoundError as e:
+        return Titled("Error", P("Database file not found"))
     except Exception as e:
-        return Titled("❌ Error", P(f"Error flushing WAL: {e}"))
-
-    # Then create backup
-    backup_path = backup_sqlite_db(db_path, "data/backup")
-    return FileResponse(backup_path, filename="quran_backup.db")
+        return Titled("❌ Error", P(f"Error creating backup: {e}"))
 
 
 @admin_app.get("/tables")
@@ -404,7 +394,7 @@ async def import_specific_table_preview(table: str, file: UploadFile):
 
 @admin_app.post("/tables/{table}/import")
 async def import_specific_table(table: str, file: UploadFile):
-    backup_sqlite_db(get_database_path(), "data/backup")
+    backup_database("data/backup")
     # Instead of using the `import_file` method, we are using `upsert` method to import the csv file
     # as some of the forign key values are being used in another table
     # so we cannot truncate the table

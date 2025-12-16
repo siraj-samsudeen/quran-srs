@@ -2,8 +2,9 @@ from fasthtml.common import *
 from monsterui.all import *
 from utils import *
 from datetime import datetime
+from constants import *
 from app.common_function import *
-from globals import *
+from database import *
 
 NEW_MEMORIZATION_RATING = 1
 
@@ -12,6 +13,8 @@ new_memorization_app, rt = create_app_with_auth()
 
 def update_hafiz_item_for_new_memorization(rev):
     hafiz_item_details = get_hafizs_items(rev.item_id)
+    if hafiz_item_details is None:
+        return  # Skip if no hafiz_items record exists
     hafiz_item_details.mode_code = DAILY_REPS_MODE_CODE
     hafiz_item_details.memorized = True
     hafizs_items.update(hafiz_item_details)

@@ -15,7 +15,7 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] User is asked to create a hafiz profile and creates one
 - [ ] User marks memorized pages in his profile
 - [ ] User is taken to hafiz settings page
-- [ ] User views and updates "daily capacity" (number of pages to review per day)
+- [ ] User views and updates settings on hafiz settings page
 - [ ] User is taken to page with explanation of different revision modes
 - [ ] User is asked to start a full cycle for the pages he has memorized
 - [ ] User is taken to the home page where full cycle pages for current day is displayed
@@ -48,7 +48,7 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] User can switch between hafiz profiles
 - [ ] User can delete non-current hafiz with confirmation
 - [ ] Hafiz settings page displays current preferences
-- [ ] User can update hafiz settings (name, daily capacity, current date)
+- [ ] User can update hafiz settings (name, current date)
 - [ ] User can access theme picker from settings
 
 ### Profile View (Mark Memorized Pages)
@@ -63,8 +63,7 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 
 ### Full Cycle Mode
 - [ ] FC items appear in Full Cycle table
-- [ ] FC table respects daily_capacity limit
-- [ ] FC table auto-expands when limit reached
+- [ ] FC table shows all unreviewed items with pagination (daily_capacity removed in migration 0022)
 - [ ] FC calculates last_interval on Close Date
 - [ ] FC tracks plan_id for each revision
 - [ ] FC completes plan when cycle finishes
@@ -189,3 +188,14 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 - [ ] User can import table from CSV (with preview)
 - [ ] Import preview shows data before committing
 - [ ] Import validates and displays errors
+
+---
+
+## Future Improvements
+
+### Testing Infrastructure
+- [ ] Implement module-scoped database fixtures for integration tests (per `docs/testing-approach.md` lines 596-643)
+  - Current: Simple session-scoped `test_user` with manual cleanup
+  - Recommended: Module-scoped DB creation + function-scoped table truncation
+  - Benefit: ~10ms per test (vs current approach), guaranteed test isolation
+  - When: Add when integration test count exceeds 10+ tests per module

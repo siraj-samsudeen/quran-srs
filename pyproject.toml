@@ -10,7 +10,6 @@ dependencies = [
     "monsterui==1.0.19",
     "numpy==2.2.3",
     "pandas==2.2.3",
-    "pytest>=8.4.2",
     "python-fasthtml==0.12.1",
 ]
 [tool.pytest.ini_options]
