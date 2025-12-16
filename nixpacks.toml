@@ -7,4 +7,4 @@ cmds = ["curl -LsSf https://astral.sh/uv/install.sh | sh"]
 cmds = [". $HOME/.local/bin/env && uv sync --no-dev"]
 
 [start]
-cmd = ". $HOME/.local/bin/env && uv run python main.py"
+cmd = ".venv/bin/python main.py"
