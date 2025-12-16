@@ -566,7 +566,7 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False):
     """Render a single table row for an item in the summary table.
 
     Args:
@@ -574,6 +574,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
         current_date: Current date for the hafiz
         mode_code: Mode code
         plan_id: Plan ID (optional, for full cycle)
+        hide_start_text: If True, hide start text (for consecutive pages)
     """
     item_id = records["item"].id
     rating = records["revision"].rating if records["revision"] else None
@@ -619,9 +620,23 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None):
 
     return Tr(
         checkbox_cell,
-        Td(get_page_description(item_id)),
         Td(
-            records["item"].start_text or "-",
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
+        Td(
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(records["item"].start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if hide_start_text
+            else Span(records["item"].start_text or "-"),
             cls="text-lg",
         ),
         Td(
@@ -736,6 +751,20 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
     )
 
 
+def render_surah_header(surah_id, juz_number):
+    """Render a surah section header row with surah name and juz indicator."""
+    surah_name = surahs[surah_id].name
+    return Tr(
+        Td(
+            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
+            colspan=4,
+            cls="bg-base-200 py-1 px-2",
+        ),
+        cls="surah-header",
+    )
+
+
 def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
@@ -776,16 +805,27 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
         for item_id in paginated_item_ids
     ]
 
-    # Render rows
-    body_rows = [
-        render_range_row(
-            records,
-            current_date,
-            mode_code,
-            plan_id,
+    # Group items by surah and render with headers
+    # Track consecutive pages to hide start text for recall practice
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+    for records in items_with_revisions:
+        item = records["item"]
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            # Reset consecutive tracking on surah change
+            prev_page_id = None
+        # Check if this is a consecutive page (hide start text for recall)
+        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+        # Add the item row
+        body_rows.append(
+            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive)
         )
-        for records in items_with_revisions
-    ]
+        prev_page_id = item.page_id
     # Show empty-state message when no items on current page (keeps table structure intact)
     if not body_rows:
         body_rows = [
@@ -837,9 +877,9 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
                         ),
                         cls="w-8 text-center",
                     ),
-                    Th("Page", cls="min-w-24"),
-                    Th("Start Text", cls="min-w-24"),
-                    Th("Rating", cls="min-w-16"),
+                    Th("Pg", cls="w-12 text-center"),
+                    Th("Start Text"),
+                    Th("Rating", cls="w-20"),
                 )
             ),
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
