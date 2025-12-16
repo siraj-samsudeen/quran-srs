@@ -269,21 +269,27 @@ def create_stat_table(auth):
     )
     mode_codes = [mode.code for mode in modes()]
 
-    def render_count(mode_code, revision_date):
-        count, item_ids = get_revision_data(mode_code, revision_date)
-
+    def render_count(count, item_ids):
         if count == 0:
             return "-"
-
         return create_count_link(count, item_ids)
 
     def render_stat_rows(current_mode_code):
+        today_count, today_ids = get_revision_data(current_mode_code, today)
+        yesterday_count, yesterday_ids = get_revision_data(current_mode_code, yesterday)
+
+        # Skip modes with no revisions on either day
+        if today_count == 0 and yesterday_count == 0:
+            return None
+
         return Tr(
             Td(get_mode_name(current_mode_code)),
-            Td(render_count(current_mode_code, today)),
-            Td(render_count(current_mode_code, yesterday)),
+            Td(render_count(today_count, today_ids)),
+            Td(render_count(yesterday_count, yesterday_ids)),
             id=f"stat-row-{current_mode_code}",
         )
+
+    rows = [row for row in map(render_stat_rows, mode_codes) if row is not None]
 
     return Table(
         Thead(
@@ -293,9 +299,7 @@ def create_stat_table(auth):
                 Th("Yesterday"),
             )
         ),
-        Tbody(
-            *map(render_stat_rows, mode_codes),
-        ),
+        Tbody(*rows),
         Tfoot(
             Tr(
                 Td("Total"),
