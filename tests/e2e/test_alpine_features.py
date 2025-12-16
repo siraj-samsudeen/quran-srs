@@ -66,24 +66,16 @@ def test_clicking_tab_switches_active_state(authenticated_page: Page):
 # ============================================================================
 
 
-def test_bulk_action_bar_shows_when_checkbox_selected(authenticated_page: Page):
-    """Bulk action bar appears when checking a checkbox."""
+def test_bulk_action_bar_is_always_visible(authenticated_page: Page):
+    """Bulk action bar is always visible with Select All and rating buttons."""
     page = authenticated_page
 
-    visible_checkboxes = get_visible_checkboxes(page)
-    if len(visible_checkboxes) == 0:
-        pytest.skip("No unrated items with checkboxes visible")
-
-    bulk_bar = page.locator("text=Selected on this page:").first
-    expect(bulk_bar).not_to_be_visible()
-
-    visible_checkboxes[0].click()
-
-    expect(bulk_bar).to_be_visible()
-    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
-    expect(page.get_by_role("button", name="Good").first).to_be_visible()
-    expect(page.get_by_role("button", name="Ok").first).to_be_visible()
-    expect(page.get_by_role("button", name="Bad").first).to_be_visible()
+    # Bulk bar for FC tab is always visible
+    bulk_bar = page.locator("#bulk-bar-FC")
+    expect(bulk_bar.get_by_text("Select All")).to_be_visible()
+    expect(bulk_bar.get_by_role("button", name="Good")).to_be_visible()
+    expect(bulk_bar.get_by_role("button", name="Ok")).to_be_visible()
+    expect(bulk_bar.get_by_role("button", name="Bad")).to_be_visible()
 
 
 def test_bulk_action_bar_count_updates_with_multiple_selections(
@@ -105,28 +97,30 @@ def test_bulk_action_bar_count_updates_with_multiple_selections(
         expect(page.get_by_text("System Date")).to_be_visible()
         visible_checkboxes = get_visible_checkboxes(page)
 
+    # Count in bulk bar shows number of selected items (bold text after separator)
+    bulk_bar = page.locator("#bulk-bar-FC")
+
     visible_checkboxes[0].click()
-    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("1")
 
     visible_checkboxes[1].click()
-    expect(page.get_by_text("Selected on this page: 2")).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("2")
 
     visible_checkboxes[0].click()
-    expect(page.get_by_text("Selected on this page: 1")).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("1")
 
 
-def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
-    """Bulk action bar disappears when all checkboxes are unchecked."""
+def test_bulk_action_bar_count_resets_when_all_unchecked(authenticated_page: Page):
+    """Count resets to 0 when all checkboxes are unchecked."""
     page = authenticated_page
 
-    # Note: Using CSS class selector because checkboxes don't have accessible labels
+    bulk_bar = page.locator("#bulk-bar-FC")
     checkbox = page.locator(".bulk-select-checkbox").first
     checkbox.click()
 
-    bulk_bar = page.locator("text=Selected on this page:").first
-    expect(bulk_bar).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("1")
 
-    # Note: Using evaluate() because bulk bar overlay blocks checkbox click
+    # Uncheck via JavaScript to avoid bulk bar overlay blocking click
     page.evaluate(
         """
         const cb = document.querySelector('.bulk-select-checkbox:checked');
@@ -135,21 +129,23 @@ def test_bulk_action_bar_hides_when_all_unchecked(authenticated_page: Page):
     """
     )
 
-    expect(bulk_bar).not_to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("0")
 
 
 def test_select_all_checkbox_selects_all_unrated_items(authenticated_page: Page):
-    """Select-all checkbox checks all visible checkboxes."""
+    """Select-all checkbox in bulk bar checks all visible checkboxes."""
     page = authenticated_page
 
     visible_count = len(get_visible_checkboxes(page))
+    bulk_bar = page.locator("#bulk-bar-FC")
 
-    # Note: Using CSS class selector because select-all doesn't have accessible label
-    page.locator(".select-all-checkbox").first.click()
+    # Click the select-all checkbox in the bulk bar
+    bulk_bar.get_by_role("checkbox").click()
 
-    expect(page.get_by_text(f"Selected on this page: {visible_count}")).to_be_visible()
+    # Count should match total visible checkboxes
+    expect(bulk_bar.locator(".font-bold")).to_have_text(str(visible_count))
 
-    # Note: Using CSS class selector because checkboxes don't have accessible labels
+    # All checkboxes should be checked
     all_checkboxes = page.locator(".bulk-select-checkbox")
     for i in range(all_checkboxes.count()):
         if all_checkboxes.nth(i).is_visible():
@@ -157,34 +153,35 @@ def test_select_all_checkbox_selects_all_unrated_items(authenticated_page: Page)
 
 
 def test_select_all_checkbox_unchecks_all(authenticated_page: Page):
-    """Clicking select-all again unchecks all checkboxes."""
+    """Clicking select-all checkbox again unchecks all checkboxes."""
     page = authenticated_page
 
-    # Note: Using CSS class selector because select-all doesn't have accessible label
-    select_all = page.locator(".select-all-checkbox").first
+    bulk_bar = page.locator("#bulk-bar-FC")
+    select_all = bulk_bar.get_by_role("checkbox")
+
+    # Select all
     select_all.click()
+    expect(bulk_bar.get_by_text("Clear All")).to_be_visible()
 
-    bulk_bar = page.locator("text=Selected on this page:").first
-    expect(bulk_bar).to_be_visible()
-
+    # Unselect all
     select_all.click()
-    expect(bulk_bar).not_to_be_visible()
+    expect(bulk_bar.get_by_text("Select All")).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("0")
 
 
-def test_bulk_action_bar_hides_after_rating_applied(authenticated_page: Page):
-    """Bulk action bar disappears after rating is applied via HTMX."""
+def test_bulk_action_bar_resets_after_rating_applied(authenticated_page: Page):
+    """Count resets to 0 after bulk rating is applied via HTMX."""
     page = authenticated_page
 
-    # Note: Using CSS class selector because checkboxes don't have accessible labels
+    bulk_bar = page.locator("#bulk-bar-FC")
     page.locator(".bulk-select-checkbox").first.click()
 
-    bulk_bar = page.locator("text=Selected on this page:").first
-    expect(bulk_bar).to_be_visible()
+    expect(bulk_bar.locator(".font-bold")).to_have_text("1")
 
     page.get_by_role("button", name="Good").first.click()
 
-    page.wait_for_timeout(500)
-    expect(bulk_bar).not_to_be_visible()
+    # After HTMX swap, count should reset to 0
+    expect(bulk_bar.locator(".font-bold")).to_have_text("0")
 
 
 # ============================================================================
