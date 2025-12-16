@@ -650,32 +650,30 @@ def get_mode_condition(mode_code: str):
 
 def render_pagination_controls(mode_code, current_page, total_pages, total_items, info_text=None):
     """Render pagination controls for navigating between pages."""
-    prev_disabled = current_page <= 1
-    next_disabled = current_page >= total_pages
+    is_first_page = current_page <= 1
+    is_last_page = current_page >= total_pages
 
     # Compute bounded page values to avoid out-of-range requests
     prev_page = max(1, current_page - 1)
     next_page = min(total_pages, current_page + 1)
 
     prev_button = Button(
-        "← Previous",
+        "👈",
         hx_get=f"/page/{mode_code}?page={prev_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
         cls=(ButtonT.secondary, "px-4 py-2"),
-        disabled=prev_disabled,
         data_testid=f"pagination-prev-{mode_code}",
-    )
+    ) if not is_first_page else Span()
 
     next_button = Button(
-        "Next →",
+        "👉",
         hx_get=f"/page/{mode_code}?page={next_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
         cls=(ButtonT.secondary, "px-4 py-2"),
-        disabled=next_disabled,
         data_testid=f"pagination-next-{mode_code}",
-    )
+    ) if not is_last_page else Span()
 
     # Use custom info_text if provided, otherwise default format
     default_info = f"Page {current_page} of {total_pages} ({total_items} items)"
