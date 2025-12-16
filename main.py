@@ -88,6 +88,8 @@ def index(auth, sess):
         SRS_MODE_CODE: "🧠",
         DAILY_REPS_MODE_CODE: "☀️",
         WEEKLY_REPS_MODE_CODE: "📅",
+        FORTNIGHTLY_REPS_MODE_CODE: "📆",
+        MONTHLY_REPS_MODE_CODE: "🗓️",
     }
 
     # Short names for mobile display
@@ -96,6 +98,8 @@ def index(auth, sess):
         SRS_MODE_CODE: "SRS",
         DAILY_REPS_MODE_CODE: "Daily",
         WEEKLY_REPS_MODE_CODE: "Weekly",
+        FORTNIGHTLY_REPS_MODE_CODE: "Fortnight",
+        MONTHLY_REPS_MODE_CODE: "Monthly",
     }
 
     def make_tab_button(mode_code):

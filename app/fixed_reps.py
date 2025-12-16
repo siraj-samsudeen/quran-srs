@@ -9,8 +9,18 @@ REP_MODES_CONFIG = {
     WEEKLY_REPS_MODE_CODE: {
         "interval": 7,
         "threshold": 7,
+        "next_mode_code": FORTNIGHTLY_REPS_MODE_CODE,
+    },  # Weekly -> Fortnightly
+    FORTNIGHTLY_REPS_MODE_CODE: {
+        "interval": 14,
+        "threshold": 7,
+        "next_mode_code": MONTHLY_REPS_MODE_CODE,
+    },  # Fortnightly -> Monthly
+    MONTHLY_REPS_MODE_CODE: {
+        "interval": 30,
+        "threshold": 7,
         "next_mode_code": FULL_CYCLE_MODE_CODE,
-    },  # Weekly -> Full Cycle
+    },  # Monthly -> Full Cycle
 }
 
 
