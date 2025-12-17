@@ -242,8 +242,8 @@ def show_tabulator_page(auth, status_filter: str = None):
 
             var table = new Tabulator("#profile-table", {{
                 ajaxURL: "{api_url}",
-                layout: "fitColumns",
-                responsiveLayout: "collapse",
+                layout: "fitDataStretch",
+                responsiveLayout: "hide",
                 pagination: true,
                 paginationSize: 25,
                 paginationSizeSelector: [10, 25, 50, 100],
@@ -261,29 +261,36 @@ def show_tabulator_page(auth, status_filter: str = None):
                         width: 40,
                         hozAlign: "center",
                         headerHozAlign: "center",
-                        cssClass: "tabulator-row-selection"
+                        cssClass: "tabulator-row-selection",
+                        responsive: 0
                     }},
-                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 80,
+                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 70,
+                     responsive: 0,
                      formatter: function(cell) {{
                         return "<strong>" + cell.getValue() + "</strong>";
                     }}}},
-                    {{title: "Juz", field: "juz", sorter: "number", headerFilter: "number", width: 70}},
-                    {{title: "Surah", field: "surah", sorter: "string", headerFilter: "input"}},
+                    {{title: "Juz", field: "juz", sorter: "number", headerFilter: "number", width: 60,
+                     responsive: 3}},
+                    {{title: "Surah", field: "surah", sorter: "string", headerFilter: "input", minWidth: 100,
+                     responsive: 2}},
                     {{title: "Status", field: "status", sorter: "string", headerFilter: "list",
                      headerFilterParams: {{values: ["Not Memorized", "Learning", "Reps", "Solid", "Struggling"]}},
+                     minWidth: 120, responsive: 0,
                      formatter: function(cell) {{
                         var data = cell.getRow().getData();
                         var color = statusColors[data.status] || "#6b7280";
-                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + data.status_icon + ' ' + data.status + '</span>';
+                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap;">' + data.status_icon + ' ' + data.status + '</span>';
                     }}}},
                     {{title: "Mode", field: "mode", sorter: "string", headerFilter: "list",
                      headerFilterParams: {{values: ["Daily Reps", "Weekly Reps", "Fortnightly Reps", "Monthly Reps", "Full cycle", "SRS - Variable Reps", "-"]}},
+                     minWidth: 130, responsive: 1,
                      formatter: function(cell) {{
                         var data = cell.getRow().getData();
                         var color = modeColors[data.mode] || "#6b7280";
-                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + data.mode_icon + ' ' + data.mode + '</span>';
+                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap;">' + data.mode_icon + ' ' + data.mode + '</span>';
                     }}}},
-                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false, width: 150,
+                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false, width: 140,
+                     responsive: 2,
                      formatter: function(cell) {{
                         var value = cell.getValue();
                         if (value === "-") return "-";
@@ -303,8 +310,29 @@ def show_tabulator_page(auth, status_filter: str = None):
                             '<div style="flex: 1; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">' +
                             '<div style="width: ' + percent + '%; height: 100%; background: ' + barColor + '; transition: width 0.3s;"></div>' +
                             '</div>' +
-                            '<span style="font-size: 11px; color: #6b7280; min-width: 45px;">' + value + '</span>' +
+                            '<span style="font-size: 11px; color: #6b7280; min-width: 40px;">' + value + '</span>' +
                             '</div>';
+                    }}}},
+                    {{title: "", field: "actions", headerSort: false, width: 45, hozAlign: "center",
+                     responsive: 0,
+                     formatter: function(cell) {{
+                        var data = cell.getRow().getData();
+                        // Only show config button for memorized items
+                        if (!data.memorized) return "";
+                        return '<button class="btn btn-ghost btn-xs config-btn" data-id="' + data.hafiz_item_id + '" title="Configure">⚙️</button>';
+                    }},
+                     cellClick: function(e, cell) {{
+                        var btn = e.target.closest('.config-btn');
+                        if (btn) {{
+                            var hafizItemId = btn.dataset.id;
+                            // Fetch modal content and show it
+                            fetch('/profile/configure_reps/' + hafizItemId)
+                                .then(function(response) {{ return response.text(); }})
+                                .then(function(html) {{
+                                    document.getElementById('config-modal-content').innerHTML = html;
+                                    UIkit.modal('#config-modal').show();
+                                }});
+                        }}
                     }}}},
                 ],
                 initialSort: [
@@ -314,6 +342,28 @@ def show_tabulator_page(auth, status_filter: str = None):
 
             // Store table reference globally for other interactions
             window.profileTable = table;
+
+            // Row click to open config modal (for mobile where gear icon is hidden)
+            table.on("rowClick", function(e, row) {{
+                // Don't open modal if clicking checkbox, config button, or within selection column
+                if (e.target.closest('.tabulator-row-selection') ||
+                    e.target.closest('.config-btn') ||
+                    e.target.type === 'checkbox') {{
+                    return;
+                }}
+
+                var data = row.getData();
+                // Only open modal for memorized items
+                if (!data.memorized) return;
+
+                var hafizItemId = data.hafiz_item_id;
+                fetch('/profile/configure_reps/' + hafizItemId)
+                    .then(function(response) {{ return response.text(); }})
+                    .then(function(html) {{
+                        document.getElementById('config-modal-content').innerHTML = html;
+                        UIkit.modal('#config-modal').show();
+                    }});
+            }});
 
             // Global search
             document.getElementById("search-input").addEventListener("keyup", function() {{
@@ -427,6 +477,21 @@ def show_tabulator_page(auth, status_filter: str = None):
             Div(id="profile-table", cls="bg-base-100 rounded-lg shadow-sm"),
             # Floating bulk actions bar
             bulk_actions_bar,
+            # Configuration modal (UK modal)
+            Div(
+                Div(
+                    Div(
+                        Button(cls="uk-modal-close-default", type="button", **{"uk-close": True}),
+                        H3("Configure Page", cls="uk-modal-title"),
+                        Div(id="config-modal-content"),
+                        cls="uk-modal-header",
+                    ),
+                    cls="uk-modal-dialog uk-modal-body",
+                ),
+                id="config-modal",
+                **{"uk-modal": True},
+                cls="uk-modal",
+            ),
             tabulator_init,
             cls="space-y-4 pt-2",
         ),
