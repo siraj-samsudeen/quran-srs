@@ -79,6 +79,18 @@ def index(auth, sess):
             page=get_page(WEEKLY_REPS_MODE_CODE),
             items_per_page=ITEMS_PER_PAGE,
         ),
+        make_summary_table(
+            FORTNIGHTLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(FORTNIGHTLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            MONTHLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(MONTHLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
     ]
     # Filter out modes with no items (make_summary_table returns None for empty modes)
     mode_panels = [panel for panel in mode_panels if panel is not None]

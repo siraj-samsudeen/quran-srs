@@ -18,3 +18,19 @@ ITEMS_PER_PAGE = 5
 
 # Default length for bulk revision entry (pages)
 DEFAULT_REVISION_LENGTH = 20
+
+# Modes that support manual graduation (excludes FC, NM, SR which don't graduate manually)
+GRADUATABLE_MODES = [
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    FORTNIGHTLY_REPS_MODE_CODE,
+    MONTHLY_REPS_MODE_CODE,
+]
+
+# Default repetition counts for each rep mode before graduation to next mode
+DEFAULT_REP_COUNTS = {
+    DAILY_REPS_MODE_CODE: 7,
+    WEEKLY_REPS_MODE_CODE: 7,
+    FORTNIGHTLY_REPS_MODE_CODE: 7,
+    MONTHLY_REPS_MODE_CODE: 7,
+}

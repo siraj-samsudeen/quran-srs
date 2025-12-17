@@ -957,3 +957,96 @@ ORDER BY item_id;
 - `last_interval` column in hafizs_items - removed (was `prev_interval`)
 - `SRS_MODE_CODE` ('SR') - items in intensive review are still in their band, just flagged
 - Concept of "graduation from SRS" - items graduate through bands naturally
+
+---
+
+## Flexible Rep Mode Configuration (Dec 2025)
+
+### Overview
+
+Users can now configure custom repetition counts and starting modes for newly memorized pages. This allows flexible workflows like:
+- Starting directly in Weekly mode (skipping Daily)
+- Setting custom rep counts (e.g., 3 daily reps instead of 7)
+- Setting different rep counts for each mode (e.g., 3 daily, 5 weekly, 0 fortnightly, 1 monthly)
+
+### Database Changes
+
+**Migration: 0024-add-custom-rep-thresholds.sql**
+
+```sql
+ALTER TABLE hafizs_items ADD COLUMN custom_daily_threshold INTEGER;
+ALTER TABLE hafizs_items ADD COLUMN custom_weekly_threshold INTEGER;
+ALTER TABLE hafizs_items ADD COLUMN custom_fortnightly_threshold INTEGER;
+ALTER TABLE hafizs_items ADD COLUMN custom_monthly_threshold INTEGER;
+```
+
+These columns store per-item custom repetition thresholds. When NULL, the global default from `DEFAULT_REP_COUNTS` is used.
+
+### Configuration Constants
+
+**File: constants.py**
+
+```python
+DEFAULT_REP_COUNTS = {
+    DAILY_REPS_MODE_CODE: 7,
+    WEEKLY_REPS_MODE_CODE: 7,
+    FORTNIGHTLY_REPS_MODE_CODE: 7,
+    MONTHLY_REPS_MODE_CODE: 7,
+}
+```
+
+### Threshold Priority
+
+When determining the repetition threshold for graduation:
+
+1. **Custom threshold** (from `custom_*_threshold` column) - highest priority
+2. **DEFAULT_REP_COUNTS** - fallback if no custom threshold
+3. **REP_MODES_CONFIG["threshold"]** - legacy fallback
+
+### UI Components
+
+**Rep Config Form** (`common_function.py:render_rep_config_form()`):
+- Simple mode: Select starting mode + rep count for that mode
+- Advanced mode: Set rep counts for all four modes
+- Alpine.js-powered toggle between modes
+
+**Profile Page** (`/profile/configure_reps/{hafiz_item_id}`):
+- Modal to configure reps for individual items
+- Accessible from profile/mode management
+
+**New Memorization** (`/new_memorization/expand/{type}/{number}`):
+- Rep config form shown when bulk-selecting pages
+- Configuration applied to all selected items
+
+### Example Workflows
+
+**Standard (7-7-7-7)**:
+```
+Daily (7 reps) → Weekly (7 reps) → Fortnightly (7 reps) → Monthly (7 reps) → Full Cycle
+```
+
+**Accelerated (3-5-3-1)**:
+```
+Daily (3 reps) → Weekly (5 reps) → Fortnightly (3 reps) → Monthly (1 rep) → Full Cycle
+```
+
+**Skip Daily (0-7-7-7)**:
+```
+Weekly (7 reps) → Fortnightly (7 reps) → Monthly (7 reps) → Full Cycle
+```
+
+### API
+
+**POST /profile/configure_reps**
+
+Parameters:
+- `hafiz_item_id` (or list): Items to configure
+- `mode_code`: Target mode
+- `rep_count`: Threshold for simple mode
+- `rep_count_DR`, `rep_count_WR`, etc.: Thresholds for advanced mode
+
+**POST /new_memorization/bulk_update_as_newly_memorized**
+
+Additional parameters:
+- `mode_code`: Starting mode (defaults to DAILY_REPS_MODE_CODE)
+- `rep_count`: Custom threshold for starting mode

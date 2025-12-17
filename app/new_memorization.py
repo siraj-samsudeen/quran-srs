@@ -4,6 +4,7 @@ from utils import *
 from datetime import datetime
 from constants import *
 from app.common_function import *
+from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
 from database import *
 
 NEW_MEMORIZATION_RATING = 1
@@ -11,12 +12,38 @@ NEW_MEMORIZATION_RATING = 1
 new_memorization_app, rt = create_app_with_auth()
 
 
-def update_hafiz_item_for_new_memorization(rev):
+def update_hafiz_item_for_new_memorization(rev, mode_code=None, rep_count=None, current_date=None):
+    """
+    Update hafiz_item after new memorization revision.
+
+    Args:
+        rev: The revision record
+        mode_code: Target rep mode (defaults to DAILY_REPS_MODE_CODE)
+        rep_count: Custom repetition threshold (defaults to mode's default)
+        current_date: Current date for scheduling (optional)
+    """
     hafiz_item_details = get_hafizs_items(rev.item_id)
     if hafiz_item_details is None:
         return  # Skip if no hafiz_items record exists
-    hafiz_item_details.mode_code = DAILY_REPS_MODE_CODE
+
+    target_mode = mode_code or DAILY_REPS_MODE_CODE
+    hafiz_item_details.mode_code = target_mode
     hafiz_item_details.memorized = True
+
+    # Set custom threshold if provided
+    if rep_count is not None and target_mode in MODE_TO_THRESHOLD_COLUMN:
+        column = MODE_TO_THRESHOLD_COLUMN[target_mode]
+        setattr(hafiz_item_details, column, int(rep_count))
+
+    # Set next_review and next_interval based on mode
+    if target_mode in REP_MODES_CONFIG and current_date:
+        config = REP_MODES_CONFIG[target_mode]
+        hafiz_item_details.next_interval = config["interval"]
+        hafiz_item_details.next_review = add_days_to_date(current_date, config["interval"])
+    elif target_mode == FULL_CYCLE_MODE_CODE:
+        hafiz_item_details.next_interval = None
+        hafiz_item_details.next_review = None
+
     hafizs_items.update(hafiz_item_details)
 
 
@@ -199,8 +226,11 @@ def render_row_based_on_type(
 
 
 @new_memorization_app.post("/update_as_newly_memorized/{item_id}")
-def update_status_as_newly_memorized(
-    auth, request, item_id: str, is_checked: bool = False, rating: int = None
+async def update_status_as_newly_memorized(
+    auth, request, item_id: str, is_checked: bool = False, rating: int = None,
+    mode_code: str = None, rep_count: int = None,
+    rep_count_DR: str = None, rep_count_WR: str = None,
+    rep_count_FR: str = None, rep_count_MR: str = None
 ):
     qry = f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}';"
     revisions_data = revisions(where=qry)
@@ -214,11 +244,47 @@ def update_status_as_newly_memorized(
             mode_code=NEW_MEMORIZATION_MODE_CODE,
         )
         try:
-            hafizs_items(where=f"item_id = {item_id}")[0]
+            hafiz_item = hafizs_items(where=f"item_id = {item_id}")[0]
         except IndexError:
-            hafizs_items.insert(
+            hafiz_item = hafizs_items.insert(
                 Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
             )
+
+        # Apply mode configuration if provided
+        if mode_code:
+            target_mode = mode_code
+            hafiz_item.mode_code = target_mode
+            hafiz_item.memorized = True
+
+            # Check for advanced per-mode inputs first
+            advanced_rep_counts = {
+                DAILY_REPS_MODE_CODE: rep_count_DR,
+                WEEKLY_REPS_MODE_CODE: rep_count_WR,
+                FORTNIGHTLY_REPS_MODE_CODE: rep_count_FR,
+                MONTHLY_REPS_MODE_CODE: rep_count_MR,
+            }
+            # Parse and set all non-empty advanced thresholds
+            has_advanced = False
+            for mode, value in advanced_rep_counts.items():
+                if value is not None and value != "":
+                    try:
+                        threshold = int(value)
+                        column = MODE_TO_THRESHOLD_COLUMN[mode]
+                        setattr(hafiz_item, column, threshold)
+                        has_advanced = True
+                    except ValueError:
+                        pass
+
+            # If no advanced values, use simple rep_count for selected mode
+            if not has_advanced and rep_count is not None and target_mode in MODE_TO_THRESHOLD_COLUMN:
+                column = MODE_TO_THRESHOLD_COLUMN[target_mode]
+                setattr(hafiz_item, column, int(rep_count))
+
+            if target_mode in REP_MODES_CONFIG:
+                config = REP_MODES_CONFIG[target_mode]
+                hafiz_item.next_interval = config["interval"]
+                hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
+            hafizs_items.update(hafiz_item)
     elif revisions_data and not is_checked:
         revisions.delete(revisions_data[0].id)
     referer = request.headers.get("Referer")
@@ -227,9 +293,29 @@ def update_status_as_newly_memorized(
 
 @new_memorization_app.post("/bulk_update_as_newly_memorized")
 def bulk_update_status_as_newly_memorized(
-    request, item_ids: list[int], auth, rating: int = None
+    request, item_ids: list[int], auth, rating: int = None,
+    mode_code: str = None, rep_count: int = None,
+    rep_count_DR: str = None, rep_count_WR: str = None,
+    rep_count_FR: str = None, rep_count_MR: str = None
 ):
     current_date = get_current_date(auth)
+    target_mode = mode_code or DAILY_REPS_MODE_CODE
+
+    # Parse advanced per-mode inputs
+    advanced_rep_counts = {
+        DAILY_REPS_MODE_CODE: rep_count_DR,
+        WEEKLY_REPS_MODE_CODE: rep_count_WR,
+        FORTNIGHTLY_REPS_MODE_CODE: rep_count_FR,
+        MONTHLY_REPS_MODE_CODE: rep_count_MR,
+    }
+    # Convert non-empty values to int
+    parsed_advanced = {}
+    for mode, value in advanced_rep_counts.items():
+        if value is not None and value != "":
+            try:
+                parsed_advanced[mode] = int(value)
+            except ValueError:
+                pass
 
     for item_id in item_ids:
         revisions.insert(
@@ -241,11 +327,35 @@ def bulk_update_status_as_newly_memorized(
         )
 
         try:
-            hafizs_items(where=f"item_id = {item_id}")[0]
+            hafiz_item = hafizs_items(where=f"item_id = {item_id}")[0]
         except IndexError:
-            hafizs_items.insert(
+            hafiz_item = hafizs_items.insert(
                 Hafiz_Items(item_id=item_id, page_number=items[item_id].page_id)
             )
+
+        # Apply mode configuration
+        hafiz_item.mode_code = target_mode
+        hafiz_item.memorized = True
+
+        # Apply advanced thresholds if present
+        if parsed_advanced:
+            for mode, threshold in parsed_advanced.items():
+                column = MODE_TO_THRESHOLD_COLUMN[mode]
+                setattr(hafiz_item, column, threshold)
+        elif rep_count is not None and target_mode in MODE_TO_THRESHOLD_COLUMN:
+            # Fallback to simple rep_count for selected mode
+            column = MODE_TO_THRESHOLD_COLUMN[target_mode]
+            setattr(hafiz_item, column, int(rep_count))
+
+        if target_mode in REP_MODES_CONFIG:
+            config = REP_MODES_CONFIG[target_mode]
+            hafiz_item.next_interval = config["interval"]
+            hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
+        elif target_mode == FULL_CYCLE_MODE_CODE:
+            hafiz_item.next_interval = None
+            hafiz_item.next_review = None
+        hafizs_items.update(hafiz_item)
+
     referer = request.headers.get("Referer")
     return Redirect(referer)
 
@@ -470,11 +580,18 @@ def load_descendant_items_for_new_memorization(
             ),
             x_init="updateSelectAll()",
         ),
-        cls="uk-overflow-auto max-h-[75vh] p-4",
+        cls="uk-overflow-auto max-h-[50vh] p-4",
+    )
+
+    # Add mode configuration form above the submit button
+    rep_config = render_rep_config_form(
+        form_id="new-mem-rep-config",
+        default_mode_code=DAILY_REPS_MODE_CODE,
     )
 
     return (
         Form(
+            rep_config,
             table,
             Button("Set as Newly Memorized", cls="bg-green-600 text-white"),
             hx_post=f"/new_memorization/bulk_update_as_newly_memorized",
