@@ -166,7 +166,7 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href="/", cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/surah",
+                    href="/profile/table",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
