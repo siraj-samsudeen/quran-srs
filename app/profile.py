@@ -98,12 +98,18 @@ def get_pages_json(auth, status_filter: str = None):
     data = []
     for row in rows:
         mode_code = row["mode_code"] or ""
-        mode_name = get_mode_name(mode_code) if mode_code else "-"
-        mode_icon = get_mode_icon(mode_code) if mode_code else ""
+        memorized = bool(row["memorized"])
+        # Hide mode when not memorized - mode is irrelevant in that state
+        if not memorized:
+            mode_name = "-"
+            mode_icon = ""
+        else:
+            mode_name = get_mode_name(mode_code) if mode_code else "-"
+            mode_icon = get_mode_icon(mode_code) if mode_code else ""
 
-        # Calculate progress for graduatable modes
+        # Calculate progress for graduatable modes (only when memorized)
         progress = "-"
-        if mode_code in GRADUATABLE_MODES:
+        if memorized and mode_code in GRADUATABLE_MODES:
             current_count = get_mode_count(row["item_id"], mode_code)
             threshold = DEFAULT_REP_COUNTS.get(mode_code, 7)
             # Check custom thresholds
@@ -140,6 +146,68 @@ def get_pages_json(auth, status_filter: str = None):
     return JSONResponse(data)
 
 
+@profile_app.post("/api/bulk/set_status")
+async def bulk_set_status(req: Request, auth):
+    """Bulk set status for selected items. Handles both memorized flag and mode_code."""
+    from starlette.responses import JSONResponse
+    import json
+
+    body = await req.body()
+    data = json.loads(body)
+    item_ids = data.get("item_ids", [])
+    status = data.get("status")
+
+    if not item_ids or not status:
+        return JSONResponse({"error": "Missing item_ids or status"}, status_code=400)
+
+    current_date = get_current_date(auth)
+    updated = 0
+
+    for hafiz_item_id in item_ids:
+        if hafiz_item_id is None:
+            continue
+        try:
+            hafiz_item = hafizs_items[hafiz_item_id]
+            if hafiz_item.hafiz_id != auth:
+                continue
+
+            # Map 5 statuses to database fields
+            if status == "NOT_MEMORIZED":
+                hafiz_item.memorized = False
+                hafiz_item.mode_code = None  # Clear mode - not relevant when not memorized
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+            elif status == "LEARNING":
+                hafiz_item.memorized = True
+                hafiz_item.mode_code = NEW_MEMORIZATION_MODE_CODE
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+            elif status == "REPS":
+                # Default to Daily Reps as starting point
+                hafiz_item.memorized = True
+                hafiz_item.mode_code = DAILY_REPS_MODE_CODE
+                config = REP_MODES_CONFIG[DAILY_REPS_MODE_CODE]
+                hafiz_item.next_interval = config["interval"]
+                hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
+            elif status == "SOLID":
+                hafiz_item.memorized = True
+                hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+            elif status == "STRUGGLING":
+                hafiz_item.memorized = True
+                hafiz_item.mode_code = SRS_MODE_CODE
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+
+            hafizs_items.update(hafiz_item)
+            updated += 1
+        except (NotFoundError, ValueError):
+            continue
+
+    return JSONResponse({"updated": updated})
+
+
 @profile_app.get("/table")
 def show_tabulator_page(auth, status_filter: str = None):
     """Profile page using Tabulator for interactive table."""
@@ -156,19 +224,20 @@ def show_tabulator_page(auth, status_filter: str = None):
             var statusColors = {{
                 "Not Memorized": "#6b7280",  // gray
                 "Learning": "#22c55e",        // green
-                "Reps": "#3b82f6",            // blue
+                "Reps": "#f59e0b",            // amber - matches rep mode gradient
                 "Solid": "#8b5cf6",           // purple
                 "Struggling": "#ef4444"       // red
             }};
 
-            // Mode color mapping
+            // Mode color mapping - progression gradient for reps (yellow → orange)
             var modeColors = {{
-                "Daily Reps": "#f59e0b",      // amber
-                "Weekly Reps": "#3b82f6",     // blue
-                "Fortnightly Reps": "#8b5cf6", // purple
-                "Monthly Reps": "#ec4899",    // pink
-                "Full cycle": "#22c55e",      // green
-                "SRS - Variable Reps": "#ef4444" // red
+                "New Memorization": "#22c55e", // green - matches Learning status
+                "Daily Reps": "#eab308",       // yellow - earliest rep stage
+                "Weekly Reps": "#f59e0b",      // amber - progressing
+                "Fortnightly Reps": "#f97316", // orange - further along
+                "Monthly Reps": "#ea580c",     // dark orange - almost graduated
+                "Full cycle": "#8b5cf6",       // purple - matches Solid status
+                "SRS - Variable Reps": "#ef4444" // red - matches Struggling status
             }};
 
             var table = new Tabulator("#profile-table", {{
@@ -184,6 +253,16 @@ def show_tabulator_page(auth, status_filter: str = None):
                 selectable: true,
                 selectableRangeMode: "click",
                 columns: [
+                    {{
+                        title: "",
+                        formatter: "rowSelection",
+                        titleFormatter: "rowSelection",
+                        headerSort: false,
+                        width: 40,
+                        hozAlign: "center",
+                        headerHozAlign: "center",
+                        cssClass: "tabulator-row-selection"
+                    }},
                     {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 80,
                      formatter: function(cell) {{
                         return "<strong>" + cell.getValue() + "</strong>";
@@ -254,17 +333,74 @@ def show_tabulator_page(auth, status_filter: str = None):
                 document.getElementById("search-input").value = "";
             }});
 
-            // Update selection count
+            // Update selection count and show/hide bulk actions bar
             table.on("rowSelectionChanged", function(data, rows) {{
                 var count = rows.length;
-                var badge = document.getElementById("selection-count");
-                if (badge) {{
-                    badge.textContent = count > 0 ? count + " selected" : "";
-                    badge.style.display = count > 0 ? "inline-block" : "none";
+                var bulkBar = document.getElementById("bulk-actions-bar");
+
+                if (bulkBar) {{
+                    bulkBar.style.display = count > 0 ? "flex" : "none";
+                    document.getElementById("bulk-count").textContent = count;
                 }}
+
+                // Store selected item IDs for bulk operations
+                window.selectedItemIds = data.map(function(row) {{ return row.hafiz_item_id; }});
+            }});
+
+            // Bulk Set Status - handle clicks on dropdown menu items
+            document.querySelectorAll(".status-menu-item").forEach(function(item) {{
+                item.addEventListener("click", function() {{
+                    var statusValue = this.dataset.status;
+                    if (!statusValue || !window.selectedItemIds || window.selectedItemIds.length === 0) return;
+
+                    fetch("/profile/api/bulk/set_status", {{
+                        method: "POST",
+                        headers: {{ "Content-Type": "application/json" }},
+                        body: JSON.stringify({{ item_ids: window.selectedItemIds, status: statusValue }})
+                    }}).then(function(response) {{
+                        if (response.ok) {{
+                            table.setData("{api_url}");
+                            table.deselectRow();
+                        }}
+                    }});
+
+                    // Close the dropdown
+                    document.activeElement.blur();
+                }});
             }});
         }});
     """)
+
+    # Floating bulk actions bar (hidden by default)
+    bulk_actions_bar = Div(
+        Div(
+            Span(id="bulk-count", cls="font-bold"),
+            " pages selected",
+            cls="text-sm",
+        ),
+        # DaisyUI dropdown menu - 5 statuses only (not individual modes)
+        Div(
+            Div(
+                "Set Status...",
+                tabindex="0",
+                role="button",
+                cls="btn btn-sm btn-outline",
+            ),
+            Ul(
+                Li(A("📚 Not Memorized", data_status="NOT_MEMORIZED", cls="status-menu-item")),
+                Li(A("🌱 Learning", data_status="LEARNING", cls="status-menu-item")),
+                Li(A("🏋️ Reps", data_status="REPS", cls="status-menu-item")),
+                Li(A("💪 Solid", data_status="SOLID", cls="status-menu-item")),
+                Li(A("😰 Struggling", data_status="STRUGGLING", cls="status-menu-item")),
+                tabindex="0",
+                cls="dropdown-content menu bg-base-100 rounded-box z-[100] w-52 p-2 shadow-lg border border-base-300",
+            ),
+            cls="dropdown dropdown-top dropdown-end",
+        ),
+        id="bulk-actions-bar",
+        cls="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-base-100 border border-base-300 rounded-lg shadow-lg px-4 py-3 flex items-center gap-6 z-50",
+        style="display: none;",
+    )
 
     return main_area(
         Div(
@@ -283,22 +419,14 @@ def show_tabulator_page(auth, status_filter: str = None):
                         id="clear-filters",
                         cls="btn btn-sm btn-ghost",
                     ),
-                    Span(
-                        id="selection-count",
-                        cls="badge badge-primary ml-2",
-                        style="display: none;",
-                    ),
                     cls="flex items-center gap-2",
                 ),
-                A(
-                    "← Back to old view",
-                    href="/profile/page",
-                    cls="text-sm text-gray-500 hover:underline",
-                ),
-                cls="flex justify-between items-center mb-4",
+                cls="mb-4",
             ),
             # Tabulator container
             Div(id="profile-table", cls="bg-base-100 rounded-lg shadow-sm"),
+            # Floating bulk actions bar
+            bulk_actions_bar,
             tabulator_init,
             cls="space-y-4 pt-2",
         ),
