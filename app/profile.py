@@ -11,8 +11,8 @@ profile_app, rt = create_app_with_auth()
 # === Stats Cards Component ===
 
 
-def render_stats_cards(auth):
-    """Render status stats cards at top of profile page."""
+def render_stats_cards(auth, current_type="page", active_status_filter=None):
+    """Render status stats cards at top of profile page. Cards are clickable to filter."""
     counts = get_status_counts(auth)
 
     # Order: Not Memorized, Learning, Reps, Solid, Struggling, Total
@@ -26,25 +26,29 @@ def render_stats_cards(auth):
 
     def make_card(status, count):
         icon, label = get_status_display(status)
-        return Div(
+        is_active = active_status_filter == status
+        return A(
             Div(
                 Span(icon, cls="text-2xl"),
                 Span(str(count), cls="text-2xl font-bold ml-2"),
                 cls="flex items-center justify-center",
             ),
             Div(label, cls="text-xs text-center mt-1 text-gray-600"),
-            cls="bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors",
+            href=f"/profile/{current_type}?status_filter={status}",
+            cls=f"bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors {'ring-2 ring-primary bg-primary/10' if is_active else ''}",
             data_testid=f"stats-card-{status.lower()}",
         )
 
-    total_card = Div(
+    # Total card clears the filter
+    total_card = A(
         Div(
             Span("📖", cls="text-2xl"),
             Span(str(counts.get("total", 0)), cls="text-2xl font-bold ml-2"),
             cls="flex items-center justify-center",
         ),
         Div("Total", cls="text-xs text-center mt-1 text-gray-600"),
-        cls="bg-base-100 border rounded-lg p-3 min-w-[100px]",
+        href=f"/profile/{current_type}",
+        cls=f"bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors {'ring-2 ring-primary bg-primary/10' if active_status_filter is None else ''}",
         data_testid="stats-card-total",
     )
 
@@ -662,12 +666,25 @@ async def graduate_items(req: Request, auth, sess):
 
 
 @profile_app.get("/{current_type}")
-def show_page_status(current_type: str, auth, status: str = ""):
+def show_page_status(current_type: str, auth, status: str = "", status_filter: str = None):
     memorized_filter = None  # Initially we didn't apply filter
     if status == "memorized":
         memorized_filter = True
     elif status == "not_memorized":
         memorized_filter = False
+
+    # Map status_filter to mode_code conditions for SQL query
+    status_filter_condition = None
+    if status_filter == STATUS_NOT_MEMORIZED:
+        status_filter_condition = "(hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
+    elif status_filter == STATUS_LEARNING:
+        status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}')"
+    elif status_filter == STATUS_REPS:
+        status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}'))"
+    elif status_filter == STATUS_SOLID:
+        status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}')"
+    elif status_filter == STATUS_STRUGGLING:
+        status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}')"
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
         memorized_value = records[0]["memorized"]
@@ -815,10 +832,17 @@ def show_page_status(current_type: str, auth, status: str = ""):
         current_type = "juz"
 
     def render_navigation_item(_type: str):
+        # Build query params preserving both status and status_filter
+        params = []
+        if status:
+            params.append(f"status={status}")
+        if status_filter:
+            params.append(f"status_filter={status_filter}")
+        query_str = "?" + "&".join(params) if params else ""
         return Li(
             A(
                 f"by {_type}",
-                href=f"/profile/{_type}" + (f"?status={status}" if status else ""),
+                href=f"/profile/{_type}{query_str}",
             ),
             cls=("uk-active" if _type == current_type else None),
         )
@@ -832,13 +856,20 @@ def show_page_status(current_type: str, auth, status: str = ""):
               LEFT JOIN pages ON items.page_id = pages.id
               LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
               WHERE items.active != 0;"""
-    if status in ["memorized", "not_memorized"]:
-        memorized_condition = f" AND hafizs_items.memorized = {memorized_filter}"
-    else:
-        memorized_condition = ""
-    query_with_status = qry.replace(";", f" {memorized_condition};")
 
-    qry_data = db.q(query_with_status if status else qry)
+    # Build filter conditions
+    filter_conditions = []
+    if status in ["memorized", "not_memorized"]:
+        filter_conditions.append(f"hafizs_items.memorized = {memorized_filter}")
+    if status_filter_condition:
+        filter_conditions.append(status_filter_condition)
+
+    if filter_conditions:
+        query_with_status = qry.replace(";", f" AND {' AND '.join(filter_conditions)};")
+    else:
+        query_with_status = qry
+
+    qry_data = db.q(query_with_status)
 
     grouped = group_by_type(qry_data, current_type)
     rows = [
@@ -953,7 +984,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
 
     return main_area(
         Div(
-            render_stats_cards(auth),
+            render_stats_cards(auth, current_type, status_filter),
             DivFullySpaced(
                 filter_btns,
             ),

@@ -237,6 +237,16 @@ Filter by specific mode when viewing Reps status.
 
 ---
 
+### Slice 3.5: Table sorting
+Add clickable column headers to sort the profile table.
+- [ ] Add sort parameter to profile route (`?sort=mode&dir=asc`)
+- [ ] Make Mode, Progress columns clickable to sort
+- [ ] Update SQL query with ORDER BY based on sort parameter
+- [ ] Show sort indicator (▲/▼) on active column
+- **Verify**: Click "Mode" header → table sorts by mode (DR → WR → FR → MR → FC → SR)
+
+---
+
 ### Slice 4: Health column
 Show streak-based health indicator for each page.
 - [ ] Add `get_health_indicator()` function (returns icon based on streaks)
