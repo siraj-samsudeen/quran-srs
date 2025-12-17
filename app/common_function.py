@@ -230,7 +230,7 @@ def get_page_description(
     )
 
 
-def group_by_type(data, current_type, feild=None):
+def group_by_type(data, current_type, feild=None, preserve_order=False):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
@@ -245,6 +245,9 @@ def group_by_type(data, current_type, feild=None):
         grouped[row[columns_map[current_type]]].append(
             row if feild is None else row[feild]
         )
+    # preserve_order=True keeps SQL ORDER BY; False sorts by key (page number)
+    if preserve_order:
+        return dict(grouped)
     sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
     return sorted_grouped
 

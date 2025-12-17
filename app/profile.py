@@ -666,7 +666,7 @@ async def graduate_items(req: Request, auth, sess):
 
 
 @profile_app.get("/{current_type}")
-def show_page_status(current_type: str, auth, status: str = "", status_filter: str = None):
+def show_page_status(current_type: str, auth, status: str = "", status_filter: str = None, sort: str = None, dir: str = "asc"):
     memorized_filter = None  # Initially we didn't apply filter
     if status == "memorized":
         memorized_filter = True
@@ -685,6 +685,27 @@ def show_page_status(current_type: str, auth, status: str = "", status_filter: s
         status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}')"
     elif status_filter == STATUS_STRUGGLING:
         status_filter_condition = f"(hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}')"
+
+    # Sorting configuration
+    # Mode order: NM(0) → DR(1) → WR(2) → FR(3) → MR(4) → FC(5) → SR(6)
+    mode_order_case = f"""
+        CASE hafizs_items.mode_code
+            WHEN '{NEW_MEMORIZATION_MODE_CODE}' THEN 0
+            WHEN '{DAILY_REPS_MODE_CODE}' THEN 1
+            WHEN '{WEEKLY_REPS_MODE_CODE}' THEN 2
+            WHEN '{FORTNIGHTLY_REPS_MODE_CODE}' THEN 3
+            WHEN '{MONTHLY_REPS_MODE_CODE}' THEN 4
+            WHEN '{FULL_CYCLE_MODE_CODE}' THEN 5
+            WHEN '{SRS_MODE_CODE}' THEN 6
+            ELSE 99
+        END
+    """
+    sort_direction = "DESC" if dir == "desc" else "ASC"
+    order_clause = "ORDER BY pages.page_number ASC"  # Default
+    if sort == "mode":
+        order_clause = f"ORDER BY {mode_order_case} {sort_direction}, pages.page_number ASC"
+    elif sort == "page":
+        order_clause = f"ORDER BY pages.page_number {sort_direction}"
 
     def render_row_based_on_type(type_number: str, records: list, current_type):
         memorized_value = records[0]["memorized"]
@@ -855,7 +876,7 @@ def show_page_status(current_type: str, auth, status: str = "", status_filter: s
               FROM items
               LEFT JOIN pages ON items.page_id = pages.id
               LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-              WHERE items.active != 0;"""
+              WHERE items.active != 0"""
 
     # Build filter conditions
     filter_conditions = []
@@ -865,13 +886,16 @@ def show_page_status(current_type: str, auth, status: str = "", status_filter: s
         filter_conditions.append(status_filter_condition)
 
     if filter_conditions:
-        query_with_status = qry.replace(";", f" AND {' AND '.join(filter_conditions)};")
-    else:
-        query_with_status = qry
+        qry += f" AND {' AND '.join(filter_conditions)}"
 
-    qry_data = db.q(query_with_status)
+    # Add ORDER BY clause (only for page view where sorting makes sense)
+    if current_type == "page":
+        qry += f" {order_clause}"
 
-    grouped = group_by_type(qry_data, current_type)
+    qry_data = db.q(qry)
+
+    # Preserve SQL ORDER BY when sorting is active
+    grouped = group_by_type(qry_data, current_type, preserve_order=bool(sort))
     rows = [
         render_row_based_on_type(type_number, records, current_type)
         for type_number, records in grouped.items()
@@ -957,14 +981,37 @@ def show_page_status(current_type: str, auth, status: str = "", status_filter: s
 
     details = type_details.get(current_type, ["", ""])
 
+    # Helper to build sortable header link
+    def sortable_th(label, sort_key):
+        # Build URL preserving existing params
+        params = []
+        if status:
+            params.append(f"status={status}")
+        if status_filter:
+            params.append(f"status_filter={status_filter}")
+        # Toggle direction if clicking same column
+        new_dir = "desc" if sort == sort_key and dir == "asc" else "asc"
+        params.append(f"sort={sort_key}")
+        params.append(f"dir={new_dir}")
+        url = f"/profile/{current_type}?" + "&".join(params)
+
+        # Show sort indicator
+        indicator = ""
+        if sort == sort_key:
+            indicator = " ▲" if dir == "asc" else " ▼"
+
+        return Th(
+            A(f"{label}{indicator}", href=url, cls="hover:underline cursor-pointer"),
+        )
+
     # Build table headers - add Mode, Progress, Graduate columns for page view
     header_cells = [
-        Th(current_type.title()),
+        sortable_th("Page", "page") if current_type == "page" else Th(current_type.title()),
         *map(Th, details),
         Th("Status"),
     ]
     if current_type == "page":
-        header_cells.extend([Th("Mode"), Th("Progress"), Th("Graduate to")])
+        header_cells.extend([sortable_th("Mode", "mode"), Th("Progress"), Th("Graduate to")])
     header_cells.append(Th(""))  # Customize column
 
     # Configure modal for rep configuration (used in page view)
