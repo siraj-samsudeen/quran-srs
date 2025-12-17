@@ -237,13 +237,25 @@ Filter by specific mode when viewing Reps status.
 
 ---
 
-### Slice 3.5: Table sorting
+### Slice 3.5: Table sorting (DONE)
 Add clickable column headers to sort the profile table.
-- [ ] Add sort parameter to profile route (`?sort=mode&dir=asc`)
-- [ ] Make Mode, Progress columns clickable to sort
-- [ ] Update SQL query with ORDER BY based on sort parameter
-- [ ] Show sort indicator (▲/▼) on active column
+- [x] Add sort parameter to profile route (`?sort=mode&dir=asc`)
+- [x] Make Mode, Progress columns clickable to sort
+- [x] Update SQL query with ORDER BY based on sort parameter
+- [x] Show sort indicator (▲/▼) on active column
 - **Verify**: Click "Mode" header → table sorts by mode (DR → WR → FR → MR → FC → SR)
+
+---
+
+### Slice 3.6: Tabulator table integration
+Replace manual table with Tabulator for full sorting/filtering/search.
+- [ ] Add Tabulator CSS/JS to base template
+- [ ] Convert profile table to Tabulator format (JSON data endpoint)
+- [ ] Enable sorting on all columns
+- [ ] Add global search/filter box
+- [ ] Add column filters (dropdown for Mode, text for others)
+- [ ] Style Tabulator to match DaisyUI theme
+- **Verify**: Table has search box, all columns sortable, Mode has dropdown filter
 
 ---
 

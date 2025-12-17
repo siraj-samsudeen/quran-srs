@@ -60,6 +60,186 @@ def render_stats_cards(auth, current_type="page", active_status_filter=None):
     )
 
 
+# === JSON API for Tabulator ===
+
+
+@profile_app.get("/api/pages")
+def get_pages_json(auth, status_filter: str = None):
+    """Return page data as JSON for Tabulator table."""
+    from starlette.responses import JSONResponse
+
+    # Build filter condition
+    filter_condition = ""
+    if status_filter == STATUS_NOT_MEMORIZED:
+        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
+    elif status_filter == STATUS_LEARNING:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+    elif status_filter == STATUS_REPS:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')"
+    elif status_filter == STATUS_SOLID:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'"
+    elif status_filter == STATUS_STRUGGLING:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'"
+
+    qry = f"""
+        SELECT items.id as item_id, items.surah_id, pages.page_number, pages.juz_number,
+               hafizs_items.id as hafiz_item_id, hafizs_items.memorized, hafizs_items.mode_code,
+               hafizs_items.custom_daily_threshold, hafizs_items.custom_weekly_threshold,
+               hafizs_items.custom_fortnightly_threshold, hafizs_items.custom_monthly_threshold
+        FROM items
+        LEFT JOIN pages ON items.page_id = pages.id
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+        WHERE items.active != 0 {filter_condition}
+        ORDER BY pages.page_number ASC
+    """
+    rows = db.q(qry)
+
+    # Transform to Tabulator-friendly format
+    data = []
+    for row in rows:
+        mode_code = row["mode_code"] or ""
+        mode_name = get_mode_name(mode_code) if mode_code else "-"
+        mode_icon = get_mode_icon(mode_code) if mode_code else ""
+
+        # Calculate progress for graduatable modes
+        progress = "-"
+        if mode_code in GRADUATABLE_MODES:
+            current_count = get_mode_count(row["item_id"], mode_code)
+            threshold = DEFAULT_REP_COUNTS.get(mode_code, 7)
+            # Check custom thresholds
+            threshold_map = {
+                DAILY_REPS_MODE_CODE: row.get("custom_daily_threshold"),
+                WEEKLY_REPS_MODE_CODE: row.get("custom_weekly_threshold"),
+                FORTNIGHTLY_REPS_MODE_CODE: row.get("custom_fortnightly_threshold"),
+                MONTHLY_REPS_MODE_CODE: row.get("custom_monthly_threshold"),
+            }
+            custom = threshold_map.get(mode_code)
+            if custom is not None:
+                threshold = custom
+            progress = f"{current_count} of {threshold}"
+
+        # Get status
+        status = get_status(row)
+        status_icon, status_label = get_status_display(status)
+
+        data.append({
+            "page": row["page_number"],
+            "juz": row["juz_number"],
+            "surah": surahs[row["surah_id"]].name if row["surah_id"] else "-",
+            "memorized": bool(row["memorized"]),
+            "status": status_label,
+            "status_icon": status_icon,
+            "mode": mode_name,
+            "mode_icon": mode_icon,
+            "mode_code": mode_code,
+            "progress": progress,
+            "hafiz_item_id": row["hafiz_item_id"],
+            "item_id": row["item_id"],
+        })
+
+    return JSONResponse(data)
+
+
+@profile_app.get("/table")
+def show_tabulator_page(auth, status_filter: str = None):
+    """Profile page using Tabulator for interactive table."""
+
+    # Build API URL with filter
+    api_url = "/profile/api/pages"
+    if status_filter:
+        api_url += f"?status_filter={status_filter}"
+
+    # Tabulator initialization script
+    tabulator_init = Script(f"""
+        document.addEventListener('DOMContentLoaded', function() {{
+            var table = new Tabulator("#profile-table", {{
+                ajaxURL: "{api_url}",
+                layout: "fitColumns",
+                responsiveLayout: "collapse",
+                pagination: true,
+                paginationSize: 25,
+                paginationSizeSelector: [10, 25, 50, 100],
+                movableColumns: true,
+                placeholder: "No pages found",
+                columns: [
+                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 80}},
+                    {{title: "Juz", field: "juz", sorter: "number", headerFilter: "number", width: 70}},
+                    {{title: "Surah", field: "surah", sorter: "string", headerFilter: "input"}},
+                    {{title: "Status", field: "status", sorter: "string", headerFilter: "list",
+                     headerFilterParams: {{values: ["Not Memorized", "Learning", "Reps", "Solid", "Struggling"]}},
+                     formatter: function(cell) {{
+                        var data = cell.getRow().getData();
+                        return data.status_icon + " " + data.status;
+                    }}}},
+                    {{title: "Mode", field: "mode", sorter: "string", headerFilter: "list",
+                     headerFilterParams: {{values: ["Daily", "Weekly", "Fortnightly", "Monthly", "Full Cycle", "SRS", "-"]}},
+                     formatter: function(cell) {{
+                        var data = cell.getRow().getData();
+                        return data.mode_icon + " " + data.mode;
+                    }}}},
+                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false}},
+                ],
+                initialSort: [
+                    {{column: "page", dir: "asc"}}
+                ],
+            }});
+
+            // Global search
+            document.getElementById("search-input").addEventListener("keyup", function() {{
+                table.setFilter([
+                    [
+                        {{field: "page", type: "like", value: this.value}},
+                        {{field: "surah", type: "like", value: this.value}},
+                        {{field: "mode", type: "like", value: this.value}},
+                    ]
+                ]);
+            }});
+
+            // Clear filters button
+            document.getElementById("clear-filters").addEventListener("click", function() {{
+                table.clearFilter(true);
+                table.clearHeaderFilter();
+                document.getElementById("search-input").value = "";
+            }});
+        }});
+    """)
+
+    return main_area(
+        Div(
+            render_stats_cards(auth, "table", status_filter),
+            # Search and controls
+            Div(
+                Div(
+                    Input(
+                        type="text",
+                        id="search-input",
+                        placeholder="Search pages, surahs, modes...",
+                        cls="input input-bordered input-sm w-64",
+                    ),
+                    Button(
+                        "Clear Filters",
+                        id="clear-filters",
+                        cls="btn btn-sm btn-ghost ml-2",
+                    ),
+                    cls="flex items-center gap-2",
+                ),
+                A(
+                    "← Back to old view",
+                    href="/profile/page",
+                    cls="text-sm text-gray-500 hover:underline",
+                ),
+                cls="flex justify-between items-center mb-4",
+            ),
+            # Tabulator container
+            Div(id="profile-table", cls="bg-base-100"),
+            tabulator_init,
+            cls="space-y-4 pt-2",
+        ),
+        auth=auth,
+        active="Memorization Status",
+    )
+
+
 # === Rep Configuration Routes ===
 # These routes handle the flexible rep mode configuration
 

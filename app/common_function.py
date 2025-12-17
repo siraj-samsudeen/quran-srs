@@ -79,6 +79,12 @@ daisyui_css = Link(
     rel="stylesheet",
     href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css",
 )
+# Tabulator (interactive data tables with sorting, filtering, search)
+tabulator_css = Link(
+    rel="stylesheet",
+    href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_semanticui.min.css",
+)
+tabulator_js = Script(src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js")
 style_css = Link(rel="stylesheet", href="/public/css/style.css")
 favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 
@@ -90,6 +96,8 @@ def create_app_with_auth(**kwargs):
         hdrs=(
             Theme.blue.headers(),
             daisyui_css,
+            tabulator_css,
+            tabulator_js,
             hyperscript_header,
             alpinejs_header,
             style_css,
