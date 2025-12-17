@@ -149,9 +149,28 @@ def show_tabulator_page(auth, status_filter: str = None):
     if status_filter:
         api_url += f"?status_filter={status_filter}"
 
-    # Tabulator initialization script
+    # Tabulator initialization script with enhanced formatters
     tabulator_init = Script(f"""
         document.addEventListener('DOMContentLoaded', function() {{
+            // Status color mapping
+            var statusColors = {{
+                "Not Memorized": "#6b7280",  // gray
+                "Learning": "#22c55e",        // green
+                "Reps": "#3b82f6",            // blue
+                "Solid": "#8b5cf6",           // purple
+                "Struggling": "#ef4444"       // red
+            }};
+
+            // Mode color mapping
+            var modeColors = {{
+                "Daily Reps": "#f59e0b",      // amber
+                "Weekly Reps": "#3b82f6",     // blue
+                "Fortnightly Reps": "#8b5cf6", // purple
+                "Monthly Reps": "#ec4899",    // pink
+                "Full cycle": "#22c55e",      // green
+                "SRS - Variable Reps": "#ef4444" // red
+            }};
+
             var table = new Tabulator("#profile-table", {{
                 ajaxURL: "{api_url}",
                 layout: "fitColumns",
@@ -159,40 +178,73 @@ def show_tabulator_page(auth, status_filter: str = None):
                 pagination: true,
                 paginationSize: 25,
                 paginationSizeSelector: [10, 25, 50, 100],
+                paginationCounter: "rows",
                 movableColumns: true,
                 placeholder: "No pages found",
+                selectable: true,
+                selectableRangeMode: "click",
                 columns: [
-                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 80}},
+                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 80,
+                     formatter: function(cell) {{
+                        return "<strong>" + cell.getValue() + "</strong>";
+                    }}}},
                     {{title: "Juz", field: "juz", sorter: "number", headerFilter: "number", width: 70}},
                     {{title: "Surah", field: "surah", sorter: "string", headerFilter: "input"}},
                     {{title: "Status", field: "status", sorter: "string", headerFilter: "list",
                      headerFilterParams: {{values: ["Not Memorized", "Learning", "Reps", "Solid", "Struggling"]}},
                      formatter: function(cell) {{
                         var data = cell.getRow().getData();
-                        return data.status_icon + " " + data.status;
+                        var color = statusColors[data.status] || "#6b7280";
+                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + data.status_icon + ' ' + data.status + '</span>';
                     }}}},
                     {{title: "Mode", field: "mode", sorter: "string", headerFilter: "list",
-                     headerFilterParams: {{values: ["Daily", "Weekly", "Fortnightly", "Monthly", "Full Cycle", "SRS", "-"]}},
+                     headerFilterParams: {{values: ["Daily Reps", "Weekly Reps", "Fortnightly Reps", "Monthly Reps", "Full cycle", "SRS - Variable Reps", "-"]}},
                      formatter: function(cell) {{
                         var data = cell.getRow().getData();
-                        return data.mode_icon + " " + data.mode;
+                        var color = modeColors[data.mode] || "#6b7280";
+                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + data.mode_icon + ' ' + data.mode + '</span>';
                     }}}},
-                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false}},
+                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false, width: 150,
+                     formatter: function(cell) {{
+                        var value = cell.getValue();
+                        if (value === "-") return "-";
+
+                        // Parse "0 of 7" format
+                        var parts = value.split(" of ");
+                        if (parts.length !== 2) return value;
+
+                        var current = parseInt(parts[0]);
+                        var total = parseInt(parts[1]);
+                        var percent = (current / total) * 100;
+
+                        // Color based on progress
+                        var barColor = percent < 30 ? "#ef4444" : percent < 70 ? "#f59e0b" : "#22c55e";
+
+                        return '<div style="display: flex; align-items: center; gap: 8px;">' +
+                            '<div style="flex: 1; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">' +
+                            '<div style="width: ' + percent + '%; height: 100%; background: ' + barColor + '; transition: width 0.3s;"></div>' +
+                            '</div>' +
+                            '<span style="font-size: 11px; color: #6b7280; min-width: 45px;">' + value + '</span>' +
+                            '</div>';
+                    }}}},
                 ],
                 initialSort: [
                     {{column: "page", dir: "asc"}}
                 ],
             }});
 
+            // Store table reference globally for other interactions
+            window.profileTable = table;
+
             // Global search
             document.getElementById("search-input").addEventListener("keyup", function() {{
-                table.setFilter([
-                    [
-                        {{field: "page", type: "like", value: this.value}},
-                        {{field: "surah", type: "like", value: this.value}},
-                        {{field: "mode", type: "like", value: this.value}},
-                    ]
-                ]);
+                var value = this.value.toLowerCase();
+                table.setFilter(function(data) {{
+                    return String(data.page).includes(value) ||
+                           data.surah.toLowerCase().includes(value) ||
+                           data.status.toLowerCase().includes(value) ||
+                           data.mode.toLowerCase().includes(value);
+                }});
             }});
 
             // Clear filters button
@@ -200,6 +252,16 @@ def show_tabulator_page(auth, status_filter: str = None):
                 table.clearFilter(true);
                 table.clearHeaderFilter();
                 document.getElementById("search-input").value = "";
+            }});
+
+            // Update selection count
+            table.on("rowSelectionChanged", function(data, rows) {{
+                var count = rows.length;
+                var badge = document.getElementById("selection-count");
+                if (badge) {{
+                    badge.textContent = count > 0 ? count + " selected" : "";
+                    badge.style.display = count > 0 ? "inline-block" : "none";
+                }}
             }});
         }});
     """)
@@ -219,7 +281,12 @@ def show_tabulator_page(auth, status_filter: str = None):
                     Button(
                         "Clear Filters",
                         id="clear-filters",
-                        cls="btn btn-sm btn-ghost ml-2",
+                        cls="btn btn-sm btn-ghost",
+                    ),
+                    Span(
+                        id="selection-count",
+                        cls="badge badge-primary ml-2",
+                        style="display: none;",
                     ),
                     cls="flex items-center gap-2",
                 ),
@@ -231,7 +298,7 @@ def show_tabulator_page(auth, status_filter: str = None):
                 cls="flex justify-between items-center mb-4",
             ),
             # Tabulator container
-            Div(id="profile-table", cls="bg-base-100"),
+            Div(id="profile-table", cls="bg-base-100 rounded-lg shadow-sm"),
             tabulator_init,
             cls="space-y-4 pt-2",
         ),
