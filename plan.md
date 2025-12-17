@@ -191,6 +191,187 @@ The user registers, logs in, creates hafiz profile, marks previously memorized p
 
 ---
 
+## Memorization Status Redesign
+
+A unified dashboard with events tracking, status filtering, and integrated learning flow.
+See `docs/profile-redesign-plan.md` for full architecture details.
+
+### Status Model (derived from mode_code)
+```
+📚 NOT_MEMORIZED  → memorized = false
+🌱 LEARNING       → mode_code = NM
+🏋️ REPS           → mode_code = DR/WR/FR/MR
+💪 SOLID          → mode_code = FC
+😰 STRUGGLING     → mode_code = SR
+```
+
+### Event Types
+`started_new`, `started_renew`, `completed`, `advanced`, `graduated`, `slipped`, `recovered`, `reset`
+
+---
+
+### Slice 1: Stats cards on profile page
+Show counts per status at top of profile page.
+- [ ] Add `get_status_counts()` query to `common_function.py`
+- [ ] Create `render_stats_cards()` component in `profile.py`
+- [ ] Add stats cards to profile page (above existing table)
+- **Verify**: Profile page shows cards with counts for each status
+
+---
+
+### Slice 2: Status filter
+Filter profile table by status (Not Memorized, Learning, Reps, Solid, Struggling).
+- [ ] Add `get_status()` function to derive status from mode_code
+- [ ] Add status filter dropdown to profile page
+- [ ] Make stats cards clickable (clicking card sets filter)
+- [ ] Update profile query to filter by derived status
+- **Verify**: Click "Struggling" card → only SR pages shown
+
+---
+
+### Slice 3: Mode filter (within Reps)
+Filter by specific mode when viewing Reps status.
+- [ ] Add mode dropdown (DR/WR/FR/MR) shown when status=Reps or All
+- [ ] Update profile query to filter by mode_code
+- **Verify**: Filter status=Reps, then mode=Weekly → only WR pages shown
+
+---
+
+### Slice 4: Health column
+Show streak-based health indicator for each page.
+- [ ] Add `get_health_indicator()` function (returns icon based on streaks)
+- [ ] Add "Health" column to profile table
+- **Verify**: Pages with good_streak show 🔥, bad_streak show ⚠️
+
+---
+
+### Slice 5: Page journey on page details
+Show timeline of events for a page. (Introduces events table)
+- [ ] Create migration `0025-create-page-events.sql`
+- [ ] Add `page_events` table to `database.py`
+- [ ] Create `app/events_model.py` with `log_event()` and `get_page_history()`
+- [ ] Add `render_page_journey()` component
+- [ ] Add "Page Journey" section to `/page_details/{item_id}`
+- **Verify**: View page details → see "Page Journey" section (empty for now)
+
+---
+
+### Slice 6: Log events for new memorization
+When marking page as newly memorized, log events.
+- [ ] Add `log_event()` calls in `update_status_as_newly_memorized()` → `started_new` + `completed`
+- [ ] Add `log_event()` calls in `bulk_update_status_as_newly_memorized()`
+- **Verify**: Mark page as newly memorized → page journey shows events
+
+---
+
+### Slice 7: Log events for rep mode graduation
+When page graduates DR→WR→FR→MR→FC, log events.
+- [ ] Add `log_event()` in `update_rep_item()` when graduating → `advanced` or `graduated`
+- **Verify**: Close date with item at threshold → page journey shows `advanced` event
+
+---
+
+### Slice 8: Log events for SRS transitions
+When page enters or exits SRS, log events.
+- [ ] Add `log_event()` in `start_srs_for_ok_and_bad_rating()` → `slipped`
+- [ ] Add `log_event()` in `update_hafiz_item_for_srs()` when interval > 99 → `recovered`
+- **Verify**: FC page with bad rating → page journey shows `slipped` event
+
+---
+
+### Slice 9: Log events for manual mode changes
+When user changes mode via profile UI, log events.
+- [ ] Add `log_event()` in `quick_change_mode()` → determine event type
+- [ ] Add `log_event()` in `graduate_item()` → `advanced` or `graduated`
+- [ ] Add `log_event()` in `configure_reps()` when mode changes
+- **Verify**: Change mode via dropdown → page journey shows event
+
+---
+
+### Slice 10: "Start Learning" action
+Button to start learning not-memorized pages.
+- [ ] Create `/profile/bulk/start_learning` route
+- [ ] Set mode_code = NM, memorized = false, log `started_new` event
+- [ ] Add "🌱 Start Learning" button to bulk actions bar
+- [ ] Show button only when not-memorized pages selected
+- **Verify**: Select not-memorized pages → click Start Learning → status=Learning
+
+---
+
+### Slice 11: "Complete" action for learning pages
+Button to complete learning and enter Reps.
+- [ ] Create `/profile/complete_learning/{item_id}` route
+- [ ] Set mode_code = DR, memorized = true, log `completed` event
+- [ ] Show "✓ Complete" button in row for NM pages
+- **Verify**: Page in Learning → click Complete → status=Reps (DR)
+
+---
+
+### Slice 12: "Renew" action
+Button to re-learn struggling/solid pages.
+- [ ] Create `/profile/bulk/renew` route
+- [ ] Set mode_code = NM, log `started_renew` event
+- [ ] Add "🔄 Renew" button to bulk actions bar
+- [ ] Show button only when SR/FC pages selected
+- **Verify**: Select struggling page → click Renew → status=Learning
+
+---
+
+### Slice 13: "Reset" action
+Button to reset page directly to Daily Reps (skip learning).
+- [ ] Create `/profile/bulk/reset` route
+- [ ] Set mode_code = DR, log `reset` event
+- [ ] Add "⚡ Reset" button to bulk actions bar
+- [ ] Show button only when SR/FC pages selected
+- **Verify**: Select struggling page → click Reset → status=Reps (DR)
+
+---
+
+### Slice 14: Learning section enhancements
+Show NEW vs RENEW type in learning view.
+- [ ] Add "Type" column showing NEW or RENEW (based on last event)
+- [ ] Add "Started" column with event date
+- [ ] Query last `started_*` event for each NM item
+- **Verify**: Renew a page → filter Learning → shows "RENEW" type with date
+
+---
+
+### Slice 15: Quick filters
+Predefined filters for common queries.
+- [ ] Add "😰 Struggling" quick filter (mode=SR OR bad_streak > 2)
+- [ ] Add "📈 Almost Done" quick filter (rep count >= 6)
+- [ ] Add "⏰ Overdue" quick filter (next_review < current_date)
+- [ ] Add "Clear" button to reset all filters
+- **Verify**: Click "Struggling" → shows SR pages + pages with bad streaks
+
+---
+
+### Slice 16: Search box
+Quick search by page number.
+- [ ] Add search input to filter bar
+- [ ] Filter table as user types (client-side or HTMX)
+- **Verify**: Type "45" → only page 45 shown
+
+---
+
+### Slice 17: Unify views (remove juz/surah/page tabs)
+Single table with filters instead of separate views.
+- [ ] Remove tab navigation (by juz/surah/page)
+- [ ] Add juz and surah filter dropdowns instead
+- [ ] Default to showing all pages, sorted by page number
+- **Verify**: Profile shows single filterable table, juz/surah as filters
+
+---
+
+### Slice 18: Navigation cleanup
+Update nav links and deprecate old routes.
+- [ ] Update "Profile" nav link to `/profile/page`
+- [ ] Redirect `/new_memorization` to `/profile/page?status=not_memorized`
+- [ ] Remove deprecated juz/surah view code
+- **Verify**: All navigation works, old URLs redirect
+
+---
+
 ## Future Improvements
 
 ### Testing Infrastructure
