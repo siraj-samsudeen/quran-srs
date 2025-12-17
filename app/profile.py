@@ -8,6 +8,54 @@ from database import *
 profile_app, rt = create_app_with_auth()
 
 
+# === Stats Cards Component ===
+
+
+def render_stats_cards(auth):
+    """Render status stats cards at top of profile page."""
+    counts = get_status_counts(auth)
+
+    # Order: Not Memorized, Learning, Reps, Solid, Struggling, Total
+    cards_data = [
+        (STATUS_NOT_MEMORIZED, counts.get(STATUS_NOT_MEMORIZED, 0)),
+        (STATUS_LEARNING, counts.get(STATUS_LEARNING, 0)),
+        (STATUS_REPS, counts.get(STATUS_REPS, 0)),
+        (STATUS_SOLID, counts.get(STATUS_SOLID, 0)),
+        (STATUS_STRUGGLING, counts.get(STATUS_STRUGGLING, 0)),
+    ]
+
+    def make_card(status, count):
+        icon, label = get_status_display(status)
+        return Div(
+            Div(
+                Span(icon, cls="text-2xl"),
+                Span(str(count), cls="text-2xl font-bold ml-2"),
+                cls="flex items-center justify-center",
+            ),
+            Div(label, cls="text-xs text-center mt-1 text-gray-600"),
+            cls="bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors",
+            data_testid=f"stats-card-{status.lower()}",
+        )
+
+    total_card = Div(
+        Div(
+            Span("📖", cls="text-2xl"),
+            Span(str(counts.get("total", 0)), cls="text-2xl font-bold ml-2"),
+            cls="flex items-center justify-center",
+        ),
+        Div("Total", cls="text-xs text-center mt-1 text-gray-600"),
+        cls="bg-base-100 border rounded-lg p-3 min-w-[100px]",
+        data_testid="stats-card-total",
+    )
+
+    return Div(
+        *[make_card(status, count) for status, count in cards_data],
+        total_card,
+        cls="flex flex-wrap gap-3 mb-4",
+        data_testid="stats-cards",
+    )
+
+
 # === Rep Configuration Routes ===
 # These routes handle the flexible rep mode configuration
 
@@ -905,6 +953,7 @@ def show_page_status(current_type: str, auth, status: str = ""):
 
     return main_area(
         Div(
+            render_stats_cards(auth),
             DivFullySpaced(
                 filter_btns,
             ),

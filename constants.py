@@ -34,3 +34,19 @@ DEFAULT_REP_COUNTS = {
     FORTNIGHTLY_REPS_MODE_CODE: 7,
     MONTHLY_REPS_MODE_CODE: 7,
 }
+
+# Status constants (derived from memorized + mode_code)
+STATUS_NOT_MEMORIZED = "NOT_MEMORIZED"
+STATUS_LEARNING = "LEARNING"
+STATUS_REPS = "REPS"
+STATUS_SOLID = "SOLID"
+STATUS_STRUGGLING = "STRUGGLING"
+
+# Status display: (icon, label)
+STATUS_DISPLAY = {
+    STATUS_NOT_MEMORIZED: ("📚", "Not Memorized"),
+    STATUS_LEARNING: ("🌱", "Learning"),
+    STATUS_REPS: ("🏋️", "Reps"),
+    STATUS_SOLID: ("💪", "Solid"),
+    STATUS_STRUGGLING: ("😰", "Struggling"),
+}

@@ -1388,3 +1388,70 @@ def render_mode_and_reps(hafiz_item, mode_code=None):
 
     # Show mode name with progress: "☀️ Daily 3/7"
     return Span(f"{icon} {mode_name} {current_count}/{threshold}")
+
+
+# === Status Helper Functions ===
+# Status is derived from memorized + mode_code (no new column needed)
+
+
+def get_status(hafiz_item) -> str:
+    """Derive status from memorized flag and mode_code."""
+    if isinstance(hafiz_item, dict):
+        memorized = hafiz_item.get("memorized")
+        mode_code = hafiz_item.get("mode_code")
+    else:
+        memorized = hafiz_item.memorized
+        mode_code = hafiz_item.mode_code
+
+    if not memorized:
+        return STATUS_NOT_MEMORIZED
+
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return STATUS_LEARNING
+    elif mode_code in (
+        DAILY_REPS_MODE_CODE,
+        WEEKLY_REPS_MODE_CODE,
+        FORTNIGHTLY_REPS_MODE_CODE,
+        MONTHLY_REPS_MODE_CODE,
+    ):
+        return STATUS_REPS
+    elif mode_code == FULL_CYCLE_MODE_CODE:
+        return STATUS_SOLID
+    elif mode_code == SRS_MODE_CODE:
+        return STATUS_STRUGGLING
+
+    return STATUS_NOT_MEMORIZED
+
+
+def get_status_display(status: str) -> tuple[str, str]:
+    """Get (icon, label) for a status."""
+    return STATUS_DISPLAY.get(status, ("❓", "Unknown"))
+
+
+def get_status_counts(hafiz_id: int) -> dict:
+    """Get page count for each status for dashboard stats."""
+    all_items = hafizs_items(where=f"hafiz_id = {hafiz_id}")
+
+    # Group item_ids by status
+    groups = {
+        STATUS_NOT_MEMORIZED: [],
+        STATUS_LEARNING: [],
+        STATUS_REPS: [],
+        STATUS_SOLID: [],
+        STATUS_STRUGGLING: [],
+    }
+
+    for hi in all_items:
+        status = get_status(hi)
+        if status in groups:
+            groups[status].append(hi.item_id)
+
+    # Calculate page count for each group
+    return {
+        STATUS_NOT_MEMORIZED: get_page_count(item_ids=groups[STATUS_NOT_MEMORIZED]),
+        STATUS_LEARNING: get_page_count(item_ids=groups[STATUS_LEARNING]),
+        STATUS_REPS: get_page_count(item_ids=groups[STATUS_REPS]),
+        STATUS_SOLID: get_page_count(item_ids=groups[STATUS_SOLID]),
+        STATUS_STRUGGLING: get_page_count(item_ids=groups[STATUS_STRUGGLING]),
+        "total": get_page_count(item_ids=[hi.item_id for hi in all_items]),
+    }
