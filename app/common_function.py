@@ -174,11 +174,6 @@ def main_area(*args, active=None, auth=None):
                     href="/page_details",
                     cls=is_active("Page Details"),
                 ),
-                A(
-                    "New Memorization",
-                    href="/new_memorization",
-                    cls=is_active("New Memorization"),
-                ),
                 A("Revision", href="/revision", cls=is_active("Revision")),
                 admin_dropdown,
                 A("Report", href="/report", cls=is_active("Report")),
@@ -1136,6 +1131,223 @@ def render_current_date(auth):
         Span("System Date: ", cls=TextPresets.bold_lg),
         Span(date_to_human_readable(current_date), data_testid="system-date"),
     )
+
+
+# === New Memorization Tab ===
+
+
+def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
+    """Render a single row in the New Memorization table with checkbox."""
+    item_id = item.id
+    row_id = f"row-NM-{item_id}"
+
+    # Check if this is a consecutive page (hide start text for recall)
+    is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+
+    # Checkbox for marking as memorized
+    checkbox = fh.Input(
+        type="checkbox",
+        name="item_ids",
+        value=item_id,
+        checked=is_memorized_today,
+        cls="checkbox bulk-select-checkbox",
+        hx_post=f"/new_memorization/toggle/{item_id}",
+        hx_target=f"#summary_table_{NEW_MEMORIZATION_MODE_CODE}",
+        hx_swap="outerHTML",
+        hx_vals={"date": current_date},
+        # Update count when checkbox changes
+        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+    )
+
+    # Row background: green if memorized today
+    bg_class = "bg-green-100" if is_memorized_today else ""
+
+    return Tr(
+        Td(checkbox, cls="w-8 text-center"),
+        Td(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
+        Td(
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(item.start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if is_consecutive
+            else Span(item.start_text or "-"),
+            cls="text-lg",
+        ),
+        id=row_id,
+        cls=bg_class,
+    )
+
+
+def render_nm_bulk_action_bar(current_date):
+    """Render bulk action bar for New Memorization mode.
+
+    Unlike other modes that have Good/Ok/Bad buttons, NM only has
+    a single 'Mark as Memorized' button.
+    """
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Select all checkbox - toggles all unchecked items
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => {
+                        if ($el.checked) cb.checked = true;
+                    });
+                    if (!$el.checked) {
+                        $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
+                    }
+                    count = $root.querySelectorAll('.bulk-select-checkbox:checked').length
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    mark_button = Button(
+        "Mark as Memorized",
+        hx_post="/new_memorization/bulk_mark",
+        hx_vals={"date": current_date},
+        hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        **{"@click": "count = 0"},
+        cls=(ButtonT.primary, "px-4 py-2"),
+    )
+
+    return Div(
+        select_all_checkbox,
+        mark_button,
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+    )
+
+
+def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=False):
+    """Build the New Memorization tab content showing unmemorized pages.
+
+    Shows:
+    - Unmemorized items (hafizs_items.memorized = 0)
+    - Items marked as memorized today (NM revisions today) - these stay until Close Date
+    """
+    current_date = get_current_date(auth)
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Query unmemorized items
+    qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        WHERE hafizs_items.hafiz_id = {auth}
+          AND hafizs_items.memorized = 0
+        ORDER BY hafizs_items.item_id ASC
+    """
+    unmemorized_records = db.q(qry)
+    unmemorized_item_ids = set(r["item_id"] for r in unmemorized_records)
+
+    # Get today's NM revisions (to show "memorized today" state)
+    today_nm_revisions = revisions(
+        where=f"revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {auth}"
+    )
+    today_nm_item_ids = set(r.item_id for r in today_nm_revisions)
+
+    # Combine: unmemorized + memorized today (union)
+    all_item_ids = sorted(unmemorized_item_ids | today_nm_item_ids)
+
+    # Hide tab entirely if no items to display
+    if not all_item_ids:
+        return None
+
+    # Pagination
+    total_items = len(all_item_ids)
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = all_item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = all_item_ids
+        total_pages = 1
+
+    # Get item details for paginated items
+    items_data = [items[item_id] for item_id in paginated_item_ids]
+
+    # Render rows with surah headers
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+
+    for item in items_data:
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            prev_page_id = None  # Reset consecutive tracking on surah change
+
+        is_memorized_today = item.id in today_nm_item_ids
+        body_rows.append(render_nm_row(item, current_date, is_memorized_today, prev_page_id))
+        prev_page_id = item.page_id
+
+    # Empty state
+    if not body_rows:
+        body_rows = [
+            Tr(
+                Td(
+                    "All pages memorized!",
+                    colspan=3,
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
+
+    bulk_bar = render_nm_bulk_action_bar(current_date)
+
+    # Pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
+
+    table_content = [
+        Table(
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
+        ),
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
+    )
+
+    if table_only:
+        return table
+    return (mode_code, table)
 
 
 # Rep mode configuration UI - used in profile and new memorization flows

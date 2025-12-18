@@ -604,3 +604,217 @@ class TestFullGraduationChain:
         # Clear xtra filter
         revisions.xtra()
         hafizs_items.xtra()
+
+
+# ============================================================================
+# Test Class: Custom Threshold Graduation
+# ============================================================================
+
+
+class TestCustomThresholdGraduation:
+    """Test that graduation respects custom thresholds instead of defaults."""
+
+    def test_daily_graduates_with_custom_threshold_3(self, graduation_test_hafiz):
+        """Item with custom_daily_threshold=3 graduates to Weekly after 3 reviews."""
+        from database import hafizs, hafizs_items, revisions
+
+        hafiz_id = graduation_test_hafiz["hafiz_id"]
+        items_list = graduation_test_hafiz["items"]
+        test_item = items_list[7]
+        item_id = test_item.item_id
+
+        revisions.xtra(hafiz_id=hafiz_id)
+        hafizs_items.xtra(hafiz_id=hafiz_id)
+
+        # Set item to Daily mode with custom threshold of 3
+        hafizs_items.update({
+            "mode_code": DAILY_REPS_MODE_CODE,
+            "next_interval": 1,
+            "next_review": "2024-01-15",
+            "memorized": True,
+            "custom_daily_threshold": 3,
+        }, test_item.id)
+
+        hafizs.update({"current_date": "2024-01-15"}, hafiz_id)
+
+        # Add only 3 revisions (custom threshold)
+        for i in range(2):
+            revisions.insert(
+                item_id=item_id,
+                hafiz_id=hafiz_id,
+                mode_code=DAILY_REPS_MODE_CODE,
+                revision_date=f"2024-01-{12+i:02d}",
+                rating=1,
+            )
+
+        # 3rd revision triggers graduation
+        rev = revisions.insert(
+            item_id=item_id,
+            hafiz_id=hafiz_id,
+            mode_code=DAILY_REPS_MODE_CODE,
+            revision_date="2024-01-15",
+            rating=1,
+        )
+
+        update_rep_item(rev)
+
+        updated_item = hafizs_items(where=f"item_id={item_id}")[0]
+        assert updated_item.mode_code == WEEKLY_REPS_MODE_CODE
+        assert updated_item.next_interval == 7
+
+        revisions.xtra()
+        hafizs_items.xtra()
+
+    def test_weekly_graduates_with_custom_threshold_10(self, graduation_test_hafiz):
+        """Item with custom_weekly_threshold=10 graduates to Fortnightly after 10 reviews."""
+        from database import hafizs, hafizs_items, revisions
+
+        hafiz_id = graduation_test_hafiz["hafiz_id"]
+        items_list = graduation_test_hafiz["items"]
+        test_item = items_list[8]
+        item_id = test_item.item_id
+
+        revisions.xtra(hafiz_id=hafiz_id)
+        hafizs_items.xtra(hafiz_id=hafiz_id)
+
+        # Set item to Weekly mode with custom threshold of 10
+        hafizs_items.update({
+            "mode_code": WEEKLY_REPS_MODE_CODE,
+            "next_interval": 7,
+            "next_review": "2024-01-15",
+            "memorized": True,
+            "custom_weekly_threshold": 10,
+        }, test_item.id)
+
+        hafizs.update({"current_date": "2024-01-15"}, hafiz_id)
+
+        # Add 9 revisions
+        for i in range(9):
+            revisions.insert(
+                item_id=item_id,
+                hafiz_id=hafiz_id,
+                mode_code=WEEKLY_REPS_MODE_CODE,
+                revision_date=f"2023-{11+i//4:02d}-{1+(i%4)*7:02d}",
+                rating=1,
+            )
+
+        # 10th revision triggers graduation
+        rev = revisions.insert(
+            item_id=item_id,
+            hafiz_id=hafiz_id,
+            mode_code=WEEKLY_REPS_MODE_CODE,
+            revision_date="2024-01-15",
+            rating=1,
+        )
+
+        update_rep_item(rev)
+
+        updated_item = hafizs_items(where=f"item_id={item_id}")[0]
+        assert updated_item.mode_code == FORTNIGHTLY_REPS_MODE_CODE
+        assert updated_item.next_interval == 14
+
+        revisions.xtra()
+        hafizs_items.xtra()
+
+    def test_fortnightly_graduates_with_custom_threshold_5(self, graduation_test_hafiz):
+        """Item with custom_fortnightly_threshold=5 graduates to Monthly after 5 reviews."""
+        from database import hafizs, hafizs_items, revisions
+
+        hafiz_id = graduation_test_hafiz["hafiz_id"]
+        items_list = graduation_test_hafiz["items"]
+        test_item = items_list[9]
+        item_id = test_item.item_id
+
+        revisions.xtra(hafiz_id=hafiz_id)
+        hafizs_items.xtra(hafiz_id=hafiz_id)
+
+        # Set item to Fortnightly mode with custom threshold of 5
+        hafizs_items.update({
+            "mode_code": FORTNIGHTLY_REPS_MODE_CODE,
+            "next_interval": 14,
+            "next_review": "2024-01-15",
+            "memorized": True,
+            "custom_fortnightly_threshold": 5,
+        }, test_item.id)
+
+        hafizs.update({"current_date": "2024-01-15"}, hafiz_id)
+
+        # Add 4 revisions
+        for i in range(4):
+            revisions.insert(
+                item_id=item_id,
+                hafiz_id=hafiz_id,
+                mode_code=FORTNIGHTLY_REPS_MODE_CODE,
+                revision_date=f"2023-{11+i//2:02d}-{1+(i%2)*14:02d}",
+                rating=1,
+            )
+
+        # 5th revision triggers graduation
+        rev = revisions.insert(
+            item_id=item_id,
+            hafiz_id=hafiz_id,
+            mode_code=FORTNIGHTLY_REPS_MODE_CODE,
+            revision_date="2024-01-15",
+            rating=1,
+        )
+
+        update_rep_item(rev)
+
+        updated_item = hafizs_items(where=f"item_id={item_id}")[0]
+        assert updated_item.mode_code == MONTHLY_REPS_MODE_CODE
+        assert updated_item.next_interval == 30
+
+        revisions.xtra()
+        hafizs_items.xtra()
+
+    def test_monthly_graduates_with_custom_threshold_12(self, graduation_test_hafiz):
+        """Item with custom_monthly_threshold=12 graduates to Full Cycle after 12 reviews."""
+        from database import hafizs, hafizs_items, revisions
+
+        hafiz_id = graduation_test_hafiz["hafiz_id"]
+        items_list = graduation_test_hafiz["items"]
+        test_item = items_list[10]
+        item_id = test_item.item_id
+
+        revisions.xtra(hafiz_id=hafiz_id)
+        hafizs_items.xtra(hafiz_id=hafiz_id)
+
+        # Set item to Monthly mode with custom threshold of 12
+        hafizs_items.update({
+            "mode_code": MONTHLY_REPS_MODE_CODE,
+            "next_interval": 30,
+            "next_review": "2024-01-15",
+            "memorized": True,
+            "custom_monthly_threshold": 12,
+        }, test_item.id)
+
+        hafizs.update({"current_date": "2024-01-15"}, hafiz_id)
+
+        # Add 11 revisions
+        for i in range(11):
+            revisions.insert(
+                item_id=item_id,
+                hafiz_id=hafiz_id,
+                mode_code=MONTHLY_REPS_MODE_CODE,
+                revision_date=f"2023-{1+i:02d}-15",
+                rating=1,
+            )
+
+        # 12th revision triggers graduation
+        rev = revisions.insert(
+            item_id=item_id,
+            hafiz_id=hafiz_id,
+            mode_code=MONTHLY_REPS_MODE_CODE,
+            revision_date="2024-01-15",
+            rating=1,
+        )
+
+        update_rep_item(rev)
+
+        updated_item = hafizs_items(where=f"item_id={item_id}")[0]
+        assert updated_item.mode_code == FULL_CYCLE_MODE_CODE
+        assert updated_item.next_interval is None
+        assert updated_item.memorized == 1
+
+        revisions.xtra()
+        hafizs_items.xtra()

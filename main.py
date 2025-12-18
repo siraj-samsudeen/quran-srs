@@ -55,6 +55,11 @@ def index(auth, sess):
 
     # Build panels - each returns (mode_code, panel) tuple
     mode_panels = [
+        make_new_memorization_table(
+            auth,
+            page=get_page(NEW_MEMORIZATION_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
         make_summary_table(
             FULL_CYCLE_MODE_CODE,
             auth,
@@ -96,6 +101,7 @@ def index(auth, sess):
     mode_panels = [panel for panel in mode_panels if panel is not None]
 
     mode_icons = {
+        NEW_MEMORIZATION_MODE_CODE: "🆕",
         FULL_CYCLE_MODE_CODE: "🔄",
         SRS_MODE_CODE: "🧠",
         DAILY_REPS_MODE_CODE: "☀️",
@@ -106,6 +112,7 @@ def index(auth, sess):
 
     # Short names for mobile display
     mode_short_names = {
+        NEW_MEMORIZATION_MODE_CODE: "New",
         FULL_CYCLE_MODE_CODE: "FC",
         SRS_MODE_CODE: "SRS",
         DAILY_REPS_MODE_CODE: "Daily",
@@ -254,7 +261,7 @@ def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = 
         if rev.mode_code == FULL_CYCLE_MODE_CODE:
             update_hafiz_item_for_full_cycle(rev)
         elif rev.mode_code == NEW_MEMORIZATION_MODE_CODE:
-            update_hafiz_item_for_new_memorization(rev)
+            update_hafiz_item_for_new_memorization(rev, current_date=hafiz_data.current_date)
         elif rev.mode_code in REP_MODES_CONFIG:
             update_rep_item(rev)
         elif rev.mode_code == SRS_MODE_CODE:
@@ -287,6 +294,15 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
     if "pagination" not in sess:
         sess["pagination"] = {}
     sess["pagination"][mode_code] = page
+
+    # Handle NM mode separately (uses different table function)
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return make_new_memorization_table(
+            auth=auth,
+            table_only=True,
+            page=page,
+            items_per_page=ITEMS_PER_PAGE,
+        )
 
     return make_summary_table(
         mode_code=mode_code,

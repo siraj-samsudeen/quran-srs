@@ -394,11 +394,184 @@ Update nav links and deprecate old routes.
 
 ---
 
-## Future Improvements
+## Tabulator Migration Plan
 
-### Testing Infrastructure
-- [ ] Implement module-scoped database fixtures for integration tests (per `docs/testing-approach.md` lines 596-643)
-  - Current: Simple session-scoped `test_user` with manual cleanup
-  - Recommended: Module-scoped DB creation + function-scoped table truncation
-  - Benefit: ~10ms per test (vs current approach), guaranteed test isolation
-  - When: Add when integration test count exceeds 10+ tests per module
+Migrate HTML tables to Tabulator.js for improved UX: quick search, customizable columns, flexible pagination, and user preferences.
+
+### Tables to Migrate
+
+| # | Table | URL | Priority |
+|---|-------|-----|----------|
+| 1 | Mode Summary Tables (x7) | `/` (home tabs) | **HIGH** - main target |
+| 2 | Datewise Summary Table | `/report` | MEDIUM |
+| 3 | Page Summary Table | `/page_details` | MEDIUM |
+| 4 | Revision History | `/page_details/{id}` (bottom) | MEDIUM |
+| 5 | Admin Tables View | `/admin/tables` | LOW |
+| 6 | Revision List | `/revision/` | MEDIUM |
+
+**Already Done:** Profile page (`/profile`) - uses Tabulator
+
+**NOT Converting (small/simple tables):**
+- Statistics Table (top of home) - small summary
+- Page Statistics (key-value pairs on page details)
+- Admin Import Preview - temporary view
+
+---
+
+### Phase 1: JSON API Layer
+
+Create API endpoints for table data (following `/profile/api/pages` pattern).
+
+#### Slice 1.1: Mode Items API
+- [ ] Create `app/home_api.py` with FastHTML sub-app
+- [ ] Add `GET /api/mode/{mode_code}/items` endpoint
+- [ ] Reuse existing mode predicates from `common_function.py`
+- [ ] Return JSON: `{items: [...], total, page, page_size, plan_id, current_date}`
+- [ ] Mount API routes in `main.py`
+- **Verify**: `curl /api/mode/FC/items` returns JSON with item data
+
+#### Slice 1.2: Rating API
+- [ ] Add `POST /api/mode/{mode_code}/rate` for single item rating
+- [ ] Add `POST /api/mode/{mode_code}/bulk_rate` for bulk rating
+- [ ] Return updated stats: `{success, pages_revised_today, pages_revised_yesterday}`
+- **Verify**: POST rating → revision created, stats returned
+
+#### Slice 1.3: NM Toggle API
+- [ ] Add `POST /api/new_memorization/toggle` for NM mode
+- [ ] Different behavior: creates/deletes revision (toggle memorized)
+- **Verify**: Toggle item → revision created/deleted
+
+---
+
+### Phase 2: Home Page Tabulator Components
+
+Replace HTML tables with Tabulator on home page tabs.
+
+#### Slice 2.1: Tabulator Factory
+- [ ] Create `render_mode_tabulator(mode_code)` in `app/home_view.py`
+- [ ] Generate Tabulator init script with column definitions
+- [ ] Columns: Select, Page, Surah, Juz, Start Text, Rating
+- [ ] Configure responsive column hiding for mobile
+- **Verify**: Function returns valid Tabulator container + script
+
+#### Slice 2.2: Rating Dropdown Formatter
+- [ ] Create custom Tabulator formatter for rating column
+- [ ] On change: fetch POST to API, update cell background
+- [ ] Colors: green (Good), yellow (Ok), red (Bad), white (unrated)
+- **Verify**: Select rating → cell updates color, no page reload
+
+#### Slice 2.3: Consecutive Page Detection
+- [ ] Add `is_consecutive` flag in API response
+- [ ] Create tap-to-reveal formatter for start text
+- [ ] Show "● ● ●" for consecutive pages, reveal on tap
+- **Verify**: Consecutive pages show masked text, tap reveals
+
+#### Slice 2.4: Bulk Action Bar Integration
+- [ ] Wire row selection events to update count display
+- [ ] Bulk buttons call API, then `table.setData()` refreshes
+- [ ] Select-all/clear-all functionality
+- **Verify**: Select items, click Good → all rated, count resets
+
+#### Slice 2.5: Replace FC Table
+- [ ] Modify `index()` route in `main.py`
+- [ ] Replace `make_summary_table(FULL_CYCLE_MODE_CODE)` with Tabulator
+- [ ] Keep existing tab structure (Alpine.js)
+- **Verify**: FC tab shows Tabulator with all functionality
+
+#### Slice 2.6: Migrate All Mode Tabs
+- [ ] Replace SRS, DR, WR, FR, MR tables with Tabulator
+- [ ] Each mode uses same config with mode_code param
+- **Verify**: All mode tabs use Tabulator, rating/bulk works
+
+#### Slice 2.7: Migrate NM Table
+- [ ] Different column config (toggle checkbox, no rating dropdown)
+- [ ] Toggle creates/deletes NM revision
+- **Verify**: NM tab shows Tabulator, toggle works
+
+---
+
+### Phase 3: User Preferences
+
+Persist user settings in localStorage.
+
+#### Slice 3.1: Page Size Preference
+- [ ] Save page size to `localStorage['tabulator_prefs_{mode}']`
+- [ ] Load on table init
+- **Verify**: Change page size → reload → same page size
+
+#### Slice 3.2: Column Visibility
+- [ ] Add column visibility toggle button
+- [ ] Save visible columns to localStorage
+- [ ] Default: hide Juz on mobile
+- **Verify**: Hide column → reload → column still hidden
+
+#### Slice 3.3: Sort Preference
+- [ ] Save current sort (column, direction) to localStorage
+- [ ] Load on table init
+- **Verify**: Sort by Surah → reload → still sorted by Surah
+
+---
+
+### Phase 4: Other Tables
+
+Migrate remaining tables to Tabulator.
+
+#### Slice 4.1: Revision List (`/revision/`)
+- [ ] Add `GET /api/revisions` endpoint
+- [ ] Replace HTML table with Tabulator
+- [ ] Columns: Select, Page, Mode, Plan Id, Rating, Date, Action
+- [ ] Add filtering by mode, date range
+- **Verify**: Revision list uses Tabulator with search/filter
+
+#### Slice 4.2: Datewise Summary (`/report`)
+- [ ] Add `GET /api/report` endpoint
+- [ ] Replace HTML table with Tabulator
+- [ ] Columns: Date, Mode, Count, Page Ranges
+- [ ] Group by date with row grouping feature
+- **Verify**: Report page uses Tabulator with date grouping
+
+#### Slice 4.3: Page Summary (`/page_details`)
+- [ ] Add `GET /api/page_details` endpoint
+- [ ] Replace HTML table with Tabulator
+- [ ] Columns: Page, FC count, SRS count, DR count, etc.
+- [ ] Add surah search filter
+- **Verify**: Page details list uses Tabulator with surah search
+
+#### Slice 4.4: Revision History (`/page_details/{id}`)
+- [ ] Replace bottom history table with Tabulator
+- [ ] Columns: #, Date, Rating, Mode, Intervals, Next Interval
+- [ ] Read-only table (no edits)
+- **Verify**: Page revision history uses Tabulator
+
+#### Slice 4.5: Admin Tables (`/admin/tables`)
+- [ ] Replace admin table view with Tabulator
+- [ ] Dynamic columns based on table schema
+- [ ] Add inline editing capability
+- **Verify**: Admin table view uses Tabulator with editing
+
+---
+
+### Phase 5: Cleanup & Testing
+
+Remove deprecated code, update tests.
+
+#### Slice 5.1: Remove Old HTML Table Code
+- [ ] Remove `render_summary_table()` from `common_function.py`
+- [ ] Remove `render_range_row()`, `render_pagination_controls()`
+- [ ] Remove old HTMX routes: `/add/{item_id}`, `/edit/{rev_id}`, `/page/{mode_code}`
+- **Verify**: No dead code, app still works
+
+#### Slice 5.2: Update Integration Tests
+- [ ] Add tests for new API endpoints in `tests/integration/test_home_api.py`
+- [ ] Test JSON responses, pagination, filtering
+- [ ] Update `full_cycle_pagination_test.py` for new endpoints
+- **Verify**: All integration tests pass
+
+#### Slice 5.3: Update E2E Tests
+- [ ] Update `test_alpine_features.py` for Tabulator selectors
+- [ ] Update bulk selection tests (Tabulator row selection API)
+- [ ] Update pagination tests (Tabulator pagination)
+- **Verify**: All E2E tests pass
+
+---
+
