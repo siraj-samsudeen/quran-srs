@@ -1,3 +1,4 @@
+import json
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
@@ -9,87 +10,287 @@ from database import *
 page_details_app, rt = create_app_with_auth()
 
 
-@page_details_app.get("/")
-def page_details_view(auth):
-    mode_code_list, mode_name_list = get_mode_name_and_code()
+def render_page_details_tabulator():
+    """Render a Tabulator table for the page details list."""
+    api_url = "/api/page_details"
+    table_id = "page-details-table"
 
-    # To get the count of the records under each modes to display
-    mode_case_statements = []
-    for mode_code in mode_code_list:
-        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_code = '{mode_code}' THEN 1 END), '-') AS '{mode_code}'"
-        mode_case_statements.append(case_stmt)
-    mode_cases = ",\n".join(mode_case_statements)
+    tabulator_script = Script(f"""
+        (function() {{
+            function initTable() {{
+                if (typeof Tabulator === 'undefined') {{
+                    setTimeout(initTable, {TABULATOR_INIT_DELAY_MS});
+                    return;
+                }}
 
-    display_pages_query = f"""SELECT 
-                            items.id,
-                            items.surah_id,
-                            pages.page_number,
-                            pages.juz_number,
-                            {mode_cases},
-                            SUM(revisions.rating) AS rating_summary
-                        FROM revisions
-                        LEFT JOIN items ON revisions.item_id = items.id
-                        LEFT JOIN pages ON items.page_id = pages.id
-                        WHERE revisions.hafiz_id = {auth} AND items.active != 0
-                        GROUP BY items.id
-                        ORDER BY pages.page_number;"""
-    hafiz_items_with_details = db.q(display_pages_query)
-    grouped = group_by_type(hafiz_items_with_details, "id")
+                var prefsKey = 'tabulator_prefs_page_details';
+                var prefs = {{}};
+                try {{ prefs = JSON.parse(localStorage.getItem(prefsKey)) || {{}}; }} catch(e) {{}}
 
-    def render_row_based_on_type(
-        records: list,
-        row_link: bool = True,
-    ):
-        r = records[0]
+                var modeNames = {{
+                    'FC': 'Full Cycle',
+                    'SR': 'SRS',
+                    'DR': 'Daily',
+                    'WR': 'Weekly',
+                    'FR': 'Fortnightly',
+                    'MR': 'Monthly',
+                    'NM': 'New Mem'
+                }};
 
-        get_page = f"/page_details/{r['id']}"  # item_id
+                var table = new Tabulator("#{table_id}", {{
+                    ajaxURL: "{api_url}",
+                    ajaxResponse: function(url, params, response) {{
+                        return response.items;
+                    }},
+                    layout: "fitDataStretch",
+                    responsiveLayout: "hide",
+                    pagination: true,
+                    paginationSize: prefs.pageSize || (window.innerWidth < {TABULATOR_MOBILE_BREAKPOINT_PX} ? {TABULATOR_PAGE_SIZE_MOBILE} : {TABULATOR_PAGE_SIZE_DESKTOP}),
+                    paginationSizeSelector: {json.dumps(TABULATOR_PAGE_SIZES)},
+                    paginationCounter: "rows",
+                    placeholder: "No pages found",
+                    columns: [
+                        {{
+                            title: "Page",
+                            field: "page",
+                            sorter: "number",
+                            headerFilter: "number",
+                            width: 70,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var data = cell.getRow().getData();
+                                return '<a href="/page_details/' + data.item_id + '" class="font-mono font-bold hover:underline">' + cell.getValue() + '</a>';
+                            }}
+                        }},
+                        {{
+                            title: "Surah",
+                            field: "surah",
+                            sorter: "string",
+                            headerFilter: "input",
+                            minWidth: 100,
+                            responsive: 2
+                        }},
+                        {{
+                            title: "Mode",
+                            field: "mode_code",
+                            width: 80,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var code = cell.getValue();
+                                return modeNames[code] || code;
+                            }}
+                        }},
+                        {{
+                            title: "FC",
+                            field: "fc_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 1
+                        }},
+                        {{
+                            title: "SR",
+                            field: "sr_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 1
+                        }},
+                        {{
+                            title: "DR",
+                            field: "dr_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 2
+                        }},
+                        {{
+                            title: "WR",
+                            field: "wr_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 2
+                        }},
+                        {{
+                            title: "FR",
+                            field: "fr_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 2
+                        }},
+                        {{
+                            title: "MR",
+                            field: "mr_count",
+                            sorter: "number",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 2
+                        }},
+                        {{
+                            title: "Total",
+                            field: "total_revisions",
+                            sorter: "number",
+                            width: 60,
+                            hozAlign: "center",
+                            responsive: 0
+                        }},
+                        {{
+                            title: "",
+                            field: "item_id",
+                            headerSort: false,
+                            width: 80,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var id = cell.getValue();
+                                return '<a href="/page_details/' + id + '" class="link link-primary text-sm">Details →</a>';
+                            }}
+                        }}
+                    ],
+                    initialSort: prefs.sort ? [prefs.sort] : [{{column: "page", dir: "asc"}}]
+                }});
 
-        hx_attrs = (
-            {
-                "hx_get": get_page,
-                "hx_target": "body",
-                "hx_replace_url": "true",
-                "hx_push_url": "true",
-            }
-            if row_link
-            else {}
-        )
-        rating_summary = r["rating_summary"]
+                table.on("pageSizeChanged", function(size) {{
+                    var p = JSON.parse(localStorage.getItem(prefsKey)) || {{}};
+                    p.pageSize = size;
+                    localStorage.setItem(prefsKey, JSON.stringify(p));
+                }});
 
-        return Tr(
-            Td(get_page_description(item_id=r["id"], link="#")),
-            *map(lambda code: Td(r[code]), mode_code_list),
-            Td(rating_summary),
-            Td(
-                A(
-                    "See Details ➡️",
-                    cls=AT.classic,
-                ),
-                cls="text-right",
-            ),
-            **hx_attrs,
-        )
+                table.on("dataSorted", function(sorters) {{
+                    if (sorters.length > 0) {{
+                        var p = JSON.parse(localStorage.getItem(prefsKey)) || {{}};
+                        p.sort = {{column: sorters[0].field, dir: sorters[0].dir}};
+                        localStorage.setItem(prefsKey, JSON.stringify(p));
+                    }}
+                }});
 
-    rows = [
-        render_row_based_on_type(records)
-        for type_number, records in list(grouped.items())
-    ]
-    table = Table(
-        Thead(
-            Tr(
-                Th("Page"),
-                *map(Th, mode_name_list),
-                Th("Rating Summary"),
-                Th(""),
-                cls="sticky top-16 z-25 bg-white",
-            )
-        ),
-        Tbody(*rows),
+                window.pageDetailsTable = table;
+            }}
+
+            initTable();
+        }})();
+    """)
+
+    return Div(
+        Div(id=table_id, cls="bg-base-100"),
+        tabulator_script,
     )
 
+
+def render_page_history_tabulator(item_id: int):
+    """Render a Tabulator table for a page's revision history."""
+    api_url = f"/api/page_details/{item_id}/history"
+    table_id = f"page-history-table-{item_id}"
+
+    tabulator_script = Script(f"""
+        (function() {{
+            function initTable() {{
+                if (typeof Tabulator === 'undefined') {{
+                    setTimeout(initTable, {TABULATOR_INIT_DELAY_MS});
+                    return;
+                }}
+
+                var ratingMap = {{"1": "Good", "0": "Ok", "-1": "Bad"}};
+                var ratingColors = {json.dumps(RATING_COLORS)};
+
+                var table = new Tabulator("#{table_id}", {{
+                    ajaxURL: "{api_url}",
+                    ajaxResponse: function(url, params, response) {{
+                        return response.items;
+                    }},
+                    layout: "fitDataStretch",
+                    responsiveLayout: "hide",
+                    pagination: true,
+                    paginationSize: {TABULATOR_PAGE_SIZE_DESKTOP},
+                    paginationSizeSelector: {json.dumps(TABULATOR_PAGE_SIZES)},
+                    paginationCounter: "rows",
+                    placeholder: "No revision history",
+                    columns: [
+                        {{
+                            title: "#",
+                            field: "num",
+                            width: 50,
+                            hozAlign: "center",
+                            responsive: 0
+                        }},
+                        {{
+                            title: "Date",
+                            field: "date",
+                            width: 120,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var date = cell.getValue();
+                                if (!date) return "-";
+                                var d = new Date(date);
+                                return d.toLocaleDateString('en-US', {{month: 'short', day: 'numeric', year: 'numeric'}});
+                            }}
+                        }},
+                        {{
+                            title: "Rating",
+                            field: "rating",
+                            width: 80,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var rating = cell.getValue();
+                                var text = ratingMap[rating.toString()] || "-";
+                                var color = ratingColors[rating.toString()] || "";
+                                if (color) {{
+                                    cell.getElement().style.backgroundColor = color;
+                                }}
+                                return text;
+                            }}
+                        }},
+                        {{
+                            title: "Mode",
+                            field: "mode_name",
+                            width: 100,
+                            responsive: 1
+                        }},
+                        {{
+                            title: "Interval",
+                            field: "interval_since_last",
+                            width: 80,
+                            hozAlign: "center",
+                            responsive: 2,
+                            formatter: function(cell) {{
+                                var val = cell.getValue();
+                                return val !== null ? val + "d" : "-";
+                            }}
+                        }},
+                        {{
+                            title: "Next Int.",
+                            field: "next_interval",
+                            width: 80,
+                            hozAlign: "center",
+                            responsive: 2,
+                            formatter: function(cell) {{
+                                var val = cell.getValue();
+                                return val !== null ? val + "d" : "-";
+                            }}
+                        }}
+                    ],
+                    initialSort: [{{column: "num", dir: "desc"}}]
+                }});
+
+                window.pageHistoryTable = table;
+            }}
+
+            initTable();
+        }})();
+    """)
+
+    return Div(
+        Div(id=table_id, cls="bg-base-100"),
+        tabulator_script,
+    )
+
+
+@page_details_app.get("/")
+def page_details_view(auth):
     return main_area(
         Title("Page Details"),
-        table,
+        render_page_details_tabulator(),
         active="Page Details",
         auth=auth,
     )
@@ -349,7 +550,7 @@ def display_page_level_details(auth, item_id: int):
             Div(
                 memorization_summary,
                 (
-                    Div(H2("Revision History"), summary_table)
+                    Div(H2("Revision History"), render_page_history_tabulator(item_id))
                     if has_summary_data
                     else None
                 ),

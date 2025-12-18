@@ -1,96 +1,10 @@
+import json
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
+from constants import *
 from app.common_function import *
-from app.revision_model import get_revision_table_data
 from database import *
-
-
-def action_buttons():
-    # Enable/disable buttons based on checkbox selection
-    dynamic_enable_button_hyperscript = "on checkboxChanged if first <input[type=checkbox]:checked/> remove @disabled else add @disabled"
-    import_export_buttons = DivLAligned(
-        Button(
-            "Bulk Edit",
-            hx_post="/revision/bulk_edit",
-            hx_push_url="true",
-            hx_include="closest form",
-            hx_target="body",
-            cls="toggle_btn",  # To disable and enable the button based on the checkboxes (Don't change, it is referenced in hyperscript)
-            disabled=True,
-            _=dynamic_enable_button_hyperscript,
-        ),
-        Button(
-            "Bulk Delete",
-            hx_delete="/revision",
-            hx_confirm="Are you sure you want to delete these revisions?",
-            hx_target="body",
-            cls=("toggle_btn", ButtonT.destructive),
-            disabled=True,
-            _=dynamic_enable_button_hyperscript,
-        ),
-        A(
-            Button("Export", type="button"),
-            href="tables/revisions/export",
-            hx_boost="false",
-        ),
-    )
-    return DivFullySpaced(
-        Div(),
-        import_export_buttons,
-        cls="flex-wrap gap-4 mb-3",
-    )
-
-
-def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]:
-    def _render_rows(rev: Revision):
-        return Tr(
-            Td(
-                CheckboxX(
-                    name="ids",
-                    value=rev.id,
-                    cls="revision_ids",
-                    # To trigger the checkboxChanged event to the bulk edit and bulk delete buttons
-                    _="on click send checkboxChanged to .toggle_btn",
-                    _at_click="handleCheckboxClick($event)",
-                )
-            ),
-            Td(
-                A(
-                    get_page_description(item_id=rev.item_id, is_link=False),
-                    href=f"/revision/edit/{rev.id}",
-                    cls=AT.muted,
-                )
-            ),
-            Td(rev.mode_code),
-            Td(rev.plan_id),
-            Td(render_rating(rev.rating)),
-            Td(date_to_human_readable(rev.revision_date)),
-            Td(
-                A(
-                    "Delete",
-                    hx_delete=f"/revision/delete/{rev.id}",
-                    target_id=f"revision-{rev.id}",
-                    hx_swap="outerHTML",
-                    hx_confirm="Are you sure?",
-                    cls=AT.muted,
-                ),
-            ),
-            id=f"revision-{rev.id}",
-        )
-
-    paginated = [_render_rows(i) for i in get_revision_table_data(part_num, size)]
-
-    if len(paginated) == 20:
-        paginated[-1].attrs.update(
-            {
-                "get": f"revision?idx={part_num + 1}",
-                "hx-trigger": "revealed",
-                "hx-swap": "afterend",
-                "hx-select": "tbody > tr",
-            }
-        )
-    return tuple(paginated)
 
 
 def create_revision_form(type, auth, backlink="/"):
@@ -136,28 +50,245 @@ def create_revision_form(type, auth, backlink="/"):
     )
 
 
-def render_revision_table(auth, idx: int | None = 1):
-    table = Table(
-        Thead(
-            Tr(
-                Th(),  # empty header for checkbox
-                Th("Page"),
-                Th("Mode"),
-                Th("Plan Id"),
-                Th("Rating"),
-                Th("Revision Date"),
-                Th("Action"),
-            )
+def render_revision_tabulator():
+    """Render a Tabulator table for the revision list."""
+    api_url = "/api/revisions"
+    table_id = "revisions-table"
+
+    tabulator_script = Script(f"""
+        (function() {{
+            function initTable() {{
+                if (typeof Tabulator === 'undefined') {{
+                    setTimeout(initTable, {TABULATOR_INIT_DELAY_MS});
+                    return;
+                }}
+
+                // Load user preferences from localStorage
+                var prefsKey = 'tabulator_prefs_revisions';
+                var prefs = {{}};
+                try {{
+                    prefs = JSON.parse(localStorage.getItem(prefsKey)) || {{}};
+                }} catch(e) {{}}
+
+                // Rating display helper
+                var ratingMap = {{"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}};
+                var ratingColors = {json.dumps(RATING_COLORS)};
+
+                var table = new Tabulator("#{table_id}", {{
+                    ajaxURL: "{api_url}",
+                    ajaxResponse: function(url, params, response) {{
+                        return response.items;
+                    }},
+                    layout: "fitDataStretch",
+                    responsiveLayout: "hide",
+                    pagination: true,
+                    paginationSize: prefs.pageSize || (window.innerWidth < {TABULATOR_MOBILE_BREAKPOINT_PX} ? {TABULATOR_PAGE_SIZE_MOBILE} : {TABULATOR_PAGE_SIZE_DESKTOP}),
+                    paginationSizeSelector: {json.dumps(TABULATOR_PAGE_SIZES)},
+                    paginationCounter: "rows",
+                    placeholder: "No revisions found",
+                    selectable: true,
+                    selectableRangeMode: "click",
+                    columns: [
+                        {{
+                            title: "",
+                            formatter: "rowSelection",
+                            titleFormatter: "rowSelection",
+                            headerSort: false,
+                            width: 40,
+                            hozAlign: "center",
+                            responsive: 0
+                        }},
+                        {{
+                            title: "Page",
+                            field: "page",
+                            sorter: "number",
+                            headerFilter: "number",
+                            width: 70,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var data = cell.getRow().getData();
+                                return '<a href="/revision/edit/' + data.id + '" class="font-mono font-bold hover:underline">' + cell.getValue() + '</a>';
+                            }}
+                        }},
+                        {{
+                            title: "Surah",
+                            field: "surah",
+                            sorter: "string",
+                            headerFilter: "input",
+                            minWidth: 100,
+                            responsive: 2,
+                            visible: prefs.columns ? prefs.columns.surah !== false : true
+                        }},
+                        {{
+                            title: "Mode",
+                            field: "mode_code",
+                            sorter: "string",
+                            headerFilter: "list",
+                            headerFilterParams: {{values: {{"": "All", "FC": "FC", "NM": "NM", "DR": "DR", "WR": "WR", "FR": "FR", "MR": "MR", "SR": "SR"}}}},
+                            width: 70,
+                            responsive: 0
+                        }},
+                        {{
+                            title: "Plan",
+                            field: "plan_id",
+                            sorter: "number",
+                            headerFilter: "number",
+                            width: 70,
+                            responsive: 2
+                        }},
+                        {{
+                            title: "Rating",
+                            field: "rating",
+                            sorter: "number",
+                            width: 90,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var rating = cell.getValue();
+                                var text = ratingMap[rating.toString()] || "-";
+                                var color = ratingColors[rating.toString()] || "";
+                                if (color) {{
+                                    cell.getElement().style.backgroundColor = color;
+                                }}
+                                return text;
+                            }}
+                        }},
+                        {{
+                            title: "Date",
+                            field: "revision_date",
+                            sorter: "date",
+                            headerFilter: "input",
+                            width: 110,
+                            responsive: 1,
+                            formatter: function(cell) {{
+                                var date = cell.getValue();
+                                if (!date) return "-";
+                                var d = new Date(date);
+                                return d.toLocaleDateString('en-US', {{month: 'short', day: 'numeric', year: 'numeric'}});
+                            }}
+                        }},
+                        {{
+                            title: "Action",
+                            field: "id",
+                            headerSort: false,
+                            width: 80,
+                            responsive: 0,
+                            formatter: function(cell) {{
+                                var id = cell.getValue();
+                                return '<a href="#" class="delete-revision text-red-600 hover:underline" data-id="' + id + '">Delete</a>';
+                            }}
+                        }}
+                    ],
+                    initialSort: prefs.sort ? [prefs.sort] : [{{column: "id", dir: "desc"}}]
+                }});
+
+                // Save page size preference when changed
+                table.on("pageSizeChanged", function(size) {{
+                    var p = JSON.parse(localStorage.getItem(prefsKey)) || {{}};
+                    p.pageSize = size;
+                    localStorage.setItem(prefsKey, JSON.stringify(p));
+                }});
+
+                // Save sort preference when changed
+                table.on("dataSorted", function(sorters) {{
+                    if (sorters.length > 0) {{
+                        var p = JSON.parse(localStorage.getItem(prefsKey)) || {{}};
+                        p.sort = {{column: sorters[0].field, dir: sorters[0].dir}};
+                        localStorage.setItem(prefsKey, JSON.stringify(p));
+                    }}
+                }});
+
+                window.revisionsTable = table;
+
+                // Update selection count
+                table.on("rowSelectionChanged", function(data, rows) {{
+                    var count = rows.length;
+                    var bulkBar = document.getElementById("bulk-bar-revisions");
+                    var countEl = document.getElementById("bulk-count-revisions");
+                    if (bulkBar) {{
+                        bulkBar.style.display = count > 0 ? "flex" : "none";
+                        if (countEl) countEl.textContent = count;
+                    }}
+                    window.selectedRevisionIds = data.map(function(row) {{ return row.id; }});
+                }});
+
+                // Event delegation for delete links
+                document.getElementById("{table_id}").addEventListener("click", function(e) {{
+                    if (e.target.classList.contains("delete-revision")) {{
+                        e.preventDefault();
+                        var id = e.target.getAttribute("data-id");
+                        if (confirm("Are you sure you want to delete this revision?")) {{
+                            fetch("/revision/delete/" + id, {{method: "DELETE"}})
+                                .then(function(r) {{
+                                    if (r.ok) table.setData("{api_url}");
+                                }});
+                        }}
+                    }}
+                }});
+            }}
+
+            initTable();
+        }})();
+    """)
+
+    # Bulk action bar
+    bulk_bar = Div(
+        Span(
+            Span("0", id="bulk-count-revisions", cls="font-bold"),
+            " selected",
+            cls="text-sm"
         ),
-        Tbody(*generate_revision_table_part(part_num=idx)),
-        x_data=select_all_checkbox_x_data(class_name="revision_ids"),
+        Div(
+            A(
+                Button("Bulk Edit", cls="btn btn-sm btn-primary"),
+                id="bulk-edit-btn",
+                onclick="""
+                    if (window.selectedRevisionIds && window.selectedRevisionIds.length > 0) {
+                        window.location.href = '/revision/bulk_edit?ids=' + window.selectedRevisionIds.join(',');
+                    }
+                """
+            ),
+            Button(
+                "Bulk Delete",
+                cls="btn btn-sm btn-error",
+                onclick="""
+                    if (!window.selectedRevisionIds || window.selectedRevisionIds.length === 0) return;
+                    if (!confirm('Are you sure you want to delete these revisions?')) return;
+                    fetch('/revision/', {
+                        method: 'DELETE',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ids: window.selectedRevisionIds})
+                    }).then(function(r) {
+                        if (r.ok) window.revisionsTable.setData('/api/revisions');
+                    });
+                """
+            ),
+            cls="flex gap-2",
+        ),
+        id="bulk-bar-revisions",
+        cls="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-base-100 border rounded-lg shadow-lg px-4 py-3 flex items-center gap-6 z-50",
+        style="display: none;"
     )
-    return main_area(
-        # To send the selected revision ids for bulk delete and bulk edit buttons
-        Form(
-            action_buttons(),
-            Div(table, cls="uk-overflow-auto"),
+
+    # Export button
+    export_btn = A(
+        Button("Export", type="button", cls="btn btn-sm btn-ghost"),
+        href="tables/revisions/export",
+    )
+
+    return Div(
+        Div(
+            export_btn,
+            cls="flex justify-end mb-2",
         ),
+        Div(id=table_id, cls="bg-base-100"),
+        bulk_bar,
+        tabulator_script,
+    )
+
+
+def render_revision_table(auth, idx: int | None = 1):
+    return main_area(
+        render_revision_tabulator(),
         active="Revision",
         auth=auth,
     )

@@ -8,6 +8,7 @@ This module contains:
 """
 
 from collections import defaultdict
+import json
 import pandas as pd
 from fasthtml.common import *
 from monsterui.all import *
@@ -37,14 +38,19 @@ from database import (
 )
 
 
+def get_pages_revised(auth, date: str) -> int:
+    """Get page count for a specific date."""
+    return get_page_count(revisions(where=f"revision_date = '{date}'"))
+
+
 def get_today_vs_yesterday_stats(auth):
     """Calculate today vs yesterday page counts and comparison."""
     current_date = get_current_date(auth)
     today = current_date
     yesterday = sub_days_to_date(today, 1)
 
-    today_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
-    yesterday_count = get_page_count(revisions(where=f"revision_date = '{yesterday}'"))
+    today_count = get_pages_revised(auth, today)
+    yesterday_count = get_pages_revised(auth, yesterday)
 
     difference = today_count - yesterday_count
 
@@ -329,3 +335,176 @@ def update_hafiz_item_for_full_cycle(rev):
 
     hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
     hafizs_items.update(hafiz_item_details)
+
+
+# === Tabulator Components for Home Page ===
+
+
+def _create_column_toggle_item(mode_code: str, column_name: str, label: str):
+    """Create a single column toggle checkbox for the column visibility dropdown."""
+    return Li(
+        Label(
+            Input(
+                type="checkbox",
+                cls="checkbox checkbox-sm",
+                checked=True,
+                id=f"col-toggle-{column_name}-{mode_code}",
+                onchange=f"toggleColumn('{mode_code}', '{column_name}', this.checked)",
+            ),
+            f" {label}",
+            cls="flex items-center gap-2 cursor-pointer",
+        ),
+    )
+
+
+def _create_column_toggle_dropdown(mode_code: str, columns: list = None):
+    """Create the column visibility toggle dropdown for Tabulator tables.
+
+    Args:
+        mode_code: The mode code for unique IDs
+        columns: List of (column_name, label) tuples. Defaults to standard 3 columns.
+    """
+    if columns is None:
+        columns = [("surah", "Surah"), ("juz", "Juz"), ("start_text", "Start Text")]
+
+    toggle_items = [_create_column_toggle_item(mode_code, col, label) for col, label in columns]
+
+    return Div(
+        Div(
+            Button("Columns ▾", cls="btn btn-sm btn-ghost", tabindex="0"),
+            Ul(
+                *toggle_items,
+                cls="dropdown-content menu bg-base-100 rounded-box z-10 w-40 p-2 shadow",
+                tabindex="0",
+            ),
+            cls="dropdown dropdown-end",
+        ),
+        cls="flex justify-end mb-2",
+    )
+
+
+def _create_bulk_bar_rating(mode_code: str):
+    """Create bulk action bar with Good/Ok/Bad rating buttons."""
+    return Div(
+        Span(
+            Span("0", id=f"bulk-count-{mode_code}", cls="font-bold"),
+            " selected",
+            cls="text-sm"
+        ),
+        Div(
+            Button("Good", cls="btn btn-sm btn-success", onclick=f"handleBulkRate('{mode_code}', '1')"),
+            Button("Ok", cls="btn btn-sm btn-warning", onclick=f"handleBulkRate('{mode_code}', '0')"),
+            Button("Bad", cls="btn btn-sm btn-error", onclick=f"handleBulkRate('{mode_code}', '-1')"),
+            cls="flex gap-2",
+        ),
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-base-100 border rounded-lg shadow-lg px-4 py-3 flex items-center gap-6 z-50",
+        style="display: none;"
+    )
+
+
+def _create_bulk_bar_nm():
+    """Create bulk action bar for New Memorization with Mark button."""
+    return Div(
+        Span(
+            Span("0", id="bulk-count-NM", cls="font-bold"),
+            " selected",
+            cls="text-sm"
+        ),
+        Button("Mark as Memorized", cls="btn btn-sm btn-success", onclick="handleBulkMark()"),
+        id="bulk-bar-NM",
+        cls="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-base-100 border rounded-lg shadow-lg px-4 py-3 flex items-center gap-6 z-50",
+        style="display: none;"
+    )
+
+
+def render_mode_tabulator(mode_code: str, plan_id: int = None):
+    """Render a Tabulator table for a mode tab on the home page.
+
+    Uses external JS file (public/js/tabulator-init.js) for all table logic.
+
+    Args:
+        mode_code: The mode code (FC, SR, DR, WR, FR, MR)
+        plan_id: Current plan ID (for FC mode)
+    """
+    table_id = f"mode-table-{mode_code}"
+
+    # Configuration passed to external JS
+    config = {
+        "mode_code": mode_code,
+        "table_id": table_id,
+        "api_url": f"/api/mode/{mode_code}/items",
+        "rate_url": f"/api/mode/{mode_code}/rate",
+        "bulk_rate_url": f"/api/mode/{mode_code}/bulk_rate",
+        "action_type": "rating",
+        "has_juz_column": True,
+        "placeholder": "No pages to review",
+    }
+
+    # Column visibility toggle dropdown
+    column_toggle = _create_column_toggle_dropdown(mode_code)
+    columns = ["surah", "juz", "start_text"]
+
+    return Div(
+        column_toggle,
+        Div(id=table_id, cls="bg-base-100", data_testid=f"tabulator-{mode_code}"),
+        _create_bulk_bar_rating(mode_code),
+        Script(f"initTabulatorTable({json.dumps(config)});"),
+        Script(f"syncColumnToggles('{mode_code}', {json.dumps(columns)});"),
+        id=f"summary_table_{mode_code}",
+    )
+
+
+def render_nm_tabulator():
+    """Render a Tabulator table for the New Memorization tab.
+
+    Uses external JS file (public/js/tabulator-init.js) for all table logic.
+    """
+    mode_code = "NM"
+    table_id = "mode-table-NM"
+
+    # Configuration passed to external JS
+    config = {
+        "mode_code": mode_code,
+        "table_id": table_id,
+        "api_url": "/api/new_memorization/items",
+        "toggle_url": "/api/new_memorization/toggle",
+        "bulk_mark_url": "/api/new_memorization/bulk_mark",
+        "action_type": "checkbox",
+        "has_juz_column": False,
+        "placeholder": "No pages available for memorization",
+    }
+
+    # Column visibility toggle dropdown (NM only has Surah and Start Text)
+    nm_columns = [("surah", "Surah"), ("start_text", "Start Text")]
+    column_toggle = _create_column_toggle_dropdown(mode_code, nm_columns)
+    columns = ["surah", "start_text"]
+
+    return Div(
+        column_toggle,
+        Div(id=table_id, cls="bg-base-100", data_testid=f"tabulator-{mode_code}"),
+        _create_bulk_bar_nm(),
+        Script(f"initTabulatorTable({json.dumps(config)});"),
+        Script(f"syncColumnToggles('{mode_code}', {json.dumps(columns)});"),
+        id=f"summary_table_{mode_code}",
+    )
+
+
+def render_report_tabulator():
+    """Render a Tabulator table for the datewise summary report.
+
+    Uses external JS file (public/js/tabulator-init.js) for all table logic.
+    """
+    table_id = "report-table"
+
+    config = {
+        "mode_code": "report",
+        "table_id": table_id,
+        "api_url": "/api/report",
+        "type": "report",
+    }
+
+    return Div(
+        Div(id=table_id, cls="bg-base-100", data_testid="tabulator-report"),
+        Script(f"initTabulatorTable({json.dumps(config)});"),
+    )

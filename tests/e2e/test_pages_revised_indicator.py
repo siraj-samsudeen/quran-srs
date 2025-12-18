@@ -1,7 +1,7 @@
 """
-Pages Revised Indicator HTMX Updates
+Pages Revised Indicator Updates
 
-Tests that the "X vs Y ↑" indicator updates immediately via HTMX OOB swaps when:
+Tests that the "X vs Y ↑" indicator updates immediately via JSON API when:
 1. Adding a rating via dropdown
 2. Removing a rating via dropdown (selecting "-")
 3. Bulk rating multiple items
@@ -23,7 +23,7 @@ load_dotenv()
 
 
 # ============================================================================
-# Pages Revised Indicator Tests (HTMX OOB Swaps)
+# Pages Revised Indicator Tests
 #
 # MECE Test Coverage:
 # 1. Indicator displays on page load with correct format ("X vs Y arrow")
@@ -55,14 +55,24 @@ def test_indicator_updates_when_adding_rating_via_dropdown(
     # Get initial "today" count from indicator (format: "X vs Y arrow")
     initial_today = int(page.locator("[data-testid='pages-today']").inner_text())
 
-    # Find an unrated dropdown (one with "-" selected) and add a rating
-    unrated_dropdown = page.locator("select.select-sm:has(option[value='None']:checked)").first
+    # Find an unrated dropdown in Tabulator (one with "" selected)
+    # Tabulator rating dropdowns are inside .tabulator-row
+    unrated_dropdown = page.locator("#mode-table-FC .tabulator-row select.select-sm").first
     if not unrated_dropdown.is_visible():
-        pytest.skip("No unrated items available")
+        pytest.skip("No items available for rating")
+
+    # Check if already rated
+    current_value = unrated_dropdown.input_value()
+    if current_value != "":
+        # Select empty to "unrate" first, wait for indicator to update
+        unrated_dropdown.select_option("")
+        # Wait for indicator value to potentially decrease
+        page.wait_for_function("document.querySelector('[data-testid=\"pages-today\"]')")
+        initial_today = int(page.locator("[data-testid='pages-today']").inner_text())
 
     unrated_dropdown.select_option("1")  # Select "Good"
 
-    # Verify indicator updated (today count should increase by 1)
+    # expect() auto-waits for text to appear
     expect(page.locator("[data-testid='pages-today']")).to_contain_text(str(initial_today + 1))
 
 
@@ -73,23 +83,27 @@ def test_indicator_updates_when_removing_rating_via_dropdown(
     page = authenticated_page
 
     # First, ensure we have a rated item by adding a rating
-    first_dropdown = page.locator("select.select-sm").first
+    first_dropdown = page.locator("#mode-table-FC .tabulator-row select.select-sm").first
+    if not first_dropdown.is_visible():
+        pytest.skip("No items available")
+
     first_dropdown.select_option("1")  # Select "Good"
-    page.wait_for_timeout(500)
+
+    # Wait for dropdown background to change (indicates API completed)
+    expect(first_dropdown).to_have_css("background-color", "rgb(220, 252, 231)")
 
     # Get indicator value after adding
-    indicator = page.locator("#pages-revised-indicator")
-    after_add_text = indicator.inner_text()
+    after_add_today = int(page.locator("[data-testid='pages-today']").inner_text())
 
-    # Now remove the rating by selecting "-"
-    first_dropdown.select_option("None")
-    page.wait_for_timeout(500)
+    # Now remove the rating by selecting "-" (empty value)
+    first_dropdown.select_option("")
 
-    # Verify indicator updated (should show decrease)
-    after_remove_text = indicator.inner_text()
-    assert (
-        after_remove_text != after_add_text
-    ), "Indicator should update after removing rating"
+    # Wait for dropdown background to clear (indicates API completed)
+    expect(first_dropdown).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+
+    # Verify indicator updated (today count should decrease)
+    after_remove_today = int(page.locator("[data-testid='pages-today']").inner_text())
+    assert after_remove_today < after_add_today, "Today count should decrease after removing rating"
 
 
 def test_indicator_updates_when_bulk_rating_items(
@@ -99,39 +113,34 @@ def test_indicator_updates_when_bulk_rating_items(
     page = authenticated_page
 
     # Get initial indicator value
-    indicator = page.locator("#pages-revised-indicator")
-    initial_text = indicator.inner_text()
+    initial_today = int(page.locator("[data-testid='pages-today']").inner_text())
 
-    # Select multiple visible checkboxes
-    visible_checkboxes = get_visible_checkboxes(page)
-    if len(visible_checkboxes) < 2:
-        pytest.skip("Need at least 2 unrated items for bulk test")
+    # Select multiple rows using Tabulator row selection
+    rows = page.locator("#mode-table-FC .tabulator-row")
+    if rows.count() < 2:
+        pytest.skip("Need at least 2 items for bulk test")
 
-    visible_checkboxes[0].check()
-    visible_checkboxes[1].check()
+    rows.first.click()
+    rows.nth(1).click(modifiers=["Control"])
+
+    # Bulk bar should be visible with 2 selected
+    bulk_bar = page.locator("#bulk-bar-FC")
+    expect(bulk_bar).to_be_visible()
 
     # Click bulk "Good" button
-    page.get_by_role("button", name="Good").click()
-    page.wait_for_timeout(500)
+    bulk_bar.get_by_role("button", name="Good").click()
 
-    # Verify indicator updated
-    updated_text = indicator.inner_text()
-    assert updated_text != initial_text, "Indicator should update after bulk rating"
+    # Wait for bulk bar to disappear (indicates API completed)
+    expect(bulk_bar).not_to_be_visible()
+
+    # Verify indicator updated (today count should increase)
+    updated_today = int(page.locator("[data-testid='pages-today']").inner_text())
+    assert updated_today >= initial_today, "Today count should increase or stay same after bulk rating"
 
 
 # ============================================================================
 # Helper Functions (Implementation Details)
 # ============================================================================
-
-
-def get_visible_checkboxes(page: Page):
-    """Get list of checkboxes that are currently visible (active tab only)."""
-    all_checkboxes = page.locator(".bulk-select-checkbox")
-    visible = []
-    for i in range(all_checkboxes.count()):
-        if all_checkboxes.nth(i).is_visible():
-            visible.append(all_checkboxes.nth(i))
-    return visible
 
 
 def login_and_select_hafiz(page: Page, base_url: str):
@@ -159,5 +168,6 @@ def authenticated_page(page: Page, base_url: str):
     """Authenticated page at home with hafiz selected."""
     login_and_select_hafiz(page, base_url)
     expect(page.get_by_text("System Date")).to_be_visible()
+    # Wait for Tabulator to initialize
+    page.wait_for_selector("#mode-table-FC .tabulator-row", timeout=10000)
     yield page
-

@@ -7,14 +7,7 @@ FORTNIGHTLY_REPS_MODE_CODE = "FR"
 MONTHLY_REPS_MODE_CODE = "MR"
 SRS_MODE_CODE = "SR"
 
-# Pagination
-ITEMS_PER_PAGE = 5
-FULL_CYCLE_EXTRA_ROWS = 5  # Extra rows added when Full Cycle limit is reached
-
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}
-
-# Pagination configuration (applies to all modes)
-ITEMS_PER_PAGE = 5
 
 # Default length for bulk revision entry (pages)
 DEFAULT_REVISION_LENGTH = 20
@@ -50,3 +43,21 @@ STATUS_DISPLAY = {
     STATUS_SOLID: ("💪", "Solid"),
     STATUS_STRUGGLING: ("😰", "Struggling"),
 }
+
+# Rating colors for Tabulator row backgrounds
+RATING_COLORS = {
+    "1": "#dcfce7",   # green-100 for Good
+    "0": "#fef9c3",   # yellow-100 for Ok
+    "-1": "#fee2e2",  # red-100 for Bad
+}
+
+# SRS exclusion zone: pages ahead of current Full Cycle position to exclude from SRS
+# (~3 days at 20 pages/day)
+SRS_EXCLUSION_ZONE_PAGES = 60
+
+# Tabulator configuration
+TABULATOR_INIT_DELAY_MS = 100
+TABULATOR_MOBILE_BREAKPOINT_PX = 768
+TABULATOR_PAGE_SIZE_MOBILE = 5
+TABULATOR_PAGE_SIZE_DESKTOP = 10
+TABULATOR_PAGE_SIZES = [5, 10, 25, 50, 100]
