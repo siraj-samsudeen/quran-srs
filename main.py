@@ -132,10 +132,9 @@ def index(auth, sess):
         ),
         A(
             Button(
-                "✓",
-                cls="btn-sm btn-circle",
+                "Close Date",
+                cls="btn-sm rounded-full",
                 data_testid="close-date-btn",
-                title="Close Date",
             ),
             href="/close_date",
         ),
