@@ -93,6 +93,7 @@ def settings_page(auth):
     form = Form(
         render_field("Name", "text"),
         render_field("Current Date", "date"),
+        render_field("Page Size", "number", min=1, max=100),
         DivFullySpaced(
             DivLAligned(
                 Button("Update", type="submit", cls=ButtonT.primary),

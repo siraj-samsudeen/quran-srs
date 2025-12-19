@@ -673,7 +673,7 @@ def render_pagination_controls(mode_code, current_page, total_pages, total_items
     next_page = min(total_pages, current_page + 1)
 
     prev_button = Button(
-        "👈",
+        "←",
         hx_get=f"/page/{mode_code}?page={prev_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
@@ -682,7 +682,7 @@ def render_pagination_controls(mode_code, current_page, total_pages, total_items
     ) if not is_first_page else Span()
 
     next_button = Button(
-        "👉",
+        "→",
         hx_get=f"/page/{mode_code}?page={next_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
@@ -1065,6 +1065,5 @@ def make_summary_table(
 def render_current_date(auth):
     current_date = get_current_date(auth)
     return P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), data_testid="system-date"),
+        Span(date_to_human_readable(current_date), cls=TextPresets.bold_lg, data_testid="system-date"),
     )

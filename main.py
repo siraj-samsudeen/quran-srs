@@ -49,6 +49,10 @@ def index(auth, sess):
     if "pagination" not in sess:
         sess["pagination"] = {}
 
+    # Get hafiz's page_size setting (fallback to default)
+    current_hafiz = hafizs[auth]
+    items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
+
     # Helper to get current page for a mode
     def get_page(mode_code):
         return sess["pagination"].get(mode_code, 1)
@@ -59,25 +63,25 @@ def index(auth, sess):
             FULL_CYCLE_MODE_CODE,
             auth,
             page=get_page(FULL_CYCLE_MODE_CODE),
-            items_per_page=ITEMS_PER_PAGE,
+            items_per_page=items_per_page,
         ),
         make_summary_table(
             SRS_MODE_CODE,
             auth,
             page=get_page(SRS_MODE_CODE),
-            items_per_page=ITEMS_PER_PAGE,
+            items_per_page=items_per_page,
         ),
         make_summary_table(
             DAILY_REPS_MODE_CODE,
             auth,
             page=get_page(DAILY_REPS_MODE_CODE),
-            items_per_page=ITEMS_PER_PAGE,
+            items_per_page=items_per_page,
         ),
         make_summary_table(
             WEEKLY_REPS_MODE_CODE,
             auth,
             page=get_page(WEEKLY_REPS_MODE_CODE),
-            items_per_page=ITEMS_PER_PAGE,
+            items_per_page=items_per_page,
         ),
     ]
     # Filter out modes with no items (make_summary_table returns None for empty modes)
@@ -272,12 +276,16 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
         sess["pagination"] = {}
     sess["pagination"][mode_code] = page
 
+    # Get hafiz's page_size setting (fallback to default)
+    current_hafiz = hafizs[auth]
+    items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
+
     return make_summary_table(
         mode_code=mode_code,
         auth=auth,
         table_only=True,
         page=page,
-        items_per_page=ITEMS_PER_PAGE,
+        items_per_page=items_per_page,
     )
 
 
@@ -391,12 +399,16 @@ def bulk_rate(
     # Get current page from session
     current_page = sess.get("pagination", {}).get(mode_code, 1)
 
+    # Get hafiz's page_size setting (fallback to default)
+    current_hafiz = hafizs[auth]
+    items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
+
     updated_table = make_summary_table(
         mode_code=mode_code,
         auth=auth,
         table_only=True,
         page=current_page,
-        items_per_page=ITEMS_PER_PAGE,
+        items_per_page=items_per_page,
     )
 
     # Update the pages revised indicator using out-of-band swap
