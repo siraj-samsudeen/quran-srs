@@ -751,17 +751,32 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
         cls="flex items-center",
     )
 
-    return Div(
+    # Spacer div to push content up when bulk bar is visible (prevents overlay)
+    spacer = Div(cls="h-16", x_show="count > 0")
+
+    # Cancel button to clear selection and hide the bar
+    cancel_button = Button(
+        "✕",
+        cls="btn btn-ghost btn-sm",
+        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        title="Cancel selection",
+    )
+
+    bar = Div(
         select_all_checkbox,
         Div(
             bulk_button(1, "Good", ButtonT.primary),
             bulk_button(0, "Ok", ButtonT.secondary),
             bulk_button(-1, "Bad", ButtonT.destructive),
-            cls="flex gap-2",
+            cancel_button,
+            cls="flex gap-2 items-center",
         ),
         id=f"bulk-bar-{mode_code}",
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+        x_show="count > 0",
     )
+
+    return Div(spacer, bar)
 
 
 def render_surah_header(surah_id, juz_number):
