@@ -1,6 +1,3 @@
-import json
-from starlette.responses import JSONResponse
-
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
@@ -28,10 +25,6 @@ from app.home_view import (
     datewise_summary_table,
     update_hafiz_item_for_full_cycle,
     render_pages_revised_indicator,
-    render_mode_tabulator,
-    render_nm_tabulator,
-    render_report_tabulator,
-    get_pages_revised,
 )
 
 
@@ -51,18 +44,61 @@ print("-" * 15, "ROUTES=", app.routes)
 
 
 @rt
-def index(auth):
-    # Build mode panels using Tabulator - each returns (mode_code, panel) tuple
-    # Tabulator loads data via AJAX and shows placeholder when empty
+def index(auth, sess):
+    # Initialize pagination state if not exists
+    if "pagination" not in sess:
+        sess["pagination"] = {}
+
+    # Helper to get current page for a mode
+    def get_page(mode_code):
+        return sess["pagination"].get(mode_code, 1)
+
+    # Build panels - each returns (mode_code, panel) tuple
     mode_panels = [
-        (NEW_MEMORIZATION_MODE_CODE, render_nm_tabulator()),
-        (FULL_CYCLE_MODE_CODE, render_mode_tabulator(FULL_CYCLE_MODE_CODE)),
-        (SRS_MODE_CODE, render_mode_tabulator(SRS_MODE_CODE)),
-        (DAILY_REPS_MODE_CODE, render_mode_tabulator(DAILY_REPS_MODE_CODE)),
-        (WEEKLY_REPS_MODE_CODE, render_mode_tabulator(WEEKLY_REPS_MODE_CODE)),
-        (FORTNIGHTLY_REPS_MODE_CODE, render_mode_tabulator(FORTNIGHTLY_REPS_MODE_CODE)),
-        (MONTHLY_REPS_MODE_CODE, render_mode_tabulator(MONTHLY_REPS_MODE_CODE)),
+        make_new_memorization_table(
+            auth,
+            page=get_page(NEW_MEMORIZATION_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            FULL_CYCLE_MODE_CODE,
+            auth,
+            page=get_page(FULL_CYCLE_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            SRS_MODE_CODE,
+            auth,
+            page=get_page(SRS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            DAILY_REPS_MODE_CODE,
+            auth,
+            page=get_page(DAILY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            WEEKLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(WEEKLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            FORTNIGHTLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(FORTNIGHTLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            MONTHLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(MONTHLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
     ]
+    # Filter out modes with no items (make_summary_table returns None for empty modes)
+    mode_panels = [panel for panel in mode_panels if panel is not None]
 
     mode_icons = {
         NEW_MEMORIZATION_MODE_CODE: "🆕",
@@ -248,534 +284,162 @@ def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = 
 
 @app.get("/report")
 def datewise_summary_table_view(auth):
-    return main_area(render_report_tabulator(), active="Report", auth=auth)
+    return main_area(datewise_summary_table(hafiz_id=auth), active="Report", auth=auth)
 
 
-# === JSON API for Tabulator ===
+@app.get("/page/{mode_code}")
+def change_page(sess, auth, mode_code: str, page: int = 1):
+    """Handle pagination for mode-specific tables."""
+    # Store current page in session
+    if "pagination" not in sess:
+        sess["pagination"] = {}
+    sess["pagination"][mode_code] = page
 
-
-@app.get("/api/mode/{mode_code}/items")
-def get_mode_items_json(auth, mode_code: str):
-    """Return mode items as JSON for Tabulator table.
-
-    Supports: FC, SR, DR, WR, FR, MR modes.
-    NM mode has separate API at /api/new_memorization/items
-    """
-    # Validate mode_code - NM has separate handling
-    if mode_code not in MODE_PREDICATES:
-        return JSONResponse(
-            {"error": f"Invalid mode_code: {mode_code}. Use /api/new_memorization/items for NM mode."},
-            status_code=400
-        )
-
-    current_date = get_current_date(auth)
-    plan_id = get_current_plan_id()
-
-    # Query items using existing mode filtering logic
-    qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, items.surah_id, items.start_text, items.page_id,
-               hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code,
-               hafizs_items.memorized, hafizs_items.page_number
-        FROM hafizs_items
-        LEFT JOIN items on hafizs_items.item_id = items.id
-        WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
-        ORDER BY hafizs_items.item_id ASC
-    """
-    mode_specific_records = db.q(qry)
-
-    # Filter using named predicates
-    predicate = MODE_PREDICATES[mode_code]
-    filtered_records = [
-        item for item in mode_specific_records
-        if predicate(item, current_date)
-    ]
-
-    # Get unique item_ids
-    item_ids = list(dict.fromkeys(record["item_id"] for record in filtered_records))
-
-    # Handle Full Cycle mode special case
-    is_plan_finished = False
-    if mode_code == FULL_CYCLE_MODE_CODE:
-        is_plan_finished, item_ids = get_full_review_item_ids(
+    # Handle NM mode separately (uses different table function)
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return make_new_memorization_table(
             auth=auth,
-            mode_specific_hafizs_items_records=mode_specific_records,
-            item_ids=item_ids,
+            table_only=True,
+            page=page,
+            items_per_page=ITEMS_PER_PAGE,
         )
 
-    # Handle SRS exclusion zone
-    if mode_code == SRS_MODE_CODE:
-        exclude_start_page = get_last_added_full_cycle_page(auth)
-        if exclude_start_page is not None:
-            exclude_end_page = exclude_start_page + SRS_EXCLUSION_ZONE_PAGES
-            filtered_records = [
-                r for r in filtered_records
-                if r["page_number"] < exclude_start_page or r["page_number"] > exclude_end_page
-            ]
-            item_ids = list(dict.fromkeys(r["item_id"] for r in filtered_records))
-
-    # Query today's revisions for these items
-    plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
-    if item_ids:
-        today_revisions = revisions(
-            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
-        )
-    else:
-        today_revisions = []
-    revisions_lookup = {rev.item_id: rev for rev in today_revisions}
-
-    # Build response data with consecutive page tracking
-    data = []
-    prev_page_id = None
-    current_surah_id = None
-
-    for item_id in item_ids:
-        item = items[item_id]
-        revision = revisions_lookup.get(item_id)
-
-        # Track consecutive pages for hiding start text
-        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
-        # Reset on surah change
-        if item.surah_id != current_surah_id:
-            current_surah_id = item.surah_id
-            is_consecutive = False
-
-        data.append({
-            "item_id": item_id,
-            "page": get_page_number(item_id),
-            "surah": item.surah_name,
-            "surah_id": item.surah_id,
-            "juz": get_juz_name(item_id=item_id),
-            "start_text": item.start_text or "-",
-            "rating": revision.rating if revision else None,
-            "revision_id": revision.id if revision else None,
-            "is_consecutive": is_consecutive,
-        })
-        prev_page_id = item.page_id
-
-    return JSONResponse({
-        "items": data,
-        "total": len(data),
-        "plan_id": plan_id,
-        "current_date": current_date,
-        "is_plan_finished": is_plan_finished,
-    })
+    return make_summary_table(
+        mode_code=mode_code,
+        auth=auth,
+        table_only=True,
+        page=page,
+        items_per_page=ITEMS_PER_PAGE,
+    )
 
 
-@app.post("/api/mode/{mode_code}/rate")
-async def rate_item_json(req: Request, auth, mode_code: str):
-    """Rate a single item via JSON API for Tabulator.
-
-    When rating is null/None, deletes the existing revision (unrate).
-    Otherwise, adds or updates the revision record.
-    """
-    payload, error = await parse_json_body(req, required_fields=["item_id"])
-    if error:
-        return error
-
-    item_id = payload["item_id"]
-    rating = payload.get("rating")  # Can be None for unrating
-    plan_id = payload.get("plan_id")
-
-    current_date = get_current_date(auth)
-
-    if rating is None:
-        # Unrate: delete the existing revision for this item/date/mode/plan
-        plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
-        existing_revisions = revisions(
-            where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{current_date}' {plan_condition}"
-        )
-        for rev in existing_revisions:
-            revisions.delete(rev.id)
-
-        stats = get_pages_revised_stats(auth, current_date)
-        return JSONResponse({
-            "success": True,
-            "revision_id": None,
-            "rating": None,
-            **stats,
-        })
-
+# This route is responsible for adding and deleting record for all the summary table on the home page
+# and update the review dates for that item_id
+@app.post("/add/{item_id}")
+def update_status_from_index(
+    auth,
+    date: str,
+    item_id: str,
+    mode_code: str,
+    rating: int,
+    plan_id: int = None,
+):
     # Add or update the revision record
     revision = add_revision_record(
         item_id=item_id,
         mode_code=mode_code,
-        revision_date=current_date,
+        revision_date=date,
         rating=rating,
         plan_id=plan_id,
     )
 
-    stats = get_pages_revised_stats(auth, current_date)
-    return JSONResponse({
-        "success": True,
-        "revision_id": revision.id,
-        "rating": revision.rating,
-        **stats,
-    })
-
-
-@app.post("/api/mode/{mode_code}/bulk_rate")
-async def bulk_rate_items_json(req: Request, auth, mode_code: str):
-    """Bulk rate multiple items via JSON API for Tabulator."""
-    payload, error = await parse_json_body(req, required_fields=["rating"])
-    if error:
-        return error
-
-    item_ids = payload.get("item_ids", [])
-    rating = payload["rating"]
-    plan_id = payload.get("plan_id")
-
-    if not item_ids:
-        return api_error_response("Missing item_ids")
-
+    # Get item data and current date
+    item = items[int(item_id)]
     current_date = get_current_date(auth)
-    rated_count = 0
 
+    # Return the updated row AND the updated indicator (out-of-band swap)
+    updated_row = render_range_row(
+        {
+            "item": item,
+            "revision": revision,
+        },
+        current_date,
+        mode_code,
+        plan_id,
+    )
+
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = Span(
+        *render_pages_revised_indicator(auth).children,
+        id="pages-revised-indicator",
+        cls="text-sm whitespace-nowrap",
+        hx_swap_oob="true",
+    )
+
+    return updated_row, updated_indicator
+
+
+@app.put("/edit/{rev_id}")
+def update_revision_rating(
+    auth,
+    rev_id: int,
+    date: str,
+    mode_code: str,
+    item_id: int,
+    rating: str,
+    plan_id: int = None,
+):
+    record = {
+        "item": items[item_id],
+    }
+
+    # If the `Select rating` options is selected, delete the revision record
+    if rating == "None":
+        revisions.delete(rev_id)
+        record["revision"] = None
+        updated_row = render_range_row(
+            records=record, current_date=date, mode_code=mode_code, plan_id=plan_id
+        )
+    else:
+        revision = revisions.update({"rating": int(rating)}, rev_id)
+        record["revision"] = revision
+        updated_row = render_range_row(records=record)
+
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = Span(
+        *render_pages_revised_indicator(auth).children,
+        id="pages-revised-indicator",
+        cls="text-sm whitespace-nowrap",
+        hx_swap_oob="true",
+    )
+
+    return updated_row, updated_indicator
+
+
+@app.post("/bulk_rate")
+def bulk_rate(
+    sess,
+    auth,
+    # FastHTML automatically parses the form data - when HTMX posts multiple item_ids values
+    # (from checked checkboxes), FastHTML collects them into a list
+    item_ids: list[str],
+    rating: int,
+    mode_code: str,
+    date: str,
+    plan_id: str = "",
+):
+    plan_id_int = int(plan_id) if plan_id else None
+
+    # Add revision records for each item
     for item_id in item_ids:
         add_revision_record(
             item_id=item_id,
             mode_code=mode_code,
-            revision_date=current_date,
+            revision_date=date,
             rating=rating,
-            plan_id=plan_id,
+            plan_id=plan_id_int,
         )
-        rated_count += 1
 
-    stats = get_pages_revised_stats(auth, current_date)
-    return JSONResponse({
-        "success": True,
-        "rated_count": rated_count,
-        **stats,
-    })
+    # Get current page from session
+    current_page = sess.get("pagination", {}).get(mode_code, 1)
 
-
-@app.get("/api/new_memorization/items")
-def get_nm_items_json(auth):
-    """Return New Memorization items as JSON for Tabulator table."""
-    current_date = get_current_date(auth)
-
-    # Query non-memorized items
-    qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, items.surah_id, items.start_text, items.page_id,
-               hafizs_items.page_number, hafizs_items.memorized
-        FROM hafizs_items
-        LEFT JOIN items on hafizs_items.item_id = items.id
-        WHERE (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)
-              AND hafizs_items.hafiz_id = {auth}
-        ORDER BY hafizs_items.item_id ASC
-    """
-    records = db.q(qry)
-
-    # Get unique item_ids
-    item_ids = list(dict.fromkeys(record["item_id"] for record in records))
-
-    # Query today's NM revisions (items marked as memorized today)
-    if item_ids:
-        today_revisions = revisions(
-            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, item_ids))}) AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
-        )
-    else:
-        today_revisions = []
-    revisions_lookup = {rev.item_id: rev for rev in today_revisions}
-
-    # Build response data
-    data = []
-    prev_page_id = None
-    current_surah_id = None
-
-    for item_id in item_ids:
-        item = items[item_id]
-        revision = revisions_lookup.get(item_id)
-
-        # Track consecutive pages
-        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
-        if item.surah_id != current_surah_id:
-            current_surah_id = item.surah_id
-            is_consecutive = False
-
-        data.append({
-            "item_id": item_id,
-            "page": get_page_number(item_id),
-            "surah": item.surah_name,
-            "surah_id": item.surah_id,
-            "juz": get_juz_name(item_id=item_id),
-            "start_text": item.start_text or "-",
-            "is_memorized_today": revision is not None,
-            "revision_id": revision.id if revision else None,
-            "is_consecutive": is_consecutive,
-        })
-        prev_page_id = item.page_id
-
-    return JSONResponse({
-        "items": data,
-        "total": len(data),
-        "current_date": current_date,
-    })
-
-
-@app.post("/api/new_memorization/toggle")
-async def toggle_nm_item_json(req: Request, auth):
-    """Toggle memorization status for a single NM item via JSON API."""
-    payload, error = await parse_json_body(req, required_fields=["item_id"])
-    if error:
-        return error
-
-    item_id = payload["item_id"]
-
-    current_date = get_current_date(auth)
-
-    # Check if revision exists
-    existing = revisions(
-        where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revision_date = '{current_date}' AND hafiz_id = {auth}"
+    updated_table = make_summary_table(
+        mode_code=mode_code,
+        auth=auth,
+        table_only=True,
+        page=current_page,
+        items_per_page=ITEMS_PER_PAGE,
     )
 
-    if existing:
-        # Uncheck: delete the revision
-        revisions.delete(existing[0].id)
-        is_memorized_today = False
-        revision_id = None
-    else:
-        # Check: create revision with rating=1 (Good)
-        rev = revisions.insert(
-            hafiz_id=auth,
-            item_id=item_id,
-            revision_date=current_date,
-            rating=1,
-            mode_code=NEW_MEMORIZATION_MODE_CODE,
-        )
-        is_memorized_today = True
-        revision_id = rev.id
+    # Update the pages revised indicator using out-of-band swap
+    updated_indicator = Span(
+        *render_pages_revised_indicator(auth).children,
+        id="pages-revised-indicator",
+        cls="text-sm whitespace-nowrap",
+        hx_swap_oob="true",
+    )
 
-    return JSONResponse({
-        "success": True,
-        "item_id": item_id,
-        "is_memorized_today": is_memorized_today,
-        "revision_id": revision_id,
-    })
-
-
-@app.post("/api/new_memorization/bulk_mark")
-async def bulk_mark_nm_items_json(req: Request, auth):
-    """Bulk mark items as newly memorized via JSON API."""
-    payload, error = await parse_json_body(req)
-    if error:
-        return error
-
-    item_ids = payload.get("item_ids", [])
-    if not item_ids:
-        return api_error_response("Missing item_ids")
-
-    current_date = get_current_date(auth)
-    marked_count = 0
-
-    for item_id in item_ids:
-        # Only create revision if it doesn't exist
-        existing = revisions(
-            where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revision_date = '{current_date}' AND hafiz_id = {auth}"
-        )
-        if not existing:
-            revisions.insert(
-                hafiz_id=auth,
-                item_id=int(item_id),
-                revision_date=current_date,
-                rating=1,
-                mode_code=NEW_MEMORIZATION_MODE_CODE,
-            )
-            marked_count += 1
-
-    return JSONResponse({
-        "success": True,
-        "marked_count": marked_count,
-    })
-
-
-# === Revisions API ===
-
-@app.get("/api/revisions")
-def get_revisions_json(auth, mode_code: str = None, date_from: str = None, date_to: str = None):
-    """Return revisions as JSON for Tabulator table with optional filters."""
-    # Build where clause with filters
-    where_parts = [f"hafiz_id = {auth}"]
-    if mode_code:
-        where_parts.append(f"mode_code = '{mode_code}'")
-    if date_from:
-        where_parts.append(f"revision_date >= '{date_from}'")
-    if date_to:
-        where_parts.append(f"revision_date <= '{date_to}'")
-
-    where_clause = " AND ".join(where_parts)
-
-    # Query revisions with item details
-    qry = f"""
-        SELECT revisions.id, revisions.item_id, revisions.mode_code, revisions.plan_id,
-               revisions.rating, revisions.revision_date, items.page_id, items.surah_name
-        FROM revisions
-        LEFT JOIN items ON revisions.item_id = items.id
-        WHERE {where_clause}
-        ORDER BY revisions.id DESC
-    """
-    records = db.q(qry)
-
-    data = []
-    for rec in records:
-        data.append({
-            "id": rec["id"],
-            "item_id": rec["item_id"],
-            "page": rec["page_id"],
-            "surah": rec["surah_name"],
-            "mode_code": rec["mode_code"],
-            "plan_id": rec["plan_id"],
-            "rating": rec["rating"],
-            "revision_date": rec["revision_date"],
-        })
-
-    return JSONResponse({
-        "items": data,
-        "total": len(data),
-    })
-
-
-# === Datewise Report API ===
-
-@app.get("/api/report")
-def get_report_json(auth):
-    """Return datewise revision summary as JSON for Tabulator table."""
-    from collections import defaultdict
-    from utils import compact_format
-
-    # Get all revisions grouped by date and mode
-    qry = f"""
-        SELECT revisions.id, revisions.revision_date, revisions.mode_code,
-               items.page_id, items.surah_name
-        FROM revisions
-        LEFT JOIN items ON revisions.item_id = items.id
-        WHERE revisions.hafiz_id = {auth}
-        ORDER BY revisions.revision_date DESC, revisions.mode_code ASC
-    """
-    records = db.q(qry)
-
-    # Group by date and mode
-    grouped = defaultdict(lambda: defaultdict(list))
-    for rec in records:
-        grouped[rec["revision_date"]][rec["mode_code"]].append(rec)
-
-    # Flatten into rows for Tabulator
-    data = []
-    for date in sorted(grouped.keys(), reverse=True):
-        date_total = sum(len(pages) for pages in grouped[date].values())
-        for mode_code in sorted(grouped[date].keys()):
-            mode_revisions = grouped[date][mode_code]
-            page_ids = sorted(set(r["page_id"] for r in mode_revisions))
-            page_range = compact_format(page_ids)
-            revision_ids = [r["id"] for r in mode_revisions]
-
-            data.append({
-                "date": date,
-                "date_total": date_total,
-                "mode_code": mode_code,
-                "count": len(mode_revisions),
-                "page_range": page_range,
-                "revision_ids": ",".join(map(str, revision_ids)),
-            })
-
-    return JSONResponse({
-        "items": data,
-        "total": len(data),
-    })
-
-
-# === Page Details API ===
-
-@app.get("/api/page_details")
-def get_page_details_json(auth):
-    """Return page summary as JSON for Tabulator table."""
-    # Get all hafizs_items with their revision counts per mode (including FR and MR)
-    qry = f"""
-        SELECT
-            hi.item_id, hi.page_number, hi.mode_code, hi.memorized,
-            hi.next_review, hi.next_interval, hi.good_streak, hi.bad_streak,
-            i.surah_name, i.start_text,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'FC') as fc_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'SR') as sr_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'DR') as dr_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'WR') as wr_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'FR') as fr_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'MR') as mr_count,
-            (SELECT COUNT(*) FROM revisions r WHERE r.item_id = hi.item_id AND r.mode_code = 'NM') as nm_count
-        FROM hafizs_items hi
-        LEFT JOIN items i ON hi.item_id = i.id
-        WHERE hi.hafiz_id = {auth}
-        ORDER BY hi.page_number ASC
-    """
-    records = db.q(qry)
-
-    data = []
-    for rec in records:
-        data.append({
-            "item_id": rec["item_id"],
-            "page": rec["page_number"],
-            "surah": rec["surah_name"],
-            "mode_code": rec["mode_code"] or "-",
-            "memorized": rec["memorized"] == 1,
-            "next_review": rec["next_review"],
-            "next_interval": rec["next_interval"],
-            "good_streak": rec["good_streak"] or 0,
-            "bad_streak": rec["bad_streak"] or 0,
-            "fc_count": rec["fc_count"],
-            "sr_count": rec["sr_count"],
-            "dr_count": rec["dr_count"],
-            "wr_count": rec["wr_count"],
-            "fr_count": rec["fr_count"],
-            "mr_count": rec["mr_count"],
-            "nm_count": rec["nm_count"],
-            "total_revisions": rec["fc_count"] + rec["sr_count"] + rec["dr_count"] + rec["wr_count"] + rec["fr_count"] + rec["mr_count"] + rec["nm_count"],
-        })
-
-    return JSONResponse({
-        "items": data,
-        "total": len(data),
-    })
-
-
-# === Page Revision History API ===
-
-@app.get("/api/page_details/{item_id}/history")
-def get_page_history_json(auth, item_id: int):
-    """Return revision history for a specific page as JSON."""
-    qry = f"""
-        SELECT r.id, r.revision_date, r.rating, r.mode_code, r.plan_id, r.next_interval,
-               m.name as mode_name,
-               CASE
-                   WHEN LAG(r.revision_date) OVER (ORDER BY r.revision_date, r.id) IS NULL THEN NULL
-                   ELSE CAST(
-                       JULIANDAY(r.revision_date) - JULIANDAY(LAG(r.revision_date) OVER (ORDER BY r.revision_date, r.id))
-                       AS INTEGER
-                   )
-               END AS interval_since_last
-        FROM revisions r
-        LEFT JOIN modes m ON r.mode_code = m.code
-        WHERE r.item_id = {item_id} AND r.hafiz_id = {auth}
-        ORDER BY r.revision_date DESC, r.id DESC
-    """
-    records = db.q(qry)
-
-    data = []
-    for i, rec in enumerate(records):
-        data.append({
-            "num": len(records) - i,
-            "id": rec["id"],
-            "date": rec["revision_date"],
-            "rating": rec["rating"],
-            "mode_code": rec["mode_code"],
-            "mode_name": rec["mode_name"],
-            "plan_id": rec["plan_id"],
-            "next_interval": rec["next_interval"],
-            "interval_since_last": rec["interval_since_last"],
-        })
-
-    return JSONResponse({
-        "items": list(reversed(data)),
-        "total": len(data),
-    })
+    return updated_table, updated_indicator
 
 
 serve()

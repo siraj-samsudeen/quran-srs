@@ -1,7 +1,8 @@
+from fasthtml.common import *
 from constants import *
-from app.common_function import get_hafizs_items, add_days_to_date, create_app_with_auth
+from app.common_function import *
 from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
-from database import hafizs_items
+from database import *
 
 
 new_memorization_app, rt = create_app_with_auth()
@@ -42,6 +43,61 @@ def update_hafiz_item_for_new_memorization(rev, mode_code=None, rep_count=None, 
     hafizs_items.update(hafiz_item_details)
 
 
-# Old HTMX routes removed - now using JSON APIs in main.py:
-# - POST /api/new_memorization/toggle
-# - POST /api/new_memorization/bulk_mark
+# === Routes for NM Tab on Home Page ===
+
+
+@new_memorization_app.post("/toggle/{item_id}")
+def toggle_new_memorization(sess, auth, item_id: int, date: str):
+    """Toggle memorization status for a single item in the NM tab."""
+    existing = revisions(
+        where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revision_date = '{date}' AND hafiz_id = {auth}"
+    )
+
+    if existing:
+        # Uncheck: delete the revision
+        revisions.delete(existing[0].id)
+    else:
+        # Check: create revision with rating=1 (Good)
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id,
+            revision_date=date,
+            rating=1,
+            mode_code=NEW_MEMORIZATION_MODE_CODE,
+        )
+
+    # Return updated table
+    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
+    return make_new_memorization_table(
+        auth=auth,
+        table_only=True,
+        page=current_page,
+        items_per_page=ITEMS_PER_PAGE,
+    )
+
+
+@new_memorization_app.post("/bulk_mark")
+def bulk_mark_as_memorized(sess, auth, item_ids: list[str], date: str):
+    """Bulk mark items as newly memorized."""
+    for item_id in item_ids:
+        # Only create revision if it doesn't exist
+        existing = revisions(
+            where=f"item_id = {item_id} AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND revision_date = '{date}' AND hafiz_id = {auth}"
+        )
+        if not existing:
+            revisions.insert(
+                hafiz_id=auth,
+                item_id=int(item_id),
+                revision_date=date,
+                rating=1,
+                mode_code=NEW_MEMORIZATION_MODE_CODE,
+            )
+
+    # Return updated table
+    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
+    return make_new_memorization_table(
+        auth=auth,
+        table_only=True,
+        page=current_page,
+        items_per_page=ITEMS_PER_PAGE,
+    )

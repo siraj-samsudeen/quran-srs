@@ -64,17 +64,14 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
     expect(daily_tab).to_be_visible()
     daily_tab.click()
 
-    # Wait for Tabulator to load
-    page.wait_for_selector("#mode-table-DR .tabulator-row", timeout=10000)
-
     # Verify progress shows 0/2 (custom threshold)
     expect(page.locator("text=0/2")).to_be_visible()
 
-    # Phase 2: Rate the page (first rating) - Tabulator uses select.select-sm
-    rating_select = page.locator("#mode-table-DR .tabulator-row").first.locator("select.select-sm")
+    # Phase 2: Rate the page (first rating)
+    rating_select = page.locator("select[name='rating']").first
     rating_select.select_option("1")  # Good rating
 
-    # expect() auto-waits for progress text to appear
+    # Wait for HTMX update
     expect(page.locator("text=1/2")).to_be_visible()
 
     # Phase 3: Close Date
@@ -89,13 +86,9 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
     expect(daily_tab).to_be_visible()
     daily_tab.click()
 
-    # Wait for Tabulator to load
-    page.wait_for_selector("#mode-table-DR .tabulator-row", timeout=10000)
-
-    rating_select = page.locator("#mode-table-DR .tabulator-row").first.locator("select.select-sm")
+    rating_select = page.locator("select[name='rating']").first
     rating_select.select_option("1")  # Good rating
 
-    # expect() auto-waits for progress text to appear
     expect(page.locator("text=2/2")).to_be_visible()
 
     # Phase 5: Close Date again - should trigger graduation to Weekly
@@ -109,9 +102,6 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
     weekly_tab = page.locator("a:has-text('📅 Weekly')")
     expect(weekly_tab).to_be_visible()
     weekly_tab.click()
-
-    # Wait for Tabulator to load
-    page.wait_for_selector("#mode-table-WR .tabulator-row", timeout=10000)
 
     # Verify item is now in Weekly mode with custom threshold (0/3)
     expect(page.locator("text=0/3")).to_be_visible()
@@ -141,25 +131,21 @@ def test_close_date_processes_multiple_modes(page: Page, base_url: str, multi_mo
     expect(fortnightly_tab).to_be_visible()
     expect(monthly_tab).to_be_visible()
 
-    # Rate item in Daily mode - Tabulator uses select.select-sm
+    # Rate item in Daily mode
     daily_tab.click()
-    page.wait_for_selector("#mode-table-DR .tabulator-row", timeout=10000)
-    page.locator("#mode-table-DR .tabulator-row").first.locator("select.select-sm").select_option("1")
+    page.locator("select[name='rating']").first.select_option("1")
 
     # Rate item in Weekly mode
     weekly_tab.click()
-    page.wait_for_selector("#mode-table-WR .tabulator-row", timeout=10000)
-    page.locator("#mode-table-WR .tabulator-row").first.locator("select.select-sm").select_option("1")
+    page.locator("select[name='rating']").first.select_option("1")
 
     # Rate item in Fortnightly mode
     fortnightly_tab.click()
-    page.wait_for_selector("#mode-table-FR .tabulator-row", timeout=10000)
-    page.locator("#mode-table-FR .tabulator-row").first.locator("select.select-sm").select_option("1")
+    page.locator("select[name='rating']").first.select_option("1")
 
     # Rate item in Monthly mode
     monthly_tab.click()
-    page.wait_for_selector("#mode-table-MR .tabulator-row", timeout=10000)
-    page.locator("#mode-table-MR .tabulator-row").first.locator("select.select-sm").select_option("1")
+    page.locator("select[name='rating']").first.select_option("1")
 
     # Close Date
     page.locator("[data-testid='close-date-btn']").click()

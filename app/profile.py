@@ -153,9 +153,9 @@ async def bulk_set_status(req: Request, auth):
     import json
 
     body = await req.body()
-    payload = json.loads(body)
-    item_ids = payload.get("item_ids", [])
-    status = payload.get("status")
+    data = json.loads(body)
+    item_ids = data.get("item_ids", [])
+    status = data.get("status")
 
     if not item_ids or not status:
         return JSONResponse({"error": "Missing item_ids or status"}, status_code=400)

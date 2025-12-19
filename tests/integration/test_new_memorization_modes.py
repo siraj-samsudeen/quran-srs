@@ -1,12 +1,11 @@
-"""Integration tests for New Memorization JSON APIs.
+"""Integration tests for New Memorization tab on home page.
 
 Tests verify that:
-1. Toggle API marks/unmarks items as memorized for today
-2. Bulk mark API marks multiple items at once
+1. Toggle route marks/unmarks items as memorized for today
+2. Bulk mark route marks multiple items at once
 3. Close Date graduates NM items to Daily Reps
 """
 
-import json
 import time
 import pytest
 from constants import (
@@ -75,7 +74,7 @@ def memorization_test_hafiz(client):
 
 
 class TestNMTabToggle:
-    """Test the toggle API for marking items as memorized."""
+    """Test the toggle route for marking items as memorized."""
 
     def test_toggle_marks_item_as_memorized(self, memorization_test_hafiz):
         """Toggle creates NM revision when item is not yet memorized today."""
@@ -89,14 +88,12 @@ class TestNMTabToggle:
         hafizs.update({"current_date": current_date}, hafiz_id)
 
         response = client.post(
-            "/api/new_memorization/toggle",
-            content=json.dumps({"item_id": item_id}),
-            headers={"Content-Type": "application/json"},
+            f"/new_memorization/toggle/{item_id}",
+            data={"date": current_date},
+            follow_redirects=False,
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["is_memorized_today"] is True
 
         # Verify revision was created
         nm_revisions = revisions(
@@ -118,9 +115,9 @@ class TestNMTabToggle:
 
         # First toggle - mark as memorized
         client.post(
-            "/api/new_memorization/toggle",
-            content=json.dumps({"item_id": item_id}),
-            headers={"Content-Type": "application/json"},
+            f"/new_memorization/toggle/{item_id}",
+            data={"date": current_date},
+            follow_redirects=False,
         )
 
         # Verify revision exists
@@ -131,14 +128,12 @@ class TestNMTabToggle:
 
         # Second toggle - unmark
         response = client.post(
-            "/api/new_memorization/toggle",
-            content=json.dumps({"item_id": item_id}),
-            headers={"Content-Type": "application/json"},
+            f"/new_memorization/toggle/{item_id}",
+            data={"date": current_date},
+            follow_redirects=False,
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["is_memorized_today"] is False
 
         # Verify revision was deleted
         nm_revisions = revisions(
@@ -153,7 +148,7 @@ class TestNMTabToggle:
 
 
 class TestNMTabBulkMark:
-    """Test the bulk mark API for marking multiple items as memorized."""
+    """Test the bulk mark route for marking multiple items as memorized."""
 
     def test_bulk_mark_creates_revisions(self, memorization_test_hafiz):
         """Bulk mark creates NM revisions for all specified items."""
@@ -167,14 +162,12 @@ class TestNMTabBulkMark:
         hafizs.update({"current_date": current_date}, hafiz_id)
 
         response = client.post(
-            "/api/new_memorization/bulk_mark",
-            content=json.dumps({"item_ids": item_ids}),
-            headers={"Content-Type": "application/json"},
+            "/new_memorization/bulk_mark",
+            data={"item_ids": [str(i) for i in item_ids], "date": current_date},
+            follow_redirects=False,
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["marked_count"] == 3
 
         # Verify all revisions were created
         for item_id in item_ids:
@@ -196,21 +189,17 @@ class TestNMTabBulkMark:
 
         # First mark item[0] individually
         client.post(
-            "/api/new_memorization/toggle",
-            content=json.dumps({"item_id": item_ids[0]}),
-            headers={"Content-Type": "application/json"},
+            f"/new_memorization/toggle/{item_ids[0]}",
+            data={"date": current_date},
+            follow_redirects=False,
         )
 
         # Bulk mark both items
-        response = client.post(
-            "/api/new_memorization/bulk_mark",
-            content=json.dumps({"item_ids": item_ids}),
-            headers={"Content-Type": "application/json"},
+        client.post(
+            "/new_memorization/bulk_mark",
+            data={"item_ids": [str(i) for i in item_ids], "date": current_date},
+            follow_redirects=False,
         )
-
-        data = response.json()
-        # Only 1 new revision should be marked (item[1]), item[0] already exists
-        assert data["marked_count"] == 1
 
         # Verify no duplicate for item[0]
         nm_revisions = revisions(
@@ -244,9 +233,9 @@ class TestCloseDateNMGraduation:
 
         # Mark item as memorized via toggle
         client.post(
-            "/api/new_memorization/toggle",
-            content=json.dumps({"item_id": item_id}),
-            headers={"Content-Type": "application/json"},
+            f"/new_memorization/toggle/{item_id}",
+            data={"date": current_date},
+            follow_redirects=False,
         )
 
         # Call Close Date
@@ -279,9 +268,9 @@ class TestCloseDateNMGraduation:
 
         # Bulk mark items
         client.post(
-            "/api/new_memorization/bulk_mark",
-            content=json.dumps({"item_ids": item_ids}),
-            headers={"Content-Type": "application/json"},
+            "/new_memorization/bulk_mark",
+            data={"item_ids": [str(i) for i in item_ids], "date": current_date},
+            follow_redirects=False,
         )
 
         # Call Close Date

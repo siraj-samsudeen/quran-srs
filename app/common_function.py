@@ -1,6 +1,3 @@
-import json
-from starlette.responses import JSONResponse
-
 from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
@@ -88,8 +85,6 @@ tabulator_css = Link(
     href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_semanticui.min.css",
 )
 tabulator_js = Script(src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js")
-# Custom Tabulator initialization logic (loaded after Tabulator library)
-tabulator_init_js = Script(src="/public/js/tabulator-init.js")
 style_css = Link(rel="stylesheet", href="/public/css/style.css")
 favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 
@@ -103,7 +98,6 @@ def create_app_with_auth(**kwargs):
             daisyui_css,
             tabulator_css,
             tabulator_js,
-            tabulator_init_js,
             hyperscript_header,
             alpinejs_header,
             style_css,
@@ -126,45 +120,6 @@ def success_toast(sess, msg):
 
 def warning_toast(sess, msg):
     add_toast(sess, msg, "warning")
-
-
-# === API Response Helpers ===
-
-def api_error_response(error_msg: str, status_code: int = 400):
-    """Return standardized API error response."""
-    return JSONResponse({"error": error_msg}, status_code=status_code)
-
-
-async def parse_json_body(req, required_fields: list = None) -> tuple[dict | None, JSONResponse | None]:
-    """Parse JSON body and validate required fields.
-
-    Returns (payload, error_response).
-    If error_response is not None, return it immediately from the endpoint.
-    """
-    required_fields = required_fields or []
-    try:
-        body = await req.body()
-        payload = json.loads(body)
-    except json.JSONDecodeError:
-        return None, api_error_response("Invalid JSON")
-
-    missing = [f for f in required_fields if f not in payload or payload[f] is None]
-    if missing:
-        return None, api_error_response(f"Missing fields: {', '.join(missing)}")
-
-    return payload, None
-
-
-def get_pages_revised_stats(auth, current_date: str) -> dict:
-    """Return today vs yesterday pages revised stats for API responses."""
-    from app.home_view import get_pages_revised
-    pages_today = get_pages_revised(auth, current_date)
-    yesterday = add_days_to_date(current_date, -1)
-    pages_yesterday = get_pages_revised(auth, yesterday)
-    return {
-        "pages_revised_today": pages_today,
-        "pages_revised_yesterday": pages_yesterday,
-    }
 
 
 def main_area(*args, active=None, auth=None):
@@ -636,6 +591,90 @@ def row_background_color(rating):
     return bg_color
 
 
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False):
+    """Render a single table row for an item in the summary table.
+
+    Args:
+        records: contains the item and revision record
+        current_date: Current date for the hafiz
+        mode_code: Mode code
+        plan_id: Plan ID (optional, for full cycle)
+        hide_start_text: If True, hide start text (for consecutive pages)
+    """
+    item_id = records["item"].id
+    rating = records["revision"].rating if records["revision"] else None
+    row_id = f"row-{mode_code}-{item_id}"
+
+    if rating is None:
+        action_link_attr = {"hx_post": f"/add/{item_id}"}
+    else:
+        action_link_attr = {"hx_put": f"/edit/{records["revision"].id}"}
+
+    vals_dict = {"date": current_date, "mode_code": mode_code, "item_id": item_id}
+    if plan_id:
+        vals_dict["plan_id"] = plan_id
+
+    rating_dropdown_input = rating_dropdown(
+        rating=rating,
+        id=f"rev-{item_id}",
+        data_testid=f"rating-{item_id}",
+        **action_link_attr,
+        hx_vals=vals_dict,
+        hx_trigger="change",
+        hx_target=f"#{row_id}",
+        hx_swap="outerHTML",
+    )
+
+    # Checkbox for bulk selection - only show if not already rated
+    if rating is None:
+        checkbox_cell = Td(
+            fh.Input(
+                type="checkbox",
+                # when form is submitted, all checked values go into item_ids[] array
+                name="item_ids",
+                # each checkbox carries the item's ID
+                value=item_id,
+                cls="checkbox bulk-select-checkbox",
+                **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+            ),
+            cls="w-8 text-center",
+        )
+    else:
+        # Empty Td for rated items - maintains column alignment
+        checkbox_cell = Td(cls="w-8")
+
+    return Tr(
+        checkbox_cell,
+        Td(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
+        Td(
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(records["item"].start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if hide_start_text
+            else Span(records["item"].start_text or "-"),
+            cls="text-lg",
+        ),
+        Td(
+            Form(
+                rating_dropdown_input,
+                Hidden(name="item_id", value=item_id),
+            )
+        ),
+        id=row_id,
+        cls=row_background_color(rating),
+    )
+
+
 def get_mode_condition(mode_code: str):
     # The full cycle mode is a special case, where it also shows the SRS pages
     mode_code_mapping = {
@@ -647,6 +686,244 @@ def get_mode_condition(mode_code: str):
     else:
         mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
     return mode_condition
+
+
+def render_pagination_controls(mode_code, current_page, total_pages, total_items, info_text=None):
+    """Render pagination controls for navigating between pages."""
+    is_first_page = current_page <= 1
+    is_last_page = current_page >= total_pages
+
+    # Compute bounded page values to avoid out-of-range requests
+    prev_page = max(1, current_page - 1)
+    next_page = min(total_pages, current_page + 1)
+
+    prev_button = Button(
+        "👈",
+        hx_get=f"/page/{mode_code}?page={prev_page}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        data_testid=f"pagination-prev-{mode_code}",
+    ) if not is_first_page else Span()
+
+    next_button = Button(
+        "👉",
+        hx_get=f"/page/{mode_code}?page={next_page}",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        cls=(ButtonT.secondary, "px-4 py-2"),
+        data_testid=f"pagination-next-{mode_code}",
+    ) if not is_last_page else Span()
+
+    # Use custom info_text if provided, otherwise default format
+    default_info = f"Page {current_page} of {total_pages} ({total_items} items)"
+    page_info = Span(
+        info_text or default_info,
+        cls="text-sm font-medium",
+        data_testid=f"pagination-info-{mode_code}",
+    )
+
+    return Div(
+        Div(
+            prev_button,
+            page_info,
+            next_button,
+            cls="flex justify-between items-center gap-4",
+        ),
+        cls="p-3 border-t bg-gray-50",
+        data_testid=f"pagination-controls-{mode_code}",
+    )
+
+
+def render_bulk_action_bar(mode_code, current_date, plan_id):
+    """Render a sticky bulk action bar for applying ratings to selected items.
+
+    Note: Bulk selection is page-local - selections reset when navigating pages or applying filters.
+    """
+    plan_id_val = plan_id or ""
+
+    def bulk_button(rating_value, label, btn_cls):
+        return Button(
+            label,
+            hx_post="/bulk_rate",
+            hx_vals={"rating": rating_value, "mode_code": mode_code, "date": current_date, "plan_id": plan_id_val},
+            hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+            hx_target=f"#summary_table_{mode_code}",
+            hx_swap="outerHTML",
+            # Reset count immediately to hide bulk bar while HTMX processes
+            **{"@click": "count = 0"},
+            cls=(btn_cls, "px-4 py-2"),
+        )
+
+    # Select all checkbox - toggles all items
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        # Show "Select All" when not all selected, "Clear All" when all selected
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    return Div(
+        select_all_checkbox,
+        Div(
+            bulk_button(1, "Good", ButtonT.primary),
+            bulk_button(0, "Ok", ButtonT.secondary),
+            bulk_button(-1, "Bad", ButtonT.destructive),
+            cls="flex gap-2",
+        ),
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+    )
+
+
+def render_surah_header(surah_id, juz_number):
+    """Render a surah section header row with surah name and juz indicator."""
+    surah_name = surahs[surah_id].name
+    return Tr(
+        Td(
+            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
+            colspan=4,
+            cls="bg-base-200 py-1 px-2",
+        ),
+        cls="surah-header",
+    )
+
+
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None):
+    current_date = get_current_date(auth)
+    plan_id = get_current_plan_id()
+
+    # Calculate pagination
+    total_items = len(item_ids)
+
+    # Calculate page-equivalents for all modes (items can be partial pages)
+    if item_ids:
+        total_page_equivalents = sum(get_item_page_portion(item_id) for item_id in item_ids)
+    else:
+        total_page_equivalents = 0
+
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))  # Clamp page to valid range
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = item_ids
+        total_pages = 1
+
+    # Query all today's revisions once for efficiency
+    plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
+    if paginated_item_ids:
+        today_revisions = revisions(
+            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, paginated_item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
+        )
+    else:
+        today_revisions = []
+    # Create lookup dictionary: item_id -> rating
+    revisions_lookup = {rev.item_id: rev for rev in today_revisions}
+
+    # Query all items data once
+    items_with_revisions = [
+        {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
+        for item_id in paginated_item_ids
+    ]
+
+    # Group items by surah and render with headers
+    # Track consecutive pages to hide start text for recall practice
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+    for records in items_with_revisions:
+        item = records["item"]
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            # Reset consecutive tracking on surah change
+            prev_page_id = None
+        # Check if this is a consecutive page (hide start text for recall)
+        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+        # Add the item row
+        body_rows.append(
+            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive)
+        )
+        prev_page_id = item.page_id
+    # Show empty-state message when no items on current page (keeps table structure intact)
+    if not body_rows:
+        body_rows = [
+            Tr(
+                Td(
+                    "No pages to review on this page.",
+                    colspan=4,  # spans checkbox, page, start text, rating columns
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
+
+    if is_plan_finished:
+        body_rows.append(
+            Tr(
+                Td(
+                    Span(
+                        "Plan is finished, mark pages in ",
+                        A("Profile", href="/profile", cls=AT.classic),
+                        " to continue, or a new plan will be created",
+                    ),
+                    colspan=4,
+                    cls="text-center text-lg",
+                )
+            )
+        )
+
+    bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
+
+    # Render pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        # Show page-equivalents when item count differs from page count (due to split pages)
+        if total_items != int(total_page_equivalents):
+            info_text = f"Page {page} of {total_pages} ({total_items} items, {format_number(total_page_equivalents)} pages)"
+        else:
+            info_text = None
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items, info_text)
+
+    table_content = [
+        Table(
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+            # To prevent scroll jumping
+            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
+        ),
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
+    )
+    return (mode_code, table)
 
 
 # === Mode Filter Predicates ===
@@ -776,12 +1053,301 @@ MODE_PREDICATES = {
 }
 
 
+def make_summary_table(
+    mode_code: str,
+    auth: str,
+    table_only=False,
+    page=1,
+    items_per_page=None,
+):
+    current_date = get_current_date(auth)
+
+    qry = f"""
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
+        LEFT JOIN items on hafizs_items.item_id = items.id
+        WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
+        ORDER BY hafizs_items.item_id ASC
+    """
+    mode_specific_hafizs_items_records = db.q(qry)
+
+    # Filter using named predicates
+    predicate = MODE_PREDICATES[mode_code]
+    filtered_records = [
+        item
+        for item in mode_specific_hafizs_items_records
+        if predicate(item, current_date)
+    ]
+
+    def get_unique_item_ids(records):
+        return list(dict.fromkeys(record["item_id"] for record in records))
+
+    if mode_code == SRS_MODE_CODE:
+        exclude_start_page = get_last_added_full_cycle_page(auth)
+
+        # Exclude upcoming pages from SRS (pages not yet reviewed in Full Cycle)
+        # Hardcoded to 60 pages (~3 days worth at typical 20 pages/day)
+        if exclude_start_page is not None:
+            SRS_EXCLUSION_ZONE = 60
+            exclude_end_page = exclude_start_page + SRS_EXCLUSION_ZONE
+
+            filtered_records = [
+                record
+                for record in filtered_records
+                if record["page_number"] < exclude_start_page
+                or record["page_number"] > exclude_end_page
+            ]
+
+    item_ids = get_unique_item_ids(filtered_records)
+
+    if mode_code == FULL_CYCLE_MODE_CODE:
+        is_plan_finished, item_ids = get_full_review_item_ids(
+            auth=auth,
+            mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
+            item_ids=item_ids,
+        )
+    else:
+        is_plan_finished = False
+
+    # Hide tab entirely if no items to display
+    if not item_ids:
+        return None
+
+    result = render_summary_table(
+        auth=auth,
+        mode_code=mode_code,
+        item_ids=item_ids,
+        is_plan_finished=is_plan_finished,
+        page=page,
+        items_per_page=items_per_page,
+    )
+    if table_only:
+        return result[1]  # Just the table element for HTMX swap
+    return result
+
+
 def render_current_date(auth):
     current_date = get_current_date(auth)
     return P(
         Span("System Date: ", cls=TextPresets.bold_lg),
         Span(date_to_human_readable(current_date), data_testid="system-date"),
     )
+
+
+# === New Memorization Tab ===
+
+
+def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
+    """Render a single row in the New Memorization table with checkbox."""
+    item_id = item.id
+    row_id = f"row-NM-{item_id}"
+
+    # Check if this is a consecutive page (hide start text for recall)
+    is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+
+    # Checkbox for marking as memorized
+    checkbox = fh.Input(
+        type="checkbox",
+        name="item_ids",
+        value=item_id,
+        checked=is_memorized_today,
+        cls="checkbox bulk-select-checkbox",
+        hx_post=f"/new_memorization/toggle/{item_id}",
+        hx_target=f"#summary_table_{NEW_MEMORIZATION_MODE_CODE}",
+        hx_swap="outerHTML",
+        hx_vals={"date": current_date},
+        # Update count when checkbox changes
+        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+    )
+
+    # Row background: green if memorized today
+    bg_class = "bg-green-100" if is_memorized_today else ""
+
+    return Tr(
+        Td(checkbox, cls="w-8 text-center"),
+        Td(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
+        Td(
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(item.start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if is_consecutive
+            else Span(item.start_text or "-"),
+            cls="text-lg",
+        ),
+        id=row_id,
+        cls=bg_class,
+    )
+
+
+def render_nm_bulk_action_bar(current_date):
+    """Render bulk action bar for New Memorization mode.
+
+    Unlike other modes that have Good/Ok/Bad buttons, NM only has
+    a single 'Mark as Memorized' button.
+    """
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Select all checkbox - toggles all unchecked items
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => {
+                        if ($el.checked) cb.checked = true;
+                    });
+                    if (!$el.checked) {
+                        $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
+                    }
+                    count = $root.querySelectorAll('.bulk-select-checkbox:checked').length
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    mark_button = Button(
+        "Mark as Memorized",
+        hx_post="/new_memorization/bulk_mark",
+        hx_vals={"date": current_date},
+        hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        **{"@click": "count = 0"},
+        cls=(ButtonT.primary, "px-4 py-2"),
+    )
+
+    return Div(
+        select_all_checkbox,
+        mark_button,
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+    )
+
+
+def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=False):
+    """Build the New Memorization tab content showing unmemorized pages.
+
+    Shows:
+    - Unmemorized items (hafizs_items.memorized = 0)
+    - Items marked as memorized today (NM revisions today) - these stay until Close Date
+    """
+    current_date = get_current_date(auth)
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Query unmemorized items
+    qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        WHERE hafizs_items.hafiz_id = {auth}
+          AND hafizs_items.memorized = 0
+        ORDER BY hafizs_items.item_id ASC
+    """
+    unmemorized_records = db.q(qry)
+    unmemorized_item_ids = set(r["item_id"] for r in unmemorized_records)
+
+    # Get today's NM revisions (to show "memorized today" state)
+    today_nm_revisions = revisions(
+        where=f"revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {auth}"
+    )
+    today_nm_item_ids = set(r.item_id for r in today_nm_revisions)
+
+    # Combine: unmemorized + memorized today (union)
+    all_item_ids = sorted(unmemorized_item_ids | today_nm_item_ids)
+
+    # Hide tab entirely if no items to display
+    if not all_item_ids:
+        return None
+
+    # Pagination
+    total_items = len(all_item_ids)
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = all_item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = all_item_ids
+        total_pages = 1
+
+    # Get item details for paginated items
+    items_data = [items[item_id] for item_id in paginated_item_ids]
+
+    # Render rows with surah headers
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+
+    for item in items_data:
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            prev_page_id = None  # Reset consecutive tracking on surah change
+
+        is_memorized_today = item.id in today_nm_item_ids
+        body_rows.append(render_nm_row(item, current_date, is_memorized_today, prev_page_id))
+        prev_page_id = item.page_id
+
+    # Empty state
+    if not body_rows:
+        body_rows = [
+            Tr(
+                Td(
+                    "All pages memorized!",
+                    colspan=3,
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
+
+    bulk_bar = render_nm_bulk_action_bar(current_date)
+
+    # Pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
+
+    table_content = [
+        Table(
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
+        ),
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
+    )
+
+    if table_only:
+        return table
+    return (mode_code, table)
 
 
 # Rep mode configuration UI - used in profile and new memorization flows
