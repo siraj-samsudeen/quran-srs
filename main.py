@@ -124,19 +124,22 @@ def index(auth, sess):
         for code, content in mode_panels
     ]
 
-    header = DivLAligned(
+    header = Div(
         Div(
             render_current_date(auth),
             render_pages_revised_indicator(auth),
-            cls="flex flex-col sm:flex-row sm:gap-4 sm:items-center",
+            cls="flex items-center gap-2",
         ),
         A(
             Button(
-                "Close Date",
+                "✓",
+                cls="btn-sm btn-circle",
                 data_testid="close-date-btn",
+                title="Close Date",
             ),
             href="/close_date",
         ),
+        cls="flex justify-between items-center",
     )
 
     return main_area(
