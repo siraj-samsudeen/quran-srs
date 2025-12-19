@@ -20,6 +20,7 @@ class Hafiz:
     name: str | None = None
     user_id: int | None = None
     current_date: str | None = None
+    page_size: int | None = None
 
 
 # ============================================================================
