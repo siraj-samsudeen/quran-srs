@@ -1065,6 +1065,5 @@ def make_summary_table(
 def render_current_date(auth):
     current_date = get_current_date(auth)
     return P(
-        Span("System Date: ", cls=TextPresets.bold_lg),
-        Span(date_to_human_readable(current_date), data_testid="system-date"),
+        Span(date_to_human_readable(current_date), cls=TextPresets.bold_lg, data_testid="system-date"),
     )
