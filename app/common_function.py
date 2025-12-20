@@ -118,7 +118,7 @@ def main_area(*args, active=None, auth=None):
     is_active = lambda x: AT.primary if x == active else None
     title = A("Quran SRS", href="/")
     hafiz_name = A(
-        f"{hafizs[auth].name if auth is not None else "Select hafiz"}",
+        f"{hafizs[auth].name if auth is not None else 'Select hafiz'}",
         href="/hafiz/selection",
         method="GET",
     )
@@ -421,7 +421,7 @@ def rating_radio(
                 Span(label),
                 cls="space-x-2 p-1 border border-transparent has-[:checked]:border-blue-500",
             ),
-            cls=f"{"inline-block" if direction == "horizontal" else None}",
+            cls=f"{'inline-block' if direction == 'horizontal' else None}",
         )
 
     options = map(render_radio, RATING_MAP.items())
@@ -484,6 +484,22 @@ def get_item_page_portion(item_id: int) -> float:
     if not total_parts:
         return 0
     return 1 / len(total_parts)
+
+
+def get_page_part_info(item_id: int) -> tuple[int, int] | None:
+    """
+    Returns (part_number, total_parts) if item is part of a split page, None otherwise.
+    """
+    page_no = items[item_id].page_id
+    page_items = items(where=f"page_id = {page_no} and active = 1", order_by="id ASC")
+    total_parts = len(page_items)
+    if total_parts <= 1:
+        return None
+    # Find position of this item in the list
+    for idx, item in enumerate(page_items):
+        if item.id == item_id:
+            return (idx + 1, total_parts)
+    return None
 
 
 def get_page_count(records: list[Revision] = None, item_ids: list = None) -> float:
@@ -566,7 +582,7 @@ def row_background_color(rating):
     return bg_color
 
 
-def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False):
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False, loved=False):
     """Render a single table row for an item in the summary table.
 
     Args:
@@ -575,6 +591,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
         mode_code: Mode code
         plan_id: Plan ID (optional, for full cycle)
         hide_start_text: If True, hide start text (for consecutive pages)
+        loved: If True, show filled heart icon
     """
     item_id = records["item"].id
     rating = records["revision"].rating if records["revision"] else None
@@ -583,7 +600,8 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
     if rating is None:
         action_link_attr = {"hx_post": f"/add/{item_id}"}
     else:
-        action_link_attr = {"hx_put": f"/edit/{records["revision"].id}"}
+        rev_id = records["revision"].id
+        action_link_attr = {"hx_put": f"/edit/{rev_id}"}
 
     vals_dict = {"date": current_date, "mode_code": mode_code, "item_id": item_id}
     if plan_id:
@@ -618,15 +636,42 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
         # Empty Td for rated items - maintains column alignment
         checkbox_cell = Td(cls="w-8")
 
+    # Page part indicator (e.g., "①②③" for split pages)
+    part_info = get_page_part_info(item_id)
+    part_indicator = ""
+    if part_info:
+        part_num, total_parts = part_info
+        # Use circled numbers for parts: ① ② ③ ④ etc.
+        circled_nums = "①②③④⑤⑥⑦⑧⑨⑩"
+        if part_num <= len(circled_nums):
+            part_indicator = Span(circled_nums[part_num - 1], cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+        else:
+            part_indicator = Span(f".{part_num}", cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+
+    # Love icon (heart) - clickable to toggle
+    heart_icon = Span(
+        "❤️" if loved else "🤍",
+        cls="cursor-pointer text-sm",
+        hx_post=f"/toggle_love/{item_id}",
+        hx_target=f"#{row_id}",
+        hx_swap="outerHTML",
+        hx_vals={"mode_code": mode_code, "date": current_date, "plan_id": plan_id or ""},
+        title="Toggle favorite",
+    )
+
     return Tr(
         checkbox_cell,
         Td(
-            A(
-                get_page_number(item_id),
-                href=f"/page_details/{item_id}",
-                cls="font-mono font-bold hover:underline",
+            Div(
+                A(
+                    get_page_number(item_id),
+                    href=f"/page_details/{item_id}",
+                    cls="font-mono font-bold hover:underline",
+                ),
+                part_indicator,
+                cls="flex items-center justify-center gap-0.5",
             ),
-            cls="w-12 text-center",
+            cls="w-16 text-center",
         ),
         Td(
             # Hidden text with tap-to-reveal using Alpine.js
@@ -640,10 +685,14 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
             cls="text-lg",
         ),
         Td(
-            Form(
-                rating_dropdown_input,
-                Hidden(name="item_id", value=item_id),
-            )
+            Div(
+                heart_icon,
+                Form(
+                    rating_dropdown_input,
+                    Hidden(name="item_id", value=item_id),
+                ),
+                cls="flex items-center gap-2",
+            ),
         ),
         id=row_id,
         cls=row_background_color(rating),
@@ -793,7 +842,7 @@ def render_surah_header(surah_id, juz_number):
     )
 
 
-def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None):
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None, show_loved_only=False):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
@@ -827,6 +876,15 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
     # Create lookup dictionary: item_id -> rating
     revisions_lookup = {rev.item_id: rev for rev in today_revisions}
 
+    # Query hafizs_items to get loved status for each item
+    if paginated_item_ids:
+        hafiz_items_data = hafizs_items(
+            where=f"item_id IN ({', '.join(map(str, paginated_item_ids))})"
+        )
+    else:
+        hafiz_items_data = []
+    loved_lookup = {hi.item_id: bool(hi.loved) for hi in hafiz_items_data}
+
     # Query all items data once
     items_with_revisions = [
         {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
@@ -849,9 +907,11 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
             prev_page_id = None
         # Check if this is a consecutive page (hide start text for recall)
         is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+        # Get loved status for this item
+        is_loved = loved_lookup.get(item.id, False)
         # Add the item row
         body_rows.append(
-            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive)
+            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive, loved=is_loved)
         )
         prev_page_id = item.page_id
     # Show empty-state message when no items on current page (keeps table structure intact)
@@ -893,15 +953,34 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
             info_text = None
         pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items, info_text)
 
-    table_content = [
+    # Filter toggle for SRS mode
+    filter_toggle = None
+    if mode_code == SRS_MODE_CODE:
+        filter_toggle = Div(
+            Button(
+                "❤️ Loved Only" if not show_loved_only else "📋 Show All",
+                hx_get=f"/page/{mode_code}?page=1&show_loved_only={'false' if show_loved_only else 'true'}",
+                hx_target=f"#summary_table_{mode_code}",
+                hx_swap="outerHTML",
+                cls=f"btn btn-sm {'btn-primary' if show_loved_only else 'btn-ghost'}",
+                data_testid=f"loved-filter-toggle-{mode_code}",
+            ),
+            cls="flex justify-end mb-2",
+        )
+
+    table_content = []
+    if filter_toggle:
+        table_content.append(filter_toggle)
+
+    table_content.append(
         Table(
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
             cls=(TableT.middle, TableT.divider, TableT.sm),
             # To prevent scroll jumping
             hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
             hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
-        ),
-    ]
+        )
+    )
 
     if pagination_controls:
         table_content.append(pagination_controls)
@@ -1011,11 +1090,12 @@ def make_summary_table(
     table_only=False,
     page=1,
     items_per_page=None,
+    show_loved_only=False,
 ):
     current_date = get_current_date(auth)
 
     qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number FROM hafizs_items
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number, hafizs_items.loved FROM hafizs_items
         LEFT JOIN items on hafizs_items.item_id = items.id
         WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
         ORDER BY hafizs_items.item_id ASC
@@ -1049,6 +1129,12 @@ def make_summary_table(
                 or record["page_number"] > exclude_end_page
             ]
 
+        # Filter by loved items if requested
+        if show_loved_only:
+            filtered_records = [
+                record for record in filtered_records if record.get("loved")
+            ]
+
     item_ids = get_unique_item_ids(filtered_records)
 
     if mode_code == FULL_CYCLE_MODE_CODE:
@@ -1071,6 +1157,7 @@ def make_summary_table(
         is_plan_finished=is_plan_finished,
         page=page,
         items_per_page=items_per_page,
+        show_loved_only=show_loved_only,
     )
     if table_only:
         return result[1]  # Just the table element for HTMX swap
