@@ -10,6 +10,116 @@ from database import *
 profile_app, rt = create_app_with_auth()
 
 
+# === Search/Filter Component ===
+
+
+def render_search_controls(current_type="table", status_filter=None, surah_filter=None, juz_filter=None, page_filter=None):
+    """Render search controls for filtering by surah, juz, and page."""
+    # Get all surahs for dropdown
+    all_surahs = surahs()
+
+    # Build URL params for current filters
+    def build_url(new_params):
+        params = {}
+        if status_filter:
+            params["status_filter"] = status_filter
+        if surah_filter:
+            params["surah_filter"] = surah_filter
+        if juz_filter:
+            params["juz_filter"] = juz_filter
+        if page_filter:
+            params["page_filter"] = page_filter
+        params.update(new_params)
+        # Remove empty values
+        params = {k: v for k, v in params.items() if v}
+        param_str = "&".join(f"{k}={v}" for k, v in params.items())
+        return f"/profile/{current_type}?{param_str}" if param_str else f"/profile/{current_type}"
+
+    # Surah dropdown
+    surah_options = [Option("All Surahs", value="")]
+    for s in all_surahs:
+        surah_options.append(
+            Option(f"{s.number}. {s.name}", value=str(s.id), selected=str(s.id) == str(surah_filter) if surah_filter else False)
+        )
+
+    # Juz dropdown
+    juz_options = [Option("All Juz", value="")]
+    for j in range(1, 31):
+        juz_options.append(
+            Option(f"Juz {j}", value=str(j), selected=str(j) == str(juz_filter) if juz_filter else False)
+        )
+
+    return Div(
+        Form(
+            Div(
+                # Surah dropdown
+                Div(
+                    Label("Surah", fr="surah_filter", cls="text-sm font-medium text-gray-700"),
+                    Select(
+                        *surah_options,
+                        name="surah_filter",
+                        id="surah_filter",
+                        cls="select select-bordered select-sm w-full",
+                    ),
+                    cls="flex-1 min-w-[150px]",
+                ),
+                # Juz dropdown
+                Div(
+                    Label("Juz", fr="juz_filter", cls="text-sm font-medium text-gray-700"),
+                    Select(
+                        *juz_options,
+                        name="juz_filter",
+                        id="juz_filter",
+                        cls="select select-bordered select-sm w-full",
+                    ),
+                    cls="flex-1 min-w-[100px]",
+                ),
+                # Page number input
+                Div(
+                    Label("Page", fr="page_filter", cls="text-sm font-medium text-gray-700"),
+                    Input(
+                        type="number",
+                        name="page_filter",
+                        id="page_filter",
+                        placeholder="1-604",
+                        min="1",
+                        max="604",
+                        value=page_filter or "",
+                        cls="input input-bordered input-sm w-full",
+                    ),
+                    cls="flex-1 min-w-[80px]",
+                ),
+                # Submit button
+                Div(
+                    Button(
+                        "🔍 Search",
+                        type="submit",
+                        cls="btn btn-primary btn-sm w-full mt-5",
+                    ),
+                    cls="flex-shrink-0",
+                ),
+                # Clear filters button
+                Div(
+                    A(
+                        "Clear",
+                        href=f"/profile/{current_type}" + (f"?status_filter={status_filter}" if status_filter else ""),
+                        cls="btn btn-ghost btn-sm w-full mt-5",
+                    ),
+                    cls="flex-shrink-0",
+                ) if (surah_filter or juz_filter or page_filter) else None,
+                cls="flex flex-wrap gap-3 items-start",
+            ),
+            # Preserve status_filter as hidden field
+            Hidden(name="status_filter", value=status_filter) if status_filter else None,
+            action=f"/profile/{current_type}",
+            method="get",
+            cls="w-full",
+        ),
+        cls="bg-base-200 p-3 rounded-lg mb-4",
+        data_testid="search-controls",
+    )
+
+
 # === Stats Cards Component ===
 
 
@@ -271,6 +381,7 @@ def _render_profile_row(row_data, status_filter):
     item_id = row_data["item_id"]
     hafiz_item_id = row_data["hafiz_item_id"]
     page_number = row_data["page_number"]
+    start_text = row_data.get("start_text") or "-"
     memorized = bool(row_data["memorized"])
     mode_code = row_data["mode_code"] or ""
     status = get_status(row_data)
@@ -318,6 +429,7 @@ def _render_profile_row(row_data, status_filter):
             ),
             cls="w-16 text-center",
         ),
+        Td(Span(start_text, cls="text-sm"), cls="max-w-[200px] truncate"),
         Td(_get_status_badge(status)),
         Td(_get_mode_badge(mode_code) if memorized else Span("-", cls="text-gray-400")),
         progress_cell,
@@ -332,45 +444,60 @@ def _render_profile_surah_header(surah_id, juz_number):
         Td(
             Span(f"📖 {surah_name}", cls="font-semibold"),
             Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=5,
+            colspan=6,
             cls="bg-base-200 py-1 px-2",
         ),
         cls="surah-header",
     )
 
 
-def _get_profile_data(auth, status_filter=None):
-    """Get profile data with optional status filter."""
-    # Build filter condition
-    filter_condition = ""
+def _get_profile_data(auth, status_filter=None, surah_filter=None, juz_filter=None, page_filter=None):
+    """Get profile data with optional status and search filters."""
+    # Build filter conditions
+    filter_conditions = []
+
+    # Status filter
     if status_filter == STATUS_NOT_MEMORIZED:
-        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
+        filter_conditions.append("(hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)")
     elif status_filter == STATUS_LEARNING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+        filter_conditions.append(f"hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'")
     elif status_filter == STATUS_REPS:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')"
+        filter_conditions.append(f"hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')")
     elif status_filter == STATUS_SOLID:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'"
+        filter_conditions.append(f"hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'")
     elif status_filter == STATUS_STRUGGLING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'"
+        filter_conditions.append(f"hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'")
+
+    # Search filters
+    if surah_filter:
+        filter_conditions.append(f"items.surah_id = {int(surah_filter)}")
+    if juz_filter:
+        filter_conditions.append(f"pages.juz_number = {int(juz_filter)}")
+    if page_filter:
+        filter_conditions.append(f"pages.page_number = {int(page_filter)}")
+
+    # Combine conditions
+    filter_clause = " AND ".join(filter_conditions)
+    if filter_clause:
+        filter_clause = " AND " + filter_clause
 
     qry = f"""
-        SELECT items.id as item_id, items.surah_id, pages.page_number, pages.juz_number,
+        SELECT items.id as item_id, items.surah_id, items.start_text, pages.page_number, pages.juz_number,
                hafizs_items.id as hafiz_item_id, hafizs_items.memorized, hafizs_items.mode_code,
                hafizs_items.custom_daily_threshold, hafizs_items.custom_weekly_threshold,
                hafizs_items.custom_fortnightly_threshold, hafizs_items.custom_monthly_threshold
         FROM items
         LEFT JOIN pages ON items.page_id = pages.id
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE items.active != 0 {filter_condition}
+        WHERE items.active != 0 {filter_clause}
         ORDER BY pages.page_number ASC
     """
     return db.q(qry)
 
 
-def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
+def _render_profile_table(auth, status_filter=None, surah_filter=None, juz_filter=None, page_filter=None, page=1, items_per_page=25):
     """Render the profile table with surah grouping and pagination."""
-    rows = _get_profile_data(auth, status_filter)
+    rows = _get_profile_data(auth, status_filter, surah_filter, juz_filter, page_filter)
     total_items = len(rows)
 
     # Pagination
@@ -396,11 +523,21 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
     if not body_rows:
         body_rows = [
-            Tr(Td("No pages found", colspan=5, cls="text-center text-gray-500 py-8"))
+            Tr(Td("No pages found", colspan=6, cls="text-center text-gray-500 py-8"))
         ]
 
-    # Pagination controls
-    filter_param = f"&status_filter={status_filter}" if status_filter else ""
+    # Build filter params for pagination links
+    filter_params = []
+    if status_filter:
+        filter_params.append(f"status_filter={status_filter}")
+    if surah_filter:
+        filter_params.append(f"surah_filter={surah_filter}")
+    if juz_filter:
+        filter_params.append(f"juz_filter={juz_filter}")
+    if page_filter:
+        filter_params.append(f"page_filter={page_filter}")
+    filter_param = "&" + "&".join(filter_params) if filter_params else ""
+
     pagination = None
     if total_pages > 1:
         prev_disabled = page <= 1
@@ -431,6 +568,7 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
         Thead(
             Tr(
                 Th("Page", cls="w-16 text-center"),
+                Th("Start"),
                 Th("Status"),
                 Th("Mode"),
                 Th("Progress"),
@@ -449,7 +587,7 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
 
 @profile_app.get("/table")
-def show_profile_page(auth, status_filter: str = None, page: int = 1):
+def show_profile_page(auth, status_filter: str = None, surah_filter: str = None, juz_filter: str = None, page_filter: str = None, page: int = 1):
     """Profile page using HTMX table rendering (like home page)."""
 
     # Configuration modal (DaisyUI dialog)
@@ -469,8 +607,9 @@ def show_profile_page(auth, status_filter: str = None, page: int = 1):
 
     return main_area(
         Div(
+            render_search_controls("table", status_filter, surah_filter, juz_filter, page_filter),
             render_stats_cards(auth, "table", status_filter),
-            _render_profile_table(auth, status_filter, page),
+            _render_profile_table(auth, status_filter, surah_filter, juz_filter, page_filter, page),
             config_modal,
             cls="space-y-4 pt-2",
         ),
