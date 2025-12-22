@@ -1,3 +1,5 @@
+import math
+
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
@@ -208,295 +210,272 @@ async def bulk_set_status(req: Request, auth):
     return JSONResponse({"updated": updated})
 
 
+# === Profile Table Row Rendering ===
+
+
+def _get_status_badge(status):
+    """Return status badge with appropriate color."""
+    status_colors = {
+        STATUS_NOT_MEMORIZED: ("bg-gray-100", "text-gray-600"),
+        STATUS_LEARNING: ("bg-green-100", "text-green-700"),
+        STATUS_REPS: ("bg-amber-100", "text-amber-700"),
+        STATUS_SOLID: ("bg-purple-100", "text-purple-700"),
+        STATUS_STRUGGLING: ("bg-red-100", "text-red-700"),
+    }
+    icon, label = get_status_display(status)
+    bg, text = status_colors.get(status, ("bg-gray-100", "text-gray-600"))
+    return Span(f"{icon} {label}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
+
+
+def _get_mode_badge(mode_code):
+    """Return mode badge with appropriate color."""
+    if not mode_code:
+        return Span("-", cls="text-gray-400")
+
+    mode_colors = {
+        NEW_MEMORIZATION_MODE_CODE: ("bg-green-100", "text-green-700"),
+        DAILY_REPS_MODE_CODE: ("bg-yellow-100", "text-yellow-700"),
+        WEEKLY_REPS_MODE_CODE: ("bg-amber-100", "text-amber-700"),
+        FORTNIGHTLY_REPS_MODE_CODE: ("bg-orange-100", "text-orange-700"),
+        MONTHLY_REPS_MODE_CODE: ("bg-orange-200", "text-orange-800"),
+        FULL_CYCLE_MODE_CODE: ("bg-purple-100", "text-purple-700"),
+        SRS_MODE_CODE: ("bg-red-100", "text-red-700"),
+    }
+    icon = get_mode_icon(mode_code)
+    name = get_mode_name(mode_code)
+    bg, text = mode_colors.get(mode_code, ("bg-gray-100", "text-gray-600"))
+    return Span(f"{icon} {name}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
+
+
+def _render_progress_bar(current, total):
+    """Render a progress bar for rep modes."""
+    if total == 0:
+        return Span("-", cls="text-gray-400")
+
+    percent = (current / total) * 100
+    # Color: red < 30%, amber 30-70%, green > 70%
+    bar_color = "bg-red-500" if percent < 30 else "bg-amber-500" if percent < 70 else "bg-green-500"
+
+    return Div(
+        Div(
+            Div(cls=f"{bar_color} h-full", style=f"width: {percent}%"),
+            cls="flex-1 bg-gray-200 rounded h-2 overflow-hidden",
+        ),
+        Span(f"{current}/{total}", cls="text-xs text-gray-500 ml-2 min-w-[35px]"),
+        cls="flex items-center gap-1",
+    )
+
+
+def _render_profile_row(row_data, status_filter):
+    """Render a single profile table row."""
+    item_id = row_data["item_id"]
+    hafiz_item_id = row_data["hafiz_item_id"]
+    page_number = row_data["page_number"]
+    memorized = bool(row_data["memorized"])
+    mode_code = row_data["mode_code"] or ""
+    status = get_status(row_data)
+
+    # Calculate progress for graduatable modes
+    progress_cell = Td("-", cls="text-gray-400")
+    if memorized and mode_code in GRADUATABLE_MODES:
+        current_count = get_mode_count(item_id, mode_code)
+        threshold = DEFAULT_REP_COUNTS.get(mode_code, 7)
+        # Check custom thresholds
+        threshold_map = {
+            DAILY_REPS_MODE_CODE: row_data.get("custom_daily_threshold"),
+            WEEKLY_REPS_MODE_CODE: row_data.get("custom_weekly_threshold"),
+            FORTNIGHTLY_REPS_MODE_CODE: row_data.get("custom_fortnightly_threshold"),
+            MONTHLY_REPS_MODE_CODE: row_data.get("custom_monthly_threshold"),
+        }
+        custom = threshold_map.get(mode_code)
+        if custom is not None:
+            threshold = custom
+        progress_cell = Td(_render_progress_bar(current_count, threshold))
+
+    # Config button (only for memorized items)
+    config_cell = Td()
+    if memorized and hafiz_item_id:
+        config_cell = Td(
+            A(
+                "⚙️",
+                href=f"/profile/configure_reps/{hafiz_item_id}",
+                hx_get=f"/profile/configure_reps/{hafiz_item_id}",
+                hx_target="#config-modal-content",
+                hx_swap="innerHTML",
+                onclick="document.getElementById('config-modal').showModal()",
+                cls="btn btn-ghost btn-xs",
+                title="Configure",
+            ),
+            cls="text-center",
+        )
+
+    return Tr(
+        Td(
+            A(
+                Strong(page_number),
+                href=f"/page_details/{item_id}",
+                cls="font-mono hover:underline",
+            ),
+            cls="w-16 text-center",
+        ),
+        Td(_get_status_badge(status)),
+        Td(_get_mode_badge(mode_code) if memorized else Span("-", cls="text-gray-400")),
+        progress_cell,
+        config_cell,
+    )
+
+
+def _render_profile_surah_header(surah_id, juz_number):
+    """Render a surah section header row."""
+    surah_name = surahs[surah_id].name
+    return Tr(
+        Td(
+            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
+            colspan=5,
+            cls="bg-base-200 py-1 px-2",
+        ),
+        cls="surah-header",
+    )
+
+
+def _get_profile_data(auth, status_filter=None):
+    """Get profile data with optional status filter."""
+    # Build filter condition
+    filter_condition = ""
+    if status_filter == STATUS_NOT_MEMORIZED:
+        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
+    elif status_filter == STATUS_LEARNING:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+    elif status_filter == STATUS_REPS:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')"
+    elif status_filter == STATUS_SOLID:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'"
+    elif status_filter == STATUS_STRUGGLING:
+        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'"
+
+    qry = f"""
+        SELECT items.id as item_id, items.surah_id, pages.page_number, pages.juz_number,
+               hafizs_items.id as hafiz_item_id, hafizs_items.memorized, hafizs_items.mode_code,
+               hafizs_items.custom_daily_threshold, hafizs_items.custom_weekly_threshold,
+               hafizs_items.custom_fortnightly_threshold, hafizs_items.custom_monthly_threshold
+        FROM items
+        LEFT JOIN pages ON items.page_id = pages.id
+        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
+        WHERE items.active != 0 {filter_condition}
+        ORDER BY pages.page_number ASC
+    """
+    return db.q(qry)
+
+
+def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
+    """Render the profile table with surah grouping and pagination."""
+    rows = _get_profile_data(auth, status_filter)
+    total_items = len(rows)
+
+    # Pagination
+    total_pages = math.ceil(total_items / items_per_page) if items_per_page > 0 else 1
+    page = max(1, min(page, total_pages))
+    start_idx = (page - 1) * items_per_page
+    end_idx = start_idx + items_per_page
+    paginated_rows = rows[start_idx:end_idx]
+
+    # Build table rows with surah headers
+    body_rows = []
+    current_surah_id = None
+
+    for row in paginated_rows:
+        surah_id = row["surah_id"]
+        # Add surah header when surah changes
+        if surah_id != current_surah_id:
+            current_surah_id = surah_id
+            juz_number = row["juz_number"]
+            body_rows.append(_render_profile_surah_header(surah_id, juz_number))
+
+        body_rows.append(_render_profile_row(row, status_filter))
+
+    if not body_rows:
+        body_rows = [
+            Tr(Td("No pages found", colspan=5, cls="text-center text-gray-500 py-8"))
+        ]
+
+    # Pagination controls
+    filter_param = f"&status_filter={status_filter}" if status_filter else ""
+    pagination = None
+    if total_pages > 1:
+        prev_disabled = page <= 1
+        next_disabled = page >= total_pages
+
+        pagination = Div(
+            Button(
+                "👈",
+                hx_get=f"/profile/table?page={page - 1}{filter_param}",
+                hx_target="#profile-table-container",
+                hx_swap="innerHTML",
+                cls="btn btn-sm btn-ghost",
+                disabled=prev_disabled,
+            ) if not prev_disabled else Span(),
+            Span(f"Page {page} of {total_pages} ({total_items} items)", cls="text-sm mx-4"),
+            Button(
+                "👉",
+                hx_get=f"/profile/table?page={page + 1}{filter_param}",
+                hx_target="#profile-table-container",
+                hx_swap="innerHTML",
+                cls="btn btn-sm btn-ghost",
+                disabled=next_disabled,
+            ) if not next_disabled else Span(),
+            cls="flex justify-center items-center gap-2 py-3 border-t bg-gray-50",
+        )
+
+    table = Table(
+        Thead(
+            Tr(
+                Th("Page", cls="w-16 text-center"),
+                Th("Status"),
+                Th("Mode"),
+                Th("Progress"),
+                Th("", cls="w-12"),
+            )
+        ),
+        Tbody(*body_rows),
+        cls=(TableT.middle, TableT.divider, TableT.sm),
+    )
+
+    return Div(
+        table,
+        pagination if pagination else "",
+        id="profile-table-container",
+    )
+
+
 @profile_app.get("/table")
-def show_tabulator_page(auth, status_filter: str = None):
-    """Profile page using Tabulator for interactive table."""
+def show_profile_page(auth, status_filter: str = None, page: int = 1):
+    """Profile page using HTMX table rendering (like home page)."""
 
-    # Build API URL with filter
-    api_url = "/profile/api/pages"
-    if status_filter:
-        api_url += f"?status_filter={status_filter}"
-
-    # Tabulator initialization script with enhanced formatters
-    tabulator_init = Script(f"""
-        document.addEventListener('DOMContentLoaded', function() {{
-            // Status color mapping
-            var statusColors = {{
-                "Not Memorized": "#6b7280",  // gray
-                "Learning": "#22c55e",        // green
-                "Reps": "#f59e0b",            // amber - matches rep mode gradient
-                "Solid": "#8b5cf6",           // purple
-                "Struggling": "#ef4444"       // red
-            }};
-
-            // Mode color mapping - progression gradient for reps (yellow → orange)
-            var modeColors = {{
-                "New Memorization": "#22c55e", // green - matches Learning status
-                "Daily Reps": "#eab308",       // yellow - earliest rep stage
-                "Weekly Reps": "#f59e0b",      // amber - progressing
-                "Fortnightly Reps": "#f97316", // orange - further along
-                "Monthly Reps": "#ea580c",     // dark orange - almost graduated
-                "Full cycle": "#8b5cf6",       // purple - matches Solid status
-                "SRS - Variable Reps": "#ef4444" // red - matches Struggling status
-            }};
-
-            var table = new Tabulator("#profile-table", {{
-                ajaxURL: "{api_url}",
-                layout: "fitDataStretch",
-                responsiveLayout: "hide",
-                pagination: true,
-                paginationSize: 25,
-                paginationSizeSelector: [10, 25, 50, 100],
-                paginationCounter: "rows",
-                movableColumns: true,
-                placeholder: "No pages found",
-                selectable: true,
-                selectableRangeMode: "click",
-                columns: [
-                    {{
-                        title: "",
-                        formatter: "rowSelection",
-                        titleFormatter: "rowSelection",
-                        headerSort: false,
-                        width: 40,
-                        hozAlign: "center",
-                        headerHozAlign: "center",
-                        cssClass: "tabulator-row-selection",
-                        responsive: 0
-                    }},
-                    {{title: "Page", field: "page", sorter: "number", headerFilter: "number", width: 70,
-                     responsive: 0,
-                     formatter: function(cell) {{
-                        return "<strong>" + cell.getValue() + "</strong>";
-                    }}}},
-                    {{title: "Juz", field: "juz", sorter: "number", headerFilter: "number", width: 60,
-                     responsive: 3}},
-                    {{title: "Surah", field: "surah", sorter: "string", headerFilter: "input", minWidth: 100,
-                     responsive: 2}},
-                    {{title: "Status", field: "status", sorter: "string", headerFilter: "list",
-                     headerFilterParams: {{values: ["Not Memorized", "Learning", "Reps", "Solid", "Struggling"]}},
-                     minWidth: 120, responsive: 0,
-                     formatter: function(cell) {{
-                        var data = cell.getRow().getData();
-                        var color = statusColors[data.status] || "#6b7280";
-                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap;">' + data.status_icon + ' ' + data.status + '</span>';
-                    }}}},
-                    {{title: "Mode", field: "mode", sorter: "string", headerFilter: "list",
-                     headerFilterParams: {{values: ["Daily Reps", "Weekly Reps", "Fortnightly Reps", "Monthly Reps", "Full cycle", "SRS - Variable Reps", "-"]}},
-                     minWidth: 130, responsive: 1,
-                     formatter: function(cell) {{
-                        var data = cell.getRow().getData();
-                        var color = modeColors[data.mode] || "#6b7280";
-                        return '<span style="background-color: ' + color + '20; color: ' + color + '; padding: 2px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap;">' + data.mode_icon + ' ' + data.mode + '</span>';
-                    }}}},
-                    {{title: "Progress", field: "progress", sorter: "string", headerFilter: false, width: 140,
-                     responsive: 2,
-                     formatter: function(cell) {{
-                        var value = cell.getValue();
-                        if (value === "-") return "-";
-
-                        // Parse "0 of 7" format
-                        var parts = value.split(" of ");
-                        if (parts.length !== 2) return value;
-
-                        var current = parseInt(parts[0]);
-                        var total = parseInt(parts[1]);
-                        var percent = (current / total) * 100;
-
-                        // Color based on progress
-                        var barColor = percent < 30 ? "#ef4444" : percent < 70 ? "#f59e0b" : "#22c55e";
-
-                        return '<div style="display: flex; align-items: center; gap: 8px;">' +
-                            '<div style="flex: 1; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">' +
-                            '<div style="width: ' + percent + '%; height: 100%; background: ' + barColor + '; transition: width 0.3s;"></div>' +
-                            '</div>' +
-                            '<span style="font-size: 11px; color: #6b7280; min-width: 40px;">' + value + '</span>' +
-                            '</div>';
-                    }}}},
-                    {{title: "", field: "actions", headerSort: false, width: 45, hozAlign: "center",
-                     responsive: 0,
-                     formatter: function(cell) {{
-                        var data = cell.getRow().getData();
-                        // Only show config button for memorized items
-                        if (!data.memorized) return "";
-                        return '<button class="btn btn-ghost btn-xs config-btn" data-id="' + data.hafiz_item_id + '" title="Configure">⚙️</button>';
-                    }},
-                     cellClick: function(e, cell) {{
-                        var btn = e.target.closest('.config-btn');
-                        if (btn) {{
-                            var hafizItemId = btn.dataset.id;
-                            // Fetch modal content and show it
-                            fetch('/profile/configure_reps/' + hafizItemId)
-                                .then(function(response) {{ return response.text(); }})
-                                .then(function(html) {{
-                                    document.getElementById('config-modal-content').innerHTML = html;
-                                    UIkit.modal('#config-modal').show();
-                                }});
-                        }}
-                    }}}},
-                ],
-                initialSort: [
-                    {{column: "page", dir: "asc"}}
-                ],
-            }});
-
-            // Store table reference globally for other interactions
-            window.profileTable = table;
-
-            // Row click to open config modal (for mobile where gear icon is hidden)
-            table.on("rowClick", function(e, row) {{
-                // Don't open modal if clicking checkbox, config button, or within selection column
-                if (e.target.closest('.tabulator-row-selection') ||
-                    e.target.closest('.config-btn') ||
-                    e.target.type === 'checkbox') {{
-                    return;
-                }}
-
-                var data = row.getData();
-                // Only open modal for memorized items
-                if (!data.memorized) return;
-
-                var hafizItemId = data.hafiz_item_id;
-                fetch('/profile/configure_reps/' + hafizItemId)
-                    .then(function(response) {{ return response.text(); }})
-                    .then(function(html) {{
-                        document.getElementById('config-modal-content').innerHTML = html;
-                        UIkit.modal('#config-modal').show();
-                    }});
-            }});
-
-            // Global search
-            document.getElementById("search-input").addEventListener("keyup", function() {{
-                var value = this.value.toLowerCase();
-                table.setFilter(function(data) {{
-                    return String(data.page).includes(value) ||
-                           data.surah.toLowerCase().includes(value) ||
-                           data.status.toLowerCase().includes(value) ||
-                           data.mode.toLowerCase().includes(value);
-                }});
-            }});
-
-            // Clear filters button
-            document.getElementById("clear-filters").addEventListener("click", function() {{
-                table.clearFilter(true);
-                table.clearHeaderFilter();
-                document.getElementById("search-input").value = "";
-            }});
-
-            // Update selection count and show/hide bulk actions bar
-            table.on("rowSelectionChanged", function(data, rows) {{
-                var count = rows.length;
-                var bulkBar = document.getElementById("bulk-actions-bar");
-
-                if (bulkBar) {{
-                    bulkBar.style.display = count > 0 ? "flex" : "none";
-                    document.getElementById("bulk-count").textContent = count;
-                }}
-
-                // Store selected item IDs for bulk operations
-                window.selectedItemIds = data.map(function(row) {{ return row.hafiz_item_id; }});
-            }});
-
-            // Bulk Set Status - handle clicks on dropdown menu items
-            document.querySelectorAll(".status-menu-item").forEach(function(item) {{
-                item.addEventListener("click", function() {{
-                    var statusValue = this.dataset.status;
-                    if (!statusValue || !window.selectedItemIds || window.selectedItemIds.length === 0) return;
-
-                    fetch("/profile/api/bulk/set_status", {{
-                        method: "POST",
-                        headers: {{ "Content-Type": "application/json" }},
-                        body: JSON.stringify({{ item_ids: window.selectedItemIds, status: statusValue }})
-                    }}).then(function(response) {{
-                        if (response.ok) {{
-                            table.setData("{api_url}");
-                            table.deselectRow();
-                        }}
-                    }});
-
-                    // Close the dropdown
-                    document.activeElement.blur();
-                }});
-            }});
-        }});
-    """)
-
-    # Floating bulk actions bar (hidden by default)
-    bulk_actions_bar = Div(
+    # Configuration modal (DaisyUI dialog)
+    config_modal = Dialog(
         Div(
-            Span(id="bulk-count", cls="font-bold"),
-            " pages selected",
-            cls="text-sm",
-        ),
-        # DaisyUI dropdown menu - 5 statuses only (not individual modes)
-        Div(
-            Div(
-                "Set Status...",
-                tabindex="0",
-                role="button",
-                cls="btn btn-sm btn-outline",
+            Form(
+                Button("✕", cls="btn btn-sm btn-circle btn-ghost absolute right-2 top-2", method="dialog"),
+                method="dialog",
             ),
-            Ul(
-                Li(A("📚 Not Memorized", data_status="NOT_MEMORIZED", cls="status-menu-item")),
-                Li(A("🌱 Learning", data_status="LEARNING", cls="status-menu-item")),
-                Li(A("🏋️ Reps", data_status="REPS", cls="status-menu-item")),
-                Li(A("💪 Solid", data_status="SOLID", cls="status-menu-item")),
-                Li(A("😰 Struggling", data_status="STRUGGLING", cls="status-menu-item")),
-                tabindex="0",
-                cls="dropdown-content menu bg-base-100 rounded-box z-[100] w-52 p-2 shadow-lg border border-base-300",
-            ),
-            cls="dropdown dropdown-top dropdown-end",
+            H3("Configure Page", cls="font-bold text-lg mb-4"),
+            Div(id="config-modal-content"),
+            cls="modal-box",
         ),
-        id="bulk-actions-bar",
-        cls="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-base-100 border border-base-300 rounded-lg shadow-lg px-4 py-3 flex items-center gap-6 z-50",
-        style="display: none;",
+        id="config-modal",
+        cls="modal",
     )
 
     return main_area(
         Div(
             render_stats_cards(auth, "table", status_filter),
-            # Search and controls
-            Div(
-                Div(
-                    Input(
-                        type="text",
-                        id="search-input",
-                        placeholder="Search pages, surahs, modes...",
-                        cls="input input-bordered input-sm w-64",
-                    ),
-                    Button(
-                        "Clear Filters",
-                        id="clear-filters",
-                        cls="btn btn-sm btn-ghost",
-                    ),
-                    cls="flex items-center gap-2",
-                ),
-                cls="mb-4",
-            ),
-            # Tabulator container
-            Div(id="profile-table", cls="bg-base-100 rounded-lg shadow-sm"),
-            # Floating bulk actions bar
-            bulk_actions_bar,
-            # Configuration modal (UK modal)
-            Div(
-                Div(
-                    Div(
-                        Button(cls="uk-modal-close-default", type="button", **{"uk-close": True}),
-                        H3("Configure Page", cls="uk-modal-title"),
-                        Div(id="config-modal-content"),
-                        cls="uk-modal-header",
-                    ),
-                    cls="uk-modal-dialog uk-modal-body",
-                ),
-                id="config-modal",
-                **{"uk-modal": True},
-                cls="uk-modal",
-            ),
-            tabulator_init,
+            _render_profile_table(auth, status_filter, page),
+            config_modal,
             cls="space-y-4 pt-2",
         ),
         auth=auth,
-        active="Memorization Status",
+        active="Profile",
     )
 
 
