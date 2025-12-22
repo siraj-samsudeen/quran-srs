@@ -1,13 +1,26 @@
 """
 SRS (Spaced Repetition System) Mode Logic
 
-This module handles the adaptive spaced repetition algorithm for Quran memorization.
-SRS mode is triggered when Full Cycle revisions receive Ok or Bad ratings, indicating
-the page needs focused reinforcement before returning to regular rotation.
+This module handles the adaptive spaced repetition algorithm, which is fundamentally
+different from fixed-interval rep modes (Daily/Weekly/Fortnightly/Monthly).
 
-Key concepts:
+Key Differences from Fixed Reps:
+- SRS uses prime number intervals that adapt based on performance ratings
+- Fixed rep modes use constant intervals (1/7/14/30 days)
+- SRS has no threshold-based graduation; it graduates when interval exceeds 99 days
+- Fixed rep modes graduate after 7 successful repetitions
+
+SRS Entry:
 - Items enter SRS from Full Cycle when they get Ok (0) or Bad (-1) ratings
-- Rating affects next interval: Bad→shorter, Ok→same, Good→longer
+- Bad rating → 3-day starting interval
+- Ok rating → 10-day starting interval
+
+SRS Progression:
+- Rating affects next interval: Bad→shorter (left in prime sequence),
+  Ok→same, Good→longer (right in prime sequence)
+
+The separation between SRS and fixed reps (fixed_reps.py) is intentional and should
+be maintained - they solve fundamentally different problems.
 """
 
 from constants import *
