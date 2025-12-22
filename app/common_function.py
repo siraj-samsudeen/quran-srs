@@ -79,6 +79,12 @@ daisyui_css = Link(
     rel="stylesheet",
     href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css",
 )
+# Tabulator (interactive data tables with sorting, filtering, search)
+tabulator_css = Link(
+    rel="stylesheet",
+    href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_semanticui.min.css",
+)
+tabulator_js = Script(src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js")
 style_css = Link(rel="stylesheet", href="/public/css/style.css")
 favicon = Link(rel="icon", type="image/svg+xml", href="/public/favicon.svg")
 
@@ -90,6 +96,8 @@ def create_app_with_auth(**kwargs):
         hdrs=(
             Theme.blue.headers(),
             daisyui_css,
+            tabulator_css,
+            tabulator_js,
             hyperscript_header,
             alpinejs_header,
             style_css,
@@ -158,18 +166,13 @@ def main_area(*args, active=None, auth=None):
                 A("Home", href="/", cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/surah",
+                    href="/profile/table",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
                     "Page Details",
                     href="/page_details",
                     cls=is_active("Page Details"),
-                ),
-                A(
-                    "New Memorization",
-                    href="/new_memorization",
-                    cls=is_active("New Memorization"),
                 ),
                 A("Revision", href="/revision", cls=is_active("Revision")),
                 admin_dropdown,
@@ -230,7 +233,7 @@ def get_page_description(
     )
 
 
-def group_by_type(data, current_type, feild=None):
+def group_by_type(data, current_type, feild=None, preserve_order=False):
     columns_map = {
         "juz": "juz_number",
         "surah": "surah_id",
@@ -245,6 +248,9 @@ def group_by_type(data, current_type, feild=None):
         grouped[row[columns_map[current_type]]].append(
             row if feild is None else row[feild]
         )
+    # preserve_order=True keeps SQL ORDER BY; False sorts by key (page number)
+    if preserve_order:
+        return dict(grouped)
     sorted_grouped = dict(sorted(grouped.items(), key=lambda x: int(x[0])))
     return sorted_grouped
 
@@ -441,6 +447,25 @@ def rating_radio(
 
 def get_mode_name(mode_code: str):
     return modes[mode_code].name
+
+
+def get_mode_icon(mode_code: str) -> str:
+    """Returns emoji icon for each mode."""
+    icons = {
+        NEW_MEMORIZATION_MODE_CODE: "🆕",
+        DAILY_REPS_MODE_CODE: "☀️",
+        WEEKLY_REPS_MODE_CODE: "📅",
+        FORTNIGHTLY_REPS_MODE_CODE: "📆",
+        MONTHLY_REPS_MODE_CODE: "🗓️",
+        FULL_CYCLE_MODE_CODE: "🔄",
+        SRS_MODE_CODE: "🧠",
+    }
+    return icons.get(mode_code, "📖")
+
+
+def can_graduate(mode_code: str) -> bool:
+    """Returns True if mode can be manually graduated (DR, WR, FR, MR)."""
+    return mode_code in GRADUATABLE_MODES
 
 
 def get_last_item_id():
@@ -917,7 +942,17 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
 
 
 # === Mode Filter Predicates ===
-# Named predicates for filtering items per mode, extracted for testability
+#
+# Predicates determine which items appear in each mode's summary table.
+#
+# Pattern Overview:
+# - Daily Reps: Special case - shows items due OR reviewed today (excludes newly memorized)
+# - Standard Rep Modes (Weekly/Fortnightly/Monthly): Must be in mode AND (due OR reviewed today with history)
+# - SRS: Due OR has revisions today in SRS mode
+# - Full Cycle: Item must be marked as memorized
+#
+# Standard rep modes use a factory function (_create_standard_rep_mode_predicate) to avoid
+# duplication since they share identical logic. See also REP_MODES_CONFIG in fixed_reps.py.
 
 
 def _is_review_due(item: dict, current_date: str) -> bool:
@@ -963,6 +998,31 @@ def _was_newly_memorized_today(item: dict, current_date: str) -> bool:
     )
 
 
+def _create_standard_rep_mode_predicate(mode_code: str):
+    """
+    Factory function to create predicates for standard rep modes.
+
+    Standard rep modes (Weekly, Fortnightly, Monthly) share identical logic:
+    - Item must be in the specified mode
+    - Item is due for review OR reviewed today with revision history
+
+    Args:
+        mode_code: The mode code constant (e.g., WEEKLY_REPS_MODE_CODE)
+
+    Returns:
+        A predicate function that takes (item, current_date) and returns bool
+    """
+
+    def predicate(item: dict, current_date: str) -> bool:
+        if item["mode_code"] != mode_code:
+            return False
+        return _is_review_due(item, current_date) or (
+            _is_reviewed_today(item, current_date) and _has_revisions_in_mode(item)
+        )
+
+    return predicate
+
+
 def should_include_in_daily_reps(item: dict, current_date: str) -> bool:
     """Predicate for Daily Reps mode: due for review OR reviewed today (unless just memorized)."""
     is_due = _is_review_due(item, current_date) and not _was_newly_memorized_today(
@@ -975,13 +1035,11 @@ def should_include_in_daily_reps(item: dict, current_date: str) -> bool:
     return is_due or reviewed_in_mode
 
 
-def should_include_in_weekly_reps(item: dict, current_date: str) -> bool:
-    """Predicate for Weekly Reps mode: must be in WR mode AND (due OR reviewed today with history)."""
-    if item["mode_code"] != WEEKLY_REPS_MODE_CODE:
-        return False
-    return _is_review_due(item, current_date) or (
-        _is_reviewed_today(item, current_date) and _has_revisions_in_mode(item)
-    )
+# Generate predicates for standard rep modes using the factory
+# These three modes share identical logic, differing only in mode code
+should_include_in_weekly_reps = _create_standard_rep_mode_predicate(WEEKLY_REPS_MODE_CODE)
+should_include_in_fortnightly_reps = _create_standard_rep_mode_predicate(FORTNIGHTLY_REPS_MODE_CODE)
+should_include_in_monthly_reps = _create_standard_rep_mode_predicate(MONTHLY_REPS_MODE_CODE)
 
 
 def should_include_in_srs(item: dict, current_date: str) -> bool:
@@ -997,9 +1055,14 @@ def should_include_in_full_cycle(item: dict, current_date: str) -> bool:
 
 
 # Mode to predicate mapping
+# Note: Weekly/Fortnightly/Monthly predicates are generated by _create_standard_rep_mode_predicate()
+# to avoid duplication. Daily has unique logic (excludes newly memorized) and remains separate.
+# See also: REP_MODES_CONFIG in fixed_reps.py for mode graduation logic.
 MODE_PREDICATES = {
     DAILY_REPS_MODE_CODE: should_include_in_daily_reps,
     WEEKLY_REPS_MODE_CODE: should_include_in_weekly_reps,
+    FORTNIGHTLY_REPS_MODE_CODE: should_include_in_fortnightly_reps,
+    MONTHLY_REPS_MODE_CODE: should_include_in_monthly_reps,
     SRS_MODE_CODE: should_include_in_srs,
     FULL_CYCLE_MODE_CODE: should_include_in_full_cycle,
 }
@@ -1082,3 +1145,550 @@ def render_current_date(auth):
     return P(
         Span(date_to_human_readable(current_date), cls=TextPresets.bold_lg, data_testid="system-date"),
     )
+
+
+# === New Memorization Tab ===
+
+
+def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
+    """Render a single row in the New Memorization table with checkbox."""
+    item_id = item.id
+    row_id = f"row-NM-{item_id}"
+
+    # Check if this is a consecutive page (hide start text for recall)
+    is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+
+    # Checkbox for marking as memorized
+    checkbox = fh.Input(
+        type="checkbox",
+        name="item_ids",
+        value=item_id,
+        checked=is_memorized_today,
+        cls="checkbox bulk-select-checkbox",
+        hx_post=f"/new_memorization/toggle/{item_id}",
+        hx_target=f"#summary_table_{NEW_MEMORIZATION_MODE_CODE}",
+        hx_swap="outerHTML",
+        hx_vals={"date": current_date},
+        # Update count when checkbox changes
+        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+    )
+
+    # Row background: green if memorized today
+    bg_class = "bg-green-100" if is_memorized_today else ""
+
+    return Tr(
+        Td(checkbox, cls="w-8 text-center"),
+        Td(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            cls="w-12 text-center",
+        ),
+        Td(
+            # Hidden text with tap-to-reveal using Alpine.js
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(item.start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if is_consecutive
+            else Span(item.start_text or "-"),
+            cls="text-lg",
+        ),
+        id=row_id,
+        cls=bg_class,
+    )
+
+
+def render_nm_bulk_action_bar(current_date):
+    """Render bulk action bar for New Memorization mode.
+
+    Unlike other modes that have Good/Ok/Bad buttons, NM only has
+    a single 'Mark as Memorized' button.
+    """
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Select all checkbox - toggles all unchecked items
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => {
+                        if ($el.checked) cb.checked = true;
+                    });
+                    if (!$el.checked) {
+                        $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
+                    }
+                    count = $root.querySelectorAll('.bulk-select-checkbox:checked').length
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    mark_button = Button(
+        "Mark as Memorized",
+        hx_post="/new_memorization/bulk_mark",
+        hx_vals={"date": current_date},
+        hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        **{"@click": "count = 0"},
+        cls=(ButtonT.primary, "px-4 py-2"),
+    )
+
+    return Div(
+        select_all_checkbox,
+        mark_button,
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+    )
+
+
+def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=False):
+    """Build the New Memorization tab content showing unmemorized pages.
+
+    Shows:
+    - Unmemorized items (hafizs_items.memorized = 0)
+    - Items marked as memorized today (NM revisions today) - these stay until Close Date
+    """
+    current_date = get_current_date(auth)
+    mode_code = NEW_MEMORIZATION_MODE_CODE
+
+    # Query unmemorized items
+    qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        WHERE hafizs_items.hafiz_id = {auth}
+          AND hafizs_items.memorized = 0
+        ORDER BY hafizs_items.item_id ASC
+    """
+    unmemorized_records = db.q(qry)
+    unmemorized_item_ids = set(r["item_id"] for r in unmemorized_records)
+
+    # Get today's NM revisions (to show "memorized today" state)
+    today_nm_revisions = revisions(
+        where=f"revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}' AND hafiz_id = {auth}"
+    )
+    today_nm_item_ids = set(r.item_id for r in today_nm_revisions)
+
+    # Combine: unmemorized + memorized today (union)
+    all_item_ids = sorted(unmemorized_item_ids | today_nm_item_ids)
+
+    # Hide tab entirely if no items to display
+    if not all_item_ids:
+        return None
+
+    # Pagination
+    total_items = len(all_item_ids)
+    if items_per_page and items_per_page > 0:
+        total_pages = math.ceil(total_items / items_per_page)
+        page = max(1, min(page, total_pages))
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_item_ids = all_item_ids[start_idx:end_idx]
+    else:
+        paginated_item_ids = all_item_ids
+        total_pages = 1
+
+    # Get item details for paginated items
+    items_data = [items[item_id] for item_id in paginated_item_ids]
+
+    # Render rows with surah headers
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+
+    for item in items_data:
+        # Add surah header when surah changes
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            prev_page_id = None  # Reset consecutive tracking on surah change
+
+        is_memorized_today = item.id in today_nm_item_ids
+        body_rows.append(render_nm_row(item, current_date, is_memorized_today, prev_page_id))
+        prev_page_id = item.page_id
+
+    # Empty state
+    if not body_rows:
+        body_rows = [
+            Tr(
+                Td(
+                    "All pages memorized!",
+                    colspan=3,
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
+
+    bulk_bar = render_nm_bulk_action_bar(current_date)
+
+    # Pagination controls
+    pagination_controls = None
+    if items_per_page and total_pages > 1:
+        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
+
+    table_content = [
+        Table(
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
+            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
+        ),
+    ]
+
+    if pagination_controls:
+        table_content.append(pagination_controls)
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
+    )
+
+    if table_only:
+        return table
+    return (mode_code, table)
+
+
+# Rep mode configuration UI - used in profile and new memorization flows
+REP_MODE_OPTIONS = [
+    (DAILY_REPS_MODE_CODE, "☀️ Daily"),
+    (WEEKLY_REPS_MODE_CODE, "📅 Weekly"),
+    (FORTNIGHTLY_REPS_MODE_CODE, "📆 Fortnightly"),
+    (MONTHLY_REPS_MODE_CODE, "🗓️ Monthly"),
+]
+
+
+def render_rep_config_form(
+    form_id="rep-config-form",
+    default_mode_code=DAILY_REPS_MODE_CODE,
+    show_advanced=False,
+    custom_thresholds=None,
+):
+    """
+    Render a flexible rep configuration form for setting mode and repetition counts.
+
+    Args:
+        form_id: Form ID for HTMX targeting
+        default_mode_code: Default selected mode
+        show_advanced: Whether to show advanced config (all modes) by default
+        custom_thresholds: Dict of mode_code -> threshold (existing values)
+
+    Returns:
+        Div containing the rep configuration form elements
+    """
+    custom_thresholds = custom_thresholds or {}
+
+    def mode_option(code, label):
+        return fh.Option(label, value=code, selected=code == default_mode_code)
+
+    mode_select = fh.Select(
+        *[mode_option(code, label) for code, label in REP_MODE_OPTIONS],
+        name="mode_code",
+        cls="select select-bordered select-sm w-full",
+        x_model="selectedMode",
+    )
+
+    # Get default rep count for selected mode
+    default_rep_count = custom_thresholds.get(
+        default_mode_code, DEFAULT_REP_COUNTS.get(default_mode_code, 7)
+    )
+
+    simple_rep_input = Div(
+        FormLabel("Repetitions", cls="text-sm"),
+        fh.Input(
+            type="number",
+            name="rep_count",
+            min="0",
+            max="99",
+            value=default_rep_count,
+            cls="input input-bordered input-sm w-20",
+            x_model="repCounts[selectedMode]",
+        ),
+        cls="flex items-center gap-2",
+    )
+
+    def advanced_rep_input(mode_code, label):
+        threshold = custom_thresholds.get(mode_code, DEFAULT_REP_COUNTS.get(mode_code, 7))
+        return Div(
+            FormLabel(label, cls="text-sm w-24"),
+            fh.Input(
+                type="number",
+                name=f"rep_count_{mode_code}",
+                min="0",
+                max="99",
+                value=threshold,
+                cls="input input-bordered input-sm w-20",
+                x_model=f"repCounts['{mode_code}']",
+            ),
+            cls="flex items-center gap-2",
+        )
+
+    advanced_inputs = Div(
+        *[advanced_rep_input(code, label) for code, label in REP_MODE_OPTIONS],
+        cls="grid grid-cols-2 gap-2",
+        x_show="advancedMode",
+        x_cloak=True,
+    )
+
+    advanced_toggle = Div(
+        FormLabel(
+            fh.Input(
+                type="checkbox",
+                cls="checkbox checkbox-sm",
+                x_model="advancedMode",
+            ),
+            Span("Advanced config (set all modes)", cls="text-sm ml-2"),
+            cls="cursor-pointer",
+        ),
+        cls="mt-2",
+    )
+
+    # Alpine.js state initialization
+    alpine_init = {
+        "selectedMode": f"'{default_mode_code}'",
+        "advancedMode": "true" if show_advanced else "false",
+        "repCounts": str({
+            code: custom_thresholds.get(code, DEFAULT_REP_COUNTS.get(code, 7))
+            for code, _ in REP_MODE_OPTIONS
+        }).replace("'", '"'),
+    }
+    alpine_data = "{ " + ", ".join(f"{k}: {v}" for k, v in alpine_init.items()) + " }"
+
+    return Div(
+        Div(
+            Div(
+                FormLabel("Starting Mode", cls="text-sm"),
+                mode_select,
+                cls="flex-1",
+            ),
+            Div(
+                simple_rep_input,
+                x_show="!advancedMode",
+            ),
+            cls="flex gap-4 items-end",
+        ),
+        advanced_toggle,
+        advanced_inputs,
+        id=form_id,
+        x_data=alpine_data,
+        cls="space-y-2 p-3 bg-base-200 rounded-lg",
+    )
+
+
+def render_mode_dropdown(hafiz_item_id, current_mode_code):
+    """Render mode dropdown for inline mode changes."""
+    def mode_option(code, label):
+        return fh.Option(label, value=code, selected=code == current_mode_code)
+
+    all_mode_options = [
+        (DAILY_REPS_MODE_CODE, "☀️ Daily"),
+        (WEEKLY_REPS_MODE_CODE, "📅 Weekly"),
+        (FORTNIGHTLY_REPS_MODE_CODE, "📆 Fortnightly"),
+        (MONTHLY_REPS_MODE_CODE, "🗓️ Monthly"),
+        (FULL_CYCLE_MODE_CODE, "🔄 Full Cycle"),
+        (SRS_MODE_CODE, "🧠 SRS"),
+    ]
+
+    return fh.Select(
+        *[mode_option(code, label) for code, label in all_mode_options],
+        name="mode_code",
+        cls="select select-bordered select-xs",
+        hx_post=f"/profile/quick_change_mode/{hafiz_item_id}",
+        hx_trigger="change",
+        hx_swap="none",
+    )
+
+
+def render_progress_cell(hafiz_item_id, current_count, threshold):
+    """Render progress display with gear icon for threshold editing."""
+    return Div(
+        Span(f"{current_count} of {threshold}", cls="text-sm"),
+        A(
+            "⚙️",
+            hx_get=f"/profile/configure_reps/{hafiz_item_id}",
+            target_id="configure-modal-body",
+            data_uk_toggle="target: #configure-modal",
+            cls="cursor-pointer hover:opacity-70 ml-2",
+            title="Edit thresholds",
+        ),
+        cls="flex items-center",
+    )
+
+
+def render_graduate_cell(hafiz_item_id, current_mode_code):
+    """Render graduate checkbox with target mode dropdown."""
+    from app.fixed_reps import REP_MODES_CONFIG
+
+    all_mode_options = [
+        (DAILY_REPS_MODE_CODE, "☀️ Daily"),
+        (WEEKLY_REPS_MODE_CODE, "📅 Weekly"),
+        (FORTNIGHTLY_REPS_MODE_CODE, "📆 Fortnightly"),
+        (MONTHLY_REPS_MODE_CODE, "🗓️ Monthly"),
+        (FULL_CYCLE_MODE_CODE, "🔄 Full Cycle"),
+        (SRS_MODE_CODE, "🧠 SRS"),
+    ]
+
+    # Default to next mode in chain
+    next_mode = REP_MODES_CONFIG.get(current_mode_code, {}).get("next_mode_code", FULL_CYCLE_MODE_CODE)
+
+    graduate_options = [
+        (code, label) for code, label in all_mode_options
+        if code != current_mode_code
+    ]
+
+    graduate_select = fh.Select(
+        *[fh.Option(label, value=code, selected=code == next_mode) for code, label in graduate_options],
+        name="target_mode",
+        cls="select select-bordered select-xs",
+    )
+
+    return Form(
+        fh.Input(
+            type="checkbox",
+            name="confirm",
+            cls="checkbox checkbox-xs checkbox-primary",
+            hx_post=f"/profile/graduate_item/{hafiz_item_id}",
+            hx_include="closest form",
+            hx_swap="none",
+        ),
+        graduate_select,
+        cls="flex items-center gap-2",
+    )
+
+
+# Legacy function - kept for compatibility but now just returns mode dropdown
+def render_inline_mode_config(hafiz_item_id, current_mode_code, current_count, threshold):
+    """Legacy - returns just the mode dropdown. Use individual render functions for new layout."""
+    return render_mode_dropdown(hafiz_item_id, current_mode_code)
+
+
+render_inline_mode_dropdown = render_inline_mode_config
+
+
+def render_mode_and_reps(hafiz_item, mode_code=None):
+    """
+    Render mode icon and current rep count for display in tables.
+
+    Args:
+        hafiz_item: The hafiz_items record (dict or object)
+        mode_code: Override mode code (optional)
+
+    Returns:
+        Span with mode icon and rep progress
+    """
+    if isinstance(hafiz_item, dict):
+        item_mode_code = mode_code or hafiz_item.get("mode_code")
+        item_id = hafiz_item.get("item_id")
+    else:
+        item_mode_code = mode_code or hafiz_item.mode_code
+        item_id = hafiz_item.item_id
+
+    if not item_mode_code or item_mode_code not in GRADUATABLE_MODES:
+        icon = get_mode_icon(item_mode_code) if item_mode_code else ""
+        return Span(f"{icon} {get_mode_name(item_mode_code) if item_mode_code else '-'}")
+
+    # Get custom threshold or default
+    threshold_columns = {
+        DAILY_REPS_MODE_CODE: "custom_daily_threshold",
+        WEEKLY_REPS_MODE_CODE: "custom_weekly_threshold",
+        FORTNIGHTLY_REPS_MODE_CODE: "custom_fortnightly_threshold",
+        MONTHLY_REPS_MODE_CODE: "custom_monthly_threshold",
+    }
+    column = threshold_columns.get(item_mode_code)
+
+    if isinstance(hafiz_item, dict):
+        custom_threshold = hafiz_item.get(column) if column else None
+    else:
+        custom_threshold = getattr(hafiz_item, column, None) if column else None
+
+    threshold = custom_threshold if custom_threshold is not None else DEFAULT_REP_COUNTS.get(item_mode_code, 7)
+
+    # Get current count
+    current_count = get_mode_count(item_id, item_mode_code)
+    icon = get_mode_icon(item_mode_code)
+    mode_name = get_mode_name(item_mode_code)
+
+    # Show mode name with progress: "☀️ Daily 3/7"
+    return Span(f"{icon} {mode_name} {current_count}/{threshold}")
+
+
+# === Status Helper Functions ===
+# Status is derived from memorized + mode_code (no new column needed)
+
+
+def get_status(hafiz_item) -> str:
+    """Derive status from memorized flag and mode_code."""
+    if isinstance(hafiz_item, dict):
+        memorized = hafiz_item.get("memorized")
+        mode_code = hafiz_item.get("mode_code")
+    else:
+        memorized = hafiz_item.memorized
+        mode_code = hafiz_item.mode_code
+
+    if not memorized:
+        return STATUS_NOT_MEMORIZED
+
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return STATUS_LEARNING
+    elif mode_code in (
+        DAILY_REPS_MODE_CODE,
+        WEEKLY_REPS_MODE_CODE,
+        FORTNIGHTLY_REPS_MODE_CODE,
+        MONTHLY_REPS_MODE_CODE,
+    ):
+        return STATUS_REPS
+    elif mode_code == FULL_CYCLE_MODE_CODE:
+        return STATUS_SOLID
+    elif mode_code == SRS_MODE_CODE:
+        return STATUS_STRUGGLING
+
+    return STATUS_NOT_MEMORIZED
+
+
+def get_status_display(status: str) -> tuple[str, str]:
+    """Get (icon, label) for a status."""
+    return STATUS_DISPLAY.get(status, ("❓", "Unknown"))
+
+
+def get_status_counts(hafiz_id: int) -> dict:
+    """Get page count for each status for dashboard stats."""
+    all_items = hafizs_items(where=f"hafiz_id = {hafiz_id}")
+
+    # Group item_ids by status
+    groups = {
+        STATUS_NOT_MEMORIZED: [],
+        STATUS_LEARNING: [],
+        STATUS_REPS: [],
+        STATUS_SOLID: [],
+        STATUS_STRUGGLING: [],
+    }
+
+    for hi in all_items:
+        status = get_status(hi)
+        if status in groups:
+            groups[status].append(hi.item_id)
+
+    # Calculate page count for each group
+    return {
+        STATUS_NOT_MEMORIZED: get_page_count(item_ids=groups[STATUS_NOT_MEMORIZED]),
+        STATUS_LEARNING: get_page_count(item_ids=groups[STATUS_LEARNING]),
+        STATUS_REPS: get_page_count(item_ids=groups[STATUS_REPS]),
+        STATUS_SOLID: get_page_count(item_ids=groups[STATUS_SOLID]),
+        STATUS_STRUGGLING: get_page_count(item_ids=groups[STATUS_STRUGGLING]),
+        "total": get_page_count(item_ids=[hi.item_id for hi in all_items]),
+    }

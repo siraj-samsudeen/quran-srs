@@ -59,6 +59,11 @@ def index(auth, sess):
 
     # Build panels - each returns (mode_code, panel) tuple
     mode_panels = [
+        make_new_memorization_table(
+            auth,
+            page=get_page(NEW_MEMORIZATION_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
         make_summary_table(
             FULL_CYCLE_MODE_CODE,
             auth,
@@ -83,23 +88,41 @@ def index(auth, sess):
             page=get_page(WEEKLY_REPS_MODE_CODE),
             items_per_page=items_per_page,
         ),
+        make_summary_table(
+            FORTNIGHTLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(FORTNIGHTLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
+        make_summary_table(
+            MONTHLY_REPS_MODE_CODE,
+            auth,
+            page=get_page(MONTHLY_REPS_MODE_CODE),
+            items_per_page=ITEMS_PER_PAGE,
+        ),
     ]
     # Filter out modes with no items (make_summary_table returns None for empty modes)
     mode_panels = [panel for panel in mode_panels if panel is not None]
 
     mode_icons = {
+        NEW_MEMORIZATION_MODE_CODE: "🆕",
         FULL_CYCLE_MODE_CODE: "🔄",
         SRS_MODE_CODE: "🧠",
         DAILY_REPS_MODE_CODE: "☀️",
         WEEKLY_REPS_MODE_CODE: "📅",
+        FORTNIGHTLY_REPS_MODE_CODE: "📆",
+        MONTHLY_REPS_MODE_CODE: "🗓️",
     }
 
     # Short names for mobile display
     mode_short_names = {
+        NEW_MEMORIZATION_MODE_CODE: "New",
         FULL_CYCLE_MODE_CODE: "FC",
         SRS_MODE_CODE: "SRS",
         DAILY_REPS_MODE_CODE: "Daily",
         WEEKLY_REPS_MODE_CODE: "Weekly",
+        FORTNIGHTLY_REPS_MODE_CODE: "Fortnight",
+        MONTHLY_REPS_MODE_CODE: "Monthly",
     }
 
     def make_tab_button(mode_code):
@@ -244,7 +267,7 @@ def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = 
         if rev.mode_code == FULL_CYCLE_MODE_CODE:
             update_hafiz_item_for_full_cycle(rev)
         elif rev.mode_code == NEW_MEMORIZATION_MODE_CODE:
-            update_hafiz_item_for_new_memorization(rev)
+            update_hafiz_item_for_new_memorization(rev, current_date=hafiz_data.current_date)
         elif rev.mode_code in REP_MODES_CONFIG:
             update_rep_item(rev)
         elif rev.mode_code == SRS_MODE_CODE:
@@ -281,6 +304,15 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
     # Get hafiz's page_size setting (fallback to default)
     current_hafiz = hafizs[auth]
     items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
+
+    # Handle NM mode separately (uses different table function)
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return make_new_memorization_table(
+            auth=auth,
+            table_only=True,
+            page=page,
+            items_per_page=items_per_page,
+        )
 
     return make_summary_table(
         mode_code=mode_code,
