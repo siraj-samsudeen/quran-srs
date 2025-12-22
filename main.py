@@ -294,12 +294,18 @@ def datewise_summary_table_view(auth):
 
 
 @app.get("/page/{mode_code}")
-def change_page(sess, auth, mode_code: str, page: int = 1):
+def change_page(sess, auth, mode_code: str, page: int = 1, show_loved_only: str = "false"):
     """Handle pagination for mode-specific tables."""
     # Store current page in session
     if "pagination" not in sess:
         sess["pagination"] = {}
     sess["pagination"][mode_code] = page
+
+    # Store loved filter in session
+    if "loved_filter" not in sess:
+        sess["loved_filter"] = {}
+    loved_only = show_loved_only.lower() == "true"
+    sess["loved_filter"][mode_code] = loved_only
 
     # Get hafiz's page_size setting (fallback to default)
     current_hafiz = hafizs[auth]
@@ -320,6 +326,7 @@ def change_page(sess, auth, mode_code: str, page: int = 1):
         table_only=True,
         page=page,
         items_per_page=items_per_page,
+        show_loved_only=loved_only,
     )
 
 
@@ -454,6 +461,39 @@ def bulk_rate(
     )
 
     return updated_table, updated_indicator
+
+
+@app.post("/toggle_love/{item_id}")
+def toggle_love(auth, item_id: int, mode_code: str, date: str, plan_id: str = ""):
+    """Toggle the loved status of a page."""
+    from app.common_function import get_hafizs_items, render_range_row, get_current_plan_id
+
+    # Get or create hafizs_items record
+    hafiz_item = get_hafizs_items(item_id)
+    if hafiz_item:
+        # Toggle the loved status
+        new_loved = 0 if hafiz_item.loved else 1
+        hafizs_items.update({"loved": new_loved}, hafiz_item.id)
+        is_loved = bool(new_loved)
+    else:
+        is_loved = False
+
+    # Get the item and revision data
+    item = items[item_id]
+    plan_id_int = int(plan_id) if plan_id else None
+    current_date = date
+
+    # Get today's revision for this item if it exists
+    revision_records = revisions(
+        where=f"revision_date = '{current_date}' AND item_id = {item_id} AND mode_code = '{mode_code}'"
+    )
+    revision = revision_records[0] if revision_records else None
+
+    records = {"item": item, "revision": revision}
+
+    return render_range_row(
+        records, current_date, mode_code, plan_id_int, hide_start_text=False, loved=is_loved
+    )
 
 
 serve()
