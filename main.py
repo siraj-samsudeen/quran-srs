@@ -15,7 +15,7 @@ from app.hafiz_controller import hafiz_app
 from app.common_function import *
 from database import *
 from constants import *
-from app.fixed_reps import REP_MODES_CONFIG, update_rep_item
+from app.fixed_reps import REP_MODES_CONFIG, update_rep_item, promote_to_next_mode
 from app.srs_reps import (
     update_hafiz_item_for_srs,
     start_srs_for_ok_and_bad_rating,
@@ -25,6 +25,7 @@ from app.home_view import (
     datewise_summary_table,
     update_hafiz_item_for_full_cycle,
     render_pages_revised_indicator,
+    render_promotion_section,
 )
 
 
@@ -229,7 +230,7 @@ def close_date_confirmation_page(auth):
             hx_target="body",
             hx_push_url="true",
             hx_disabled_elt="this",
-            hx_include="[name='skip_enabled'], [name='skip_to_date']",
+            hx_include="[name='skip_enabled'], [name='skip_to_date'], [name='promote_items']",
             cls=(ButtonT.primary, "p-2"),
             data_testid="confirm-close-btn",
         ),
@@ -240,9 +241,13 @@ def close_date_confirmation_page(auth):
         ),
     )
 
+    promotion_section = render_promotion_section(auth)
+
     content = [header, create_stat_table(auth)]
     if skip_section:
         content.append(skip_section)
+    if promotion_section:
+        content.append(promotion_section)
     content.append(action_buttons)
 
     return main_area(
@@ -253,7 +258,12 @@ def close_date_confirmation_page(auth):
 
 
 @app.post("/close_date")
-def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = None):
+def change_the_current_date(
+    auth,
+    skip_enabled: str = None,
+    skip_to_date: str = None,
+    promote_items: list = None,
+):
     hafiz_data = hafizs[auth]
 
     # Skip to selected date if checkbox is checked
@@ -262,8 +272,26 @@ def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = 
         hafizs.update(hafiz_data)
         return Redirect("/")
 
+    # Process manual promotions first (before normal update logic)
+    promoted_item_ids = set()
+    if promote_items:
+        # Handle single item or list of items
+        if isinstance(promote_items, str):
+            promote_items = [promote_items]
+
+        for hafiz_item_id in promote_items:
+            hafiz_item = hafizs_items[int(hafiz_item_id)]
+            if hafiz_item and hafiz_item.mode_code in REP_MODES_CONFIG:
+                promote_to_next_mode(hafiz_item, hafiz_data.current_date)
+                promoted_item_ids.add(hafiz_item.item_id)
+
     revision_data = revisions(where=f"revision_date = '{hafiz_data.current_date}'")
     for rev in revision_data:
+        # Skip promoted items - they've already been handled
+        if rev.item_id in promoted_item_ids:
+            populate_hafizs_items_stat_columns(item_id=rev.item_id)
+            continue
+
         if rev.mode_code == FULL_CYCLE_MODE_CODE:
             update_hafiz_item_for_full_cycle(rev)
         elif rev.mode_code == NEW_MEMORIZATION_MODE_CODE:

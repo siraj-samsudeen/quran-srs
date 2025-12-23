@@ -68,6 +68,32 @@ def set_next_review(hafiz_item, interval, current_date):
     hafiz_item.next_review = add_days_to_date(current_date, interval)
 
 
+def promote_to_next_mode(hafiz_item, current_date):
+    """Manually promote a hafiz_item to the next mode in the graduation chain.
+
+    Used when user selects pages to promote during Close Date.
+    DR → WR → FR → MR → FC
+    """
+    config = REP_MODES_CONFIG.get(hafiz_item.mode_code)
+    if not config:
+        return
+
+    next_mode = config["next_mode_code"]
+    hafiz_item.mode_code = next_mode
+
+    if next_mode == FULL_CYCLE_MODE_CODE:
+        # Final graduation: clear scheduling fields for Full Cycle
+        hafiz_item.memorized = True
+        hafiz_item.next_interval = None
+        hafiz_item.next_review = None
+    else:
+        # Graduate to next rep mode: use that mode's interval
+        next_config = REP_MODES_CONFIG[next_mode]
+        set_next_review(hafiz_item, next_config["interval"], current_date)
+
+    hafizs_items.update(hafiz_item)
+
+
 def update_rep_item(rev):
     """
     Process a revision in any rep mode (Daily/Weekly/Fortnightly/Monthly).

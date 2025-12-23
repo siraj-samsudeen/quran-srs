@@ -312,6 +312,126 @@ def create_stat_table(auth):
     )
 
 
+# Page Promotion Logic
+
+
+def get_promotable_items(auth):
+    """Get items reviewed today in rep modes (DR, WR, FR, MR) that can be promoted.
+
+    Returns dict mapping mode_code to list of (item, hafiz_item) tuples.
+    """
+    from constants import GRADUATABLE_MODES
+    from app.fixed_reps import REP_MODES_CONFIG
+
+    current_date = get_current_date(auth)
+
+    # Get all revisions for today in graduatable modes
+    mode_list = ", ".join(f"'{m}'" for m in GRADUATABLE_MODES)
+    today_revisions = revisions(
+        where=f"revision_date = '{current_date}' AND mode_code IN ({mode_list})"
+    )
+
+    # Group by mode code
+    promotable = defaultdict(list)
+    seen_items = set()  # Avoid duplicates if item has multiple revisions today
+
+    for rev in today_revisions:
+        if rev.item_id in seen_items:
+            continue
+        seen_items.add(rev.item_id)
+
+        hafiz_item = hafizs_items[rev.item_id]
+        if hafiz_item is None:
+            continue
+
+        item = items[rev.item_id]
+        mode_code = rev.mode_code
+        next_mode = REP_MODES_CONFIG[mode_code]["next_mode_code"]
+
+        promotable[mode_code].append({
+            "item": item,
+            "hafiz_item": hafiz_item,
+            "next_mode": next_mode,
+        })
+
+    return promotable
+
+
+def render_promotion_section(auth):
+    """Render the page promotion options section for Close Date page."""
+    from app.fixed_reps import REP_MODES_CONFIG
+    from app.common_function import get_mode_name
+
+    promotable = get_promotable_items(auth)
+
+    if not promotable:
+        return None
+
+    mode_sections = []
+
+    for mode_code in [DAILY_REPS_MODE_CODE, WEEKLY_REPS_MODE_CODE,
+                      FORTNIGHTLY_REPS_MODE_CODE, MONTHLY_REPS_MODE_CODE]:
+        items_in_mode = promotable.get(mode_code, [])
+        if not items_in_mode:
+            continue
+
+        next_mode = REP_MODES_CONFIG[mode_code]["next_mode_code"]
+        next_mode_name = get_mode_name(next_mode)
+        current_mode_name = get_mode_name(mode_code)
+
+        # Create checkboxes for each item
+        item_checkboxes = []
+        for entry in items_in_mode:
+            item = entry["item"]
+            page_desc = get_page_description(item.page_id, item.part)
+
+            item_checkboxes.append(
+                Label(
+                    Input(
+                        type="checkbox",
+                        name="promote_items",
+                        value=str(entry["hafiz_item"].id),
+                        cls="checkbox checkbox-primary checkbox-sm",
+                    ),
+                    Span(page_desc, cls="ml-2"),
+                    cls="flex items-center gap-1 cursor-pointer",
+                )
+            )
+
+        # Section for this mode
+        mode_sections.append(
+            Div(
+                Div(
+                    Span(f"{current_mode_name}", cls="font-medium"),
+                    Span(" → ", cls="text-gray-500"),
+                    Span(f"{next_mode_name}", cls="font-medium text-primary"),
+                    cls="text-sm mb-2",
+                ),
+                Div(*item_checkboxes, cls="flex flex-wrap gap-3"),
+                cls="border rounded-lg p-3 bg-base-200",
+            )
+        )
+
+    if not mode_sections:
+        return None
+
+    return Div(
+        Div(
+            Span("📈 Promote Pages", cls="font-semibold"),
+            Span(" (optional)", cls="text-gray-500 text-sm"),
+            cls="mb-2",
+        ),
+        Div(*mode_sections, cls="space-y-3"),
+        Div(
+            Span("Selected pages will skip remaining reps and graduate to the next mode.",
+                 cls="text-xs text-gray-500 italic"),
+            cls="mt-2",
+        ),
+        cls="space-y-2",
+        data_testid="promotion-section",
+    )
+
+
 # Update logic
 
 def update_hafiz_item_for_full_cycle(rev):
