@@ -747,20 +747,20 @@ def render_pagination_controls(mode_code, current_page, total_pages, total_items
     next_page = min(total_pages, current_page + 1)
 
     prev_button = Button(
-        "←",
+        "← Prev",
         hx_get=f"/page/{mode_code}?page={prev_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
-        cls=(ButtonT.secondary, "px-4 py-2"),
+        cls=(ButtonT.primary, "px-4 py-2 text-base font-semibold"),
         data_testid=f"pagination-prev-{mode_code}",
     ) if not is_first_page else Span()
 
     next_button = Button(
-        "→",
+        "Next →",
         hx_get=f"/page/{mode_code}?page={next_page}",
         hx_target=f"#summary_table_{mode_code}",
         hx_swap="outerHTML",
-        cls=(ButtonT.secondary, "px-4 py-2"),
+        cls=(ButtonT.primary, "px-4 py-2 text-base font-semibold"),
         data_testid=f"pagination-next-{mode_code}",
     ) if not is_last_page else Span()
 

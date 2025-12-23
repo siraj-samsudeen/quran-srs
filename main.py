@@ -253,8 +253,11 @@ def close_date_confirmation_page(auth):
 
 
 @app.post("/close_date")
-def change_the_current_date(auth, skip_enabled: str = None, skip_to_date: str = None):
+def change_the_current_date(auth, sess, skip_enabled: str = None, skip_to_date: str = None):
     hafiz_data = hafizs[auth]
+
+    # Reset pagination to page 1 for all modes (items change after close date)
+    sess["pagination"] = {}
 
     # Skip to selected date if checkbox is checked
     if skip_enabled == "true" and skip_to_date:
