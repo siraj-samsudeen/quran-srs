@@ -644,7 +644,9 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
     )
 
     # Checkbox for bulk selection - only show if not already rated
+    # Use mode-specific selector for reliable counting after HTMX swaps
     if rating is None:
+        checkbox_selector = f"#{mode_code}_tbody .bulk-select-checkbox"
         checkbox_cell = Td(
             fh.Input(
                 type="checkbox",
@@ -653,7 +655,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
                 # each checkbox carries the item's ID
                 value=item_id,
                 cls="checkbox bulk-select-checkbox",
-                **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+                **{"@change": f"count = document.querySelectorAll('{checkbox_selector}:checked').length"},
             ),
             cls="w-8 text-center",
         )
@@ -805,35 +807,40 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
         )
 
     # Select all checkbox - toggles all items
+    # Use specific tbody selector for reliable element selection after HTMX swaps
+    tbody_selector = f"#{mode_code}_tbody"
+    checkbox_selector = f"{tbody_selector} .bulk-select-checkbox"
     select_all_checkbox = Div(
         fh.Input(
             type="checkbox",
             cls="checkbox",
             **{
-                "@change": """
-                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
-                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                "@change": f"""
+                    document.querySelectorAll('{checkbox_selector}').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? document.querySelectorAll('{checkbox_selector}').length : 0
                 """,
-                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+                ":checked": f"count > 0 && count === document.querySelectorAll('{checkbox_selector}').length",
             },
         ),
         # Show "Select All" when not all selected, "Clear All" when all selected
-        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
-        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Select All", cls="text-sm ml-2", x_show=f"count < document.querySelectorAll('{checkbox_selector}').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show=f"count === document.querySelectorAll('{checkbox_selector}').length"),
         Span("|", cls="text-gray-300 mx-2"),
         Span(x_text="count", cls="font-bold"),
         cls="flex items-center",
     )
 
     # Spacer div to push content up when bulk bar is visible (prevents overlay)
-    spacer = Div(cls="h-16", x_show="count > 0")
+    # Bar is always visible, so spacer is always needed
+    spacer = Div(cls="h-16")
 
-    # Cancel button to clear selection and hide the bar
+    # Cancel button to clear selection
+    # Use document.getElementById for reliable element selection after HTMX swaps
     cancel_button = Button(
         "✕",
         cls="btn btn-ghost btn-sm",
-        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
-        title="Cancel selection",
+        **{"@click": f"document.querySelectorAll('#{mode_code}_tbody .bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        title="Clear selection",
     )
 
     bar = Div(
@@ -846,8 +853,8 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
             cls="flex gap-2 items-center",
         ),
         id=f"bulk-bar-{mode_code}",
+        # Bar is always visible - avoids Alpine state sync issues with HTMX swaps
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
-        x_show="count > 0",
     )
 
     return Div(spacer, bar)
@@ -1246,6 +1253,8 @@ def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
     is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
 
     # Checkbox for marking as memorized
+    # Use mode-specific selector for reliable counting after HTMX swaps
+    checkbox_selector = f"#{NEW_MEMORIZATION_MODE_CODE}_tbody .bulk-select-checkbox"
     checkbox = fh.Input(
         type="checkbox",
         name="item_ids",
@@ -1257,7 +1266,7 @@ def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
         hx_swap="outerHTML",
         hx_vals={"date": current_date},
         # Update count when checkbox changes
-        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+        **{"@change": f"count = document.querySelectorAll('{checkbox_selector}:checked').length"},
     )
 
     # Row background: green if memorized today
@@ -1296,6 +1305,8 @@ def render_nm_bulk_action_bar(current_date):
     a single 'Mark as Memorized' button.
     """
     mode_code = NEW_MEMORIZATION_MODE_CODE
+    # Use mode-specific selector for reliable element selection after HTMX swaps
+    checkbox_selector = f"#{mode_code}_tbody .bulk-select-checkbox"
 
     # Select all checkbox - toggles all unchecked items
     select_all_checkbox = Div(
@@ -1303,20 +1314,20 @@ def render_nm_bulk_action_bar(current_date):
             type="checkbox",
             cls="checkbox",
             **{
-                "@change": """
-                    $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => {
+                "@change": f"""
+                    document.querySelectorAll('{checkbox_selector}:not(:checked)').forEach(cb => {{
                         if ($el.checked) cb.checked = true;
-                    });
-                    if (!$el.checked) {
-                        $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
-                    }
-                    count = $root.querySelectorAll('.bulk-select-checkbox:checked').length
+                    }});
+                    if (!$el.checked) {{
+                        document.querySelectorAll('{checkbox_selector}').forEach(cb => cb.checked = false);
+                    }}
+                    count = document.querySelectorAll('{checkbox_selector}:checked').length
                 """,
-                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+                ":checked": f"count > 0 && count === document.querySelectorAll('{checkbox_selector}').length",
             },
         ),
-        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
-        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Select All", cls="text-sm ml-2", x_show=f"count < document.querySelectorAll('{checkbox_selector}').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show=f"count === document.querySelectorAll('{checkbox_selector}').length"),
         Span("|", cls="text-gray-300 mx-2"),
         Span(x_text="count", cls="font-bold"),
         cls="flex items-center",
@@ -1333,12 +1344,18 @@ def render_nm_bulk_action_bar(current_date):
         cls=(ButtonT.primary, "px-4 py-2"),
     )
 
-    return Div(
+    # Spacer to push content up when bulk bar is visible (prevents overlay)
+    spacer = Div(cls="h-16")
+
+    bar = Div(
         select_all_checkbox,
         mark_button,
         id=f"bulk-bar-{mode_code}",
+        # Bar is always visible - avoids Alpine state sync issues with HTMX swaps
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
     )
+
+    return Div(spacer, bar)
 
 
 def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=False):
