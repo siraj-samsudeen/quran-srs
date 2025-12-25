@@ -210,6 +210,54 @@ async def bulk_set_status(req: Request, auth):
     return JSONResponse({"updated": updated})
 
 
+@profile_app.post("/bulk_mark_memorized")
+async def bulk_mark_memorized(req: Request, auth, sess, memorized: int = 1, status_filter: str = None, page: int = 1):
+    """Bulk mark items as memorized or not memorized via HTMX form submission."""
+    form_data = await req.form()
+    hafiz_item_ids = form_data.getlist("hafiz_item_ids")
+
+    if not hafiz_item_ids:
+        error_toast(sess, "No items selected")
+        return _render_profile_table(auth, status_filter, page)
+
+    updated = 0
+    mark_as_memorized = memorized == 1
+
+    for hafiz_item_id_str in hafiz_item_ids:
+        try:
+            hafiz_item_id = int(hafiz_item_id_str)
+            hafiz_item = hafizs_items[hafiz_item_id]
+
+            if hafiz_item.hafiz_id != auth:
+                continue
+
+            if mark_as_memorized:
+                # Mark as memorized - set to Full Cycle mode by default
+                hafiz_item.memorized = True
+                hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+            else:
+                # Mark as not memorized - clear mode
+                hafiz_item.memorized = False
+                hafiz_item.mode_code = None
+                hafiz_item.next_review = None
+                hafiz_item.next_interval = None
+
+            hafizs_items.update(hafiz_item)
+            updated += 1
+        except (ValueError, NotFoundError):
+            continue
+
+    if updated > 0:
+        action = "memorized" if mark_as_memorized else "not memorized"
+        success_toast(sess, f"Marked {updated} page(s) as {action}")
+    else:
+        error_toast(sess, "No pages were updated")
+
+    return _render_profile_table(auth, status_filter, page)
+
+
 # === Profile Table Row Rendering ===
 
 
@@ -275,6 +323,18 @@ def _render_profile_row(row_data, status_filter):
     mode_code = row_data["mode_code"] or ""
     status = get_status(row_data)
 
+    # Checkbox for bulk selection
+    checkbox_cell = Td(
+        fh.Input(
+            type="checkbox",
+            name="hafiz_item_ids",
+            value=hafiz_item_id,
+            cls="checkbox checkbox-sm bulk-select-checkbox",
+            **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+        ),
+        cls="w-8 text-center",
+    ) if hafiz_item_id else Td(cls="w-8")
+
     # Calculate progress for graduatable modes
     progress_cell = Td("-", cls="text-gray-400")
     if memorized and mode_code in GRADUATABLE_MODES:
@@ -310,6 +370,7 @@ def _render_profile_row(row_data, status_filter):
         )
 
     return Tr(
+        checkbox_cell,
         Td(
             A(
                 Strong(page_number),
@@ -332,7 +393,7 @@ def _render_profile_surah_header(surah_id, juz_number):
         Td(
             Span(f"📖 {surah_name}", cls="font-semibold"),
             Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=5,
+            colspan=6,
             cls="bg-base-200 py-1 px-2",
         ),
         cls="surah-header",
@@ -368,6 +429,78 @@ def _get_profile_data(auth, status_filter=None):
     return db.q(qry)
 
 
+def _render_bulk_action_bar(status_filter):
+    """Render a sticky bulk action bar for marking memorization status."""
+    filter_param = f"&status_filter={status_filter}" if status_filter else ""
+
+    # Select-all checkbox with label
+    select_all = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox checkbox-sm",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        Span(" selected", cls="text-sm ml-1"),
+        cls="flex items-center",
+    )
+
+    # Cancel button
+    cancel_button = Button(
+        "✕",
+        cls="btn btn-ghost btn-sm",
+        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        title="Cancel selection",
+    )
+
+    # Mark as Memorized button
+    memorized_button = Button(
+        "✓ Mark Memorized",
+        type="submit",
+        formaction=f"/profile/bulk_mark_memorized?memorized=1{filter_param}",
+        cls="btn btn-success btn-sm",
+        data_testid="bulk-mark-memorized",
+    )
+
+    # Mark as Not Memorized button
+    not_memorized_button = Button(
+        "✗ Mark Not Memorized",
+        type="submit",
+        formaction=f"/profile/bulk_mark_memorized?memorized=0{filter_param}",
+        cls="btn btn-error btn-sm",
+        data_testid="bulk-mark-not-memorized",
+    )
+
+    return Form(
+        Div(
+            select_all,
+            Div(
+                memorized_button,
+                not_memorized_button,
+                cancel_button,
+                cls="flex gap-2",
+            ),
+            cls="flex justify-between items-center w-full",
+        ),
+        id="bulk-action-bar",
+        cls="fixed bottom-0 left-0 right-0 bg-base-100 border-t shadow-lg p-3 z-50",
+        x_show="count > 0",
+        x_transition=True,
+        hx_swap="innerHTML",
+        hx_target="#profile-table-container",
+        data_testid="profile-bulk-action-bar",
+    )
+
+
 def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
     """Render the profile table with surah grouping and pagination."""
     rows = _get_profile_data(auth, status_filter)
@@ -396,7 +529,7 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
     if not body_rows:
         body_rows = [
-            Tr(Td("No pages found", colspan=5, cls="text-center text-gray-500 py-8"))
+            Tr(Td("No pages found", colspan=6, cls="text-center text-gray-500 py-8"))
         ]
 
     # Pagination controls
@@ -427,9 +560,23 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
             cls="flex justify-center items-center gap-2 py-3 border-t bg-gray-50",
         )
 
+    # Select-all checkbox for the header
+    select_all_checkbox = fh.Input(
+        type="checkbox",
+        cls="checkbox checkbox-sm",
+        **{
+            "@change": """
+                $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+            """,
+            ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+        },
+    )
+
     table = Table(
         Thead(
             Tr(
+                Th(select_all_checkbox, cls="w-8 text-center"),
                 Th("Page", cls="w-16 text-center"),
                 Th("Status"),
                 Th("Mode"),
@@ -441,10 +588,14 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
         cls=(TableT.middle, TableT.divider, TableT.sm),
     )
 
+    bulk_bar = _render_bulk_action_bar(status_filter)
+
     return Div(
         table,
         pagination if pagination else "",
+        bulk_bar,
         id="profile-table-container",
+        x_data="{ count: 0 }",
     )
 
 
