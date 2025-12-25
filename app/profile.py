@@ -62,152 +62,74 @@ def render_stats_cards(auth, current_type="page", active_status_filter=None):
     )
 
 
-# === JSON API for Tabulator ===
+# === Bulk Status Update ===
 
 
-@profile_app.get("/api/pages")
-def get_pages_json(auth, status_filter: str = None):
-    """Return page data as JSON for Tabulator table."""
-    from starlette.responses import JSONResponse
-
-    # Build filter condition
-    filter_condition = ""
-    if status_filter == STATUS_NOT_MEMORIZED:
-        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
-    elif status_filter == STATUS_LEARNING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
-    elif status_filter == STATUS_REPS:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')"
-    elif status_filter == STATUS_SOLID:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'"
-    elif status_filter == STATUS_STRUGGLING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'"
-
-    qry = f"""
-        SELECT items.id as item_id, items.surah_id, pages.page_number, pages.juz_number,
-               hafizs_items.id as hafiz_item_id, hafizs_items.memorized, hafizs_items.mode_code,
-               hafizs_items.custom_daily_threshold, hafizs_items.custom_weekly_threshold,
-               hafizs_items.custom_fortnightly_threshold, hafizs_items.custom_monthly_threshold
-        FROM items
-        LEFT JOIN pages ON items.page_id = pages.id
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE items.active != 0 {filter_condition}
-        ORDER BY pages.page_number ASC
-    """
-    rows = db.q(qry)
-
-    # Transform to Tabulator-friendly format
-    data = []
-    for row in rows:
-        mode_code = row["mode_code"] or ""
-        memorized = bool(row["memorized"])
-        # Hide mode when not memorized - mode is irrelevant in that state
-        if not memorized:
-            mode_name = "-"
-            mode_icon = ""
-        else:
-            mode_name = get_mode_name(mode_code) if mode_code else "-"
-            mode_icon = get_mode_icon(mode_code) if mode_code else ""
-
-        # Calculate progress for graduatable modes (only when memorized)
-        progress = "-"
-        if memorized and mode_code in GRADUATABLE_MODES:
-            current_count = get_mode_count(row["item_id"], mode_code)
-            threshold = DEFAULT_REP_COUNTS.get(mode_code, 7)
-            # Check custom thresholds
-            threshold_map = {
-                DAILY_REPS_MODE_CODE: row.get("custom_daily_threshold"),
-                WEEKLY_REPS_MODE_CODE: row.get("custom_weekly_threshold"),
-                FORTNIGHTLY_REPS_MODE_CODE: row.get("custom_fortnightly_threshold"),
-                MONTHLY_REPS_MODE_CODE: row.get("custom_monthly_threshold"),
-            }
-            custom = threshold_map.get(mode_code)
-            if custom is not None:
-                threshold = custom
-            progress = f"{current_count} of {threshold}"
-
-        # Get status
-        status = get_status(row)
-        status_icon, status_label = get_status_display(status)
-
-        data.append({
-            "page": row["page_number"],
-            "juz": row["juz_number"],
-            "surah": surahs[row["surah_id"]].name if row["surah_id"] else "-",
-            "memorized": bool(row["memorized"]),
-            "status": status_label,
-            "status_icon": status_icon,
-            "mode": mode_name,
-            "mode_icon": mode_icon,
-            "mode_code": mode_code,
-            "progress": progress,
-            "hafiz_item_id": row["hafiz_item_id"],
-            "item_id": row["item_id"],
-        })
-
-    return JSONResponse(data)
+def _apply_status_to_item(hafiz_item, status, current_date):
+    """Apply status changes to a hafiz_item. Returns True if applied."""
+    if status == STATUS_NOT_MEMORIZED:
+        hafiz_item.memorized = False
+        hafiz_item.mode_code = None
+        hafiz_item.next_review = None
+        hafiz_item.next_interval = None
+    elif status == STATUS_LEARNING:
+        hafiz_item.memorized = True
+        hafiz_item.mode_code = NEW_MEMORIZATION_MODE_CODE
+        hafiz_item.next_review = None
+        hafiz_item.next_interval = None
+    elif status == STATUS_REPS:
+        hafiz_item.memorized = True
+        hafiz_item.mode_code = DAILY_REPS_MODE_CODE
+        config = REP_MODES_CONFIG[DAILY_REPS_MODE_CODE]
+        hafiz_item.next_interval = config["interval"]
+        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
+    elif status == STATUS_SOLID:
+        hafiz_item.memorized = True
+        hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
+        hafiz_item.next_review = None
+        hafiz_item.next_interval = None
+    elif status == STATUS_STRUGGLING:
+        hafiz_item.memorized = True
+        hafiz_item.mode_code = SRS_MODE_CODE
+        hafiz_item.next_review = None
+        hafiz_item.next_interval = None
+    else:
+        return False
+    return True
 
 
-@profile_app.post("/api/bulk/set_status")
-async def bulk_set_status(req: Request, auth):
-    """Bulk set status for selected items. Handles both memorized flag and mode_code."""
-    from starlette.responses import JSONResponse
-    import json
+@profile_app.post("/bulk/set_status")
+async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: str = None, page: int = 1):
+    """Bulk set status for selected items via HTMX form submission."""
+    form_data = await req.form()
+    item_ids = [int(id) for id in form_data.getlist("hafiz_item_ids") if id]
 
-    body = await req.body()
-    data = json.loads(body)
-    item_ids = data.get("item_ids", [])
-    status = data.get("status")
-
-    if not item_ids or not status:
-        return JSONResponse({"error": "Missing item_ids or status"}, status_code=400)
+    if not item_ids:
+        error_toast(sess, "No items selected")
+        return _render_profile_table(auth, status_filter, page)
 
     current_date = get_current_date(auth)
     updated = 0
 
     for hafiz_item_id in item_ids:
-        if hafiz_item_id is None:
-            continue
         try:
             hafiz_item = hafizs_items[hafiz_item_id]
             if hafiz_item.hafiz_id != auth:
                 continue
 
-            # Map 5 statuses to database fields
-            if status == "NOT_MEMORIZED":
-                hafiz_item.memorized = False
-                hafiz_item.mode_code = None  # Clear mode - not relevant when not memorized
-                hafiz_item.next_review = None
-                hafiz_item.next_interval = None
-            elif status == "LEARNING":
-                hafiz_item.memorized = True
-                hafiz_item.mode_code = NEW_MEMORIZATION_MODE_CODE
-                hafiz_item.next_review = None
-                hafiz_item.next_interval = None
-            elif status == "REPS":
-                # Default to Daily Reps as starting point
-                hafiz_item.memorized = True
-                hafiz_item.mode_code = DAILY_REPS_MODE_CODE
-                config = REP_MODES_CONFIG[DAILY_REPS_MODE_CODE]
-                hafiz_item.next_interval = config["interval"]
-                hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
-            elif status == "SOLID":
-                hafiz_item.memorized = True
-                hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
-                hafiz_item.next_review = None
-                hafiz_item.next_interval = None
-            elif status == "STRUGGLING":
-                hafiz_item.memorized = True
-                hafiz_item.mode_code = SRS_MODE_CODE
-                hafiz_item.next_review = None
-                hafiz_item.next_interval = None
-
-            hafizs_items.update(hafiz_item)
-            updated += 1
+            if _apply_status_to_item(hafiz_item, status, current_date):
+                hafizs_items.update(hafiz_item)
+                updated += 1
         except (NotFoundError, ValueError):
             continue
 
-    return JSONResponse({"updated": updated})
+    if updated > 0:
+        _, status_label = get_status_display(status)
+        success_toast(sess, f"Marked {updated} page(s) as {status_label}")
+    else:
+        error_toast(sess, "No pages were updated")
+
+    return _render_profile_table(auth, status_filter, page)
 
 
 # === Profile Table Row Rendering ===
@@ -275,6 +197,18 @@ def _render_profile_row(row_data, status_filter):
     mode_code = row_data["mode_code"] or ""
     status = get_status(row_data)
 
+    # Checkbox for bulk selection
+    checkbox_cell = Td(
+        fh.Input(
+            type="checkbox",
+            name="hafiz_item_ids",
+            value=hafiz_item_id,
+            cls="checkbox checkbox-sm bulk-select-checkbox",
+            **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+        ),
+        cls="w-8 text-center",
+    ) if hafiz_item_id else Td(cls="w-8")
+
     # Calculate progress for graduatable modes
     progress_cell = Td("-", cls="text-gray-400")
     if memorized and mode_code in GRADUATABLE_MODES:
@@ -310,6 +244,7 @@ def _render_profile_row(row_data, status_filter):
         )
 
     return Tr(
+        checkbox_cell,
         Td(
             A(
                 Strong(page_number),
@@ -332,7 +267,7 @@ def _render_profile_surah_header(surah_id, juz_number):
         Td(
             Span(f"📖 {surah_name}", cls="font-semibold"),
             Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=5,
+            colspan=6,
             cls="bg-base-200 py-1 px-2",
         ),
         cls="surah-header",
@@ -368,6 +303,78 @@ def _get_profile_data(auth, status_filter=None):
     return db.q(qry)
 
 
+def _render_bulk_action_bar(status_filter):
+    """Render a sticky bulk action bar for marking memorization status."""
+    filter_param = f"&status_filter={status_filter}" if status_filter else ""
+
+    # Select-all checkbox with label
+    select_all = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox checkbox-sm",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        Span(" selected", cls="text-sm ml-1"),
+        cls="flex items-center",
+    )
+
+    # Cancel button
+    cancel_button = Button(
+        "✕",
+        cls="btn btn-ghost btn-sm",
+        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        title="Cancel selection",
+    )
+
+    # Mark as Memorized button (sets status to SOLID/Full Cycle)
+    memorized_button = Button(
+        "✓ Mark Memorized",
+        type="submit",
+        formaction=f"/profile/bulk/set_status?status={STATUS_SOLID}{filter_param}",
+        cls="btn btn-success btn-sm",
+        data_testid="bulk-mark-memorized",
+    )
+
+    # Mark as Not Memorized button
+    not_memorized_button = Button(
+        "✗ Mark Not Memorized",
+        type="submit",
+        formaction=f"/profile/bulk/set_status?status={STATUS_NOT_MEMORIZED}{filter_param}",
+        cls="btn btn-error btn-sm",
+        data_testid="bulk-mark-not-memorized",
+    )
+
+    return Form(
+        Div(
+            select_all,
+            Div(
+                memorized_button,
+                not_memorized_button,
+                cancel_button,
+                cls="flex gap-2",
+            ),
+            cls="flex justify-between items-center w-full",
+        ),
+        id="bulk-action-bar",
+        cls="fixed bottom-0 left-0 right-0 bg-base-100 border-t shadow-lg p-3 z-50",
+        x_show="count > 0",
+        x_transition=True,
+        hx_swap="innerHTML",
+        hx_target="#profile-table-container",
+        data_testid="profile-bulk-action-bar",
+    )
+
+
 def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
     """Render the profile table with surah grouping and pagination."""
     rows = _get_profile_data(auth, status_filter)
@@ -396,7 +403,7 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
     if not body_rows:
         body_rows = [
-            Tr(Td("No pages found", colspan=5, cls="text-center text-gray-500 py-8"))
+            Tr(Td("No pages found", colspan=6, cls="text-center text-gray-500 py-8"))
         ]
 
     # Pagination controls
@@ -427,9 +434,23 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
             cls="flex justify-center items-center gap-2 py-3 border-t bg-gray-50",
         )
 
+    # Select-all checkbox for the header
+    select_all_checkbox = fh.Input(
+        type="checkbox",
+        cls="checkbox checkbox-sm",
+        **{
+            "@change": """
+                $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+            """,
+            ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+        },
+    )
+
     table = Table(
         Thead(
             Tr(
+                Th(select_all_checkbox, cls="w-8 text-center"),
                 Th("Page", cls="w-16 text-center"),
                 Th("Status"),
                 Th("Mode"),
@@ -441,10 +462,14 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
         cls=(TableT.middle, TableT.divider, TableT.sm),
     )
 
+    bulk_bar = _render_bulk_action_bar(status_filter)
+
     return Div(
         table,
         pagination if pagination else "",
+        bulk_bar,
         id="profile-table-container",
+        x_data="{ count: 0 }",
     )
 
 
