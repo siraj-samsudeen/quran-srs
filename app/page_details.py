@@ -279,21 +279,7 @@ def display_page_level_details(auth, item_id: int):
             cls="uk-button uk-button-default",
         )
 
-    def get_prev_next_item_ids(current_item_id):
-        def build_nav_query(operator, sort_order):
-            return f"""SELECT items.id, pages.page_number FROM revisions
-                       LEFT JOIN items ON revisions.item_id = items.id
-                       LEFT JOIN pages ON items.page_id = pages.id
-                       WHERE revisions.hafiz_id = {auth} AND items.active != 0 AND items.id {operator} {current_item_id}
-                       ORDER BY items.id {sort_order} LIMIT 1;"""
-
-        prev_result = db.q(build_nav_query("<", "DESC"))
-        next_result = db.q(build_nav_query(">", "ASC"))
-        prev_id = prev_result[0]["id"] if prev_result else None
-        next_id = next_result[0]["id"] if next_result else None
-        return prev_id, next_id
-
-    prev_id, next_id = get_prev_next_item_ids(item_id)
+    prev_id, next_id = get_prev_next_item_ids(auth, item_id)
     prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
     next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
 

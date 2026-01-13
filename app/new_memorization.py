@@ -2,12 +2,17 @@ from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
 from constants import *
-from app.common_function import create_app_with_auth, get_current_date, get_page_number, get_juz_name
-from app.home_view import render_surah_header
-from app.common_model import get_hafizs_items
+from app.common_function import create_app_with_auth, get_current_date, get_juz_name
+from app.home_view import (
+    render_surah_header,
+    render_bulk_checkbox,
+    render_page_number_cell,
+    render_start_text_cell,
+)
+from app.common_model import get_hafizs_items, get_unmemorized_items
 from utils import add_days_to_date
 from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
-from database import db, items, revisions, hafizs_items
+from database import items, revisions, hafizs_items
 
 
 new_memorization_app, rt = create_app_with_auth()
@@ -24,41 +29,13 @@ def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
     # Check if this is a consecutive page (hide start text for recall)
     is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
 
-    # Checkbox for marking as memorized
-    checkbox = fh.Input(
-        type="checkbox",
-        name="item_ids",
-        value=item_id,
-        checked=is_memorized_today,
-        cls="checkbox bulk-select-checkbox",
-        # Update count when checkbox changes (no HTMX here, bulk action buttons handle submission)
-        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
-    )
-
     # Row background: green if memorized today
     bg_class = "bg-green-100" if is_memorized_today else ""
 
     return Tr(
-        Td(checkbox, cls="w-8 text-center"),
-        Td(
-            A(
-                get_page_number(item_id),
-                href=f"/page_details/{item_id}",
-                cls="font-mono font-bold hover:underline",
-            ),
-            cls="w-12 text-center",
-        ),
-        Td(
-            # Hidden text with tap-to-reveal using Alpine.js
-            Div(
-                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
-                Span(item.start_text or "-", x_show="revealed", x_cloak=True),
-                x_data="{ revealed: false }",
-            )
-            if is_consecutive
-            else Span(item.start_text or "-"),
-            cls="text-lg",
-        ),
+        render_bulk_checkbox(item_id, checked=is_memorized_today),
+        render_page_number_cell(item_id, show_part_indicator=False),
+        render_start_text_cell(item.start_text, hide_text=is_consecutive),
         id=row_id,
         cls=bg_class,
     )
@@ -143,15 +120,8 @@ def make_new_memorization_table(auth, offset=0, items_per_page=None, table_only=
     current_date = get_current_date(auth)
     mode_code = NEW_MEMORIZATION_MODE_CODE
 
-    # Query unmemorized items
-    qry = f"""
-        SELECT hafizs_items.item_id, hafizs_items.page_number
-        FROM hafizs_items
-        WHERE hafizs_items.hafiz_id = {auth}
-          AND hafizs_items.memorized = 0
-        ORDER BY hafizs_items.item_id ASC
-    """
-    unmemorized_records = db.q(qry)
+    # Query unmemorized items using centralized function
+    unmemorized_records = get_unmemorized_items(auth)
     unmemorized_item_ids = set(r["item_id"] for r in unmemorized_records)
 
     # Get today's NM revisions (to show "memorized today" state)

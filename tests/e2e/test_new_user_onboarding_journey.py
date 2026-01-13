@@ -19,9 +19,9 @@ from playwright.sync_api import Page, expect
 def test_new_user_onboarding_journey(page: Page, base_url: str, test_user_data: dict):
     """
     SCENARIO: New user completes full onboarding
-    GIVEN a new user with valid credentials
-    WHEN they signup, login, and create their first hafiz
-    THEN they are redirected to the home page ready to start
+
+    SETUP: Fresh user credentials (no existing account)
+    EXPECTED: User lands on home page after signup → login → create hafiz → select hafiz
     """
     # GIVEN: New user signs up
     signup_new_user(page, base_url, test_user_data)
@@ -45,9 +45,9 @@ def test_new_user_onboarding_journey(page: Page, base_url: str, test_user_data: 
 def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progression_test_hafiz: dict):
     """
     SCENARIO: Item graduates from Daily to Weekly mode after reaching threshold
-    GIVEN an item in Daily mode with custom threshold of 2
-    WHEN user rates the item twice and closes date each time
-    THEN the item graduates to Weekly mode
+
+    SETUP: User with hafiz containing 1 Daily item (threshold=2)
+    EXPECTED: After 2 ratings + close dates, Daily tab disappears (item moved to Weekly)
     """
     # GIVEN: User logs in with test hafiz containing Daily mode item
     login_and_select_hafiz(page, base_url, progression_test_hafiz)
@@ -85,9 +85,9 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
 def test_close_date_processes_multiple_modes(page: Page, base_url: str, multi_mode_test_hafiz: dict):
     """
     SCENARIO: Close Date processes items across all rep modes simultaneously
-    GIVEN items exist in Daily, Weekly, Fortnightly, and Monthly modes
-    WHEN user rates one item in each mode and closes the date
-    THEN the system date advances and pages revised count updates
+
+    SETUP: User with hafiz containing items in Daily, Weekly, Fortnightly, Monthly modes (date: Jan 15)
+    EXPECTED: After rating one item per mode + close date, system date advances to Jan 16
     """
     # GIVEN: User logs in with test hafiz containing items in all modes
     login_and_select_hafiz(page, base_url, multi_mode_test_hafiz)

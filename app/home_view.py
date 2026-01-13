@@ -29,10 +29,12 @@ from app.common_model import (
     get_last_added_full_cycle_page,
     get_hafizs_items,
     get_actual_interval,
+    get_earliest_revision_date,
+    get_datewise_revisions,
+    get_mode_specific_hafizs_items,
 )
 from constants import *
 from database import (
-    db,
     hafizs_items,
     items,
     modes,
@@ -62,9 +64,9 @@ def get_surah_name(page_id=None, item_id=None):
 
 
 def get_juz_name(page_id=None, item_id=None):
+    from app.common_model import get_juz_number_for_item
     if item_id:
-        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
-        juz_number = db.q(qry)[0]["juz_number"]
+        juz_number = get_juz_number_for_item(item_id)
     else:
         juz_number = pages[page_id].juz_number
     return juz_number
@@ -204,12 +206,7 @@ def split_page_range(page_range: str):
 
 def datewise_summary_table(show=None, hafiz_id=None):
     """Render a table showing revisions grouped by date and mode."""
-    hafiz_condition = f"AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
-
-    qry = f"SELECT MIN(revision_date) AS earliest_date FROM {revisions}"
-    qry = (qry + f" WHERE hafiz_id = {hafiz_id}") if hafiz_id else qry
-    result = db.q(qry)
-    earliest_date = result[0]["earliest_date"]
+    earliest_date = get_earliest_revision_date(hafiz_id)
     current_date = get_current_date(hafiz_id)
 
     date_range = pd.date_range(
@@ -219,18 +216,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
     date_range = date_range[:show] if show else date_range
 
     # Bulk query: fetch all revisions for date range in single query
-    if date_range:
-        dates_str = ", ".join(f"'{d}'" for d in date_range)
-        bulk_query = f"""
-            SELECT revisions.id, revisions.item_id, revisions.revision_date, revisions.mode_code, items.page_id
-            FROM {revisions}
-            LEFT JOIN {items} ON revisions.item_id = items.id
-            WHERE revisions.revision_date IN ({dates_str}) {hafiz_condition}
-            ORDER BY revisions.revision_date DESC, revisions.mode_code ASC
-        """
-        all_revisions = db.q(bulk_query)
-    else:
-        all_revisions = []
+    all_revisions = get_datewise_revisions(date_range, hafiz_id)
 
     # Group revisions by date and mode
     revisions_by_date_mode = defaultdict(lambda: defaultdict(list))
@@ -474,6 +460,65 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
+# === Shared Row Components ===
+# These components are used by both render_range_row and render_nm_row
+
+
+def render_bulk_checkbox(item_id: int, checked: bool = False):
+    """Render a bulk selection checkbox cell."""
+    return Td(
+        fh.Input(
+            type="checkbox",
+            name="item_ids",
+            value=item_id,
+            checked=checked,
+            cls="checkbox bulk-select-checkbox",
+            **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+        ),
+        cls="w-8 text-center",
+    )
+
+
+def render_page_number_cell(item_id: int, show_part_indicator: bool = True):
+    """Render a page number cell with optional part indicator."""
+    part_indicator = ""
+    if show_part_indicator:
+        part_info = get_page_part_info(item_id)
+        if part_info:
+            part_num, total_parts = part_info
+            circled_nums = "①②③④⑤⑥⑦⑧⑨⑩"
+            if part_num <= len(circled_nums):
+                part_indicator = Span(circled_nums[part_num - 1], cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+            else:
+                part_indicator = Span(f".{part_num}", cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+
+    return Td(
+        Div(
+            A(
+                get_page_number(item_id),
+                href=f"/page_details/{item_id}",
+                cls="font-mono font-bold hover:underline",
+            ),
+            part_indicator,
+            cls="flex items-center justify-center gap-0.5",
+        ),
+        cls="w-16 text-center",
+    )
+
+
+def render_start_text_cell(start_text: str, hide_text: bool = False):
+    """Render a start text cell with optional tap-to-reveal."""
+    if hide_text:
+        content = Div(
+            Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+            Span(start_text or "-", x_show="revealed", x_cloak=True),
+            x_data="{ revealed: false }",
+        )
+    else:
+        content = Span(start_text or "-")
+    return Td(content, cls="text-lg")
+
+
 def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False, loved=False):
     """Render a single table row for an item in the summary table."""
     item_id = records["item"].id
@@ -501,29 +546,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
         hx_swap="outerHTML",
     )
 
-    if rating is None:
-        checkbox_cell = Td(
-            fh.Input(
-                type="checkbox",
-                name="item_ids",
-                value=item_id,
-                cls="checkbox bulk-select-checkbox",
-                **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
-            ),
-            cls="w-8 text-center",
-        )
-    else:
-        checkbox_cell = Td(cls="w-8")
-
-    part_info = get_page_part_info(item_id)
-    part_indicator = ""
-    if part_info:
-        part_num, total_parts = part_info
-        circled_nums = "①②③④⑤⑥⑦⑧⑨⑩"
-        if part_num <= len(circled_nums):
-            part_indicator = Span(circled_nums[part_num - 1], cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
-        else:
-            part_indicator = Span(f".{part_num}", cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+    checkbox_cell = render_bulk_checkbox(item_id) if rating is None else Td(cls="w-8")
 
     heart_icon = Span(
         "❤️" if loved else "🤍",
@@ -537,28 +560,8 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
 
     return Tr(
         checkbox_cell,
-        Td(
-            Div(
-                A(
-                    get_page_number(item_id),
-                    href=f"/page_details/{item_id}",
-                    cls="font-mono font-bold hover:underline",
-                ),
-                part_indicator,
-                cls="flex items-center justify-center gap-0.5",
-            ),
-            cls="w-16 text-center",
-        ),
-        Td(
-            Div(
-                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
-                Span(records["item"].start_text or "-", x_show="revealed", x_cloak=True),
-                x_data="{ revealed: false }",
-            )
-            if hide_start_text
-            else Span(records["item"].start_text or "-"),
-            cls="text-lg",
-        ),
+        render_page_number_cell(item_id),
+        render_start_text_cell(records["item"].start_text, hide_text=hide_start_text),
         Td(
             Div(
                 heart_icon,
@@ -893,13 +896,8 @@ def make_summary_table(
 ):
     current_date = get_current_date(auth)
 
-    qry = f"""
-        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number, hafizs_items.loved FROM hafizs_items
-        LEFT JOIN items on hafizs_items.item_id = items.id
-        WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
-        ORDER BY hafizs_items.item_id ASC
-    """
-    mode_specific_hafizs_items_records = db.q(qry)
+    mode_condition = get_mode_condition(mode_code)
+    mode_specific_hafizs_items_records = get_mode_specific_hafizs_items(auth, mode_condition)
 
     predicate = MODE_PREDICATES[mode_code]
     filtered_records = [

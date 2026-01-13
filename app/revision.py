@@ -376,22 +376,7 @@ def get(
     if is_part:
         length = 1
 
-    def get_item_ids_from_page_start(auth, plan_id, start_page, length):
-        """Returns a list of unrevised and memorized item IDs for a specific user,
-        starting from a given page number with given length."""
-        qry = f"""
-        SELECT hafizs_items.item_id, hafizs_items.page_number
-        FROM hafizs_items
-        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
-        WHERE hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') 
-        AND hafizs_items.hafiz_id = {auth} AND revisions.item_id IS NULL AND hafizs_items.page_number >= {start_page}
-        ORDER BY hafizs_items.page_number ASC
-        LIMIT {length};
-        """
-        rows = db.q(qry)
-        return [row["item_id"] for row in rows]
-
-    item_ids = get_item_ids_from_page_start(
+    item_ids = get_unrevised_memorized_items(
         auth=auth, plan_id=plan_id, start_page=page, length=length
     )
 

@@ -197,3 +197,105 @@ def get_full_review_item_ids(auth, mode_specific_hafizs_items_records, item_ids)
     # Combine and sort the item_ids
     final_item_ids = sorted(list(set(eligible_item_ids + today_revisioned_items)))
     return is_plan_finished, final_item_ids
+
+
+# === Additional Database Query Functions ===
+
+
+def get_juz_number_for_item(item_id: int) -> int:
+    """Get juz number for an item via its page."""
+    qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+    result = db.q(qry)
+    return result[0]["juz_number"] if result else None
+
+
+def get_unmemorized_items(auth: int) -> list[dict]:
+    """Get all unmemorized items for a hafiz."""
+    qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        WHERE hafizs_items.hafiz_id = {auth}
+          AND hafizs_items.memorized = 0
+        ORDER BY hafizs_items.item_id ASC
+    """
+    return db.q(qry)
+
+
+def get_mode_specific_hafizs_items(auth: int, mode_condition: str) -> list[dict]:
+    """Get hafiz items filtered by mode condition with item details."""
+    qry = f"""
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, 
+               hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, 
+               hafizs_items.page_number, hafizs_items.loved 
+        FROM hafizs_items
+        LEFT JOIN items on hafizs_items.item_id = items.id
+        WHERE {mode_condition} AND hafizs_items.hafiz_id = {auth}
+        ORDER BY hafizs_items.item_id ASC
+    """
+    return db.q(qry)
+
+
+def get_datewise_revisions(date_range: list[str], hafiz_id: int = None) -> list[dict]:
+    """Get all revisions for a date range with item details."""
+    if not date_range:
+        return []
+    
+    dates_str = ", ".join(f"'{d}'" for d in date_range)
+    hafiz_condition = f"AND revisions.hafiz_id = {hafiz_id}" if hafiz_id else ""
+    
+    qry = f"""
+        SELECT revisions.id, revisions.item_id, revisions.revision_date, 
+               revisions.mode_code, items.page_id
+        FROM revisions
+        LEFT JOIN items ON revisions.item_id = items.id
+        WHERE revisions.revision_date IN ({dates_str}) {hafiz_condition}
+        ORDER BY revisions.revision_date DESC, revisions.mode_code ASC
+    """
+    return db.q(qry)
+
+
+def get_earliest_revision_date(hafiz_id: int = None) -> str | None:
+    """Get the earliest revision date for a hafiz."""
+    qry = "SELECT MIN(revision_date) AS earliest_date FROM revisions"
+    if hafiz_id:
+        qry += f" WHERE hafiz_id = {hafiz_id}"
+    result = db.q(qry)
+    return result[0]["earliest_date"] if result else None
+
+
+def get_unrevised_memorized_items(auth: int, plan_id: int, start_page: int, length: int) -> list[int]:
+    """Get unrevised memorized item IDs for full cycle starting from a page."""
+    qry = f"""
+        SELECT hafizs_items.item_id, hafizs_items.page_number
+        FROM hafizs_items
+        LEFT JOIN revisions ON revisions.item_id = hafizs_items.item_id 
+            AND revisions.plan_id = {plan_id} AND revisions.hafiz_id = {auth}
+        WHERE hafizs_items.memorized = 1 
+            AND hafizs_items.mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') 
+            AND hafizs_items.hafiz_id = {auth} 
+            AND revisions.item_id IS NULL 
+            AND hafizs_items.page_number >= {start_page}
+        ORDER BY hafizs_items.page_number ASC
+        LIMIT {length};
+    """
+    rows = db.q(qry)
+    return [row["item_id"] for row in rows]
+
+
+def get_prev_next_item_ids(auth: int, current_item_id: int) -> tuple[int | None, int | None]:
+    """Get previous and next item IDs for navigation."""
+    def build_nav_query(operator, sort_order):
+        return f"""
+            SELECT items.id, pages.page_number FROM revisions
+            LEFT JOIN items ON revisions.item_id = items.id
+            LEFT JOIN pages ON items.page_id = pages.id
+            WHERE revisions.hafiz_id = {auth} AND items.active != 0 
+                AND items.id {operator} {current_item_id}
+            ORDER BY items.id {sort_order} LIMIT 1;
+        """
+
+    prev_result = db.q(build_nav_query("<", "DESC"))
+    next_result = db.q(build_nav_query(">", "ASC"))
+    prev_id = prev_result[0]["id"] if prev_result else None
+    next_id = next_result[0]["id"] if next_result else None
+    return prev_id, next_id
