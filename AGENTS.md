@@ -29,3 +29,9 @@ The framework works with "JS-native web components and any vanilla JS library, b
 ## Development Notes
 
 Use `serve()` automatically—no `if __name__ == "__main__"` needed. For titled pages, use `Titled()` which handles title tags and H1 elements.
+
+
+## User Corrections
+
+- Always runs tests before finishing the work. 
+- Run playwright tests in headless mode. 
