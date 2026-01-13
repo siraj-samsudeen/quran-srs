@@ -368,6 +368,7 @@ def _render_bulk_action_bar(status_filter):
         id="bulk-action-bar",
         cls="fixed bottom-0 left-0 right-0 bg-base-100 border-t shadow-lg p-3 z-50",
         x_show="count > 0",
+        style="display: none",
         x_transition=True,
         hx_swap="innerHTML",
         hx_target="#profile-table-container",
@@ -464,12 +465,15 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
     bulk_bar = _render_bulk_action_bar(status_filter)
 
+    # Always add padding at bottom to ensure pagination stays above fixed bulk bar
+    # The bulk bar is ~64px tall, so pb-20 (80px) gives comfortable clearance
     return Div(
         table,
         pagination if pagination else "",
         bulk_bar,
         id="profile-table-container",
         x_data="{ count: 0 }",
+        cls="pb-20",
     )
 
 
