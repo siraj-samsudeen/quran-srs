@@ -478,8 +478,12 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
 
 @profile_app.get("/table")
-def show_profile_page(auth, status_filter: str = None, page: int = 1):
+def show_profile_page(auth, request, status_filter: str = None, page: int = 1):
     """Profile page using HTMX table rendering (like home page)."""
+
+    # For HTMX pagination requests, return only the table
+    if request.headers.get("HX-Request"):
+        return _render_profile_table(auth, status_filter, page)
 
     # Configuration modal (DaisyUI dialog)
     config_modal = Dialog(
