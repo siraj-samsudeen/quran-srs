@@ -14,8 +14,17 @@ Related modules:
 - common_function.py: MODE_PREDICATES for filtering items in summary tables
 - srs_reps.py: SRS mode uses adaptive intervals (fundamentally different)
 """
-from app.common_function import *
-from constants import DEFAULT_REP_COUNTS
+from app.common_function import get_hafizs_items, get_current_date, get_mode_count
+from constants import (
+    DEFAULT_REP_COUNTS,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    FORTNIGHTLY_REPS_MODE_CODE,
+    MONTHLY_REPS_MODE_CODE,
+    FULL_CYCLE_MODE_CODE,
+)
+from database import hafizs_items
+from utils import add_days_to_date
 
 # Maps mode code to the corresponding custom threshold column name in hafizs_items
 MODE_TO_THRESHOLD_COLUMN = {

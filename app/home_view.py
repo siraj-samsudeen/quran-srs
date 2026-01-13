@@ -5,11 +5,14 @@ This module contains:
 - Statistics table rendering
 - Full Cycle progress tracking helpers
 - Update logic for Full Cycle mode
+- Summary table rendering for home page tabs
+- Mode filter predicates
 """
 
 from collections import defaultdict
 import pandas as pd
 from fasthtml.common import *
+import fasthtml.common as fh
 from monsterui.all import *
 from utils import (
     flatten_list,
@@ -17,13 +20,13 @@ from utils import (
     sub_days_to_date,
     add_days_to_date,
     date_to_human_readable,
+    day_diff,
 )
-from app.common_function import (
+from app.common_model import (
     get_current_date,
-    get_mode_name,
-    get_page_count,
-    get_page_description,
-    create_count_link,
+    get_current_plan_id,
+    get_full_review_item_ids,
+    get_last_added_full_cycle_page,
     get_hafizs_items,
     get_actual_interval,
 )
@@ -33,8 +36,109 @@ from database import (
     hafizs_items,
     items,
     modes,
+    pages,
     revisions,
+    surahs,
 )
+from utils import format_number
+
+
+def get_mode_name(mode_code: str):
+    return modes[mode_code].name
+
+
+def get_page_number(item_id):
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number
+
+
+def get_surah_name(page_id=None, item_id=None):
+    if item_id:
+        surah_id = items[item_id].surah_id
+    else:
+        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
+    surah_details = surahs[surah_id]
+    return surah_details.name
+
+
+def get_juz_name(page_id=None, item_id=None):
+    if item_id:
+        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+        juz_number = db.q(qry)[0]["juz_number"]
+    else:
+        juz_number = pages[page_id].juz_number
+    return juz_number
+
+
+def get_item_page_portion(item_id: int) -> float:
+    page_no = items[item_id].page_id
+    total_parts = items(where=f"page_id = {page_no} and active = 1")
+    if not total_parts:
+        return 0
+    return 1 / len(total_parts)
+
+
+def get_page_part_info(item_id: int) -> tuple[int, int] | None:
+    page_no = items[item_id].page_id
+    page_items = items(where=f"page_id = {page_no} and active = 1", order_by="id ASC")
+    total_parts = len(page_items)
+    if total_parts <= 1:
+        return None
+    for idx, item in enumerate(page_items):
+        if item.id == item_id:
+            return (idx + 1, total_parts)
+    return None
+
+
+def get_page_count(records=None, item_ids=None) -> float:
+    total_count = 0
+    if item_ids:
+        process_items = item_ids
+    elif records:
+        process_items = [record.item_id for record in records]
+    else:
+        return format_number(total_count)
+    for item_id in process_items:
+        total_count += get_item_page_portion(item_id)
+    return format_number(total_count)
+
+
+def create_count_link(count: int, rev_ids: str):
+    if not rev_ids:
+        return count
+    return A(
+        count,
+        href=f"/revision/bulk_edit?ids={rev_ids}",
+        cls=AT.classic,
+    )
+
+
+def get_page_description(
+    item_id,
+    link: str = None,
+    is_link: bool = True,
+    is_bold: bool = True,
+    custom_text="",
+):
+    item_description = items[item_id].description
+    if not item_description:
+        item_description = (
+            Span(get_page_number(item_id), cls=TextPresets.bold_sm if is_bold else ""),
+            Span(" - ", get_surah_name(item_id=item_id)),
+            Span(custom_text) if custom_text else "",
+        )
+
+    if not is_link:
+        return Span(item_description)
+    else:
+        page, description = item_description.split(" ", maxsplit=1)
+    return A(
+        Span(page, cls=TextPresets.bold_lg),
+        Br(),
+        Span(description),
+        href=(f"/page_details/{item_id}" if not link else link),
+        cls=AT.classic,
+    )
 
 
 def get_today_vs_yesterday_stats(auth):
@@ -329,3 +433,536 @@ def update_hafiz_item_for_full_cycle(rev):
 
     hafiz_item_details.last_interval = get_actual_interval(rev.item_id)
     hafizs_items.update(hafiz_item_details)
+
+
+# === Summary Table Functions ===
+
+
+def row_background_color(rating):
+    bg_color = ""
+    if rating == 1:
+        bg_color = "bg-green-100"
+    elif rating == 0:
+        bg_color = "bg-yellow-50"
+    elif rating == -1:
+        bg_color = "bg-red-50"
+    return bg_color
+
+
+def rating_dropdown(rating, **attrs):
+    """Create a rating dropdown select element."""
+    return Select(
+        Option("Select rating", value="", selected=(rating is None)),
+        Option("Good", value="1", selected=(rating == 1)),
+        Option("Ok", value="0", selected=(rating == 0)),
+        Option("Bad", value="-1", selected=(rating == -1)),
+        name="rating",
+        cls="select select-bordered select-sm w-28",
+        **attrs,
+    )
+
+
+def get_mode_condition(mode_code: str):
+    mode_code_mapping = {
+        FULL_CYCLE_MODE_CODE: [f"'{FULL_CYCLE_MODE_CODE}'", f"'{SRS_MODE_CODE}'"],
+    }
+    retrieved_mode_codes = mode_code_mapping.get(mode_code)
+    if retrieved_mode_codes is None:
+        mode_condition = f"mode_code = '{mode_code}'"
+    else:
+        mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
+    return mode_condition
+
+
+def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False, loved=False):
+    """Render a single table row for an item in the summary table."""
+    item_id = records["item"].id
+    rating = records["revision"].rating if records["revision"] else None
+    row_id = f"row-{mode_code}-{item_id}"
+
+    if rating is None:
+        action_link_attr = {"hx_post": f"/add/{item_id}"}
+    else:
+        rev_id = records["revision"].id
+        action_link_attr = {"hx_put": f"/edit/{rev_id}"}
+
+    vals_dict = {"date": current_date, "mode_code": mode_code, "item_id": item_id}
+    if plan_id:
+        vals_dict["plan_id"] = plan_id
+
+    rating_dropdown_input = rating_dropdown(
+        rating=rating,
+        id=f"rev-{item_id}",
+        data_testid=f"rating-{item_id}",
+        **action_link_attr,
+        hx_vals=vals_dict,
+        hx_trigger="change",
+        hx_target=f"#{row_id}",
+        hx_swap="outerHTML",
+    )
+
+    if rating is None:
+        checkbox_cell = Td(
+            fh.Input(
+                type="checkbox",
+                name="item_ids",
+                value=item_id,
+                cls="checkbox bulk-select-checkbox",
+                **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+            ),
+            cls="w-8 text-center",
+        )
+    else:
+        checkbox_cell = Td(cls="w-8")
+
+    part_info = get_page_part_info(item_id)
+    part_indicator = ""
+    if part_info:
+        part_num, total_parts = part_info
+        circled_nums = "①②③④⑤⑥⑦⑧⑨⑩"
+        if part_num <= len(circled_nums):
+            part_indicator = Span(circled_nums[part_num - 1], cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+        else:
+            part_indicator = Span(f".{part_num}", cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
+
+    heart_icon = Span(
+        "❤️" if loved else "🤍",
+        cls="cursor-pointer text-sm",
+        hx_post=f"/toggle_love/{item_id}",
+        hx_target=f"#{row_id}",
+        hx_swap="outerHTML",
+        hx_vals={"mode_code": mode_code, "date": current_date, "plan_id": plan_id or ""},
+        title="Toggle favorite",
+    )
+
+    return Tr(
+        checkbox_cell,
+        Td(
+            Div(
+                A(
+                    get_page_number(item_id),
+                    href=f"/page_details/{item_id}",
+                    cls="font-mono font-bold hover:underline",
+                ),
+                part_indicator,
+                cls="flex items-center justify-center gap-0.5",
+            ),
+            cls="w-16 text-center",
+        ),
+        Td(
+            Div(
+                Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
+                Span(records["item"].start_text or "-", x_show="revealed", x_cloak=True),
+                x_data="{ revealed: false }",
+            )
+            if hide_start_text
+            else Span(records["item"].start_text or "-"),
+            cls="text-lg",
+        ),
+        Td(
+            Div(
+                heart_icon,
+                Form(
+                    rating_dropdown_input,
+                    Hidden(name="item_id", value=item_id),
+                ),
+                cls="flex items-center gap-2",
+            ),
+        ),
+        id=row_id,
+        cls=row_background_color(rating),
+    )
+
+
+def render_bulk_action_bar(mode_code, current_date, plan_id):
+    """Render a sticky bulk action bar for applying ratings to selected items."""
+    plan_id_val = plan_id or ""
+
+    def bulk_button(rating_value, label, btn_cls):
+        return Button(
+            label,
+            hx_post="/bulk_rate",
+            hx_vals={"rating": rating_value, "mode_code": mode_code, "date": current_date, "plan_id": plan_id_val},
+            hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+            hx_target=f"#summary_table_{mode_code}",
+            hx_swap="outerHTML",
+            **{"@click": "count = 0"},
+            cls=(btn_cls, "px-4 py-2"),
+        )
+
+    select_all_checkbox = Div(
+        fh.Input(
+            type="checkbox",
+            cls="checkbox",
+            **{
+                "@change": """
+                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
+                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                """,
+                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
+            },
+        ),
+        Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
+        Span("|", cls="text-gray-300 mx-2"),
+        Span(x_text="count", cls="font-bold"),
+        cls="flex items-center",
+    )
+
+    spacer = Div(cls="h-16", x_show="count > 0", style="display: none")
+
+    cancel_button = Button(
+        "✕",
+        cls="btn btn-ghost btn-sm",
+        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        title="Cancel selection",
+    )
+
+    bar = Div(
+        select_all_checkbox,
+        Div(
+            bulk_button(1, "Good", ButtonT.primary),
+            bulk_button(0, "Ok", ButtonT.secondary),
+            bulk_button(-1, "Bad", ButtonT.destructive),
+            cancel_button,
+            cls="flex gap-2 items-center",
+        ),
+        id=f"bulk-bar-{mode_code}",
+        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+        x_show="count > 0",
+        style="display: none",
+    )
+
+    return Div(spacer, bar)
+
+
+def render_surah_header(surah_id, juz_number):
+    """Render a surah section header row with surah name and juz indicator."""
+    surah_name = surahs[surah_id].name
+    return Tr(
+        Td(
+            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
+            colspan=4,
+            cls="bg-base-200 py-1 px-2",
+        ),
+        cls="surah-header",
+    )
+
+
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, offset=0, items_per_page=None, show_loved_only=False, rows_only=False):
+    current_date = get_current_date(auth)
+    plan_id = get_current_plan_id()
+
+    total_items = len(item_ids)
+
+    if item_ids:
+        total_page_equivalents = sum(get_item_page_portion(item_id) for item_id in item_ids)
+    else:
+        total_page_equivalents = 0
+
+    if items_per_page and items_per_page > 0:
+        start_idx = offset
+        end_idx = offset + items_per_page
+        paginated_item_ids = item_ids[start_idx:end_idx]
+        has_more = end_idx < total_items
+    else:
+        paginated_item_ids = item_ids
+        has_more = False
+
+    plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
+    if paginated_item_ids:
+        today_revisions = revisions(
+            where=f"revision_date = '{current_date}' AND item_id IN ({', '.join(map(str, paginated_item_ids))}) AND {get_mode_condition(mode_code)} {plan_condition}"
+        )
+    else:
+        today_revisions = []
+    revisions_lookup = {rev.item_id: rev for rev in today_revisions}
+
+    if paginated_item_ids:
+        hafiz_items_data = hafizs_items(
+            where=f"item_id IN ({', '.join(map(str, paginated_item_ids))})"
+        )
+    else:
+        hafiz_items_data = []
+    loved_lookup = {hi.item_id: bool(hi.loved) for hi in hafiz_items_data}
+
+    items_with_revisions = [
+        {"item": items[item_id], "revision": revisions_lookup.get(item_id)}
+        for item_id in paginated_item_ids
+    ]
+
+    body_rows = []
+    current_surah_id = None
+    prev_page_id = None
+    for records in items_with_revisions:
+        item = records["item"]
+        if item.surah_id != current_surah_id:
+            current_surah_id = item.surah_id
+            juz_number = get_juz_name(item_id=item.id)
+            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            prev_page_id = None
+        is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
+        is_loved = loved_lookup.get(item.id, False)
+        row = render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive, loved=is_loved)
+        body_rows.append(row)
+        prev_page_id = item.page_id
+
+    if has_more and body_rows:
+        for i in range(len(body_rows) - 1, -1, -1):
+            row = body_rows[i]
+            if hasattr(row, "attrs") and "surah-header" not in row.attrs.get("cls", ""):
+                next_offset = offset + items_per_page
+                row.attrs.update({
+                    "hx-get": f"/page/{mode_code}/more?offset={next_offset}&show_loved_only={'true' if show_loved_only else 'false'}",
+                    "hx-trigger": "revealed",
+                    "hx-swap": "afterend",
+                })
+                break
+
+    if rows_only:
+        return tuple(body_rows)
+
+    if not body_rows:
+        body_rows = [
+            Tr(
+                Td(
+                    "No pages to review on this page.",
+                    colspan=4,
+                    cls="text-center text-gray-500 py-4",
+                )
+            )
+        ]
+
+    if is_plan_finished:
+        body_rows.append(
+            Tr(
+                Td(
+                    Span(
+                        "Plan is finished, mark pages in ",
+                        A("Profile", href="/profile", cls=AT.classic),
+                        " to continue, or a new plan will be created",
+                    ),
+                    colspan=4,
+                    cls="text-center text-lg",
+                )
+            )
+        )
+
+    bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
+
+    filter_toggle = None
+    if mode_code == SRS_MODE_CODE:
+        filter_toggle = Div(
+            Button(
+                "❤️ Loved Only" if not show_loved_only else "📋 Show All",
+                hx_get=f"/page/{mode_code}?offset=0&show_loved_only={'false' if show_loved_only else 'true'}",
+                hx_target=f"#summary_table_{mode_code}",
+                hx_swap="outerHTML",
+                cls=f"btn btn-sm {'btn-primary' if show_loved_only else 'btn-ghost'}",
+                data_testid=f"loved-filter-toggle-{mode_code}",
+            ),
+            cls="flex justify-end mb-2",
+        )
+
+    table_content = []
+    if filter_toggle:
+        table_content.append(filter_toggle)
+
+    table_content.append(
+        Table(
+            Tbody(*body_rows, id=f"{mode_code}_tbody"),
+            cls=(TableT.middle, TableT.divider, TableT.sm),
+        )
+    )
+
+    table_content.append(bulk_bar)
+
+    table = Div(
+        *table_content,
+        id=f"summary_table_{mode_code}",
+        x_data="{ count: 0 }",
+    )
+    return (mode_code, table)
+
+
+# === Mode Filter Predicates ===
+
+
+def _is_review_due(item: dict, current_date: str) -> bool:
+    """Check if item is due for review today or overdue."""
+    return day_diff(item["next_review"], current_date) >= 0
+
+
+def _is_reviewed_today(item: dict, current_date: str) -> bool:
+    """Check if item was reviewed today."""
+    return item["last_review"] == current_date
+
+
+def _has_memorized(item: dict) -> bool:
+    """Check if item is marked as memorized."""
+    return item["memorized"]
+
+
+def _has_revisions_in_mode(item: dict) -> bool:
+    """Check if item has any revisions in its current mode."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'"))
+
+
+def _has_revisions_today_in_mode(item: dict, current_date: str) -> bool:
+    """Check if item has revisions in its current mode today."""
+    item_id = item["item_id"]
+    mode_code = item["mode_code"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND mode_code = '{mode_code}' AND revision_date = '{current_date}'"
+        )
+    )
+
+
+def _was_newly_memorized_today(item: dict, current_date: str) -> bool:
+    """Check if item was newly memorized today (has NM revision today)."""
+    item_id = item["item_id"]
+    return bool(
+        revisions(
+            where=f"item_id = {item_id} AND revision_date = '{current_date}' AND mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
+        )
+    )
+
+
+def _create_standard_rep_mode_predicate(mode_code: str):
+    """Factory function to create predicates for standard rep modes."""
+    def predicate(item: dict, current_date: str) -> bool:
+        if item["mode_code"] != mode_code:
+            return False
+        return _is_review_due(item, current_date) or (
+            _is_reviewed_today(item, current_date) and _has_revisions_in_mode(item)
+        )
+    return predicate
+
+
+def should_include_in_daily_reps(item: dict, current_date: str) -> bool:
+    """Predicate for Daily Reps mode: due for review OR reviewed today (unless just memorized)."""
+    is_due = _is_review_due(item, current_date) and not _was_newly_memorized_today(
+        item, current_date
+    )
+    reviewed_in_mode = (
+        _is_reviewed_today(item, current_date)
+        and item["mode_code"] == DAILY_REPS_MODE_CODE
+    )
+    return is_due or reviewed_in_mode
+
+
+should_include_in_weekly_reps = _create_standard_rep_mode_predicate(WEEKLY_REPS_MODE_CODE)
+should_include_in_fortnightly_reps = _create_standard_rep_mode_predicate(FORTNIGHTLY_REPS_MODE_CODE)
+should_include_in_monthly_reps = _create_standard_rep_mode_predicate(MONTHLY_REPS_MODE_CODE)
+
+
+def should_include_in_srs(item: dict, current_date: str) -> bool:
+    """Predicate for SRS mode: due for review OR has revisions today."""
+    return _is_review_due(item, current_date) or _has_revisions_today_in_mode(
+        item, current_date
+    )
+
+
+def should_include_in_full_cycle(item: dict, current_date: str) -> bool:
+    """Predicate for Full Cycle mode: item must be memorized."""
+    return _has_memorized(item)
+
+
+MODE_PREDICATES = {
+    DAILY_REPS_MODE_CODE: should_include_in_daily_reps,
+    WEEKLY_REPS_MODE_CODE: should_include_in_weekly_reps,
+    FORTNIGHTLY_REPS_MODE_CODE: should_include_in_fortnightly_reps,
+    MONTHLY_REPS_MODE_CODE: should_include_in_monthly_reps,
+    SRS_MODE_CODE: should_include_in_srs,
+    FULL_CYCLE_MODE_CODE: should_include_in_full_cycle,
+}
+
+
+def make_summary_table(
+    mode_code: str,
+    auth: str,
+    table_only=False,
+    offset=0,
+    items_per_page=None,
+    show_loved_only=False,
+    rows_only=False,
+):
+    current_date = get_current_date(auth)
+
+    qry = f"""
+        SELECT hafizs_items.item_id, items.surah_name, hafizs_items.next_review, hafizs_items.last_review, hafizs_items.mode_code, hafizs_items.memorized, hafizs_items.page_number, hafizs_items.loved FROM hafizs_items
+        LEFT JOIN items on hafizs_items.item_id = items.id
+        WHERE {get_mode_condition(mode_code)} AND hafizs_items.hafiz_id = {auth}
+        ORDER BY hafizs_items.item_id ASC
+    """
+    mode_specific_hafizs_items_records = db.q(qry)
+
+    predicate = MODE_PREDICATES[mode_code]
+    filtered_records = [
+        item
+        for item in mode_specific_hafizs_items_records
+        if predicate(item, current_date)
+    ]
+
+    def get_unique_item_ids(records):
+        return list(dict.fromkeys(record["item_id"] for record in records))
+
+    if mode_code == SRS_MODE_CODE:
+        exclude_start_page = get_last_added_full_cycle_page(auth)
+
+        if exclude_start_page is not None:
+            SRS_EXCLUSION_ZONE = 60
+            exclude_end_page = exclude_start_page + SRS_EXCLUSION_ZONE
+
+            filtered_records = [
+                record
+                for record in filtered_records
+                if record["page_number"] < exclude_start_page
+                or record["page_number"] > exclude_end_page
+            ]
+
+        if show_loved_only:
+            filtered_records = [
+                record for record in filtered_records if record.get("loved")
+            ]
+
+    item_ids = get_unique_item_ids(filtered_records)
+
+    if mode_code == FULL_CYCLE_MODE_CODE:
+        is_plan_finished, item_ids = get_full_review_item_ids(
+            auth=auth,
+            mode_specific_hafizs_items_records=mode_specific_hafizs_items_records,
+            item_ids=item_ids,
+        )
+    else:
+        is_plan_finished = False
+
+    if not item_ids:
+        return None
+
+    result = render_summary_table(
+        auth=auth,
+        mode_code=mode_code,
+        item_ids=item_ids,
+        is_plan_finished=is_plan_finished,
+        offset=offset,
+        items_per_page=items_per_page,
+        show_loved_only=show_loved_only,
+        rows_only=rows_only,
+    )
+    if rows_only:
+        return result
+    if table_only:
+        return result[1]
+    return result
+
+
+def render_current_date(auth):
+    current_date = get_current_date(auth)
+    return P(
+        Span(date_to_human_readable(current_date), cls=TextPresets.bold_lg, data_testid="system-date"),
+    )

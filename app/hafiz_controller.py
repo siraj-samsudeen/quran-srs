@@ -1,10 +1,14 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
-from app.common_function import *
+from utils import standardize_column
+from app.common_function import (
+    create_app_with_auth,
+    main_area,
+    populate_hafizs_items_stat_columns,
+)
 from app.hafiz_model import get_hafizs_for_user, populate_hafiz_items, create_new_plan, reset_table_filters
 from app.hafiz_view import render_hafiz_card, render_add_hafiz_form, render_hafiz_selection_page
-from database import *
+from database import hafizs, Hafiz
 
 
 hafiz_app, rt = create_app_with_auth()

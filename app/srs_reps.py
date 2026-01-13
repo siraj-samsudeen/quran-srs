@@ -23,20 +23,16 @@ The separation between SRS and fixed reps (fixed_reps.py) is intentional and sho
 be maintained - they solve fundamentally different problems.
 """
 
-from constants import *
+from constants import FULL_CYCLE_MODE_CODE, SRS_MODE_CODE
 from database import (
     db,
     hafizs_items,
     revisions,
 )
-from utils import *
-from fasthtml.common import *
-from monsterui.all import *
+from utils import add_days_to_date, calculate_days_difference
 from app.common_function import (
     get_hafizs_items,
     get_current_date,
-    get_page_description,
-    render_rating,
 )
 
 # Starting intervals when entering SRS mode
