@@ -826,7 +826,7 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
     )
 
     # Spacer div to push content up when bulk bar is visible (prevents overlay)
-    spacer = Div(cls="h-16", x_show="count > 0")
+    spacer = Div(cls="h-16", x_show="count > 0", style="display: none")
 
     # Cancel button to clear selection and hide the bar
     cancel_button = Button(
@@ -848,6 +848,7 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
         id=f"bulk-bar-{mode_code}",
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
         x_show="count > 0",
+        style="display: none",
     )
 
     return Div(spacer, bar)

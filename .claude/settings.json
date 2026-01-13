@@ -4,5 +4,8 @@
       "mcp__serena__*",
       "mcp__context7__*"
     ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
   }
 }
