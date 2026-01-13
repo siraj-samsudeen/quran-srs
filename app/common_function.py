@@ -1253,11 +1253,7 @@ def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
         value=item_id,
         checked=is_memorized_today,
         cls="checkbox bulk-select-checkbox",
-        hx_post=f"/new_memorization/toggle/{item_id}",
-        hx_target=f"#summary_table_{NEW_MEMORIZATION_MODE_CODE}",
-        hx_swap="outerHTML",
-        hx_vals={"date": current_date},
-        # Update count when checkbox changes
+        # Update count when checkbox changes (no HTMX here, bulk action buttons handle submission)
         **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
     )
 
@@ -1323,9 +1319,20 @@ def render_nm_bulk_action_bar(current_date):
         cls="flex items-center",
     )
 
-    mark_button = Button(
-        "Mark as Memorized",
+    mark_new_button = Button(
+        "Mark as New Memorization",
         hx_post="/new_memorization/bulk_mark",
+        hx_vals={"date": current_date},
+        hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
+        hx_target=f"#summary_table_{mode_code}",
+        hx_swap="outerHTML",
+        **{"@click": "count = 0"},
+        cls=(ButtonT.secondary, "px-4 py-2"),
+    )
+
+    mark_memorized_button = Button(
+        "Mark as Memorized",
+        hx_post="/new_memorization/bulk_mark_memorized",
         hx_vals={"date": current_date},
         hx_include=f"#{mode_code}_tbody [name='item_ids']:checked",
         hx_target=f"#summary_table_{mode_code}",
@@ -1336,9 +1343,15 @@ def render_nm_bulk_action_bar(current_date):
 
     return Div(
         select_all_checkbox,
-        mark_button,
+        Div(
+            mark_new_button,
+            mark_memorized_button,
+            cls="flex gap-2 items-center",
+        ),
         id=f"bulk-bar-{mode_code}",
         cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
+        x_show="count > 0",
+        style="display: none",
     )
 
 

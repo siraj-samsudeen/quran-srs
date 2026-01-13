@@ -101,3 +101,33 @@ def bulk_mark_as_memorized(sess, auth, item_ids: list[str], date: str):
         page=current_page,
         items_per_page=ITEMS_PER_PAGE,
     )
+
+
+@new_memorization_app.post("/bulk_mark_memorized")
+def bulk_mark_memorized(sess, auth, item_ids: list[str], date: str):
+    """Bulk mark items as permanently memorized (skip New Memorization workflow)."""
+    for item_id in item_ids:
+        item_id_int = int(item_id)
+        # Create revision with FULL_CYCLE_MODE_CODE
+        revisions.insert(
+            hafiz_id=auth,
+            item_id=item_id_int,
+            revision_date=date,
+            rating=1,
+            mode_code=FULL_CYCLE_MODE_CODE,
+        )
+        # Immediately mark as memorized in full cycle mode
+        hafiz_item = get_hafizs_items(item_id_int)
+        if hafiz_item:
+            hafiz_item.memorized = True
+            hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
+            hafizs_items.update(hafiz_item)
+
+    # Return updated table
+    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
+    return make_new_memorization_table(
+        auth=auth,
+        table_only=True,
+        page=current_page,
+        items_per_page=ITEMS_PER_PAGE,
+    )
