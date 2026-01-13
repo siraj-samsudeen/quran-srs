@@ -737,53 +737,6 @@ def get_mode_condition(mode_code: str):
     return mode_condition
 
 
-def render_pagination_controls(mode_code, current_page, total_pages, total_items, info_text=None):
-    """Render pagination controls for navigating between pages."""
-    is_first_page = current_page <= 1
-    is_last_page = current_page >= total_pages
-
-    # Compute bounded page values to avoid out-of-range requests
-    prev_page = max(1, current_page - 1)
-    next_page = min(total_pages, current_page + 1)
-
-    prev_button = Button(
-        "←",
-        hx_get=f"/page/{mode_code}?page={prev_page}",
-        hx_target=f"#summary_table_{mode_code}",
-        hx_swap="outerHTML",
-        cls=(ButtonT.secondary, "px-4 py-2"),
-        data_testid=f"pagination-prev-{mode_code}",
-    ) if not is_first_page else Span()
-
-    next_button = Button(
-        "→",
-        hx_get=f"/page/{mode_code}?page={next_page}",
-        hx_target=f"#summary_table_{mode_code}",
-        hx_swap="outerHTML",
-        cls=(ButtonT.secondary, "px-4 py-2"),
-        data_testid=f"pagination-next-{mode_code}",
-    ) if not is_last_page else Span()
-
-    # Use custom info_text if provided, otherwise default format
-    default_info = f"Page {current_page} of {total_pages} ({total_items} items)"
-    page_info = Span(
-        info_text or default_info,
-        cls="text-sm font-medium",
-        data_testid=f"pagination-info-{mode_code}",
-    )
-
-    return Div(
-        Div(
-            prev_button,
-            page_info,
-            next_button,
-            cls="flex justify-between items-center gap-4",
-        ),
-        cls="p-3 border-t bg-gray-50",
-        data_testid=f"pagination-controls-{mode_code}",
-    )
-
-
 def render_bulk_action_bar(mode_code, current_date, plan_id):
     """Render a sticky bulk action bar for applying ratings to selected items.
 
@@ -868,11 +821,11 @@ def render_surah_header(surah_id, juz_number):
     )
 
 
-def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, items_per_page=None, show_loved_only=False):
+def render_summary_table(auth, mode_code, item_ids, is_plan_finished, offset=0, items_per_page=None, show_loved_only=False, rows_only=False):
     current_date = get_current_date(auth)
     plan_id = get_current_plan_id()
 
-    # Calculate pagination
+    # Calculate infinite scroll batch
     total_items = len(item_ids)
 
     # Calculate page-equivalents for all modes (items can be partial pages)
@@ -882,14 +835,13 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
         total_page_equivalents = 0
 
     if items_per_page and items_per_page > 0:
-        total_pages = math.ceil(total_items / items_per_page)
-        page = max(1, min(page, total_pages))  # Clamp page to valid range
-        start_idx = (page - 1) * items_per_page
-        end_idx = start_idx + items_per_page
+        start_idx = offset
+        end_idx = offset + items_per_page
         paginated_item_ids = item_ids[start_idx:end_idx]
+        has_more = end_idx < total_items
     else:
         paginated_item_ids = item_ids
-        total_pages = 1
+        has_more = False
 
     # Query all today's revisions once for efficiency
     plan_condition = f"AND plan_id = {plan_id}" if plan_id else ""
@@ -936,10 +888,28 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
         # Get loved status for this item
         is_loved = loved_lookup.get(item.id, False)
         # Add the item row
-        body_rows.append(
-            render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive, loved=is_loved)
-        )
+        row = render_range_row(records, current_date, mode_code, plan_id, hide_start_text=is_consecutive, loved=is_loved)
+        body_rows.append(row)
         prev_page_id = item.page_id
+
+    # Add infinite scroll trigger to the last data row if more items exist
+    if has_more and body_rows:
+        # Find the last actual data row (not a surah header)
+        for i in range(len(body_rows) - 1, -1, -1):
+            row = body_rows[i]
+            if hasattr(row, "attrs") and "surah-header" not in row.attrs.get("cls", ""):
+                next_offset = offset + items_per_page
+                row.attrs.update({
+                    "hx-get": f"/page/{mode_code}/more?offset={next_offset}&show_loved_only={'true' if show_loved_only else 'false'}",
+                    "hx-trigger": "revealed",
+                    "hx-swap": "afterend",
+                })
+                break
+
+    # Return just the rows for infinite scroll requests
+    if rows_only:
+        return tuple(body_rows)
+
     # Show empty-state message when no items on current page (keeps table structure intact)
     if not body_rows:
         body_rows = [
@@ -969,23 +939,13 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
 
     bulk_bar = render_bulk_action_bar(mode_code, current_date, plan_id)
 
-    # Render pagination controls
-    pagination_controls = None
-    if items_per_page and total_pages > 1:
-        # Show page-equivalents when item count differs from page count (due to split pages)
-        if total_items != int(total_page_equivalents):
-            info_text = f"Page {page} of {total_pages} ({total_items} items, {format_number(total_page_equivalents)} pages)"
-        else:
-            info_text = None
-        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items, info_text)
-
     # Filter toggle for SRS mode
     filter_toggle = None
     if mode_code == SRS_MODE_CODE:
         filter_toggle = Div(
             Button(
                 "❤️ Loved Only" if not show_loved_only else "📋 Show All",
-                hx_get=f"/page/{mode_code}?page=1&show_loved_only={'false' if show_loved_only else 'true'}",
+                hx_get=f"/page/{mode_code}?offset=0&show_loved_only={'false' if show_loved_only else 'true'}",
                 hx_target=f"#summary_table_{mode_code}",
                 hx_swap="outerHTML",
                 cls=f"btn btn-sm {'btn-primary' if show_loved_only else 'btn-ghost'}",
@@ -1002,14 +962,8 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, page=1, it
         Table(
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
             cls=(TableT.middle, TableT.divider, TableT.sm),
-            # To prevent scroll jumping
-            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
-            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         )
     )
-
-    if pagination_controls:
-        table_content.append(pagination_controls)
 
     table_content.append(bulk_bar)
 
@@ -1152,9 +1106,10 @@ def make_summary_table(
     mode_code: str,
     auth: str,
     table_only=False,
-    page=1,
+    offset=0,
     items_per_page=None,
     show_loved_only=False,
+    rows_only=False,
 ):
     current_date = get_current_date(auth)
 
@@ -1219,10 +1174,13 @@ def make_summary_table(
         mode_code=mode_code,
         item_ids=item_ids,
         is_plan_finished=is_plan_finished,
-        page=page,
+        offset=offset,
         items_per_page=items_per_page,
         show_loved_only=show_loved_only,
+        rows_only=rows_only,
     )
+    if rows_only:
+        return result  # Tuple of rows for infinite scroll
     if table_only:
         return result[1]  # Just the table element for HTMX swap
     return result
@@ -1355,7 +1313,7 @@ def render_nm_bulk_action_bar(current_date):
     )
 
 
-def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=False):
+def make_new_memorization_table(auth, offset=0, items_per_page=None, table_only=False, rows_only=False):
     """Build the New Memorization tab content showing unmemorized pages.
 
     Shows:
@@ -1389,17 +1347,16 @@ def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=Fa
     if not all_item_ids:
         return None
 
-    # Pagination
+    # Infinite scroll batch
     total_items = len(all_item_ids)
     if items_per_page and items_per_page > 0:
-        total_pages = math.ceil(total_items / items_per_page)
-        page = max(1, min(page, total_pages))
-        start_idx = (page - 1) * items_per_page
-        end_idx = start_idx + items_per_page
+        start_idx = offset
+        end_idx = offset + items_per_page
         paginated_item_ids = all_item_ids[start_idx:end_idx]
+        has_more = end_idx < total_items
     else:
         paginated_item_ids = all_item_ids
-        total_pages = 1
+        has_more = False
 
     # Get item details for paginated items
     items_data = [items[item_id] for item_id in paginated_item_ids]
@@ -1418,8 +1375,26 @@ def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=Fa
             prev_page_id = None  # Reset consecutive tracking on surah change
 
         is_memorized_today = item.id in today_nm_item_ids
-        body_rows.append(render_nm_row(item, current_date, is_memorized_today, prev_page_id))
+        row = render_nm_row(item, current_date, is_memorized_today, prev_page_id)
+        body_rows.append(row)
         prev_page_id = item.page_id
+
+    # Add infinite scroll trigger to the last data row if more items exist
+    if has_more and body_rows:
+        for i in range(len(body_rows) - 1, -1, -1):
+            row = body_rows[i]
+            if hasattr(row, "attrs") and "surah-header" not in row.attrs.get("cls", ""):
+                next_offset = offset + items_per_page
+                row.attrs.update({
+                    "hx-get": f"/page/{mode_code}/more?offset={next_offset}",
+                    "hx-trigger": "revealed",
+                    "hx-swap": "afterend",
+                })
+                break
+
+    # Return just the rows for infinite scroll requests
+    if rows_only:
+        return tuple(body_rows)
 
     # Empty state
     if not body_rows:
@@ -1435,22 +1410,12 @@ def make_new_memorization_table(auth, page=1, items_per_page=None, table_only=Fa
 
     bulk_bar = render_nm_bulk_action_bar(current_date)
 
-    # Pagination controls
-    pagination_controls = None
-    if items_per_page and total_pages > 1:
-        pagination_controls = render_pagination_controls(mode_code, page, total_pages, total_items)
-
     table_content = [
         Table(
             Tbody(*body_rows, id=f"{mode_code}_tbody"),
             cls=(TableT.middle, TableT.divider, TableT.sm),
-            hx_on__before_request="sessionStorage.setItem('scroll', window.scrollY)",
-            hx_on__after_swap="window.scrollTo(0, sessionStorage.getItem('scroll'))",
         ),
     ]
-
-    if pagination_controls:
-        table_content.append(pagination_controls)
 
     table_content.append(bulk_bar)
 

@@ -67,17 +67,15 @@ def toggle_new_memorization(sess, auth, item_id: int, date: str):
         )
 
     # Return updated table
-    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
     return make_new_memorization_table(
         auth=auth,
         table_only=True,
-        page=current_page,
         items_per_page=ITEMS_PER_PAGE,
     )
 
 
 @new_memorization_app.post("/bulk_mark")
-def bulk_mark_as_memorized(sess, auth, item_ids: list[str], date: str):
+def bulk_mark_as_memorized(auth, item_ids: list[str], date: str):
     """Bulk mark items as newly memorized."""
     for item_id in item_ids:
         # Only create revision if it doesn't exist
@@ -93,18 +91,16 @@ def bulk_mark_as_memorized(sess, auth, item_ids: list[str], date: str):
                 mode_code=NEW_MEMORIZATION_MODE_CODE,
             )
 
-    # Return updated table
-    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
+    # Return updated table (reset to first batch)
     return make_new_memorization_table(
         auth=auth,
         table_only=True,
-        page=current_page,
         items_per_page=ITEMS_PER_PAGE,
     )
 
 
 @new_memorization_app.post("/bulk_mark_memorized")
-def bulk_mark_memorized(sess, auth, item_ids: list[str], date: str):
+def bulk_mark_memorized(auth, item_ids: list[str], date: str):
     """Bulk mark items as permanently memorized (skip New Memorization workflow)."""
     for item_id in item_ids:
         item_id_int = int(item_id)
@@ -123,11 +119,9 @@ def bulk_mark_memorized(sess, auth, item_ids: list[str], date: str):
             hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
             hafizs_items.update(hafiz_item)
 
-    # Return updated table
-    current_page = sess.get("pagination", {}).get(NEW_MEMORIZATION_MODE_CODE, 1)
+    # Return updated table (reset to first batch)
     return make_new_memorization_table(
         auth=auth,
         table_only=True,
-        page=current_page,
         items_per_page=ITEMS_PER_PAGE,
     )

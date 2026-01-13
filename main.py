@@ -45,59 +45,45 @@ print("-" * 15, "ROUTES=", app.routes)
 
 @rt
 def index(auth, sess):
-    # Initialize pagination state if not exists
-    if "pagination" not in sess:
-        sess["pagination"] = {}
-
     # Get hafiz's page_size setting (fallback to default)
     current_hafiz = hafizs[auth]
     items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
 
-    # Helper to get current page for a mode
-    def get_page(mode_code):
-        return sess["pagination"].get(mode_code, 1)
-
     # Build panels - each returns (mode_code, panel) tuple
+    # Infinite scroll starts at offset 0
     mode_panels = [
         make_new_memorization_table(
             auth,
-            page=get_page(NEW_MEMORIZATION_MODE_CODE),
             items_per_page=ITEMS_PER_PAGE,
         ),
         make_summary_table(
             FULL_CYCLE_MODE_CODE,
             auth,
-            page=get_page(FULL_CYCLE_MODE_CODE),
             items_per_page=items_per_page,
         ),
         make_summary_table(
             SRS_MODE_CODE,
             auth,
-            page=get_page(SRS_MODE_CODE),
             items_per_page=items_per_page,
         ),
         make_summary_table(
             DAILY_REPS_MODE_CODE,
             auth,
-            page=get_page(DAILY_REPS_MODE_CODE),
             items_per_page=items_per_page,
         ),
         make_summary_table(
             WEEKLY_REPS_MODE_CODE,
             auth,
-            page=get_page(WEEKLY_REPS_MODE_CODE),
             items_per_page=items_per_page,
         ),
         make_summary_table(
             FORTNIGHTLY_REPS_MODE_CODE,
             auth,
-            page=get_page(FORTNIGHTLY_REPS_MODE_CODE),
             items_per_page=ITEMS_PER_PAGE,
         ),
         make_summary_table(
             MONTHLY_REPS_MODE_CODE,
             auth,
-            page=get_page(MONTHLY_REPS_MODE_CODE),
             items_per_page=ITEMS_PER_PAGE,
         ),
     ]
@@ -294,13 +280,8 @@ def datewise_summary_table_view(auth):
 
 
 @app.get("/page/{mode_code}")
-def change_page(sess, auth, mode_code: str, page: int = 1, show_loved_only: str = "false"):
-    """Handle pagination for mode-specific tables."""
-    # Store current page in session
-    if "pagination" not in sess:
-        sess["pagination"] = {}
-    sess["pagination"][mode_code] = page
-
+def change_page(sess, auth, mode_code: str, offset: int = 0, show_loved_only: str = "false"):
+    """Handle table refresh with infinite scroll (full table replacement)."""
     # Store loved filter in session
     if "loved_filter" not in sess:
         sess["loved_filter"] = {}
@@ -316,7 +297,7 @@ def change_page(sess, auth, mode_code: str, page: int = 1, show_loved_only: str 
         return make_new_memorization_table(
             auth=auth,
             table_only=True,
-            page=page,
+            offset=offset,
             items_per_page=items_per_page,
         )
 
@@ -324,9 +305,36 @@ def change_page(sess, auth, mode_code: str, page: int = 1, show_loved_only: str 
         mode_code=mode_code,
         auth=auth,
         table_only=True,
-        page=page,
+        offset=offset,
         items_per_page=items_per_page,
         show_loved_only=loved_only,
+    )
+
+
+@app.get("/page/{mode_code}/more")
+def load_more_rows(auth, mode_code: str, offset: int = 0, show_loved_only: str = "false"):
+    """Handle infinite scroll - return additional rows only."""
+    # Get hafiz's page_size setting (fallback to default)
+    current_hafiz = hafizs[auth]
+    items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
+    loved_only = show_loved_only.lower() == "true"
+
+    # Handle NM mode separately (uses different table function)
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return make_new_memorization_table(
+            auth=auth,
+            offset=offset,
+            items_per_page=items_per_page,
+            rows_only=True,
+        )
+
+    return make_summary_table(
+        mode_code=mode_code,
+        auth=auth,
+        offset=offset,
+        items_per_page=items_per_page,
+        show_loved_only=loved_only,
+        rows_only=True,
     )
 
 

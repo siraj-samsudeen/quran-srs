@@ -1,4 +1,4 @@
-"""Integration tests for Full Cycle pagination behavior."""
+"""Integration tests for Full Cycle infinite scroll behavior."""
 
 import time
 import pytest
