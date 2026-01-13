@@ -1,16 +1,10 @@
 from fasthtml.common import *
 from monsterui.all import *
-from io import BytesIO
-import pandas as pd
-from utils import *
-from app.common_function import *
-from database import *
+from app.admin_model import get_column_headers, get_column_and_its_type, get_table_records
+from database import db
 
-
+# We need the list of tables for the sidebar
 tables = db.t
-
-admin_app, rt = create_app_with_auth()
-
 
 def tables_main_area(*args, active_table=None, auth=None):
     is_active = lambda x: "uk-active" if x == active_table else None
@@ -47,31 +41,7 @@ def tables_main_area(*args, active_table=None, auth=None):
         auth=auth,
     )
 
-
-def get_column_headers(table):
-    data_class = tables[table].dataclass()
-    columns = [k for k in data_class.__dict__.keys() if not k.startswith("_")]
-    return columns
-
-
-def render_options(option):
-    return Option(
-        option.capitalize(),
-        value=option,
-    )
-
-
-def parse_primary_key(table: str, primary_key: str):
-    if table != "modes":
-        return int(primary_key)
-    return primary_key
-
-
-@admin_app.get("/backups")
-def list_backups(auth):
-    files = [f for f in os.listdir("data/backup") if f.endswith(".db")]
-    files = sorted(files, reverse=True)
-
+def render_backups_list(files, auth):
     def render_dbs(file_name: str):
         return Li(
             A(
@@ -93,33 +63,7 @@ def list_backups(auth):
         active="Admin",
     )
 
-
-@admin_app.get("/backups/{file}")
-def download_backup(file: str):
-    return FileResponse(f"data/backup/{file}", media_type="application/octet-stream")
-
-
-@admin_app.get("/backup")
-def backup_active_db():
-    """Create backup with WAL flush to ensure all data is included"""
-    try:
-        backup_path = backup_database("data/backup")
-        return FileResponse(backup_path, filename="quran_backup.db")
-    except FileNotFoundError as e:
-        return Titled("Error", P("Database file not found"))
-    except Exception as e:
-        return Titled("❌ Error", P(f"Error creating backup: {e}"))
-
-
-@admin_app.get("/tables")
-def list_tables(auth):
-    return tables_main_area(auth=auth)
-
-
-@admin_app.get("/tables/{table}")
-def view_table(table: str, auth):
-    records = db.q(f"SELECT * FROM {table}")
-    columns = get_column_headers(table)
+def render_table_view(table, records, columns, auth):
     if table == "modes":
         primary_key_column = "code"
     else:
@@ -190,7 +134,6 @@ def view_table(table: str, auth):
         auth=auth,
     )
 
-
 def create_dynamic_input_form(schema: dict, **kwargs):
     input_types_map = {"int": "number", "str": "text", "date": "date"}
 
@@ -226,19 +169,7 @@ def create_dynamic_input_form(schema: dict, **kwargs):
         cls="space-y-4",
     )
 
-
-@admin_app.get("/tables/{table}/{primary_key}/edit")
-def edit_record_view(table: str, primary_key: str, auth):
-    primary_key = parse_primary_key(table, primary_key)
-
-    current_table = tables[table]
-    current_data = current_table[primary_key]
-
-    # The `completed` column is stored in int but it needs to be considered as bool
-    # so we are converting it to str in order to select the right radio button using fill_form
-    if table == "plans":
-        current_data.completed = str(current_data.completed)
-
+def render_edit_record_view(table, primary_key, current_data, auth):
     column_with_types = get_column_and_its_type(table)
     form = create_dynamic_input_form(
         column_with_types,
@@ -255,40 +186,7 @@ def edit_record_view(table: str, primary_key: str, auth):
         auth=auth,
     )
 
-
-def get_column_and_its_type(table):
-    data_class = tables[table].dataclass()
-    return data_class.__dict__["__annotations__"]
-
-
-@admin_app.put("/tables/{table}/{primary_key}")
-async def update_record(table: str, primary_key: str, redirect_link: str, req: Request):
-    primary_key = parse_primary_key(table, primary_key)
-    formt_data = await req.form()
-    current_data = formt_data.__dict__.get("_dict")
-    # replace the value to `None` in order to set it as unset if the value came as empty
-    current_data = {
-        key: (value if value != "" else None)
-        for key, value in current_data.items()
-        if key != "redirect_link"
-    }
-
-    tables[table].update(current_data, primary_key)
-
-    return RedirectResponse(redirect_link, status_code=303)
-
-
-@admin_app.delete("/tables/{table}/{primary_key}")
-def delete_record(table: str, primary_key: str):
-    try:
-        primary_key = parse_primary_key(table, primary_key)
-        tables[table].delete(primary_key)
-    except Exception as e:
-        return Tr(Td(P(f"Error: {e}"), colspan="11", cls="text-center"))
-
-
-@admin_app.get("/tables/{table}/new")
-def new_record_view(table: str, auth):
+def render_new_record_view(table, auth):
     column_with_types = get_column_and_its_type(table)
     return tables_main_area(
         Titled(
@@ -301,33 +199,7 @@ def new_record_view(table: str, auth):
         auth=auth,
     )
 
-
-@admin_app.post("/tables/{table}")
-async def create_new_record(table: str, req: Request):
-    formt_data = await req.form()
-    current_data = formt_data.__dict__.get("_dict")
-    tables[table].insert(current_data)
-    return Redirect(f"/admin/tables/{table}")
-
-
-@admin_app.get("/tables/{table}/export")
-def export_specific_table(table: str):
-    df = pd.DataFrame(tables[table](), columns=get_column_and_its_type(table).keys())
-
-    csv_buffer = BytesIO()
-    df.to_csv(csv_buffer, index=False, header=True)
-    csv_buffer.seek(0)
-
-    file_name = f"{table}.csv"
-    return StreamingResponse(
-        csv_buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}"},
-    )
-
-
-@admin_app.get("/tables/{table}/import")
-def import_specific_table_view(table: str):
+def render_import_view(table, auth):
     form = Form(
         UploadZone(
             DivCentered(Span("Upload Zone"), UkIcon("upload")),
@@ -364,19 +236,13 @@ def import_specific_table_view(table: str):
             cls="space-y-4",
         ),
         active_table=table,
+        auth=auth,
     )
 
-
-@admin_app.post("/tables/{table}/import/preview")
-async def import_specific_table_preview(table: str, file: UploadFile):
-    file_content = await file.read()
-    imported_df = pd.read_csv(BytesIO(file_content)).fillna("")
-    columns = imported_df.columns.tolist()
-    records = imported_df.to_dict(orient="records")
-
+def render_import_preview(table, filename, columns, records):
     if sorted(columns) != sorted(get_column_headers(table)):
         return Div(
-            H3("Filename: ", file.filename),
+            H3("Filename: ", filename),
             P("Please check the columns in the CSV file", cls="text-red-500"),
         )
 
@@ -389,18 +255,4 @@ async def import_specific_table_preview(table: str, file: UploadFile):
         Thead(Tr(*map(Th, columns))),
         Tbody(*map(_render_rows, records)),
     )
-    return Div(H3("Filename: ", file.filename), Div(preview_table))
-
-
-@admin_app.post("/tables/{table}/import")
-async def import_specific_table(table: str, file: UploadFile):
-    backup_database("data/backup")
-    # Instead of using the `import_file` method, we are using `upsert` method to import the csv file
-    # as some of the forign key values are being used in another table
-    # so we cannot truncate the table
-    file_content = await file.read()
-    data = pd.read_csv(BytesIO(file_content)).to_dict("records")
-    for record in data:
-        tables[table].upsert(record)
-
-    return Redirect(f"/admin/tables/{table}")
+    return Div(H3("Filename: ", filename), Div(preview_table))

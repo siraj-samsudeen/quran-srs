@@ -35,3 +35,4 @@ Use `serve()` automatically—no `if __name__ == "__main__"` needed. For titled 
 
 - Always runs tests before finishing the work. 
 - Run playwright tests in headless mode. 
+- use uv run pytest to run tests and uv run main.py to run the app.

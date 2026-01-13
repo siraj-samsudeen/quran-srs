@@ -200,40 +200,11 @@ async def bulk_edit_save(revision_date: str, req, auth):
     return RedirectResponse("/revision/", status_code=303)
 
 
-def parse_page_string(page_str: str):
-    """
-    Formats supported:
-    - "5" -> (5, 0, 0)
-    - "5.2" -> (5, 2, 0)
-    - "5-10" -> (5, 0, 10)
-    - "5.2-10" -> (5, 2, 10)
-    """
-    page = page_str
-    part = 0
-    length = 0
-
-    # Extract length if present
-    if "-" in page:
-        page, length_str = page.split("-")
-        length = int(length_str) if length_str else length
-
-    # Extract part if present
-    if "." in page:
-        page, part_str = page.split(".")
-        part = int(part_str) if part_str else part
-
-    return int(page), part, length
-
-
 def validate_page_revision(sess, item_id, page, plan_id):
     """Show error message for invalid inputs, such as pages already revised or not yet memorized"""
-    if not hafizs_items(
-        where=f"item_id = {item_id} AND memorized = 1 AND mode_code IN ('{FULL_CYCLE_MODE_CODE}', '{SRS_MODE_CODE}') AND page_number = {page}"
-    ):
-        error_toast(sess, f"Given page '{page}' is not yet memorized!")
-        return False
-    if revisions(where=f"item_id = {item_id} AND plan_id = {plan_id}"):
-        error_toast(sess, f"Given page '{page}' is already revised under current plan!")
+    is_valid, error_msg = validate_page_revision_logic(item_id, page, plan_id)
+    if not is_valid:
+        error_toast(sess, error_msg)
         return False
     return True
 

@@ -11,10 +11,30 @@ from database import (
     items,
     plans,
     revisions,
+    surahs,
+    modes,
+    pages,
     Hafiz_Items,
 )
-from constants import FULL_CYCLE_MODE_CODE, SRS_MODE_CODE
-from utils import current_time, calculate_days_difference, find_next_greater
+from constants import (
+    FULL_CYCLE_MODE_CODE, 
+    SRS_MODE_CODE,
+    NEW_MEMORIZATION_MODE_CODE,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    FORTNIGHTLY_REPS_MODE_CODE,
+    MONTHLY_REPS_MODE_CODE,
+    GRADUATABLE_MODES,
+    STATUS_NOT_MEMORIZED,
+    STATUS_LEARNING,
+    STATUS_REPS,
+    STATUS_SOLID,
+    STATUS_STRUGGLING,
+    STATUS_DISPLAY,
+    DEFAULT_REP_COUNTS
+)
+from utils import current_time, calculate_days_difference, find_next_greater, format_number
+from fasthtml.common import NotFoundError
 
 
 def get_current_date(auth) -> str:
@@ -302,3 +322,159 @@ def get_prev_next_item_ids(auth: int, current_item_id: int) -> tuple[int | None,
     prev_id = prev_result[0]["id"] if prev_result else None
     next_id = next_result[0]["id"] if next_result else None
     return prev_id, next_id
+
+
+def get_item_page_portion(item_id: int) -> float:
+    """
+    Calculates the portion of a page that a single item represents.
+    For example, if a page is divided into 4 items, each item represents 0.25 of the page.
+    """
+    page_no = items[item_id].page_id
+    total_parts = items(where=f"page_id = {page_no} and active = 1")
+    if not total_parts:
+        return 0
+    return 1 / len(total_parts)
+
+
+def get_page_count(records: list = None, item_ids: list = None) -> float:
+    total_count = 0
+    if item_ids:
+        process_items = item_ids
+    elif records:
+        process_items = [record.item_id for record in records]
+    else:
+        return format_number(total_count)
+
+    # Calculate page count
+    for item_id in process_items:
+        total_count += get_item_page_portion(item_id)
+    return format_number(total_count)
+
+
+def get_surah_name(page_id=None, item_id=None):
+    if item_id:
+        surah_id = items[item_id].surah_id
+    else:
+        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
+    surah_details = surahs[surah_id]
+    return surah_details.name
+
+def get_page_number(item_id):
+    page_id = items[item_id].page_id
+    return pages[page_id].page_number
+
+def get_mode_name(mode_code: str):
+    try:
+        return modes[mode_code].name
+    except NotFoundError:
+        return mode_code
+
+def get_mode_icon(mode_code: str) -> str:
+    """Returns emoji icon for each mode."""
+    icons = {
+        NEW_MEMORIZATION_MODE_CODE: "🆕",
+        DAILY_REPS_MODE_CODE: "☀️",
+        WEEKLY_REPS_MODE_CODE: "📅",
+        FORTNIGHTLY_REPS_MODE_CODE: "📆",
+        MONTHLY_REPS_MODE_CODE: "🗓️",
+        FULL_CYCLE_MODE_CODE: "🔄",
+        SRS_MODE_CODE: "🧠",
+    }
+    return icons.get(mode_code, "📖")
+
+def can_graduate(mode_code: str) -> bool:
+    """Returns True if mode can be manually graduated (DR, WR, FR, MR)."""
+    return mode_code in GRADUATABLE_MODES
+
+def get_last_item_id():
+    result = items(where="active = 1", order_by="id DESC")
+    return result[0].id if result else 0
+
+def get_juz_name(page_id=None, item_id=None):
+    if item_id:
+        qry = f"SELECT pages.juz_number FROM pages LEFT JOIN items ON pages.id = items.page_id WHERE items.id = {item_id}"
+        juz_number = db.q(qry)[0]["juz_number"]
+    else:
+        juz_number = pages[page_id].juz_number
+    return juz_number
+
+def get_mode_name_and_code():
+    all_modes = modes()
+    mode_code_list = [mode.code for mode in all_modes]
+    mode_name_list = [mode.name for mode in all_modes]
+    return mode_code_list, mode_name_list
+
+def get_page_part_info(item_id: int) -> tuple[int, int] | None:
+    """
+    Returns (part_number, total_parts) if item is part of a split page, None otherwise.
+    """
+    page_no = items[item_id].page_id
+    page_items = items(where=f"page_id = {page_no} and active = 1", order_by="id ASC")
+    total_parts = len(page_items)
+    if total_parts <= 1:
+        return None
+    # Find position of this item in the list
+    for idx, item in enumerate(page_items):
+        if item.id == item_id:
+            return (idx + 1, total_parts)
+    return None
+
+def get_status(hafiz_item) -> str:
+    """Derive status from memorized flag and mode_code."""
+    if isinstance(hafiz_item, dict):
+        memorized = hafiz_item.get("memorized")
+        mode_code = hafiz_item.get("mode_code")
+    else:
+        memorized = hafiz_item.memorized
+        mode_code = hafiz_item.mode_code
+
+    if not memorized:
+        return STATUS_NOT_MEMORIZED
+
+    if mode_code == NEW_MEMORIZATION_MODE_CODE:
+        return STATUS_LEARNING
+    elif mode_code in (
+        DAILY_REPS_MODE_CODE,
+        WEEKLY_REPS_MODE_CODE,
+        FORTNIGHTLY_REPS_MODE_CODE,
+        MONTHLY_REPS_MODE_CODE,
+    ):
+        return STATUS_REPS
+    elif mode_code == FULL_CYCLE_MODE_CODE:
+        return STATUS_SOLID
+    elif mode_code == SRS_MODE_CODE:
+        return STATUS_STRUGGLING
+
+    return STATUS_NOT_MEMORIZED
+
+def get_status_display(status: str) -> tuple[str, str]:
+    """Get (icon, label) for a status."""
+    return STATUS_DISPLAY.get(status, ("❓", "Unknown"))
+
+def get_status_counts(hafiz_id: int) -> dict:
+    """Get page count for each status for dashboard stats."""
+    all_items = hafizs_items(where=f"hafiz_id = {hafiz_id}")
+
+    # Group item_ids by status
+    groups = {
+        STATUS_NOT_MEMORIZED: [],
+        STATUS_LEARNING: [],
+        STATUS_REPS: [],
+        STATUS_SOLID: [],
+        STATUS_STRUGGLING: [],
+    }
+
+    for hi in all_items:
+        status = get_status(hi)
+        if status in groups:
+            groups[status].append(hi.item_id)
+
+    # Calculate page count for each group
+    return {
+        STATUS_NOT_MEMORIZED: get_page_count(item_ids=groups[STATUS_NOT_MEMORIZED]),
+        STATUS_LEARNING: get_page_count(item_ids=groups[STATUS_LEARNING]),
+        STATUS_REPS: get_page_count(item_ids=groups[STATUS_REPS]),
+        STATUS_SOLID: get_page_count(item_ids=groups[STATUS_SOLID]),
+        STATUS_STRUGGLING: get_page_count(item_ids=groups[STATUS_STRUGGLING]),
+        "total": get_page_count(item_ids=[hi.item_id for hi in all_items]),
+    }

@@ -1,47 +1,30 @@
 from fasthtml.common import *
 from monsterui.all import *
-from utils import *
-from constants import *
-from app.common_function import *
-from database import *
+from app.common_function import (
+    main_area, 
+    group_by_type, 
+    get_page_description, 
+    get_juz_name, 
+    rating_dropdown
+)
+from constants import RATING_MAP
+from app.page_details_model import (
+    get_mode_name_and_code, 
+    get_mode_details, 
+    get_first_revision, 
+    get_revision_history,
+    get_mode_name,
+    get_item_details
+)
+from app.common_model import get_hafizs_items, get_actual_interval, get_prev_next_item_ids
+from utils import date_to_human_readable, destandardize_text
 
-
-page_details_app, rt = create_app_with_auth()
-
-
-@page_details_app.get("/")
-def page_details_view(auth):
+def render_page_details_table(hafiz_items_with_details, auth):
     mode_code_list, mode_name_list = get_mode_name_and_code()
-
-    # To get the count of the records under each modes to display
-    mode_case_statements = []
-    for mode_code in mode_code_list:
-        case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_code = '{mode_code}' THEN 1 END), '-') AS '{mode_code}'"
-        mode_case_statements.append(case_stmt)
-    mode_cases = ",\n".join(mode_case_statements)
-
-    display_pages_query = f"""SELECT 
-                            items.id,
-                            items.surah_id,
-                            pages.page_number,
-                            pages.juz_number,
-                            {mode_cases},
-                            SUM(revisions.rating) AS rating_summary
-                        FROM revisions
-                        LEFT JOIN items ON revisions.item_id = items.id
-                        LEFT JOIN pages ON items.page_id = pages.id
-                        WHERE revisions.hafiz_id = {auth} AND items.active != 0
-                        GROUP BY items.id
-                        ORDER BY pages.page_number;"""
-    hafiz_items_with_details = db.q(display_pages_query)
     grouped = group_by_type(hafiz_items_with_details, "id")
 
-    def render_row_based_on_type(
-        records: list,
-        row_link: bool = True,
-    ):
+    def render_row_based_on_type(records: list, row_link: bool = True):
         r = records[0]
-
         get_page = f"/page_details/{r['id']}"  # item_id
 
         hx_attrs = (
@@ -94,19 +77,14 @@ def page_details_view(auth):
         auth=auth,
     )
 
-
-@page_details_app.get("/{item_id}")
-def display_page_level_details(auth, item_id: int):
-    # Prevent editing description for inactive items
-    is_active_item = bool(items(where=f"id = {item_id} and active != 0"))
+def render_page_level_details(auth, item_id, is_active_item):
     if not is_active_item:
         return Redirect("/page_details")
 
-    mode_code_list, _mode_name_list = get_mode_name_and_code()
-
-    # Avoid showing nav buttons (if the page has is no revision)
-    rev_data = revisions(where=f"item_id = {item_id}")
-    is_show_nav_btn = bool(rev_data)
+    mode_code_list, _ = get_mode_name_and_code()
+    
+    # Check if we should show nav buttons (check for existing revisions)
+    is_show_nav_btn = True 
 
     def _render_row(data, columns):
         tds = []
@@ -120,42 +98,28 @@ def display_page_level_details(auth, item_id: int):
         return Tr(*tds)
 
     def make_mode_title_for_table(mode_code):
-        try:
-            mode_details = modes[mode_code]
+        mode_details = get_mode_details(mode_code)
+        if mode_details:
             mode_name, mode_description = (mode_details.name, mode_details.description)
-        except NotFoundError:
+        else:
             mode_name, mode_description = ("", "")
         return H2(mode_name, Subtitle(mode_description))
 
-    is_item_exist = items(where=f"id = {item_id}")
-    if is_item_exist:
-        page_description = get_page_description(item_id, is_bold=False, is_link=False)
-        juz = f"Juz {get_juz_name(item_id=item_id)}"
-    else:
-        Redirect("/page_details")
+    # Page info
+    page_description = get_page_description(item_id, is_bold=False, is_link=False)
+    juz = f"Juz {get_juz_name(item_id=item_id)}"
 
-    if not mode_code_list:
-        memorization_summary = ""
-    else:
+    # Summary Section
+    memorization_summary = ""
+    if mode_code_list:
         ctn = []
-
-        first_revision_data = revisions(
-            where=f"item_id = {item_id} and hafiz_id = {auth} and mode_code IN ({", ".join([repr(code) for code in mode_code_list])})",
-            order_by="revision_date ASC",
-            limit=1,
-        )
+        first_revision_data = get_first_revision(item_id, auth, mode_code_list)
+        
         if first_revision_data:
             first_revision = first_revision_data[0]
-            first_memorized_date = (
-                first_revision.revision_date
-                if first_revision
-                else Redirect("/page_details")
-            )
-            first_memorized_mode_code = (
-                first_revision.mode_code
-                if first_revision
-                else Redirect("/page_details")
-            )
+            first_memorized_date = first_revision.revision_date
+            first_memorized_mode_code = first_revision.mode_code
+            
             first_memorized_mode_name, description = make_mode_title_for_table(
                 first_memorized_mode_code
             )
@@ -185,7 +149,6 @@ def display_page_level_details(auth, item_id: int):
                     "last_interval": "previous_interval",
                 }
 
-                # Table View
                 def render_stats(col_name: str):
                     if col_name == "actual_interval":
                         value = get_actual_interval(item_id)
@@ -222,68 +185,39 @@ def display_page_level_details(auth, item_id: int):
 
         if ctn:
             memorization_summary = Div(H2("Summary"), Div(*ctn, cls="space-y-3"))
-        else:
-            memorization_summary = ""
 
-    def build_revision_query(mode_codes, row_alias):
-        return f"""
-            SELECT
-                ROW_NUMBER() OVER (ORDER BY revision_date ASC) AS {row_alias},
-                revision_date,
-                rating,
-                modes.name AS mode_name,
-                next_interval,
-            CASE
-                WHEN LAG(revision_date) OVER (ORDER BY revision_date) IS NULL THEN ''
-                ELSE CAST(
-                    JULIANDAY(revision_date) - JULIANDAY(LAG(revision_date) OVER (ORDER BY revision_date))
-                    AS INTEGER
-                )
-            END AS intervals_since_last_revision
-            FROM revisions
-            JOIN modes ON revisions.mode_code = modes.code
-            WHERE item_id = {item_id} AND hafiz_id = {auth} AND revisions.mode_code IN ({", ".join(repr(code) for code in mode_codes)})
-            ORDER BY revision_date ASC;
-        """
+    # Revision History Table
+    data = get_revision_history(item_id, auth, mode_code_list)
+    has_summary_data = len(data) > 0
+    
+    cols = [
+        "s_no",
+        "revision_date",
+        "rating",
+        "mode_name",
+        "intervals_since_last_revision",
+        "next_interval",
+    ]
 
-    def create_mode_table(mode_codes):
-        query = build_revision_query(mode_codes, "s_no")
-        data = db.q(query)
-        # determine table visibility
-        has_data = len(data) > 0
-        # This is to render the srs table different from others
-        cols = [
-            "s_no",
-            "revision_date",
-            "rating",
-            "mode_name",
-            "intervals_since_last_revision",
-            "next_interval",
-        ]
-
-        table = Div(
-            Table(
-                Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
-                Tbody(*[_render_row(row, cols) for row in data]),
-            )
+    summary_table = Div(
+        Table(
+            Thead(*(Th(col.replace("_", " ").title()) for col in cols)),
+            Tbody(*[_render_row(row, cols) for row in data]),
         )
+    )
 
-        return has_data, table
-
-    has_summary_data, summary_table = create_mode_table(mode_code_list)
-
-    def create_nav_button(item_id, arrow, show_nav):
+    def create_nav_button(item_id, arrow):
         return A(
-            arrow if item_id and show_nav else "",
+            arrow if item_id else "",
             href=f"/page_details/{item_id}" if item_id is not None else "#",
             cls="uk-button uk-button-default",
         )
 
     prev_id, next_id = get_prev_next_item_ids(auth, item_id)
-    prev_pg = create_nav_button(prev_id, "⬅️", is_show_nav_btn)
-    next_pg = create_nav_button(next_id, "➡️", is_show_nav_btn)
+    prev_pg = create_nav_button(prev_id, "⬅️")
+    next_pg = create_nav_button(next_id, "➡️")
 
-    item_details = items[item_id]
+    item_details = get_item_details(item_id)
     description = item_details.description
     start_text = item_details.start_text
 
@@ -346,10 +280,7 @@ def display_page_level_details(auth, item_id: int):
         auth=auth,
     )
 
-
-@page_details_app.get("/edit/{item_id}")
-def page_description_edit_form(item_id: int):
-    item_details = items[item_id]
+def render_page_description_edit_form(item_id, item_details):
     description = item_details.description
     start_text = item_details.start_text
     description_field = (

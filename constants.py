@@ -47,3 +47,10 @@ STATUS_DISPLAY = {
     STATUS_SOLID: ("💪", "Solid"),
     STATUS_STRUGGLING: ("😰", "Struggling"),
 }
+
+REP_MODE_OPTIONS = [
+    (DAILY_REPS_MODE_CODE, "☀️ Daily"),
+    (WEEKLY_REPS_MODE_CODE, "📅 Weekly"),
+    (FORTNIGHTLY_REPS_MODE_CODE, "📆 Fortnightly"),
+    (MONTHLY_REPS_MODE_CODE, "🗓️ Monthly"),
+]

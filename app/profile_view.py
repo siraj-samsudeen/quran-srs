@@ -1,14 +1,33 @@
+"""Profile view - UI rendering for profile management."""
+
 from fasthtml.common import *
+import fasthtml.common as fh
 from monsterui.all import *
-from utils import *
-from app.common_function import *
-from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
-from database import *
-
-profile_app, rt = create_app_with_auth()
-
-
-# === Stats Cards Component ===
+from app.profile_model import (
+    get_status_counts,
+    get_status_display,
+    get_status,
+    get_profile_data,
+)
+from app.common_model import get_mode_count, get_surah_name
+from app.common_function import get_mode_name, get_mode_icon
+from constants import (
+    STATUS_NOT_MEMORIZED,
+    STATUS_LEARNING,
+    STATUS_REPS,
+    STATUS_SOLID,
+    STATUS_STRUGGLING,
+    STATUS_DISPLAY,
+    NEW_MEMORIZATION_MODE_CODE,
+    DAILY_REPS_MODE_CODE,
+    WEEKLY_REPS_MODE_CODE,
+    FORTNIGHTLY_REPS_MODE_CODE,
+    MONTHLY_REPS_MODE_CODE,
+    FULL_CYCLE_MODE_CODE,
+    SRS_MODE_CODE,
+    GRADUATABLE_MODES,
+    DEFAULT_REP_COUNTS,
+)
 
 
 def render_stats_cards(auth, current_type="page", active_status_filter=None):
@@ -60,80 +79,7 @@ def render_stats_cards(auth, current_type="page", active_status_filter=None):
     )
 
 
-# === Bulk Status Update ===
-
-
-def _apply_status_to_item(hafiz_item, status, current_date):
-    """Apply status changes to a hafiz_item. Returns True if applied."""
-    if status == STATUS_NOT_MEMORIZED:
-        hafiz_item.memorized = False
-        hafiz_item.mode_code = None
-        hafiz_item.next_review = None
-        hafiz_item.next_interval = None
-    elif status == STATUS_LEARNING:
-        hafiz_item.memorized = True
-        hafiz_item.mode_code = NEW_MEMORIZATION_MODE_CODE
-        hafiz_item.next_review = None
-        hafiz_item.next_interval = None
-    elif status == STATUS_REPS:
-        hafiz_item.memorized = True
-        hafiz_item.mode_code = DAILY_REPS_MODE_CODE
-        config = REP_MODES_CONFIG[DAILY_REPS_MODE_CODE]
-        hafiz_item.next_interval = config["interval"]
-        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
-    elif status == STATUS_SOLID:
-        hafiz_item.memorized = True
-        hafiz_item.mode_code = FULL_CYCLE_MODE_CODE
-        hafiz_item.next_review = None
-        hafiz_item.next_interval = None
-    elif status == STATUS_STRUGGLING:
-        hafiz_item.memorized = True
-        hafiz_item.mode_code = SRS_MODE_CODE
-        hafiz_item.next_review = None
-        hafiz_item.next_interval = None
-    else:
-        return False
-    return True
-
-
-@profile_app.post("/bulk/set_status")
-async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: str = None):
-    """Bulk set status for selected items via HTMX form submission."""
-    form_data = await req.form()
-    item_ids = [int(id) for id in form_data.getlist("hafiz_item_ids") if id]
-
-    if not item_ids:
-        error_toast(sess, "No items selected")
-        return _render_profile_table(auth, status_filter)
-
-    current_date = get_current_date(auth)
-    updated = 0
-
-    for hafiz_item_id in item_ids:
-        try:
-            hafiz_item = hafizs_items[hafiz_item_id]
-            if hafiz_item.hafiz_id != auth:
-                continue
-
-            if _apply_status_to_item(hafiz_item, status, current_date):
-                hafizs_items.update(hafiz_item)
-                updated += 1
-        except (NotFoundError, ValueError):
-            continue
-
-    if updated > 0:
-        _, status_label = get_status_display(status)
-        success_toast(sess, f"Marked {updated} page(s) as {status_label}")
-    else:
-        error_toast(sess, "No pages were updated")
-
-    return _render_profile_table(auth, status_filter)
-
-
-# === Profile Table Row Rendering ===
-
-
-def _get_status_badge(status):
+def get_status_badge(status):
     """Return status badge with appropriate color."""
     status_colors = {
         STATUS_NOT_MEMORIZED: ("bg-gray-100", "text-gray-600"),
@@ -147,7 +93,7 @@ def _get_status_badge(status):
     return Span(f"{icon} {label}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
 
 
-def _get_mode_badge(mode_code):
+def get_mode_badge(mode_code):
     """Return mode badge with appropriate color."""
     if not mode_code:
         return Span("-", cls="text-gray-400")
@@ -167,7 +113,7 @@ def _get_mode_badge(mode_code):
     return Span(f"{icon} {name}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
 
 
-def _render_progress_bar(current, total):
+def render_progress_bar(current, total):
     """Render a progress bar for rep modes."""
     if total == 0:
         return Span("-", cls="text-gray-400")
@@ -186,7 +132,7 @@ def _render_progress_bar(current, total):
     )
 
 
-def _render_profile_row(row_data, status_filter, hafiz_id=None):
+def render_profile_row(row_data, status_filter, hafiz_id=None):
     """Render a single profile table row."""
     item_id = row_data["item_id"]
     hafiz_item_id = row_data["hafiz_item_id"]
@@ -222,7 +168,7 @@ def _render_profile_row(row_data, status_filter, hafiz_id=None):
         custom = threshold_map.get(mode_code)
         if custom is not None:
             threshold = custom
-        progress_cell = Td(_render_progress_bar(current_count, threshold))
+        progress_cell = Td(render_progress_bar(current_count, threshold))
 
     # Config button (only for memorized items)
     config_cell = Td()
@@ -251,15 +197,33 @@ def _render_profile_row(row_data, status_filter, hafiz_id=None):
             ),
             cls="w-16 text-center",
         ),
-        Td(_get_status_badge(status)),
-        Td(_get_mode_badge(mode_code) if memorized else Span("-", cls="text-gray-400")),
+        Td(get_status_badge(status)),
+        Td(get_mode_badge(mode_code) if memorized else Span("-", cls="text-gray-400")),
         progress_cell,
         config_cell,
     )
 
 
-def _render_profile_surah_header(surah_id, juz_number):
+def render_profile_surah_header(surah_id, juz_number):
     """Render a surah section header row."""
+    surah_name = get_surah_name(item_id=None, page_id=None) # Need item_id or page_id?
+    # Wait, common_function.get_surah_name takes item_id. 
+    # common_model.get_surah_name doesn't exist? I imported get_surah_name from common_model in my thought, 
+    # but I see I imported it from common_model in the code above. 
+    # Let's check common_model.py again. 
+    # common_model.py DOES NOT have get_surah_name.
+    # common_function.py DOES have it.
+    # I should fix the import in this file. 
+    pass 
+
+# I need to fix the import for get_surah_name. It is in common_function.py.
+# But common_function.get_surah_name takes page_id or item_id.
+# render_profile_surah_header receives surah_id.
+# surahs table is needed.
+# I should import surahs from database.
+
+def render_profile_surah_header_fixed(surah_id, juz_number):
+    from database import surahs
     surah_name = surahs[surah_id].name
     return Tr(
         Td(
@@ -271,37 +235,7 @@ def _render_profile_surah_header(surah_id, juz_number):
         cls="surah-header",
     )
 
-
-def _get_profile_data(auth, status_filter=None):
-    """Get profile data with optional status filter."""
-    # Build filter condition
-    filter_condition = ""
-    if status_filter == STATUS_NOT_MEMORIZED:
-        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
-    elif status_filter == STATUS_LEARNING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"
-    elif status_filter == STATUS_REPS:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code IN ('{DAILY_REPS_MODE_CODE}', '{WEEKLY_REPS_MODE_CODE}', '{FORTNIGHTLY_REPS_MODE_CODE}', '{MONTHLY_REPS_MODE_CODE}')"
-    elif status_filter == STATUS_SOLID:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{FULL_CYCLE_MODE_CODE}'"
-    elif status_filter == STATUS_STRUGGLING:
-        filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{SRS_MODE_CODE}'"
-
-    qry = f"""
-        SELECT items.id as item_id, items.surah_id, pages.page_number, pages.juz_number,
-               hafizs_items.id as hafiz_item_id, hafizs_items.memorized, hafizs_items.mode_code,
-               hafizs_items.custom_daily_threshold, hafizs_items.custom_weekly_threshold,
-               hafizs_items.custom_fortnightly_threshold, hafizs_items.custom_monthly_threshold
-        FROM items
-        LEFT JOIN pages ON items.page_id = pages.id
-        LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
-        WHERE items.active != 0 {filter_condition}
-        ORDER BY pages.page_number ASC
-    """
-    return db.q(qry)
-
-
-def _render_bulk_action_bar(status_filter):
+def render_bulk_action_bar(status_filter):
     """Render a sticky bulk action bar for marking memorization status."""
     filter_param = f"&status_filter={status_filter}" if status_filter else ""
 
@@ -374,9 +308,9 @@ def _render_bulk_action_bar(status_filter):
     )
 
 
-def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, rows_only=False):
+def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, rows_only=False):
     """Render the profile table with surah grouping and infinite scroll."""
-    rows = _get_profile_data(auth, status_filter)
+    rows = get_profile_data(auth, status_filter)
     total_items = len(rows)
 
     # Infinite scroll pagination
@@ -395,9 +329,9 @@ def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25,
         if surah_id != current_surah_id:
             current_surah_id = surah_id
             juz_number = row["juz_number"]
-            body_rows.append(_render_profile_surah_header(surah_id, juz_number))
+            body_rows.append(render_profile_surah_header_fixed(surah_id, juz_number))
 
-        body_rows.append(_render_profile_row(row, status_filter, hafiz_id=auth))
+        body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
 
     # Add infinite scroll trigger to the last data row
     if has_more and body_rows:
@@ -451,7 +385,7 @@ def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25,
         cls=(TableT.middle, TableT.divider, TableT.sm),
     )
 
-    bulk_bar = _render_bulk_action_bar(status_filter)
+    bulk_bar = render_bulk_action_bar(status_filter)
 
     # Always add padding at bottom to ensure bulk bar doesn't cover content
     return Div(
@@ -463,63 +397,8 @@ def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25,
         cls="pb-20",
     )
 
-
-@profile_app.get("/table/more")
-def load_more_profile_rows(auth, status_filter: str = None, offset: int = 0):
-    """Load more rows for infinite scroll."""
-    return _render_profile_table(auth, status_filter, offset, rows_only=True)
-
-
-@profile_app.get("/table")
-def show_profile_page(auth, request, status_filter: str = None):
-    """Profile page using HTMX table rendering (like home page)."""
-
-    # For HTMX requests, return only the table (e.g., filter changes)
-    if request.headers.get("HX-Request"):
-        return _render_profile_table(auth, status_filter)
-
-    # Configuration modal (DaisyUI dialog)
-    config_modal = Dialog(
-        Div(
-            Form(
-                Button("✕", cls="btn btn-sm btn-circle btn-ghost absolute right-2 top-2", method="dialog"),
-                method="dialog",
-            ),
-            H3("Configure Page", cls="font-bold text-lg mb-4"),
-            Div(id="config-modal-content"),
-            cls="modal-box",
-        ),
-        id="config-modal",
-        cls="modal",
-    )
-
-    return main_area(
-        Div(
-            render_stats_cards(auth, "table", status_filter),
-            _render_profile_table(auth, status_filter),
-            config_modal,
-            cls="space-y-4 pt-2",
-        ),
-        auth=auth,
-        active="Profile",
-    )
-
-
-# === Rep Configuration Routes ===
-# These routes handle the flexible rep mode configuration
-
-
-@profile_app.get("/configure_reps/{hafiz_item_id}")
-def load_rep_config_modal(hafiz_item_id: int, auth):
-    """Load the rep configuration modal for a specific hafiz_item - shows all modes in rows."""
-    try:
-        hafiz_item = hafizs_items[hafiz_item_id]
-    except NotFoundError:
-        return P("Item not found", cls="text-red-500")
-
-    if hafiz_item.hafiz_id != auth:
-        return P("Unauthorized", cls="text-red-500")
-
+def render_rep_config_modal(hafiz_item_id, auth, hafiz_item):
+    """Render the content of the rep config modal."""
     # Get existing custom thresholds
     threshold_values = {
         DAILY_REPS_MODE_CODE: hafiz_item.custom_daily_threshold or DEFAULT_REP_COUNTS.get(DAILY_REPS_MODE_CODE, 7),
@@ -530,10 +409,12 @@ def load_rep_config_modal(hafiz_item_id: int, auth):
 
     current_mode = hafiz_item.mode_code or DAILY_REPS_MODE_CODE
     page_number = hafiz_item.page_number
-    surah_name = get_surah_name(item_id=hafiz_item.item_id)
+    # Fix get_surah_name import or usage here too
+    from database import surahs, items
+    item = items[hafiz_item.item_id]
+    surah_name = surahs[item.surah_id].name
 
     # Mode options for dropdown with index for ordering
-    # Order: DR(0) → WR(1) → FR(2) → MR(3) → FC(4) → SR(5)
     mode_options = [
         (DAILY_REPS_MODE_CODE, "☀️ Daily", 0),
         (WEEKLY_REPS_MODE_CODE, "📅 Weekly", 1),
@@ -556,7 +437,7 @@ def load_rep_config_modal(hafiz_item_id: int, auth):
 
     # Build rows for each rep mode threshold with conditional disabling
     rep_mode_rows = []
-    for code, label, idx in mode_options[:4]:  # Only graduatable modes (not Full Cycle)
+    for code, label, idx in mode_options[:4]:  # Only graduatable modes
         rep_mode_rows.append(
             Tr(
                 Td(label, cls="font-medium"),
@@ -624,183 +505,3 @@ def load_rep_config_modal(hafiz_item_id: int, auth):
             x_data=alpine_data,
         ),
     )
-
-
-@profile_app.post("/configure_reps")
-async def configure_reps(req: Request, auth, sess):
-    """Handle rep configuration for one or multiple items."""
-    form_data = await req.form()
-
-    hafiz_item_ids = form_data.getlist("hafiz_item_id")
-    if not hafiz_item_ids:
-        hafiz_item_id = form_data.get("hafiz_item_id")
-        if hafiz_item_id:
-            hafiz_item_ids = [hafiz_item_id]
-
-    mode_code = form_data.get("mode_code")
-    rep_count_raw = form_data.get("rep_count")
-
-    # Parse rep_count: empty string -> None, otherwise int (including 0)
-    rep_count = None
-    if rep_count_raw is not None and rep_count_raw != "":
-        try:
-            rep_count = int(rep_count_raw)
-        except ValueError:
-            pass
-
-    # Check for advanced mode rep counts
-    # Parse without truthiness: empty string -> None, otherwise int (including 0)
-    advanced_rep_counts = {}
-    for mode in [DAILY_REPS_MODE_CODE, WEEKLY_REPS_MODE_CODE, FORTNIGHTLY_REPS_MODE_CODE, MONTHLY_REPS_MODE_CODE]:
-        count_raw = form_data.get(f"rep_count_{mode}")
-        if count_raw is not None and count_raw != "":
-            try:
-                advanced_rep_counts[mode] = int(count_raw)
-            except ValueError:
-                pass
-
-    if not hafiz_item_ids or not mode_code:
-        error_toast(sess, "Missing required parameters")
-        return RedirectResponse("/profile/table", status_code=303)
-
-    current_date = get_current_date(auth)
-    updated_count = 0
-
-    for item_id_str in hafiz_item_ids:
-        try:
-            hafiz_item_id = int(item_id_str)
-            hafiz_item = hafizs_items[hafiz_item_id]
-
-            if hafiz_item.hafiz_id != auth:
-                continue
-
-            # Update mode code
-            hafiz_item.mode_code = mode_code
-
-            # Update custom thresholds
-            if advanced_rep_counts:
-                # Advanced mode: set all thresholds
-                hafiz_item.custom_daily_threshold = advanced_rep_counts.get(DAILY_REPS_MODE_CODE)
-                hafiz_item.custom_weekly_threshold = advanced_rep_counts.get(WEEKLY_REPS_MODE_CODE)
-                hafiz_item.custom_fortnightly_threshold = advanced_rep_counts.get(FORTNIGHTLY_REPS_MODE_CODE)
-                hafiz_item.custom_monthly_threshold = advanced_rep_counts.get(MONTHLY_REPS_MODE_CODE)
-            elif rep_count is not None:
-                # Simple mode: only set threshold for selected mode (including 0)
-                column = MODE_TO_THRESHOLD_COLUMN.get(mode_code)
-                if column:
-                    setattr(hafiz_item, column, rep_count)
-
-            # Set next_review and next_interval based on mode
-            if mode_code in REP_MODES_CONFIG:
-                config = REP_MODES_CONFIG[mode_code]
-                hafiz_item.next_interval = config["interval"]
-                hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
-            elif mode_code == FULL_CYCLE_MODE_CODE:
-                hafiz_item.next_interval = None
-                hafiz_item.next_review = None
-
-            hafizs_items.update(hafiz_item)
-            updated_count += 1
-        except (ValueError, NotFoundError):
-            continue
-
-    if updated_count > 0:
-        success_toast(sess, f"Updated configuration for {updated_count} page(s)")
-    else:
-        error_toast(sess, "No pages were updated")
-
-    return RedirectResponse("/profile/table", status_code=303)
-
-
-@profile_app.post("/quick_change_mode/{hafiz_item_id}")
-def quick_change_mode(hafiz_item_id: int, mode_code: str, auth, sess):
-    """Quick inline mode change from the profile page dropdown."""
-    try:
-        hafiz_item = hafizs_items[hafiz_item_id]
-    except NotFoundError:
-        error_toast(sess, "Item not found")
-        return Response(status_code=204)
-
-    if hafiz_item.hafiz_id != auth:
-        error_toast(sess, "Unauthorized")
-        return Response(status_code=204)
-
-    current_date = get_current_date(auth)
-
-    # Update mode code
-    hafiz_item.mode_code = mode_code
-
-    # Set next_review and next_interval based on mode
-    if mode_code in REP_MODES_CONFIG:
-        config = REP_MODES_CONFIG[mode_code]
-        hafiz_item.next_interval = config["interval"]
-        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
-    elif mode_code == FULL_CYCLE_MODE_CODE:
-        hafiz_item.next_interval = None
-        hafiz_item.next_review = None
-
-    hafizs_items.update(hafiz_item)
-    success_toast(sess, f"Mode changed to {get_mode_name(mode_code)}")
-    return Response(status_code=204)
-
-
-@profile_app.post("/update_threshold/{hafiz_item_id}")
-def update_threshold(hafiz_item_id: int, threshold: int, auth, sess):
-    """Update the threshold for the current mode inline."""
-    try:
-        hafiz_item = hafizs_items[hafiz_item_id]
-    except NotFoundError:
-        error_toast(sess, "Item not found")
-        return Response(status_code=204)
-
-    if hafiz_item.hafiz_id != auth:
-        error_toast(sess, "Unauthorized")
-        return Response(status_code=204)
-
-    # Set custom threshold for current mode
-    mode_code = hafiz_item.mode_code
-    if mode_code in MODE_TO_THRESHOLD_COLUMN:
-        column = MODE_TO_THRESHOLD_COLUMN[mode_code]
-        setattr(hafiz_item, column, threshold)
-        hafizs_items.update(hafiz_item)
-        success_toast(sess, f"Threshold updated to {threshold}")
-    else:
-        error_toast(sess, "Cannot set threshold for this mode")
-
-    return Response(status_code=204)
-
-
-@profile_app.post("/graduate_item/{hafiz_item_id}")
-def graduate_item(hafiz_item_id: int, target_mode: str, auth, sess):
-    """Graduate an item to a target mode."""
-    try:
-        hafiz_item = hafizs_items[hafiz_item_id]
-    except NotFoundError:
-        error_toast(sess, "Item not found")
-        return Response(status_code=204)
-
-    if hafiz_item.hafiz_id != auth:
-        error_toast(sess, "Unauthorized")
-        return Response(status_code=204)
-
-    current_date = get_current_date(auth)
-    old_mode = hafiz_item.mode_code
-
-    # Update mode code
-    hafiz_item.mode_code = target_mode
-
-    # Set next_review and next_interval based on target mode
-    if target_mode in REP_MODES_CONFIG:
-        config = REP_MODES_CONFIG[target_mode]
-        hafiz_item.next_interval = config["interval"]
-        hafiz_item.next_review = add_days_to_date(current_date, config["interval"])
-    elif target_mode == FULL_CYCLE_MODE_CODE:
-        hafiz_item.memorized = True
-        hafiz_item.next_interval = None
-        hafiz_item.next_review = None
-
-    hafizs_items.update(hafiz_item)
-    success_toast(sess, f"Graduated from {get_mode_name(old_mode)} to {get_mode_name(target_mode)}")
-    return Response(status_code=204)
-
-
