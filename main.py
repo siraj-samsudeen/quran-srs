@@ -445,9 +445,6 @@ def bulk_rate(
             plan_id=plan_id_int,
         )
 
-    # Get current page from session
-    current_page = sess.get("pagination", {}).get(mode_code, 1)
-
     # Get hafiz's page_size setting (fallback to default)
     current_hafiz = hafizs[auth]
     items_per_page = current_hafiz.page_size or ITEMS_PER_PAGE
@@ -456,7 +453,6 @@ def bulk_rate(
         mode_code=mode_code,
         auth=auth,
         table_only=True,
-        page=current_page,
         items_per_page=items_per_page,
     )
 

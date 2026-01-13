@@ -1,5 +1,3 @@
-import math
-
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
@@ -99,14 +97,14 @@ def _apply_status_to_item(hafiz_item, status, current_date):
 
 
 @profile_app.post("/bulk/set_status")
-async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: str = None, page: int = 1):
+async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: str = None):
     """Bulk set status for selected items via HTMX form submission."""
     form_data = await req.form()
     item_ids = [int(id) for id in form_data.getlist("hafiz_item_ids") if id]
 
     if not item_ids:
         error_toast(sess, "No items selected")
-        return _render_profile_table(auth, status_filter, page)
+        return _render_profile_table(auth, status_filter)
 
     current_date = get_current_date(auth)
     updated = 0
@@ -129,7 +127,7 @@ async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: 
     else:
         error_toast(sess, "No pages were updated")
 
-    return _render_profile_table(auth, status_filter, page)
+    return _render_profile_table(auth, status_filter)
 
 
 # === Profile Table Row Rendering ===
@@ -376,17 +374,16 @@ def _render_bulk_action_bar(status_filter):
     )
 
 
-def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
-    """Render the profile table with surah grouping and pagination."""
+def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, rows_only=False):
+    """Render the profile table with surah grouping and infinite scroll."""
     rows = _get_profile_data(auth, status_filter)
     total_items = len(rows)
 
-    # Pagination
-    total_pages = math.ceil(total_items / items_per_page) if items_per_page > 0 else 1
-    page = max(1, min(page, total_pages))
-    start_idx = (page - 1) * items_per_page
-    end_idx = start_idx + items_per_page
+    # Infinite scroll pagination
+    start_idx = offset
+    end_idx = offset + items_per_page
     paginated_rows = rows[start_idx:end_idx]
+    has_more = end_idx < total_items
 
     # Build table rows with surah headers
     body_rows = []
@@ -402,38 +399,29 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
 
         body_rows.append(_render_profile_row(row, status_filter))
 
+    # Add infinite scroll trigger to the last data row
+    if has_more and body_rows:
+        filter_param = f"&status_filter={status_filter}" if status_filter else ""
+        next_offset = offset + items_per_page
+        # Find the last actual data row (not a surah header)
+        for i in range(len(body_rows) - 1, -1, -1):
+            row = body_rows[i]
+            if hasattr(row, "attrs") and "surah-header" not in row.attrs.get("cls", ""):
+                row.attrs.update({
+                    "hx-get": f"/profile/table/more?offset={next_offset}{filter_param}",
+                    "hx-trigger": "revealed",
+                    "hx-swap": "afterend",
+                })
+                break
+
+    # Return just the rows for infinite scroll requests
+    if rows_only:
+        return tuple(body_rows)
+
     if not body_rows:
         body_rows = [
             Tr(Td("No pages found", colspan=6, cls="text-center text-gray-500 py-8"))
         ]
-
-    # Pagination controls
-    filter_param = f"&status_filter={status_filter}" if status_filter else ""
-    pagination = None
-    if total_pages > 1:
-        prev_disabled = page <= 1
-        next_disabled = page >= total_pages
-
-        pagination = Div(
-            Button(
-                "👈",
-                hx_get=f"/profile/table?page={page - 1}{filter_param}",
-                hx_target="#profile-table-container",
-                hx_swap="innerHTML",
-                cls="btn btn-sm btn-ghost",
-                disabled=prev_disabled,
-            ) if not prev_disabled else Span(),
-            Span(f"Page {page} of {total_pages} ({total_items} items)", cls="text-sm mx-4"),
-            Button(
-                "👉",
-                hx_get=f"/profile/table?page={page + 1}{filter_param}",
-                hx_target="#profile-table-container",
-                hx_swap="innerHTML",
-                cls="btn btn-sm btn-ghost",
-                disabled=next_disabled,
-            ) if not next_disabled else Span(),
-            cls="flex justify-center items-center gap-2 py-3 border-t bg-gray-50",
-        )
 
     # Select-all checkbox for the header
     select_all_checkbox = fh.Input(
@@ -459,17 +447,16 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
                 Th("", cls="w-12"),
             )
         ),
-        Tbody(*body_rows),
+        Tbody(*body_rows, id="profile-tbody"),
         cls=(TableT.middle, TableT.divider, TableT.sm),
     )
 
     bulk_bar = _render_bulk_action_bar(status_filter)
 
-    # Always add padding at bottom to ensure pagination stays above fixed bulk bar
-    # The bulk bar is ~64px tall, so pb-20 (80px) gives comfortable clearance
+    # Always add padding at bottom to ensure bulk bar doesn't cover content
     return Div(
+        Div(f"{total_items} pages", cls="text-sm text-gray-500 mb-2"),
         table,
-        pagination if pagination else "",
         bulk_bar,
         id="profile-table-container",
         x_data="{ count: 0 }",
@@ -477,13 +464,19 @@ def _render_profile_table(auth, status_filter=None, page=1, items_per_page=25):
     )
 
 
+@profile_app.get("/table/more")
+def load_more_profile_rows(auth, status_filter: str = None, offset: int = 0):
+    """Load more rows for infinite scroll."""
+    return _render_profile_table(auth, status_filter, offset, rows_only=True)
+
+
 @profile_app.get("/table")
-def show_profile_page(auth, request, status_filter: str = None, page: int = 1):
+def show_profile_page(auth, request, status_filter: str = None):
     """Profile page using HTMX table rendering (like home page)."""
 
-    # For HTMX pagination requests, return only the table
+    # For HTMX requests, return only the table (e.g., filter changes)
     if request.headers.get("HX-Request"):
-        return _render_profile_table(auth, status_filter, page)
+        return _render_profile_table(auth, status_filter)
 
     # Configuration modal (DaisyUI dialog)
     config_modal = Dialog(
@@ -503,7 +496,7 @@ def show_profile_page(auth, request, status_filter: str = None, page: int = 1):
     return main_area(
         Div(
             render_stats_cards(auth, "table", status_filter),
-            _render_profile_table(auth, status_filter, page),
+            _render_profile_table(auth, status_filter),
             config_modal,
             cls="space-y-4 pt-2",
         ),
