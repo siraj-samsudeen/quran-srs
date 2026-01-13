@@ -7,7 +7,8 @@ from app.common_view import (
     error_toast, success_toast, warning_toast, main_area, get_page_description,
     group_by_type, render_rating, rating_dropdown, rating_radio, create_count_link,
     render_rep_config_form, render_mode_dropdown, render_progress_cell,
-    render_graduate_cell, render_inline_mode_config, render_mode_and_reps
+    render_graduate_cell, render_inline_mode_config, render_mode_and_reps,
+    render_surah_header, render_bulk_checkbox, render_page_number_cell, render_start_text_cell
 )
 from app.common_model import (
     get_current_date, get_hafizs_items, get_mode_count, get_actual_interval,
@@ -23,11 +24,10 @@ from app.common_model import (
 )
 # Re-export home view functions for backward compatibility
 from app.home_view import (
-    render_range_row, render_bulk_action_bar, render_surah_header, render_summary_table,
+    render_range_row, render_bulk_action_bar, render_summary_table,
     make_summary_table, render_current_date, MODE_PREDICATES, should_include_in_daily_reps,
     should_include_in_weekly_reps, should_include_in_fortnightly_reps, should_include_in_monthly_reps,
     should_include_in_srs, should_include_in_full_cycle, _is_review_due, _is_reviewed_today,
     _has_memorized, _has_revisions_in_mode, _has_revisions_today_in_mode, _was_newly_memorized_today,
-    _create_standard_rep_mode_predicate, get_mode_condition, row_background_color,
-    render_bulk_checkbox, render_page_number_cell, render_start_text_cell
+    _create_standard_rep_mode_predicate, get_mode_condition, row_background_color
 )

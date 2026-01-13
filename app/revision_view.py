@@ -1,7 +1,13 @@
 from fasthtml.common import *
 from monsterui.all import *
 from utils import *
-from app.common_function import *
+from app.common_model import get_current_date
+from app.common_view import (
+    render_rating, 
+    main_area,
+)
+from app.components.display import PageDescription
+from app.components.forms import RatingRadio
 from app.revision_model import get_revision_table_data
 from database import *
 
@@ -56,11 +62,7 @@ def generate_revision_table_part(part_num: int = 1, size: int = 20) -> Tuple[Tr]
                 )
             ),
             Td(
-                A(
-                    get_page_description(item_id=rev.item_id, is_link=False),
-                    href=f"/revision/edit/{rev.id}",
-                    cls=AT.muted,
-                )
+                PageDescription(item_id=rev.item_id, is_link=False),
             ),
             Td(rev.mode_code),
             Td(rev.plan_id),
@@ -125,7 +127,7 @@ def create_revision_form(type, auth, backlink="/"):
             *map(_option, hafizs()), label="Hafiz Id", name="hafiz_id", cls="hidden"
         ),
         *additional_fields,
-        rating_radio(),
+        RatingRadio(),
         Div(
             Button("Save", name="backlink", value=backlink, cls=ButtonT.primary),
             A(Button("Cancel", type="button", cls=ButtonT.secondary), href=backlink),

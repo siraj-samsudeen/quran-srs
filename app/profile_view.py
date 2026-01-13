@@ -5,131 +5,29 @@ import fasthtml.common as fh
 from monsterui.all import *
 from app.profile_model import (
     get_status_counts,
-    get_status_display,
     get_status,
     get_profile_data,
 )
-from app.common_model import get_mode_count, get_surah_name
-from app.common_function import get_mode_name, get_mode_icon
+from app.common_model import get_mode_count
 from constants import (
     STATUS_NOT_MEMORIZED,
-    STATUS_LEARNING,
-    STATUS_REPS,
     STATUS_SOLID,
-    STATUS_STRUGGLING,
-    STATUS_DISPLAY,
-    NEW_MEMORIZATION_MODE_CODE,
+    GRADUATABLE_MODES,
+    DEFAULT_REP_COUNTS,
     DAILY_REPS_MODE_CODE,
     WEEKLY_REPS_MODE_CODE,
     FORTNIGHTLY_REPS_MODE_CODE,
     MONTHLY_REPS_MODE_CODE,
-    FULL_CYCLE_MODE_CODE,
-    SRS_MODE_CODE,
-    GRADUATABLE_MODES,
-    DEFAULT_REP_COUNTS,
 )
 
+from app.components.layout import StatsCards, BulkActionBar
+from app.components.display import StatusBadge, ModeBadge
+from app.components.tables import ProgressCell, SurahHeader
+from app.components.forms import BulkSelectCheckbox, SelectAllCheckbox, RepConfigForm
 
 def render_stats_cards(auth, current_type="page", active_status_filter=None):
-    """Render status stats cards at top of profile page. Cards are clickable to filter."""
-    counts = get_status_counts(auth)
-
-    # Order: Not Memorized, Learning, Reps, Solid, Struggling, Total
-    cards_data = [
-        (STATUS_NOT_MEMORIZED, counts.get(STATUS_NOT_MEMORIZED, 0)),
-        (STATUS_LEARNING, counts.get(STATUS_LEARNING, 0)),
-        (STATUS_REPS, counts.get(STATUS_REPS, 0)),
-        (STATUS_SOLID, counts.get(STATUS_SOLID, 0)),
-        (STATUS_STRUGGLING, counts.get(STATUS_STRUGGLING, 0)),
-    ]
-
-    def make_card(status, count):
-        icon, label = get_status_display(status)
-        is_active = active_status_filter == status
-        return A(
-            Div(
-                Span(icon, cls="text-2xl"),
-                Span(str(count), cls="text-2xl font-bold ml-2"),
-                cls="flex items-center justify-center",
-            ),
-            Div(label, cls="text-xs text-center mt-1 text-gray-600"),
-            href=f"/profile/{current_type}?status_filter={status}",
-            cls=f"bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors {'ring-2 ring-primary bg-primary/10' if is_active else ''}",
-            data_testid=f"stats-card-{status.lower()}",
-        )
-
-    # Total card clears the filter
-    total_card = A(
-        Div(
-            Span("📖", cls="text-2xl"),
-            Span(str(counts.get("total", 0)), cls="text-2xl font-bold ml-2"),
-            cls="flex items-center justify-center",
-        ),
-        Div("Total", cls="text-xs text-center mt-1 text-gray-600"),
-        href=f"/profile/{current_type}",
-        cls=f"bg-base-100 border rounded-lg p-3 min-w-[100px] hover:bg-base-200 cursor-pointer transition-colors {'ring-2 ring-primary bg-primary/10' if active_status_filter is None else ''}",
-        data_testid="stats-card-total",
-    )
-
-    return Div(
-        *[make_card(status, count) for status, count in cards_data],
-        total_card,
-        cls="flex flex-wrap gap-3 mb-4",
-        data_testid="stats-cards",
-    )
-
-
-def get_status_badge(status):
-    """Return status badge with appropriate color."""
-    status_colors = {
-        STATUS_NOT_MEMORIZED: ("bg-gray-100", "text-gray-600"),
-        STATUS_LEARNING: ("bg-green-100", "text-green-700"),
-        STATUS_REPS: ("bg-amber-100", "text-amber-700"),
-        STATUS_SOLID: ("bg-purple-100", "text-purple-700"),
-        STATUS_STRUGGLING: ("bg-red-100", "text-red-700"),
-    }
-    icon, label = get_status_display(status)
-    bg, text = status_colors.get(status, ("bg-gray-100", "text-gray-600"))
-    return Span(f"{icon} {label}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
-
-
-def get_mode_badge(mode_code):
-    """Return mode badge with appropriate color."""
-    if not mode_code:
-        return Span("-", cls="text-gray-400")
-
-    mode_colors = {
-        NEW_MEMORIZATION_MODE_CODE: ("bg-green-100", "text-green-700"),
-        DAILY_REPS_MODE_CODE: ("bg-yellow-100", "text-yellow-700"),
-        WEEKLY_REPS_MODE_CODE: ("bg-amber-100", "text-amber-700"),
-        FORTNIGHTLY_REPS_MODE_CODE: ("bg-orange-100", "text-orange-700"),
-        MONTHLY_REPS_MODE_CODE: ("bg-orange-200", "text-orange-800"),
-        FULL_CYCLE_MODE_CODE: ("bg-purple-100", "text-purple-700"),
-        SRS_MODE_CODE: ("bg-red-100", "text-red-700"),
-    }
-    icon = get_mode_icon(mode_code)
-    name = get_mode_name(mode_code)
-    bg, text = mode_colors.get(mode_code, ("bg-gray-100", "text-gray-600"))
-    return Span(f"{icon} {name}", cls=f"{bg} {text} px-2 py-0.5 rounded text-xs whitespace-nowrap")
-
-
-def render_progress_bar(current, total):
-    """Render a progress bar for rep modes."""
-    if total == 0:
-        return Span("-", cls="text-gray-400")
-
-    percent = (current / total) * 100
-    # Color: red < 30%, amber 30-70%, green > 70%
-    bar_color = "bg-red-500" if percent < 30 else "bg-amber-500" if percent < 70 else "bg-green-500"
-
-    return Div(
-        Div(
-            Div(cls=f"{bar_color} h-full", style=f"width: {percent}%"),
-            cls="flex-1 bg-gray-200 rounded h-2 overflow-hidden",
-        ),
-        Span(f"{current}/{total}", cls="text-xs text-gray-500 ml-2 min-w-[35px]"),
-        cls="flex items-center gap-1",
-    )
+    """Render status stats cards at top of profile page."""
+    return StatsCards(auth, current_type, active_status_filter)
 
 
 def render_profile_row(row_data, status_filter, hafiz_id=None):
@@ -142,16 +40,13 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
     status = get_status(row_data)
 
     # Checkbox for bulk selection
-    checkbox_cell = Td(
-        fh.Input(
-            type="checkbox",
-            name="hafiz_item_ids",
-            value=hafiz_item_id,
-            cls="checkbox checkbox-sm bulk-select-checkbox",
-            **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
-        ),
-        cls="w-8 text-center",
-    ) if hafiz_item_id else Td(cls="w-8")
+    if hafiz_item_id:
+        checkbox_cell = Td(
+            BulkSelectCheckbox(hafiz_item_id, name="hafiz_item_ids", cls="checkbox-sm"),
+            cls="w-8 text-center",
+        )
+    else:
+        checkbox_cell = Td(cls="w-8")
 
     # Calculate progress for graduatable modes
     progress_cell = Td("-", cls="text-gray-400")
@@ -168,7 +63,7 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
         custom = threshold_map.get(mode_code)
         if custom is not None:
             threshold = custom
-        progress_cell = Td(render_progress_bar(current_count, threshold))
+        progress_cell = Td(ProgressCell(current_count, threshold))
 
     # Config button (only for memorized items)
     config_cell = Td()
@@ -197,43 +92,12 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
             ),
             cls="w-16 text-center",
         ),
-        Td(get_status_badge(status)),
-        Td(get_mode_badge(mode_code) if memorized else Span("-", cls="text-gray-400")),
+        Td(StatusBadge(status)),
+        Td(ModeBadge(mode_code) if memorized else Span("-", cls="text-gray-400")),
         progress_cell,
         config_cell,
     )
 
-
-def render_profile_surah_header(surah_id, juz_number):
-    """Render a surah section header row."""
-    surah_name = get_surah_name(item_id=None, page_id=None) # Need item_id or page_id?
-    # Wait, common_function.get_surah_name takes item_id. 
-    # common_model.get_surah_name doesn't exist? I imported get_surah_name from common_model in my thought, 
-    # but I see I imported it from common_model in the code above. 
-    # Let's check common_model.py again. 
-    # common_model.py DOES NOT have get_surah_name.
-    # common_function.py DOES have it.
-    # I should fix the import in this file. 
-    pass 
-
-# I need to fix the import for get_surah_name. It is in common_function.py.
-# But common_function.get_surah_name takes page_id or item_id.
-# render_profile_surah_header receives surah_id.
-# surahs table is needed.
-# I should import surahs from database.
-
-def render_profile_surah_header_fixed(surah_id, juz_number):
-    from database import surahs
-    surah_name = surahs[surah_id].name
-    return Tr(
-        Td(
-            Span(f"📖 {surah_name}", cls="font-semibold"),
-            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=6,
-            cls="bg-base-200 py-1 px-2",
-        ),
-        cls="surah-header",
-    )
 
 def render_bulk_action_bar(status_filter):
     """Render a sticky bulk action bar for marking memorization status."""
@@ -241,17 +105,7 @@ def render_bulk_action_bar(status_filter):
 
     # Select-all checkbox with label
     select_all = Div(
-        fh.Input(
-            type="checkbox",
-            cls="checkbox checkbox-sm",
-            **{
-                "@change": """
-                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
-                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
-                """,
-                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
-            },
-        ),
+        SelectAllCheckbox(cls="checkbox checkbox-sm"),
         Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("|", cls="text-gray-300 mx-2"),
@@ -287,24 +141,22 @@ def render_bulk_action_bar(status_filter):
     )
 
     return Form(
-        Div(
-            select_all,
-            Div(
-                memorized_button,
-                not_memorized_button,
-                cancel_button,
-                cls="flex gap-2",
-            ),
-            cls="flex justify-between items-center w-full",
-        ),
-        id="bulk-action-bar",
-        cls="fixed bottom-0 left-0 right-0 bg-base-100 border-t shadow-lg p-3 z-50",
-        x_show="count > 0",
-        style="display: none",
-        x_transition=True,
-        hx_swap="innerHTML",
-        hx_target="#profile-table-container",
-        data_testid="profile-bulk-action-bar",
+        BulkActionBar(
+            children=[
+                select_all,
+                Div(
+                    memorized_button,
+                    not_memorized_button,
+                    cancel_button,
+                    cls="flex gap-2",
+                ),
+            ],
+            cls="w-full", # Ensure full width inside form
+            id="bulk-action-bar",
+            hx_swap="innerHTML",
+            hx_target="#profile-table-container",
+            data_testid="profile-bulk-action-bar",
+        )
     )
 
 
@@ -329,7 +181,7 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
         if surah_id != current_surah_id:
             current_surah_id = surah_id
             juz_number = row["juz_number"]
-            body_rows.append(render_profile_surah_header_fixed(surah_id, juz_number))
+            body_rows.append(SurahHeader(surah_id, juz_number, colspan=6))
 
         body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
 
@@ -358,17 +210,7 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
         ]
 
     # Select-all checkbox for the header
-    select_all_checkbox = fh.Input(
-        type="checkbox",
-        cls="checkbox checkbox-sm",
-        **{
-            "@change": """
-                $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
-                count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
-            """,
-            ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
-        },
-    )
+    select_all_checkbox = SelectAllCheckbox(cls="checkbox checkbox-sm")
 
     table = Table(
         Thead(
@@ -409,83 +251,24 @@ def render_rep_config_modal(hafiz_item_id, auth, hafiz_item):
 
     current_mode = hafiz_item.mode_code or DAILY_REPS_MODE_CODE
     page_number = hafiz_item.page_number
-    # Fix get_surah_name import or usage here too
-    from database import surahs, items
+    
+    # We need surah name.
+    # In the original profile_view.py, it was trying to import get_surah_name from database?
+    # Actually it imported items and surahs.
+    from database import items, surahs
     item = items[hafiz_item.item_id]
     surah_name = surahs[item.surah_id].name
 
-    # Mode options for dropdown with index for ordering
-    mode_options = [
-        (DAILY_REPS_MODE_CODE, "☀️ Daily", 0),
-        (WEEKLY_REPS_MODE_CODE, "📅 Weekly", 1),
-        (FORTNIGHTLY_REPS_MODE_CODE, "📆 Fortnightly", 2),
-        (MONTHLY_REPS_MODE_CODE, "🗓️ Monthly", 3),
-        (FULL_CYCLE_MODE_CODE, "🔄 Full Cycle", 4),
-        (SRS_MODE_CODE, "🧠 SRS", 5),
-    ]
-
-    # Map mode codes to their index for Alpine.js
-    mode_order = {code: idx for code, _, idx in mode_options}
-
-    # Starting mode dropdown with Alpine.js binding
-    mode_select = fh.Select(
-        *[fh.Option(label, value=code, selected=code == current_mode) for code, label, _ in mode_options],
-        name="mode_code",
-        cls="select select-bordered select-sm w-full",
-        x_model="selectedMode",
+    form_content = RepConfigForm(
+        default_mode_code=current_mode,
+        custom_thresholds=threshold_values,
+        show_advanced=False
     )
-
-    # Build rows for each rep mode threshold with conditional disabling
-    rep_mode_rows = []
-    for code, label, idx in mode_options[:4]:  # Only graduatable modes
-        rep_mode_rows.append(
-            Tr(
-                Td(label, cls="font-medium"),
-                Td(
-                    fh.Input(
-                        type="number",
-                        name=f"rep_count_{code}",
-                        min="0",
-                        max="99",
-                        value=threshold_values[code],
-                        cls="input input-bordered input-sm w-20 disabled:opacity-50 disabled:cursor-not-allowed",
-                        # Disable if this mode comes before the selected starting mode
-                        **{":disabled": f"modeOrder[selectedMode] > {idx}"},
-                    ),
-                ),
-                # Gray out the row if disabled
-                **{":class": f"modeOrder[selectedMode] > {idx} ? 'opacity-40' : ''"},
-            )
-        )
-
-    # Alpine.js data for mode ordering
-    alpine_data = f"{{ selectedMode: '{current_mode}', modeOrder: {mode_order} }}"
 
     return Div(
         P(f"Configure repetitions for Page {page_number} ({surah_name})", cls="mb-4 text-sm text-gray-600"),
         Form(
-            # Starting mode section
-            Div(
-                FormLabel("Starting Mode", cls="text-sm font-medium"),
-                mode_select,
-                cls="mb-4",
-            ),
-            # Thresholds table - one mode per row
-            Div(
-                FormLabel("Repetition Thresholds", cls="text-sm font-medium mb-2"),
-                P("Modes before your starting mode are disabled", cls="text-xs text-gray-500 mb-2"),
-                Table(
-                    Thead(
-                        Tr(
-                            Th("Mode", cls="text-left"),
-                            Th("Reps to Graduate", cls="text-left"),
-                        )
-                    ),
-                    Tbody(*rep_mode_rows),
-                    cls="w-full",
-                ),
-                cls="bg-base-200 p-3 rounded-lg",
-            ),
+            form_content,
             Hidden(name="hafiz_item_id", value=hafiz_item_id),
             Div(
                 Button(
@@ -502,6 +285,5 @@ def render_rep_config_modal(hafiz_item_id, auth, hafiz_item):
             ),
             hx_post="/profile/configure_reps",
             hx_target="body",
-            x_data=alpine_data,
         ),
     )

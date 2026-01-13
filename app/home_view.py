@@ -21,6 +21,7 @@ from utils import (
     add_days_to_date,
     date_to_human_readable,
     day_diff,
+    format_number,
 )
 from app.common_model import (
     get_current_date,
@@ -32,7 +33,30 @@ from app.common_model import (
     get_earliest_revision_date,
     get_datewise_revisions,
     get_mode_specific_hafizs_items,
+    get_mode_name,
+    get_page_number,
+    get_surah_name,
+    get_juz_name,
+    get_item_page_portion,
+    get_page_part_info,
+    get_page_count,
 )
+from app.components.forms import (
+    RatingDropdown,
+    BulkSelectCheckbox,
+    SelectAllCheckbox,
+)
+from app.components.tables import (
+    SurahHeader,
+    PageNumberCell,
+    StartTextCell,
+)
+from app.components.display import (
+    PageDescription,
+    CountLink,
+    TrendIndicator,
+)
+from app.components.layout import BulkActionBar
 from constants import *
 from database import (
     hafizs_items,
@@ -42,105 +66,6 @@ from database import (
     revisions,
     surahs,
 )
-from utils import format_number
-
-
-def get_mode_name(mode_code: str):
-    return modes[mode_code].name
-
-
-def get_page_number(item_id):
-    page_id = items[item_id].page_id
-    return pages[page_id].page_number
-
-
-def get_surah_name(page_id=None, item_id=None):
-    if item_id:
-        surah_id = items[item_id].surah_id
-    else:
-        surah_id = items(where=f"page_id = {page_id}")[0].surah_id
-    surah_details = surahs[surah_id]
-    return surah_details.name
-
-
-def get_juz_name(page_id=None, item_id=None):
-    from app.common_model import get_juz_number_for_item
-    if item_id:
-        juz_number = get_juz_number_for_item(item_id)
-    else:
-        juz_number = pages[page_id].juz_number
-    return juz_number
-
-
-def get_item_page_portion(item_id: int) -> float:
-    page_no = items[item_id].page_id
-    total_parts = items(where=f"page_id = {page_no} and active = 1")
-    if not total_parts:
-        return 0
-    return 1 / len(total_parts)
-
-
-def get_page_part_info(item_id: int) -> tuple[int, int] | None:
-    page_no = items[item_id].page_id
-    page_items = items(where=f"page_id = {page_no} and active = 1", order_by="id ASC")
-    total_parts = len(page_items)
-    if total_parts <= 1:
-        return None
-    for idx, item in enumerate(page_items):
-        if item.id == item_id:
-            return (idx + 1, total_parts)
-    return None
-
-
-def get_page_count(records=None, item_ids=None) -> float:
-    total_count = 0
-    if item_ids:
-        process_items = item_ids
-    elif records:
-        process_items = [record.item_id for record in records]
-    else:
-        return format_number(total_count)
-    for item_id in process_items:
-        total_count += get_item_page_portion(item_id)
-    return format_number(total_count)
-
-
-def create_count_link(count: int, rev_ids: str):
-    if not rev_ids:
-        return count
-    return A(
-        count,
-        href=f"/revision/bulk_edit?ids={rev_ids}",
-        cls=AT.classic,
-    )
-
-
-def get_page_description(
-    item_id,
-    link: str = None,
-    is_link: bool = True,
-    is_bold: bool = True,
-    custom_text="",
-):
-    item_description = items[item_id].description
-    if not item_description:
-        item_description = (
-            Span(get_page_number(item_id), cls=TextPresets.bold_sm if is_bold else ""),
-            Span(" - ", get_surah_name(item_id=item_id)),
-            Span(custom_text) if custom_text else "",
-        )
-
-    if not is_link:
-        return Span(item_description)
-    else:
-        page, description = item_description.split(" ", maxsplit=1)
-    return A(
-        Span(page, cls=TextPresets.bold_lg),
-        Br(),
-        Span(description),
-        href=(f"/page_details/{item_id}" if not link else link),
-        cls=AT.classic,
-    )
 
 
 def get_today_vs_yesterday_stats(auth):
@@ -152,36 +77,13 @@ def get_today_vs_yesterday_stats(auth):
     today_count = get_page_count(revisions(where=f"revision_date = '{today}'"))
     yesterday_count = get_page_count(revisions(where=f"revision_date = '{yesterday}'"))
 
-    difference = today_count - yesterday_count
-
-    if difference > 0:
-        direction = "up"
-        arrow = "↑"
-        color = "text-green-600"
-    elif difference < 0:
-        direction = "down"
-        arrow = "↓"
-        color = "text-red-600"
-    else:
-        direction = "same"
-        arrow = "="
-        color = "text-gray-600"
-
-    return today_count, yesterday_count, difference, direction, arrow, color
+    return today_count, yesterday_count
 
 
 def render_pages_revised_indicator(auth):
     """Render compact today vs yesterday pages indicator."""
-    today, yesterday, _, _, arrow, color = get_today_vs_yesterday_stats(auth)
-
-    return Span(
-        Span(f"{today}", data_testid="pages-today", cls="font-semibold text-lg"),
-        Span(" vs ", cls="text-gray-500 text-sm"),
-        Span(f"{yesterday}", data_testid="pages-yesterday", cls="font-semibold text-lg"),
-        Span(f" {arrow}", cls=f"{color} font-bold ml-1", data_testid="pages-indicator"),
-        id="pages-revised-indicator",
-        cls="whitespace-nowrap",
-    )
+    today, yesterday = get_today_vs_yesterday_stats(auth)
+    return TrendIndicator(today, yesterday)
 
 
 def get_revision_data(mode_code: str, revision_date: str):
@@ -243,7 +145,7 @@ def datewise_summary_table(show=None, hafiz_id=None):
                 item_id = [
                     r["item_id"] for r in revisions_data if r["page_id"] == page
                 ][0]
-                return get_page_description(item_id=item_id, is_link=False)
+                return PageDescription(item_id=item_id, is_link=False)
 
             def get_ids_for_page_range(data, min_page, max_page=None):
                 result = []
@@ -362,7 +264,7 @@ def create_stat_table(auth):
     def render_count(count, item_ids):
         if count == 0:
             return "-"
-        return create_count_link(count, item_ids)
+        return CountLink(count, item_ids)
 
     def render_stat_rows(current_mode_code):
         today_count, today_ids = get_revision_data(current_mode_code, today)
@@ -435,19 +337,6 @@ def row_background_color(rating):
     return bg_color
 
 
-def rating_dropdown(rating, **attrs):
-    """Create a rating dropdown select element."""
-    return Select(
-        Option("Select rating", value="", selected=(rating is None)),
-        Option("Good", value="1", selected=(rating == 1)),
-        Option("Ok", value="0", selected=(rating == 0)),
-        Option("Bad", value="-1", selected=(rating == -1)),
-        name="rating",
-        cls="select select-bordered select-sm w-28",
-        **attrs,
-    )
-
-
 def get_mode_condition(mode_code: str):
     mode_code_mapping = {
         FULL_CYCLE_MODE_CODE: [f"'{FULL_CYCLE_MODE_CODE}'", f"'{SRS_MODE_CODE}'"],
@@ -458,65 +347,6 @@ def get_mode_condition(mode_code: str):
     else:
         mode_condition = f"mode_code IN ({', '.join(retrieved_mode_codes)})"
     return mode_condition
-
-
-# === Shared Row Components ===
-# These components are used by both render_range_row and render_nm_row
-
-
-def render_bulk_checkbox(item_id: int, checked: bool = False):
-    """Render a bulk selection checkbox cell."""
-    return Td(
-        fh.Input(
-            type="checkbox",
-            name="item_ids",
-            value=item_id,
-            checked=checked,
-            cls="checkbox bulk-select-checkbox",
-            **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
-        ),
-        cls="w-8 text-center",
-    )
-
-
-def render_page_number_cell(item_id: int, show_part_indicator: bool = True):
-    """Render a page number cell with optional part indicator."""
-    part_indicator = ""
-    if show_part_indicator:
-        part_info = get_page_part_info(item_id)
-        if part_info:
-            part_num, total_parts = part_info
-            circled_nums = "①②③④⑤⑥⑦⑧⑨⑩"
-            if part_num <= len(circled_nums):
-                part_indicator = Span(circled_nums[part_num - 1], cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
-            else:
-                part_indicator = Span(f".{part_num}", cls="text-gray-500 text-xs ml-0.5", title=f"Part {part_num} of {total_parts}")
-
-    return Td(
-        Div(
-            A(
-                get_page_number(item_id),
-                href=f"/page_details/{item_id}",
-                cls="font-mono font-bold hover:underline",
-            ),
-            part_indicator,
-            cls="flex items-center justify-center gap-0.5",
-        ),
-        cls="w-16 text-center",
-    )
-
-
-def render_start_text_cell(start_text: str, hide_text: bool = False):
-    """Render a start text cell with optional tap-to-reveal."""
-    if hide_text:
-        content = Div(
-            Span("● ● ●", cls="text-gray-400 cursor-pointer select-none", x_show="!revealed", **{"@click": "revealed = true"}),
-            Span(start_text or "-", x_show="revealed", x_cloak=True),
-            x_data="{ revealed: false }",
-        )
-    else:
-        content = Span(start_text or "-")
-    return Td(content, cls="text-lg")
 
 
 def render_range_row(records, current_date=None, mode_code=None, plan_id=None, hide_start_text=False, loved=False):
@@ -535,7 +365,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
     if plan_id:
         vals_dict["plan_id"] = plan_id
 
-    rating_dropdown_input = rating_dropdown(
+    rating_dropdown_input = RatingDropdown(
         rating=rating,
         id=f"rev-{item_id}",
         data_testid=f"rating-{item_id}",
@@ -546,7 +376,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
         hx_swap="outerHTML",
     )
 
-    checkbox_cell = render_bulk_checkbox(item_id) if rating is None else Td(cls="w-8")
+    checkbox_cell = BulkSelectCheckbox(item_id) if rating is None else Td(cls="w-8")
 
     heart_icon = Span(
         "❤️" if loved else "🤍",
@@ -560,8 +390,8 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
 
     return Tr(
         checkbox_cell,
-        render_page_number_cell(item_id),
-        render_start_text_cell(records["item"].start_text, hide_text=hide_start_text),
+        PageNumberCell(item_id),
+        StartTextCell(records["item"].start_text, hide_text=hide_start_text),
         Td(
             Div(
                 heart_icon,
@@ -593,18 +423,9 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
             cls=(btn_cls, "px-4 py-2"),
         )
 
+    # Use SelectAllCheckbox component
     select_all_checkbox = Div(
-        fh.Input(
-            type="checkbox",
-            cls="checkbox",
-            **{
-                "@change": """
-                    $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
-                    count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
-                """,
-                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
-            },
-        ),
+        SelectAllCheckbox(),
         Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("|", cls="text-gray-300 mx-2"),
@@ -621,36 +442,22 @@ def render_bulk_action_bar(mode_code, current_date, plan_id):
         title="Cancel selection",
     )
 
-    bar = Div(
-        select_all_checkbox,
-        Div(
-            bulk_button(1, "Good", ButtonT.primary),
-            bulk_button(0, "Ok", ButtonT.secondary),
-            bulk_button(-1, "Bad", ButtonT.destructive),
-            cancel_button,
-            cls="flex gap-2 items-center",
-        ),
+    # Use BulkActionBar component
+    bar = BulkActionBar(
         id=f"bulk-bar-{mode_code}",
-        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
-        x_show="count > 0",
-        style="display: none",
+        children=[
+            select_all_checkbox,
+            Div(
+                bulk_button(1, "Good", ButtonT.primary),
+                bulk_button(0, "Ok", ButtonT.secondary),
+                bulk_button(-1, "Bad", ButtonT.destructive),
+                cancel_button,
+                cls="flex gap-2 items-center",
+            ),
+        ]
     )
 
     return Div(spacer, bar)
-
-
-def render_surah_header(surah_id, juz_number):
-    """Render a surah section header row with surah name and juz indicator."""
-    surah_name = surahs[surah_id].name
-    return Tr(
-        Td(
-            Span(f"📖 {surah_name}", cls="font-semibold"),
-            Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=4,
-            cls="bg-base-200 py-1 px-2",
-        ),
-        cls="surah-header",
-    )
 
 
 def render_summary_table(auth, mode_code, item_ids, is_plan_finished, offset=0, items_per_page=None, show_loved_only=False, rows_only=False):
@@ -703,7 +510,7 @@ def render_summary_table(auth, mode_code, item_ids, is_plan_finished, offset=0, 
         if item.surah_id != current_surah_id:
             current_surah_id = item.surah_id
             juz_number = get_juz_name(item_id=item.id)
-            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            body_rows.append(SurahHeader(current_surah_id, juz_number))
             prev_page_id = None
         is_consecutive = prev_page_id is not None and item.page_id == prev_page_id + 1
         is_loved = loved_lookup.get(item.id, False)

@@ -14,7 +14,7 @@ Related modules:
 - common_function.py: MODE_PREDICATES for filtering items in summary tables
 - srs_reps.py: SRS mode uses adaptive intervals (fundamentally different)
 """
-from app.common_function import get_hafizs_items, get_current_date, get_mode_count
+from app.common_model import get_hafizs_items, get_current_date, get_mode_count
 from constants import (
     DEFAULT_REP_COUNTS,
     DAILY_REPS_MODE_CODE,

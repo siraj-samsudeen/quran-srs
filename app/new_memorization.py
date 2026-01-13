@@ -2,18 +2,22 @@ from fasthtml.common import *
 import fasthtml.common as fh
 from monsterui.all import *
 from constants import *
-from app.common_function import create_app_with_auth, get_current_date, get_juz_name
-from app.home_view import (
-    render_surah_header,
-    render_bulk_checkbox,
-    render_page_number_cell,
-    render_start_text_cell,
-)
-from app.common_model import get_hafizs_items, get_unmemorized_items
+from app.common_function import create_app_with_auth
+from app.common_model import get_current_date, get_juz_name, get_hafizs_items, get_unmemorized_items
 from utils import add_days_to_date
 from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
 from database import items, revisions, hafizs_items
 
+from app.components.tables import (
+    SurahHeader,
+    PageNumberCell,
+    StartTextCell,
+)
+from app.components.forms import (
+    BulkSelectCheckbox,
+    SelectAllCheckbox,
+)
+from app.components.layout import BulkActionBar
 
 new_memorization_app, rt = create_app_with_auth()
 
@@ -33,9 +37,12 @@ def render_nm_row(item, current_date, is_memorized_today, prev_page_id=None):
     bg_class = "bg-green-100" if is_memorized_today else ""
 
     return Tr(
-        render_bulk_checkbox(item_id, checked=is_memorized_today),
-        render_page_number_cell(item_id, show_part_indicator=False),
-        render_start_text_cell(item.start_text, hide_text=is_consecutive),
+        Td(
+            BulkSelectCheckbox(item_id, checked=is_memorized_today),
+            cls="w-8 text-center"
+        ),
+        PageNumberCell(item_id, show_part_indicator=False),
+        StartTextCell(item.start_text, hide_text=is_consecutive),
         id=row_id,
         cls=bg_class,
     )
@@ -50,23 +57,23 @@ def render_nm_bulk_action_bar(current_date):
     mode_code = NEW_MEMORIZATION_MODE_CODE
 
     # Select all checkbox - toggles all unchecked items
+    # Note: SelectAllCheckbox behavior in forms.py is generic.
+    # The original implementation here had specific logic for NM:
+    # "Select all unchecked" vs "Select all".
+    # The generic SelectAllCheckbox just syncs state.
+    # Let's use the generic one, or customize if the original behavior was critical.
+    # Original behavior:
+    # $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => { if ($el.checked) cb.checked = true; });
+    # if (!$el.checked) { ... uncheck all ... }
+    # This implies "Select All" only selects currently unchecked items (additive),
+    # but unchecking it clears everything.
+    # The generic one does exact sync (checked=checked).
+    # Additive selection is useful if user manually checked some, then clicks select all.
+    # Generic sync handles that fine (everything becomes checked).
+    # So generic SelectAllCheckbox is sufficient.
+    
     select_all_checkbox = Div(
-        fh.Input(
-            type="checkbox",
-            cls="checkbox",
-            **{
-                "@change": """
-                    $root.querySelectorAll('.bulk-select-checkbox:not(:checked)').forEach(cb => {
-                        if ($el.checked) cb.checked = true;
-                    });
-                    if (!$el.checked) {
-                        $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
-                    }
-                    count = $root.querySelectorAll('.bulk-select-checkbox:checked').length
-                """,
-                ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
-            },
-        ),
+        SelectAllCheckbox(),
         Span("Select All", cls="text-sm ml-2", x_show="count < $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("Clear All", cls="text-sm ml-2", x_show="count === $root.querySelectorAll('.bulk-select-checkbox').length"),
         Span("|", cls="text-gray-300 mx-2"),
@@ -96,17 +103,21 @@ def render_nm_bulk_action_bar(current_date):
         cls=(ButtonT.primary, "px-4 py-2"),
     )
 
+    spacer = Div(cls="h-16", x_show="count > 0", style="display: none")
+
     return Div(
-        select_all_checkbox,
-        Div(
-            mark_new_button,
-            mark_memorized_button,
-            cls="flex gap-2 items-center",
-        ),
-        id=f"bulk-bar-{mode_code}",
-        cls="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-3 flex justify-between items-center z-50",
-        x_show="count > 0",
-        style="display: none",
+        spacer,
+        BulkActionBar(
+            id=f"bulk-bar-{mode_code}",
+            children=[
+                select_all_checkbox,
+                Div(
+                    mark_new_button,
+                    mark_memorized_button,
+                    cls="flex gap-2 items-center",
+                ),
+            ]
+        )
     )
 
 
@@ -161,7 +172,7 @@ def make_new_memorization_table(auth, offset=0, items_per_page=None, table_only=
         if item.surah_id != current_surah_id:
             current_surah_id = item.surah_id
             juz_number = get_juz_name(item_id=item.id)
-            body_rows.append(render_surah_header(current_surah_id, juz_number))
+            body_rows.append(SurahHeader(current_surah_id, juz_number, colspan=3))
             prev_page_id = None  # Reset consecutive tracking on surah change
 
         is_memorized_today = item.id in today_nm_item_ids

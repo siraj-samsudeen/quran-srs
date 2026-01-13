@@ -1,11 +1,8 @@
 from fasthtml.common import *
 from monsterui.all import *
-from app.common_function import (
+from app.common_view import (
     main_area, 
     group_by_type, 
-    get_page_description, 
-    get_juz_name, 
-    rating_dropdown
 )
 from constants import RATING_MAP
 from app.page_details_model import (
@@ -16,8 +13,14 @@ from app.page_details_model import (
     get_mode_name,
     get_item_details
 )
-from app.common_model import get_hafizs_items, get_actual_interval, get_prev_next_item_ids
+from app.common_model import (
+    get_hafizs_items, 
+    get_actual_interval, 
+    get_prev_next_item_ids,
+    get_juz_name
+)
 from utils import date_to_human_readable, destandardize_text
+from app.components.display import PageDescription
 
 def render_page_details_table(hafiz_items_with_details, auth):
     mode_code_list, mode_name_list = get_mode_name_and_code()
@@ -40,7 +43,7 @@ def render_page_details_table(hafiz_items_with_details, auth):
         rating_summary = r["rating_summary"]
 
         return Tr(
-            Td(get_page_description(item_id=r["id"], link="#")),
+            Td(PageDescription(item_id=r["id"], link="#")),
             *map(lambda code: Td(r[code]), mode_code_list),
             Td(rating_summary),
             Td(
@@ -106,7 +109,7 @@ def render_page_level_details(auth, item_id, is_active_item):
         return H2(mode_name, Subtitle(mode_description))
 
     # Page info
-    page_description = get_page_description(item_id, is_bold=False, is_link=False)
+    page_description = PageDescription(item_id, is_bold=False, is_link=False)
     juz = f"Juz {get_juz_name(item_id=item_id)}"
 
     # Summary Section
