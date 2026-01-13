@@ -678,9 +678,11 @@ def render_mode_and_reps(hafiz_item, mode_code=None):
     if isinstance(hafiz_item, dict):
         item_mode_code = mode_code or hafiz_item.get("mode_code")
         item_id = hafiz_item.get("item_id")
+        hafiz_id = hafiz_item.get("hafiz_id")
     else:
         item_mode_code = mode_code or hafiz_item.mode_code
         item_id = hafiz_item.item_id
+        hafiz_id = hafiz_item.hafiz_id
 
     if not item_mode_code or item_mode_code not in GRADUATABLE_MODES:
         icon = get_mode_icon(item_mode_code) if item_mode_code else ""
@@ -703,7 +705,7 @@ def render_mode_and_reps(hafiz_item, mode_code=None):
     threshold = custom_threshold if custom_threshold is not None else DEFAULT_REP_COUNTS.get(item_mode_code, 7)
 
     # Get current count
-    current_count = get_mode_count(item_id, item_mode_code)
+    current_count = get_mode_count(item_id, item_mode_code, hafiz_id)
     icon = get_mode_icon(item_mode_code)
     mode_name = get_mode_name(item_mode_code)
 

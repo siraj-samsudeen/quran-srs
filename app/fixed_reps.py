@@ -101,7 +101,7 @@ def update_rep_item(rev):
     hafiz_item.last_interval = hafiz_item.next_interval
 
     threshold = get_threshold_for_mode(hafiz_item, rev.mode_code)
-    if get_mode_count(rev.item_id, rev.mode_code) < threshold:
+    if get_mode_count(rev.item_id, rev.mode_code, rev.hafiz_id) < threshold:
         # Not yet at threshold: stay in current mode, schedule next review
         set_next_review(hafiz_item, config["interval"], current_date)
     else:

@@ -33,8 +33,11 @@ def get_hafizs_items(item_id) -> Hafiz_Items | None:
     return None
 
 
-def get_mode_count(item_id, mode_code):
-    mode_records = revisions(where=f"item_id = {item_id} AND mode_code = '{mode_code}'")
+def get_mode_count(item_id, mode_code, hafiz_id=None):
+    where_clause = f"item_id = {item_id} AND mode_code = '{mode_code}'"
+    if hafiz_id is not None:
+        where_clause += f" AND hafiz_id = {hafiz_id}"
+    mode_records = revisions(where=where_clause)
     return len(mode_records)
 
 

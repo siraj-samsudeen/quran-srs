@@ -186,7 +186,7 @@ def _render_progress_bar(current, total):
     )
 
 
-def _render_profile_row(row_data, status_filter):
+def _render_profile_row(row_data, status_filter, hafiz_id=None):
     """Render a single profile table row."""
     item_id = row_data["item_id"]
     hafiz_item_id = row_data["hafiz_item_id"]
@@ -210,7 +210,7 @@ def _render_profile_row(row_data, status_filter):
     # Calculate progress for graduatable modes
     progress_cell = Td("-", cls="text-gray-400")
     if memorized and mode_code in GRADUATABLE_MODES:
-        current_count = get_mode_count(item_id, mode_code)
+        current_count = get_mode_count(item_id, mode_code, hafiz_id)
         threshold = DEFAULT_REP_COUNTS.get(mode_code, 7)
         # Check custom thresholds
         threshold_map = {
@@ -397,7 +397,7 @@ def _render_profile_table(auth, status_filter=None, offset=0, items_per_page=25,
             juz_number = row["juz_number"]
             body_rows.append(_render_profile_surah_header(surah_id, juz_number))
 
-        body_rows.append(_render_profile_row(row, status_filter))
+        body_rows.append(_render_profile_row(row, status_filter, hafiz_id=auth))
 
     # Add infinite scroll trigger to the last data row
     if has_more and body_rows:

@@ -58,11 +58,12 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
     daily_tab.click()
 
     # AND: Rating dropdown is visible (item is showing)
-    rating_select = page.locator("select").first
-    expect(rating_select).to_be_visible()
+    page.wait_for_timeout(300)  # Allow Alpine.js to process tab switch
+    rating_btn = page.locator("uk-select:visible button").first
+    expect(rating_btn).to_be_visible()
 
     # WHEN: User rates the item (first rating)
-    rating_select.select_option("1")
+    select_rating(page, rating_btn, "Good")
 
     # AND: User closes the date
     close_date(page, base_url)
@@ -71,7 +72,9 @@ def test_rep_mode_progression_with_close_date(page: Page, base_url: str, progres
     daily_tab = page.locator(".tab:has-text('Daily')")
     expect(daily_tab).to_be_visible()
     daily_tab.click()
-    page.locator("select").first.select_option("1")
+    page.wait_for_timeout(300)  # Allow Alpine.js to process tab switch
+    rating_btn = page.locator("uk-select:visible button").first
+    select_rating(page, rating_btn, "Good")
 
     # AND: User closes the date again (triggers graduation)
     close_date(page, base_url)
@@ -103,12 +106,13 @@ def test_close_date_processes_multiple_modes(page: Page, base_url: str, multi_mo
     expect(fortnightly_tab).to_be_visible()
     expect(monthly_tab).to_be_visible()
 
-    # Helper to rate item in a mode tab
+    # Helper to rate item in a mode tab using MonsterUI uk-select component
     def rate_in_tab(tab):
         tab.click()
-        select = page.locator("select:visible").first
-        select.wait_for(state="visible")
-        select.select_option("1")
+        page.wait_for_timeout(300)  # Allow Alpine.js to process tab switch
+        rating_btn = page.locator("uk-select:visible button").first
+        rating_btn.wait_for(state="visible", timeout=5000)
+        select_rating(page, rating_btn, "Good")
 
     # WHEN: User rates item in each mode
     rate_in_tab(daily_tab)
@@ -163,3 +167,15 @@ def close_date(page: Page, base_url: str):
     page.get_by_test_id("close-date-btn").click()
     page.get_by_test_id("confirm-close-btn").click()
     expect(page).to_have_url(f"{base_url}/")
+
+
+def select_rating(page: Page, rating_btn, rating_name: str):
+    """Step: Select a rating from the MonsterUI uk-select dropdown.
+    
+    MonsterUI uses custom uk-select web component that hides the native select
+    and renders a button + dropdown menu with listitems instead.
+    """
+    rating_btn.click()
+    # MonsterUI renders options as listitems, not native option elements
+    # Use :visible to only select from the open dropdown (other tabs have hidden dropdowns)
+    page.locator("li:visible").filter(has_text=rating_name).first.click()
