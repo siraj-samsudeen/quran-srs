@@ -26,10 +26,10 @@ def RatingDropdown(
     def mk_options(o):
         id, name = o
         is_selected = lambda m: m == str(rating)
-        return Option(name, value=id, selected=is_selected(id))
+        return fh.Option(name, value=id, selected=is_selected(id))
 
-    return Select(
-        Option("Select rating", value="", selected=(rating is None or rating == "None")),
+    return fh.Select(
+        fh.Option("-", value="None", selected=(rating is None or rating == "None")),
         *map(mk_options, RATING_MAP.items()),
         name=name,
         cls=f"select select-bordered select-sm {cls}",

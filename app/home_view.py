@@ -376,7 +376,7 @@ def render_range_row(records, current_date=None, mode_code=None, plan_id=None, h
         hx_swap="outerHTML",
     )
 
-    checkbox_cell = BulkSelectCheckbox(item_id) if rating is None else Td(cls="w-8")
+    checkbox_cell = Td(BulkSelectCheckbox(item_id), cls="w-8") if rating is None else Td(cls="w-8")
 
     heart_icon = Span(
         "❤️" if loved else "🤍",
