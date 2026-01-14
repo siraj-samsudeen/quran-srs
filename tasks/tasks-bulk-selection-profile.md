@@ -26,18 +26,18 @@ Update the file after completing each sub-task, not just after completing an ent
 
 ## Tasks
 
-- [ ] 0.0 Create feature branch
-  - [ ] 0.1 Create and checkout a new branch `git checkout -b feature/bulk-selection-juz-surah`
+- [x] 0.0 Create feature branch
+  - [x] 0.1 Create and checkout a new branch `git checkout -b feature/bulk-selection-juz-surah`
 
-- [ ] 1.0 Baseline - verify existing bulk action works and write tests
-  - [ ] 1.1 Read existing bulk select implementation in `profile_view.py` (render_bulk_action_bar, BulkSelectCheckbox, SelectAllCheckbox)
-  - [ ] 1.2 Read existing bulk action handler in `profile_controller.py` (bulk_set_status)
-  - [ ] 1.3 Manually test current flow in browser: select pages → Mark Memorized → verify toast and table update
-  - [ ] 1.4 Create `tests/test_profile_bulk_selection.py` with tests for:
-    - [ ] 1.4.1 Test bulk_set_status marks selected items as memorized
-    - [ ] 1.4.2 Test bulk_set_status marks selected items as not memorized
-    - [ ] 1.4.3 Test bulk_set_status with empty selection shows error
-  - [ ] 1.5 Run tests with `uv run pytest tests/test_profile_bulk_selection.py` - all should pass
+- [x] 1.0 Baseline - verify existing bulk action works and write tests
+  - [x] 1.1 Read existing bulk select implementation in `profile_view.py` (render_bulk_action_bar, BulkSelectCheckbox, SelectAllCheckbox)
+  - [x] 1.2 Read existing bulk action handler in `profile_controller.py` (bulk_set_status)
+  - [x] 1.3 Manually test current flow in browser: select pages → Mark Memorized → verify toast and table update
+  - [x] 1.4 Create `tests/test_profile_bulk_selection.py` with tests for:
+    - [x] 1.4.1 Test bulk_set_status marks selected items as memorized
+    - [x] 1.4.2 Test bulk_set_status marks selected items as not memorized
+    - [x] 1.4.3 Test bulk_set_status with empty selection shows error
+  - [x] 1.5 Run tests with `uv run pytest tests/test_profile_bulk_selection.py` - all should pass
 
 - [ ] 2.0 Add tab filter (All/Memorized/Unmemorized)
   - [ ] 2.1 Read `app/components/layout.py` to understand StatsCards component

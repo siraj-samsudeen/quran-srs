@@ -125,8 +125,11 @@ def render_bulk_action_bar(status_filter):
     # Mark as Memorized button (sets status to SOLID/Full Cycle)
     memorized_button = Button(
         "✓ Mark Memorized",
-        type="submit",
-        formaction=f"/profile/bulk/set_status?status={STATUS_SOLID}{filter_param}",
+        type="button",
+        hx_post=f"/profile/bulk/set_status?status={STATUS_SOLID}{filter_param}",
+        hx_target="#profile-table-container",
+        hx_swap="innerHTML",
+        hx_include="[name='hafiz_item_ids']",
         cls="btn btn-success btn-sm",
         data_testid="bulk-mark-memorized",
     )
@@ -134,8 +137,11 @@ def render_bulk_action_bar(status_filter):
     # Mark as Not Memorized button
     not_memorized_button = Button(
         "✗ Mark Not Memorized",
-        type="submit",
-        formaction=f"/profile/bulk/set_status?status={STATUS_NOT_MEMORIZED}{filter_param}",
+        type="button",
+        hx_post=f"/profile/bulk/set_status?status={STATUS_NOT_MEMORIZED}{filter_param}",
+        hx_target="#profile-table-container",
+        hx_swap="innerHTML",
+        hx_include="[name='hafiz_item_ids']",
         cls="btn btn-error btn-sm",
         data_testid="bulk-mark-not-memorized",
     )
@@ -152,8 +158,6 @@ def render_bulk_action_bar(status_filter):
         ],
         cls="w-full",
         id="bulk-action-bar",
-        hx_swap="innerHTML",
-        hx_target="#profile-table-container",
         data_testid="profile-bulk-action-bar",
     )
 
