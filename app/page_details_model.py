@@ -17,7 +17,7 @@ def get_page_details_summary(auth):
     for mode_code in mode_code_list:
         case_stmt = f"COALESCE(SUM(CASE WHEN revisions.mode_code = '{mode_code}' THEN 1 END), '-') AS '{mode_code}'"
         mode_case_statements.append(case_stmt)
-    mode_cases = "\n".join(mode_case_statements)
+    mode_cases = ",\n".join(mode_case_statements)
 
     display_pages_query = f"""SELECT 
                             items.id,

@@ -100,10 +100,10 @@ def MainArea(*args, active=None, auth=None):
                 ),
                 A(
                     "Page Details",
-                    href="/page_details",
+                    href="/page_details/",
                     cls=is_active("Page Details"),
                 ),
-                A("Revision", href="/revision", cls=is_active("Revision")),
+                A("Revision", href="/revision/", cls=is_active("Revision")),
                 admin_dropdown,
                 A("Report", href="/report", cls=is_active("Report")),
                 A("Settings", href="/hafiz/settings", cls=is_active("Settings")),
