@@ -57,6 +57,7 @@ def profile_home(auth, request, status_filter: str = None):
         render_tab_filter(auth, status_filter, hx_swap_oob=False),
         render_profile_table(auth, status_filter),
         config_modal,
+        auth=auth,
     )
 
 
