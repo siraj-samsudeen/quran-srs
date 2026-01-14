@@ -140,23 +140,21 @@ def render_bulk_action_bar(status_filter):
         data_testid="bulk-mark-not-memorized",
     )
 
-    return Form(
-        BulkActionBar(
-            children=[
-                select_all,
-                Div(
-                    memorized_button,
-                    not_memorized_button,
-                    cancel_button,
-                    cls="flex gap-2",
-                ),
-            ],
-            cls="w-full", # Ensure full width inside form
-            id="bulk-action-bar",
-            hx_swap="innerHTML",
-            hx_target="#profile-table-container",
-            data_testid="profile-bulk-action-bar",
-        )
+    return BulkActionBar(
+        children=[
+            select_all,
+            Div(
+                memorized_button,
+                not_memorized_button,
+                cancel_button,
+                cls="flex gap-2",
+            ),
+        ],
+        cls="w-full",
+        id="bulk-action-bar",
+        hx_swap="innerHTML",
+        hx_target="#profile-table-container",
+        data_testid="profile-bulk-action-bar",
     )
 
 
@@ -230,13 +228,15 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
     bulk_bar = render_bulk_action_bar(status_filter)
 
     # Always add padding at bottom to ensure bulk bar doesn't cover content
-    return Div(
+    # Wrap table and bulk bar in a Form so checkboxes are submitted with the buttons
+    return Form(
         Div(f"{total_items} pages", cls="text-sm text-gray-500 mb-2"),
         table,
         bulk_bar,
         id="profile-table-container",
         x_data="{ count: 0 }",
         cls="pb-20",
+        method="post",
     )
 
 def render_rep_config_modal(hafiz_item_id, auth, hafiz_item):

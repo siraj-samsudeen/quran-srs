@@ -4,7 +4,7 @@ FastHTML is a Python library that combines Starlette, Uvicorn, HTMX, and fastcor
 
 ## Core Characteristics
 
-FastHTML is **not** compatible with FastAPI syntax and focuses on HTML-first applications rather than API services. It supports optional integrations with Pico CSS and fastlite SQLite, though other CSS frameworks and database libraries can be substituted.
+FastHTML is **not** compatible with FastAPI syntax and focuses on HTML-first applications rather than API services. 
 
 ## Key Limitations & Compatibility
 
@@ -23,18 +23,13 @@ The framework works with "JS-native web components and any vanilla JS library, b
 - **Beforeware**: Functions running before route handlers for authentication/authorization
 - auth is hafiz_id not user_id - user_id is like an account and hafiz_id is the real user grouped under the user. 
 - **Form handling**: Dataclass type annotations automatically unpack form bodies into matching attributes
-- **Database integration**: fastlite provides CRUD operations with optional SQLAlchemy compatibility
-- **Real-time**: WebSocket and Server-Sent Events support via HTMX extensions
+- **Database integration**: fastlite provides CRUD operations
 - **MonsterUI**: A component library offering Tailwind-based, shadcn-like functionality
-
-## Development Notes
-
-Use `serve()` automatically—no `if __name__ == "__main__"` needed. For titled pages, use `Titled()` which handles title tags and H1 elements.
 
 
 ## User Corrections
 
 - Always runs tests before finishing the work. 
-- Run playwright tests in headless mode. 
 - use uv run pytest to run tests and uv run main.py to run the app.
-- Use mailsiraj@gmail.com/123 for testing the functionality on the browser. choose hafiz "Siraj"
+- Use mailsiraj@gmail.com for testing the functionality on the browser. query the sqlite prod DB for password. choose hafiz "Siraj"
+- example query - sqlite3 data/quran_v10.db "SELECT email, password FROM users WHERE email = 'mailsiraj@gmail.com' LIMIT 1;"
