@@ -1,4 +1,5 @@
 from fasthtml.common import *
+import fasthtml.common as fh
 from monsterui.all import *
 from app.common_model import (
     get_page_part_info, 
@@ -15,19 +16,85 @@ from constants import (
     SRS_MODE_CODE,
 )
 
-def SurahHeader(surah_id, juz_number, colspan=4):
+def JuzHeader(juz_number, colspan=6):
     """
-    Render a surah section header row with surah name and juz indicator.
+    Render a Juz section header row with checkbox for bulk selection.
+    
+    Args:
+        juz_number: Juz number (1-30)
+        colspan: Number of columns to span
+    """
+    checkbox = fh.Input(
+        type="checkbox",
+        cls="checkbox juz-checkbox checkbox-sm",
+        **{
+            "data-juz": str(juz_number),
+            "@change": f"""
+                const juzNum = '{juz_number}';
+                const isChecked = $el.checked;
+                $root.querySelectorAll(`.bulk-select-checkbox[data-juz="${{juzNum}}"]`).forEach(cb => {{
+                    cb.checked = isChecked;
+                }});
+                count = $root.querySelectorAll('.bulk-select-checkbox:checked').length;
+            """,
+        },
+    )
+    
+    return Tr(
+        Td(checkbox, cls="w-8 text-center"),
+        Td(
+            Span(f"📖 Juz {juz_number}", cls="font-bold"),
+            colspan=colspan-1,
+            cls="bg-base-200 py-2 px-2",
+        ),
+        cls="juz-header",
+        **{"data-juz": str(juz_number)},
+    )
+
+
+def SurahHeader(surah_id, juz_number, colspan=6):
+    """
+    Render a surah section header row with surah name, juz indicator, and checkbox for bulk selection.
+    
+    Args:
+        surah_id: Surah ID
+        juz_number: Juz number (1-30)
+        colspan: Number of columns to span for the label cell
     """
     surah_name = surahs[surah_id].name
+    
+    # Checkbox with data attributes for Juz and Surah
+    checkbox = fh.Input(
+        type="checkbox",
+        cls="checkbox surah-checkbox checkbox-sm",
+        **{
+            "data-juz": str(juz_number),
+            "data-surah": str(surah_id),
+            "@change": f"""
+                const juzNum = '{juz_number}';
+                const surahId = '{surah_id}';
+                const isChecked = $el.checked;
+                $root.querySelectorAll(`.bulk-select-checkbox[data-juz="${{juzNum}}"][data-surah="${{surahId}}"]`).forEach(cb => {{
+                    cb.checked = isChecked;
+                }});
+                count = $root.querySelectorAll('.bulk-select-checkbox:checked').length;
+            """,
+        },
+    )
+    
     return Tr(
+        Td(checkbox, cls="w-8 text-center"),
         Td(
-            Span(f"📖 {surah_name}", cls="font-semibold"),
+            Span(f"📗 {surah_name}", cls="font-semibold"),
             Span(f" (Juz {juz_number})", cls="text-gray-500 text-sm"),
-            colspan=colspan,
+            colspan=colspan-1,
             cls="bg-base-200 py-1 px-2",
         ),
         cls="surah-header",
+        **{
+            "data-juz": str(juz_number),
+            "data-surah": str(surah_id),
+        },
     )
 
 

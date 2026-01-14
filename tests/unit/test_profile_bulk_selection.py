@@ -2,6 +2,7 @@
 
 Tests bulk_set_status route handler for marking items as memorized/not memorized.
 Tests tab filter counts and filtering by memorized status.
+Tests Juz grouping functionality.
 """
 
 import asyncio
@@ -184,3 +185,104 @@ class TestTabFilter:
         
         for row in rows:
             assert row["memorized"] == 0 or row["memorized"] is None
+
+
+class TestJuzGrouping:
+    """Tests for Juz grouping functionality."""
+    
+    def test_get_profile_data_ordered_by_juz_number(self, progression_test_hafiz):
+        """get_profile_data returns rows ordered by juz_number then page_number."""
+        hafiz_id = progression_test_hafiz["hafiz_id"]
+        
+        rows = get_profile_data(hafiz_id)
+        
+        if len(rows) < 2:
+            pytest.skip("Not enough rows for ordering test")
+        
+        # Check that juz_number is non-decreasing
+        for i in range(len(rows) - 1):
+            curr_juz = rows[i]["juz_number"]
+            next_juz = rows[i + 1]["juz_number"]
+            
+            if curr_juz == next_juz:
+                # Same Juz, check page_number is non-decreasing
+                assert rows[i]["page_number"] <= rows[i + 1]["page_number"], \
+                    f"Pages not ordered within Juz {curr_juz}: {rows[i]['page_number']} > {rows[i + 1]['page_number']}"
+            else:
+                # Different Juz, juz should be non-decreasing
+                assert curr_juz <= next_juz, \
+                    f"Juz not ordered: {curr_juz} > {next_juz}"
+    
+    def test_juz_header_component_renders(self):
+        """JuzHeader component renders with checkbox and label."""
+        from app.components.tables import JuzHeader
+        
+        header = JuzHeader(1, colspan=6)
+        
+        # Verify it's a Tr (table row)
+        assert hasattr(header, 'tag')
+        assert header.tag == 'tr'
+        
+        # Verify it has data-juz attribute
+        assert 'data-juz' in header.attrs
+        assert header.attrs['data-juz'] == '1'
+        
+        # Verify it has juz-header class
+        assert 'juz-header' in header.attrs.get('class', '')
+        
+        # Verify children (checkbox and label cell)
+        assert len(header.children) == 2
+        
+        # First child should be a checkbox cell
+        checkbox_cell = header.children[0]
+        assert hasattr(checkbox_cell, 'tag')
+        assert checkbox_cell.tag == 'td'
+
+
+class TestSurahGrouping:
+    """Tests for Surah grouping functionality."""
+    
+    def test_surah_header_component_renders(self):
+        """SurahHeader component renders with checkbox and label."""
+        from app.components.tables import SurahHeader
+        
+        header = SurahHeader(2, 1, colspan=6)
+        
+        # Verify it's a Tr (table row)
+        assert hasattr(header, 'tag')
+        assert header.tag == 'tr'
+        
+        # Verify it has data-juz and data-surah attributes
+        assert 'data-juz' in header.attrs
+        assert header.attrs['data-juz'] == '1'
+        assert 'data-surah' in header.attrs
+        assert header.attrs['data-surah'] == '2'
+        
+        # Verify it has surah-header class
+        assert 'surah-header' in header.attrs.get('class', '')
+        
+        # Verify children (checkbox and label cell)
+        assert len(header.children) == 2
+        
+        # First child should be a checkbox cell
+        checkbox_cell = header.children[0]
+        assert hasattr(checkbox_cell, 'tag')
+        assert checkbox_cell.tag == 'td'
+    
+    def test_surah_spanning_multiple_juz(self, progression_test_hafiz):
+        """get_profile_data correctly returns Surah 2 (Al-Baqarah) spanning multiple Juz."""
+        hafiz_id = progression_test_hafiz["hafiz_id"]
+        
+        rows = get_profile_data(hafiz_id)
+        
+        # Find all rows for Surah 2 (Baqarah)
+        surah_2_rows = [r for r in rows if r["surah_id"] == 2]
+        
+        if len(surah_2_rows) < 2:
+            pytest.skip("Not enough rows for Surah 2 spanning test")
+        
+        # Collect unique Juz numbers for Surah 2
+        juz_numbers = set(r["juz_number"] for r in surah_2_rows)
+        
+        # Surah 2 should span multiple Juz (typically Juz 1, 2, 3)
+        assert len(juz_numbers) >= 2, f"Surah 2 should span multiple Juz, but only found in: {juz_numbers}"

@@ -23,7 +23,7 @@ from constants import (
 
 from app.components.layout import StatsCards, BulkActionBar, TabFilter
 from app.components.display import StatusBadge, ModeBadge
-from app.components.tables import ProgressCell, SurahHeader
+from app.components.tables import ProgressCell, SurahHeader, JuzHeader
 from app.components.forms import BulkSelectCheckbox, SelectAllCheckbox, RepConfigForm
 
 def render_stats_cards(auth, current_type="page", active_status_filter=None):
@@ -52,6 +52,8 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
     item_id = row_data["item_id"]
     hafiz_item_id = row_data["hafiz_item_id"]
     page_number = row_data["page_number"]
+    juz_number = row_data["juz_number"]
+    surah_id = row_data["surah_id"]
     memorized = bool(row_data["memorized"])
     mode_code = row_data["mode_code"] or ""
     status = get_status(row_data)
@@ -59,7 +61,10 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
     # Checkbox for bulk selection
     if hafiz_item_id:
         checkbox_cell = Td(
-            BulkSelectCheckbox(hafiz_item_id, name="hafiz_item_ids", cls="checkbox-sm"),
+            BulkSelectCheckbox(hafiz_item_id, name="hafiz_item_ids", cls="checkbox-sm", **{
+                "data-juz": str(juz_number),
+                "data-surah": str(surah_id),
+            }),
             cls="w-8 text-center",
         )
     else:
@@ -113,6 +118,10 @@ def render_profile_row(row_data, status_filter, hafiz_id=None):
         Td(ModeBadge(mode_code) if memorized else Span("-", cls="text-gray-400")),
         progress_cell,
         config_cell,
+        **{
+            "data-juz": str(juz_number),
+            "data-surah": str(surah_id),
+        },
     )
 
 
@@ -182,6 +191,10 @@ def render_bulk_action_bar(status_filter):
 def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, rows_only=False):
     """Render the profile table with surah grouping and infinite scroll."""
     rows = get_profile_data(auth, status_filter)
+    # Convert item count to page count for display
+    from app.common_model import get_page_count
+    item_ids = [row["item_id"] for row in rows]
+    total_pages = get_page_count(item_ids=item_ids)
     total_items = len(rows)
 
     # Infinite scroll pagination
@@ -190,16 +203,24 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
     paginated_rows = rows[start_idx:end_idx]
     has_more = end_idx < total_items
 
-    # Build table rows with surah headers
+    # Build table rows with juz and surah headers
     body_rows = []
+    current_juz_number = None
     current_surah_id = None
 
     for row in paginated_rows:
+        juz_number = row["juz_number"]
         surah_id = row["surah_id"]
+        
+        # Add juz header when juz changes
+        if juz_number != current_juz_number:
+            current_juz_number = juz_number
+            body_rows.append(JuzHeader(juz_number, colspan=6))
+            current_surah_id = None  # Reset surah when juz changes
+        
         # Add surah header when surah changes
         if surah_id != current_surah_id:
             current_surah_id = surah_id
-            juz_number = row["juz_number"]
             body_rows.append(SurahHeader(surah_id, juz_number, colspan=6))
 
         body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
@@ -251,7 +272,7 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
     # Always add padding at bottom to ensure bulk bar doesn't cover content
     # Wrap table and bulk bar in a Form so checkboxes are submitted with the buttons
     return Form(
-        Div(f"{total_items} pages", cls="text-sm text-gray-500 mb-2"),
+        Div(f"{total_pages} pages", cls="text-sm text-gray-500 mb-2"),
         table,
         bulk_bar,
         id="profile-table-container",

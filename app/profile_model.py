@@ -169,6 +169,6 @@ def get_profile_data(auth, status_filter=None):
         LEFT JOIN pages ON items.page_id = pages.id
         LEFT JOIN hafizs_items ON items.id = hafizs_items.item_id AND hafizs_items.hafiz_id = {auth}
         WHERE items.active != 0 {filter_condition}
-        ORDER BY pages.page_number ASC
+        ORDER BY pages.juz_number ASC, pages.page_number ASC
     """
     return db.q(qry)

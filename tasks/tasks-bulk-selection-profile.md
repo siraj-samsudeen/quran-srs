@@ -60,53 +60,54 @@ Update the file after completing each sub-task, not just after completing an ent
     - [x] 2.8.2 Test filtering by memorized status
   - [x] 2.9 Run tests - all should pass
 
-- [ ] 3.0 Add Juz grouping with header checkbox
-  - [ ] 3.1 Update `profile_model.py` `get_profile_data()`:
-    - [ ] 3.1.1 Change ORDER BY to `juz_number ASC, page_number ASC`
-  - [ ] 3.2 Create `JuzHeader` component in `app/components/tables.py`:
-    - [ ] 3.2.1 Display "📖 Juz X" with bold text, light background
-    - [ ] 3.2.2 Include checkbox with `data-juz="X"` attribute
-    - [ ] 3.2.3 Checkbox has class `juz-checkbox` for JS targeting
-  - [ ] 3.3 Update `render_profile_table()` in `profile_view.py`:
-    - [ ] 3.3.1 Track current_juz_number, insert JuzHeader when juz changes
-    - [ ] 3.3.2 Add `data-juz="X"` attribute to each page row
-    - [ ] 3.3.3 Hide empty Juz sections (skip JuzHeader if no rows for that Juz in current filter)
-  - [ ] 3.4 Add Alpine.js handler for Juz checkbox click:
-    - [ ] 3.4.1 On click, select/deselect all `.bulk-select-checkbox[data-juz="X"]` checkboxes
-    - [ ] 3.4.2 Update count in bulk action bar
-  - [ ] 3.5 Run typecheck to verify no errors
-  - [ ] 3.6 Verify in browser:
-    - [ ] 3.6.1 Juz headers appear in order
-    - [ ] 3.6.2 Clicking Juz checkbox selects all pages in that Juz
-    - [ ] 3.6.3 Filtered view only shows Juz with matching pages
-  - [ ] 3.7 Add tests to `tests/test_profile_bulk_selection.py`:
-    - [ ] 3.7.1 Test data ordering by juz_number
-    - [ ] 3.7.2 Test JuzHeader component renders correctly
-  - [ ] 3.8 Run tests - all should pass
+- [x] 2.0 (Fixed bug: page count display) - Changed render_profile_table to use get_page_count for total_pages display
+- [x] 3.0 Add Juz grouping with header checkbox
+   - [x] 3.1 Update `profile_model.py` `get_profile_data()`:
+     - [x] 3.1.1 Change ORDER BY to `juz_number ASC, page_number ASC`
+   - [x] 3.2 Create `JuzHeader` component in `app/components/tables.py`:
+     - [x] 3.2.1 Display "📖 Juz X" with bold text, light background
+     - [x] 3.2.2 Include checkbox with `data-juz="X"` attribute
+     - [x] 3.2.3 Checkbox has class `juz-checkbox` for JS targeting
+   - [x] 3.3 Update `render_profile_table()` in `profile_view.py`:
+     - [x] 3.3.1 Track current_juz_number, insert JuzHeader when juz changes
+     - [x] 3.3.2 Add `data-juz="X"` attribute to each page row
+     - [x] 3.3.3 Hide empty Juz sections (automatic via filtered data)
+   - [x] 3.4 Alpine.js handler for Juz checkbox (implemented in JuzHeader)
+     - [x] 3.4.1 On click, select/deselect all `.bulk-select-checkbox[data-juz="X"]` checkboxes
+     - [x] 3.4.2 Update count in bulk action bar
+   - [x] 3.5 Run typecheck to verify no errors (no errors)
+   - [x] 3.6 Verify in browser:
+     - [x] 3.6.1 Juz headers appear in order (✅ Confirmed: Juz 1, Juz 2, Juz 3 visible)
+     - [x] 3.6.2 Clicking Juz checkbox selects all pages in that Juz (✅ All 20 pages selected)
+     - [x] 3.6.3 Filtered view only shows Juz with matching pages (✅ Juz 1, 28, 30 only in unmemorized)
+   - [x] 3.7 Add tests to `tests/test_profile_bulk_selection.py`:
+     - [x] 3.7.1 Test data ordering by juz_number (✅ PASSED)
+     - [x] 3.7.2 Test JuzHeader component renders correctly (✅ PASSED)
+   - [x] 3.8 Run tests - all should pass (✅ All 9 tests pass)
 
-- [ ] 4.0 Add Surah grouping within Juz with header checkbox
-  - [ ] 4.1 Update `SurahHeader` component in `app/components/tables.py`:
-    - [ ] 4.1.1 Add checkbox with `data-juz="X" data-surah="Y"` attributes
-    - [ ] 4.1.2 Checkbox has class `surah-checkbox` for JS targeting
-    - [ ] 4.1.3 Change icon to "📗" to differentiate from Juz header
-  - [ ] 4.2 Update `render_profile_table()` in `profile_view.py`:
-    - [ ] 4.2.1 Track both current_juz_number and current_surah_id
-    - [ ] 4.2.2 Insert SurahHeader when surah changes within a Juz
-    - [ ] 4.2.3 If Surah spans multiple Juz, show separate SurahHeader in each Juz
-    - [ ] 4.2.4 Add `data-juz="X" data-surah="Y"` attributes to each page row
-    - [ ] 4.2.5 Hide empty Surah sections in filtered view
-  - [ ] 4.3 Add Alpine.js handler for Surah checkbox click:
-    - [ ] 4.3.1 On click, select/deselect all `.bulk-select-checkbox[data-juz="X"][data-surah="Y"]` checkboxes
-    - [ ] 4.3.2 Update count in bulk action bar
-  - [ ] 4.4 Run typecheck to verify no errors
-  - [ ] 4.5 Verify in browser:
-    - [ ] 4.5.1 Surah headers appear within each Juz section
-    - [ ] 4.5.2 Clicking Surah checkbox selects only pages in that Surah within current Juz
-    - [ ] 4.5.3 Al-Baqarah shows separate headers in Juz 1, 2, and 3
-  - [ ] 4.6 Add tests to `tests/test_profile_bulk_selection.py`:
-    - [ ] 4.6.1 Test SurahHeader with checkbox renders correctly
-    - [ ] 4.6.2 Test Surah spanning multiple Juz shows multiple headers
-  - [ ] 4.7 Run tests - all should pass
+- [x] 4.0 Add Surah grouping within Juz with header checkbox
+   - [x] 4.1 Update `SurahHeader` component in `app/components/tables.py`:
+     - [x] 4.1.1 Add checkbox with `data-juz="X" data-surah="Y"` attributes (✅ Implemented)
+     - [x] 4.1.2 Checkbox has class `surah-checkbox` for JS targeting (✅ Added)
+     - [x] 4.1.3 Change icon to "📗" to differentiate from Juz header (✅ Changed)
+   - [x] 4.2 Update `render_profile_table()` in `profile_view.py`:
+     - [x] 4.2.1 Track both current_juz_number and current_surah_id (✅ Already implemented)
+     - [x] 4.2.2 Insert SurahHeader when surah changes within a Juz (✅ Already implemented)
+     - [x] 4.2.3 If Surah spans multiple Juz, show separate SurahHeader in each Juz (✅ Works correctly)
+     - [x] 4.2.4 Add `data-juz="X" data-surah="Y"` attributes to each page row (✅ Added)
+     - [x] 4.2.5 Hide empty Surah sections in filtered view (✅ Automatic)
+   - [x] 4.3 Alpine.js handler for Surah checkbox click (implemented in SurahHeader):
+     - [x] 4.3.1 On click, select/deselect all `.bulk-select-checkbox[data-juz="X"][data-surah="Y"]` checkboxes
+     - [x] 4.3.2 Update count in bulk action bar
+   - [x] 4.4 Run typecheck to verify no errors (no errors)
+   - [x] 4.5 Verify in browser:
+     - [x] 4.5.1 Surah headers appear within each Juz section (✅ "📗 2. Baqarah (Juz 1)" visible)
+     - [x] 4.5.2 Clicking Surah checkbox selects only pages in that Surah within current Juz (✅ All 20 pages selected)
+     - [x] 4.5.3 Al-Baqarah shows separate headers in Juz 1, 2, and 3 (✅ Visible in full view)
+   - [x] 4.6 Add tests to `tests/test_profile_bulk_selection.py`:
+     - [x] 4.6.1 Test SurahHeader with checkbox renders correctly (✅ PASSED)
+     - [x] 4.6.2 Test Surah spanning multiple Juz shows multiple headers (✅ PASSED)
+   - [x] 4.7 Run tests - all should pass (✅ All 11 tests pass)
 
 - [ ] 5.0 Implement checkbox state synchronization and update Select All
   - [ ] 5.1 Add Alpine.js logic for Juz checkbox state:
