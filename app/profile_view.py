@@ -188,8 +188,8 @@ def render_bulk_action_bar(status_filter):
     )
 
 
-def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, rows_only=False):
-    """Render the profile table with surah grouping and infinite scroll."""
+def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25):
+    """Render the profile table with surah grouping and load-more button."""
     rows = get_profile_data(auth, status_filter)
     # Convert item count to page count for display
     from app.common_model import get_page_count
@@ -197,7 +197,7 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
     total_pages = get_page_count(item_ids=item_ids)
     total_items = len(rows)
 
-    # Infinite scroll pagination
+    # Pagination
     start_idx = offset
     end_idx = offset + items_per_page
     paginated_rows = rows[start_idx:end_idx]
@@ -225,25 +225,6 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
 
         body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
 
-    # Add infinite scroll trigger to the last data row
-    if has_more and body_rows:
-        filter_param = f"&status_filter={status_filter}" if status_filter else ""
-        next_offset = offset + items_per_page
-        # Find the last actual data row (not a surah header)
-        for i in range(len(body_rows) - 1, -1, -1):
-            row = body_rows[i]
-            if hasattr(row, "attrs") and "surah-header" not in row.attrs.get("cls", ""):
-                row.attrs.update({
-                    "hx-get": f"/profile/table/more?offset={next_offset}{filter_param}",
-                    "hx-trigger": "revealed",
-                    "hx-swap": "afterend",
-                })
-                break
-
-    # Return just the rows for infinite scroll requests
-    if rows_only:
-        return tuple(body_rows)
-
     if not body_rows:
         body_rows = [
             Tr(Td("No pages found", colspan=6, cls="text-center text-gray-500 py-8"))
@@ -269,12 +250,35 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25, 
 
     bulk_bar = render_bulk_action_bar(status_filter)
 
-    # Always add padding at bottom to ensure bulk bar doesn't cover content
-    # Wrap table and bulk bar in a Form so checkboxes are submitted with the buttons
-    return Form(
+    # Build content
+    content_items = [
         Div(f"{total_pages} pages", cls="text-sm text-gray-500 mb-2"),
         table,
         bulk_bar,
+    ]
+    
+    # Add Load More button if there are more items
+    if has_more:
+        filter_param = f"&status_filter={status_filter}" if status_filter else ""
+        next_offset = offset + items_per_page
+        content_items.append(
+            Div(
+                Button(
+                    "Load More",
+                    type="button",
+                    cls="btn btn-outline btn-sm",
+                    hx_post=f"/profile/load_more?offset={next_offset}{filter_param}",
+                    hx_target="#profile-table-container",
+                    hx_swap="beforeend",
+                ),
+                cls="flex justify-center py-4",
+            )
+        )
+
+    # Always add padding at bottom to ensure bulk bar doesn't cover content
+    # Wrap table and bulk bar in a Form so checkboxes are submitted with the buttons
+    return Form(
+        *content_items,
         id="profile-table-container",
         x_data="{ count: 0 }",
         cls="pb-20",

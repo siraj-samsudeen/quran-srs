@@ -32,6 +32,34 @@ from database import hafizs_items
 profile_app, rt = create_app_with_auth()
 
 
+@profile_app.get("/")
+def profile_home(auth, request, status_filter: str = None):
+    """Main profile page."""
+    # For HTMX requests, return only the table (e.g., filter changes)
+    if request.headers.get("HX-Request"):
+        return render_profile_table(auth, status_filter)
+
+    # Configuration modal (DaisyUI dialog)
+    config_modal = Dialog(
+        Div(
+            Form(
+                Button("✕", cls="btn btn-sm btn-circle btn-ghost absolute right-2 top-2", method="dialog"),
+                method="dialog",
+            ),
+            id="config-modal",
+        ),
+        id="config-modal",
+        cls="modal",
+    )
+
+    # Main profile page
+    return main_area(
+        render_tab_filter(auth, status_filter, hx_swap_oob=False),
+        render_profile_table(auth, status_filter),
+        config_modal,
+    )
+
+
 @profile_app.post("/bulk/set_status")
 async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: str = None):
     """Bulk set status for selected items via HTMX form submission."""
@@ -72,45 +100,66 @@ async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: 
     )
 
 
-@profile_app.get("/table/more")
-def load_more_profile_rows(auth, status_filter: str = None, offset: int = 0):
-    """Load more rows for infinite scroll."""
-    return render_profile_table(auth, status_filter, offset, rows_only=True)
-
-
-@profile_app.get("/table")
-def show_profile_page(auth, request, status_filter: str = None):
-    """Profile page using HTMX table rendering (like home page)."""
-
-    # For HTMX requests, return only the table (e.g., filter changes)
-    if request.headers.get("HX-Request"):
-        return render_profile_table(auth, status_filter)
-
-    # Configuration modal (DaisyUI dialog)
-    config_modal = Dialog(
-        Div(
-            Form(
-                Button("✕", cls="btn btn-sm btn-circle btn-ghost absolute right-2 top-2", method="dialog"),
-                method="dialog",
-            ),
-            H3("Configure Page", cls="font-bold text-lg mb-4"),
-            Div(id="config-modal-content"),
-            cls="modal-box",
-        ),
-        id="config-modal",
-        cls="modal",
-    )
-
-    return main_area(
-        Div(
-            render_tab_filter(auth, status_filter),
-            render_profile_table(auth, status_filter),
-            config_modal,
-            cls="space-y-4 pt-2",
-        ),
-        auth=auth,
-        active="Profile",
-    )
+@profile_app.post("/load_more")
+def load_more_rows(auth, status_filter: str = None, offset: int = 0):
+    """Load more rows via Load More button."""
+    from app.common_model import get_page_count
+    from app.profile_model import get_profile_data
+    from app.components.tables import JuzHeader, SurahHeader
+    from app.profile_view import render_profile_row
+    
+    rows = get_profile_data(auth, status_filter)
+    item_ids = [row["item_id"] for row in rows]
+    total_items = len(rows)
+    
+    items_per_page = 25
+    start_idx = offset
+    end_idx = offset + items_per_page
+    paginated_rows = rows[start_idx:end_idx]
+    has_more = end_idx < total_items
+    
+    # Build table rows with juz and surah headers
+    body_rows = []
+    current_juz_number = None
+    current_surah_id = None
+    
+    for row in paginated_rows:
+        juz_number = row["juz_number"]
+        surah_id = row["surah_id"]
+        
+        # Add juz header when juz changes
+        if juz_number != current_juz_number:
+            current_juz_number = juz_number
+            body_rows.append(JuzHeader(juz_number, colspan=6))
+            current_surah_id = None
+        
+        # Add surah header when surah changes
+        if surah_id != current_surah_id:
+            current_surah_id = surah_id
+            body_rows.append(SurahHeader(surah_id, juz_number, colspan=6))
+        
+        body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
+    
+    # Add Load More button if there are more items
+    content = body_rows
+    if has_more:
+        filter_param = f"&status_filter={status_filter}" if status_filter else ""
+        next_offset = offset + items_per_page
+        content.append(
+            Div(
+                Button(
+                    "Load More",
+                    type="button",
+                    cls="btn btn-outline btn-sm",
+                    hx_post=f"/profile/load_more?offset={next_offset}{filter_param}",
+                    hx_target="#profile-table-container",
+                    hx_swap="beforeend",
+                ),
+                cls="flex justify-center py-4",
+            )
+        )
+    
+    return tuple(content)
 
 
 @profile_app.get("/configure_reps/{hafiz_item_id}")
