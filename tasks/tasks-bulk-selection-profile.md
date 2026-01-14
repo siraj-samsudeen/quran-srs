@@ -39,26 +39,26 @@ Update the file after completing each sub-task, not just after completing an ent
     - [x] 1.4.3 Test bulk_set_status with empty selection shows error
   - [x] 1.5 Run tests with `uv run pytest tests/test_profile_bulk_selection.py` - all should pass
 
-- [ ] 2.0 Add tab filter (All/Memorized/Unmemorized)
-  - [ ] 2.1 Read `app/components/layout.py` to understand StatsCards component
-  - [ ] 2.2 Create `TabFilter` component in `app/components/layout.py` with:
-    - [ ] 2.2.1 Three tabs: All, Memorized, Unmemorized
-    - [ ] 2.2.2 Each tab shows page count in parentheses (e.g., "All (604)")
-    - [ ] 2.2.3 Active tab visually highlighted
-    - [ ] 2.2.4 Tabs link to `/profile/table?status_filter=all|memorized|unmemorized`
-  - [ ] 2.3 Update `profile_model.py` to add helper for tab counts:
-    - [ ] 2.3.1 Add `get_tab_counts(hafiz_id)` returning {all: X, memorized: Y, unmemorized: Z} as page counts
-  - [ ] 2.4 Update `profile_view.py`:
-    - [ ] 2.4.1 Replace `render_stats_cards()` call with `TabFilter` component
-    - [ ] 2.4.2 Pass tab counts to TabFilter
-  - [ ] 2.5 Update `profile_controller.py`:
-    - [ ] 2.5.1 Map status_filter values: `all` → None, `memorized` → memorized=1, `unmemorized` → memorized=0
-  - [ ] 2.6 Run typecheck (if available) to verify no type errors
-  - [ ] 2.7 Verify in browser: tabs display, counts correct, clicking tab filters table
-  - [ ] 2.8 Add tests to `tests/test_profile_bulk_selection.py`:
-    - [ ] 2.8.1 Test tab counts calculation
-    - [ ] 2.8.2 Test filtering by memorized status
-  - [ ] 2.9 Run tests - all should pass
+- [x] 2.0 Add tab filter (All/Memorized/Unmemorized)
+  - [x] 2.1 Read `app/components/layout.py` to understand StatsCards component
+  - [x] 2.2 Create `TabFilter` component in `app/components/layout.py` with:
+    - [x] 2.2.1 Three tabs: All, Memorized, Unmemorized
+    - [x] 2.2.2 Each tab shows page count in parentheses (e.g., "All (604)")
+    - [x] 2.2.3 Active tab visually highlighted
+    - [x] 2.2.4 Tabs link to `/profile/table?status_filter=all|memorized|unmemorized`
+  - [x] 2.3 Update `profile_model.py` to add helper for tab counts:
+    - [x] 2.3.1 Add `get_tab_counts(hafiz_id)` returning {all: X, memorized: Y, unmemorized: Z} as page counts
+  - [x] 2.4 Update `profile_view.py`:
+    - [x] 2.4.1 Replace `render_stats_cards()` call with `TabFilter` component
+    - [x] 2.4.2 Pass tab counts to TabFilter
+  - [x] 2.5 Update `profile_controller.py`:
+    - [x] 2.5.1 Map status_filter values: `all` → None, `memorized` → memorized=1, `unmemorized` → memorized=0
+  - [x] 2.6 Run typecheck (if available) to verify no type errors
+  - [x] 2.7 Verify in browser: tabs display, counts correct, clicking tab filters table
+  - [x] 2.8 Add tests to `tests/test_profile_bulk_selection.py`:
+    - [x] 2.8.1 Test tab counts calculation
+    - [x] 2.8.2 Test filtering by memorized status
+  - [x] 2.9 Run tests - all should pass
 
 - [ ] 3.0 Add Juz grouping with header checkbox
   - [ ] 3.1 Update `profile_model.py` `get_profile_data()`:

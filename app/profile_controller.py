@@ -16,6 +16,7 @@ from app.profile_view import (
     render_stats_cards,
     render_profile_table,
     render_rep_config_modal,
+    render_tab_filter,
 )
 from app.fixed_reps import REP_MODES_CONFIG, MODE_TO_THRESHOLD_COLUMN
 from constants import (
@@ -64,7 +65,11 @@ async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: 
     else:
         error_toast(sess, "No pages were updated")
 
-    return render_profile_table(auth, status_filter)
+    # Return table + tabs with OOB swap to update counts
+    return (
+        render_profile_table(auth, status_filter),
+        render_tab_filter(auth, status_filter, hx_swap_oob=True),
+    )
 
 
 @profile_app.get("/table/more")
@@ -98,7 +103,7 @@ def show_profile_page(auth, request, status_filter: str = None):
 
     return main_area(
         Div(
-            render_stats_cards(auth, "table", status_filter),
+            render_tab_filter(auth, status_filter),
             render_profile_table(auth, status_filter),
             config_modal,
             cls="space-y-4 pt-2",

@@ -117,11 +117,39 @@ def apply_status_to_item(hafiz_item, status, current_date):
     return True
 
 
+def get_tab_counts(hafiz_id: int) -> dict:
+    """Get page counts for tab filter: all, memorized, unmemorized."""
+    all_items = hafizs_items(where=f"hafiz_id = {hafiz_id}")
+    
+    memorized_item_ids = []
+    unmemorized_item_ids = []
+    
+    for hi in all_items:
+        if hi.memorized:
+            memorized_item_ids.append(hi.item_id)
+        else:
+            unmemorized_item_ids.append(hi.item_id)
+    
+    all_item_ids = [hi.item_id for hi in all_items]
+    
+    return {
+        "all": get_page_count(item_ids=all_item_ids),
+        "memorized": get_page_count(item_ids=memorized_item_ids),
+        "unmemorized": get_page_count(item_ids=unmemorized_item_ids),
+    }
+
+
 def get_profile_data(auth, status_filter=None):
     """Get profile data with optional status filter."""
     # Build filter condition
     filter_condition = ""
-    if status_filter == STATUS_NOT_MEMORIZED:
+    # New tab filter values: memorized, unmemorized
+    if status_filter == "memorized":
+        filter_condition = " AND hafizs_items.memorized = 1"
+    elif status_filter == "unmemorized":
+        filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
+    # Legacy status filter values (for backwards compatibility)
+    elif status_filter == STATUS_NOT_MEMORIZED:
         filter_condition = " AND (hafizs_items.memorized = 0 OR hafizs_items.memorized IS NULL)"
     elif status_filter == STATUS_LEARNING:
         filter_condition = f" AND hafizs_items.memorized = 1 AND hafizs_items.mode_code = '{NEW_MEMORIZATION_MODE_CODE}'"

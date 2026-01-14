@@ -1,6 +1,7 @@
 """Unit tests for profile bulk selection functionality.
 
 Tests bulk_set_status route handler for marking items as memorized/not memorized.
+Tests tab filter counts and filtering by memorized status.
 """
 
 import asyncio
@@ -12,6 +13,7 @@ from constants import (
     STATUS_SOLID,
     FULL_CYCLE_MODE_CODE,
 )
+from app.profile_model import get_tab_counts, get_profile_data
 
 
 class TestBulkSetStatus:
@@ -145,3 +147,40 @@ class TestBulkSetStatus:
 
         unchanged_item = hafizs_items[hafiz_2_items[0].id]
         assert unchanged_item.memorized == original_memorized
+
+
+class TestTabFilter:
+    """Tests for tab filter functionality."""
+
+    def test_get_tab_counts_returns_all_memorized_unmemorized(self, progression_test_hafiz):
+        """get_tab_counts returns dict with all, memorized, unmemorized page counts."""
+        hafiz_id = progression_test_hafiz["hafiz_id"]
+        
+        counts = get_tab_counts(hafiz_id)
+        
+        assert "all" in counts
+        assert "memorized" in counts
+        assert "unmemorized" in counts
+        # All should equal memorized + unmemorized
+        all_count = float(counts["all"]) if counts["all"] else 0
+        mem_count = float(counts["memorized"]) if counts["memorized"] else 0
+        unmem_count = float(counts["unmemorized"]) if counts["unmemorized"] else 0
+        assert all_count == mem_count + unmem_count
+
+    def test_get_profile_data_filters_by_memorized(self, progression_test_hafiz):
+        """get_profile_data with status_filter='memorized' returns only memorized items."""
+        hafiz_id = progression_test_hafiz["hafiz_id"]
+        
+        rows = get_profile_data(hafiz_id, status_filter="memorized")
+        
+        for row in rows:
+            assert row["memorized"] == 1
+
+    def test_get_profile_data_filters_by_unmemorized(self, progression_test_hafiz):
+        """get_profile_data with status_filter='unmemorized' returns only unmemorized items."""
+        hafiz_id = progression_test_hafiz["hafiz_id"]
+        
+        rows = get_profile_data(hafiz_id, status_filter="unmemorized")
+        
+        for row in rows:
+            assert row["memorized"] == 0 or row["memorized"] is None

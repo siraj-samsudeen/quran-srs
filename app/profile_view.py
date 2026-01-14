@@ -7,6 +7,7 @@ from app.profile_model import (
     get_status_counts,
     get_status,
     get_profile_data,
+    get_tab_counts,
 )
 from app.common_model import get_mode_count
 from constants import (
@@ -20,7 +21,7 @@ from constants import (
     MONTHLY_REPS_MODE_CODE,
 )
 
-from app.components.layout import StatsCards, BulkActionBar
+from app.components.layout import StatsCards, BulkActionBar, TabFilter
 from app.components.display import StatusBadge, ModeBadge
 from app.components.tables import ProgressCell, SurahHeader
 from app.components.forms import BulkSelectCheckbox, SelectAllCheckbox, RepConfigForm
@@ -28,6 +29,22 @@ from app.components.forms import BulkSelectCheckbox, SelectAllCheckbox, RepConfi
 def render_stats_cards(auth, current_type="page", active_status_filter=None):
     """Render status stats cards at top of profile page."""
     return StatsCards(auth, current_type, active_status_filter)
+
+
+def render_tab_filter(auth, status_filter=None, hx_swap_oob=False):
+    """Render tab filter for All/Memorized/Unmemorized.
+    
+    Args:
+        auth: hafiz_id
+        status_filter: current filter value
+        hx_swap_oob: if True, add hx-swap-oob for out-of-band update
+    """
+    tab_counts = get_tab_counts(auth)
+    active_tab = status_filter if status_filter in ("memorized", "unmemorized") else "all"
+    tabs = TabFilter(tab_counts, active_tab)
+    if hx_swap_oob:
+        tabs.attrs["hx-swap-oob"] = "true"
+    return tabs
 
 
 def render_profile_row(row_data, status_filter, hafiz_id=None):

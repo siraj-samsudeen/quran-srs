@@ -169,3 +169,42 @@ def StatsCards(auth, current_type="page", active_status_filter=None):
         cls="flex flex-wrap gap-3 mb-4",
         data_testid="stats-cards",
     )
+
+
+def TabFilter(tab_counts: dict, active_tab: str = "all"):
+    """
+    Render tab filter for All/Memorized/Unmemorized with page counts.
+    
+    Args:
+        tab_counts: Dict with keys 'all', 'memorized', 'unmemorized' and page counts
+        active_tab: Currently active tab ('all', 'memorized', 'unmemorized')
+    """
+    tabs_config = [
+        ("all", "All", tab_counts.get("all", 0)),
+        ("memorized", "Memorized", tab_counts.get("memorized", 0)),
+        ("unmemorized", "Unmemorized", tab_counts.get("unmemorized", 0)),
+    ]
+    
+    def make_tab(tab_key, label, count):
+        is_active = active_tab == tab_key
+        # Build URL - 'all' clears the filter
+        href = "/profile/table" if tab_key == "all" else f"/profile/table?status_filter={tab_key}"
+        
+        return A(
+            f"{label} ({count})",
+            href=href,
+            hx_get=href,
+            hx_target="#profile-table-container",
+            hx_swap="innerHTML",
+            hx_push_url="true",
+            cls=f"px-4 py-2 font-medium text-sm rounded-t-lg border-b-2 transition-colors "
+                f"{'border-primary text-primary bg-primary/10' if is_active else 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-100'}",
+            data_testid=f"tab-{tab_key}",
+        )
+    
+    return Div(
+        *[make_tab(key, label, count) for key, label, count in tabs_config],
+        id="tab-filter",
+        cls="flex gap-1 border-b mb-4",
+        data_testid="tab-filter",
+    )
