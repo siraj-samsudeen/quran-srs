@@ -466,9 +466,10 @@ def bulk_rate(
 @home_app.post("/toggle_love/{item_id}")
 def toggle_love(auth, item_id: int, mode_code: str, date: str, plan_id: str = ""):
     """Toggle the loved status of a page."""
-    # Get or create hafizs_items record
-    hafiz_item = get_hafizs_items(item_id)
-    if hafiz_item:
+    # Get or create hafizs_items record for authenticated hafiz
+    hafiz_item_records = hafizs_items(where=f"item_id={item_id} AND hafiz_id={auth}")
+    if hafiz_item_records:
+        hafiz_item = hafiz_item_records[0]
         # Toggle the loved status
         new_loved = 0 if hafiz_item.loved else 1
         hafizs_items.update({"loved": new_loved}, hafiz_item.id)
