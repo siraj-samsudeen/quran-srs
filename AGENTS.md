@@ -21,6 +21,7 @@ The framework works with "JS-native web components and any vanilla JS library, b
 ## Advanced Features
 
 - **Beforeware**: Functions running before route handlers for authentication/authorization
+- auth is hafiz_id not user_id - user_id is like an account and hafiz_id is the real user grouped under the user. 
 - **Form handling**: Dataclass type annotations automatically unpack form bodies into matching attributes
 - **Database integration**: fastlite provides CRUD operations with optional SQLAlchemy compatibility
 - **Real-time**: WebSocket and Server-Sent Events support via HTMX extensions

@@ -346,6 +346,7 @@ def update_status_from_index(
     # Add or update the revision record
     revision = add_revision_record(
         item_id=item_id,
+        hafiz_id=auth,
         mode_code=mode_code,
         revision_date=date,
         rating=rating,
@@ -433,6 +434,7 @@ def bulk_rate(
     for item_id in item_ids:
         add_revision_record(
             item_id=item_id,
+            hafiz_id=auth,
             mode_code=mode_code,
             revision_date=date,
             rating=rating,
