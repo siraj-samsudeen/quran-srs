@@ -1,6 +1,7 @@
 from fasthtml.common import *
 from monsterui.all import *
 from app.admin_model import get_column_headers, get_column_and_its_type, get_table_records
+from app.common_view import main_area
 from database import db
 
 # We need the list of tables for the sidebar
