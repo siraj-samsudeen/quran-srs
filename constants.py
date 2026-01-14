@@ -8,7 +8,7 @@ MONTHLY_REPS_MODE_CODE = "MR"
 SRS_MODE_CODE = "SR"
 
 # Pagination configuration (applies to all modes)
-ITEMS_PER_PAGE = 10  # Default batch size for infinite scroll (configurable per hafiz in settings)
+ITEMS_PER_PAGE = 25  # Default batch size for infinite scroll (configurable per hafiz in settings)
 FULL_CYCLE_EXTRA_ROWS = 5  # Extra rows added when Full Cycle limit is reached
 
 RATING_MAP = {"1": "✅ Good", "0": "😄 Ok", "-1": "❌ Bad"}

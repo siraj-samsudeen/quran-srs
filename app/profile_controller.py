@@ -210,7 +210,7 @@ async def configure_reps(req: Request, auth, sess):
 
     if not hafiz_item_ids or not mode_code:
         error_toast(sess, "Missing required parameters")
-        return RedirectResponse("/profile/table", status_code=303)
+        return RedirectResponse("/profile/", status_code=303)
 
     current_date = get_current_date(auth)
     updated_count = 0
@@ -258,7 +258,7 @@ async def configure_reps(req: Request, auth, sess):
     else:
         error_toast(sess, "No pages were updated")
 
-    return RedirectResponse("/profile/table", status_code=303)
+    return RedirectResponse("/profile/", status_code=303)
 
 
 @profile_app.post("/quick_change_mode/{hafiz_item_id}")

@@ -15,11 +15,11 @@ from constants import (
 
 
 class TestShowProfilePageRoute:
-    """Tests GET /profile/table route."""
+    """Tests GET /profile/ route."""
 
     def test_show_profile_page_returns_page(self, progression_test_hafiz):
-        """GET /profile/table returns profile page."""
-        from app.profile_controller import show_profile_page
+        """GET /profile/ returns profile page."""
+        from app.profile_controller import profile_home
         from unittest.mock import Mock
 
         hafiz_id = progression_test_hafiz["hafiz_id"]
@@ -29,23 +29,23 @@ class TestShowProfilePageRoute:
         request.headers = {}
         
         # Call route
-        result = show_profile_page(auth=hafiz_id, request=request, status_filter=None)
+        result = profile_home(auth=hafiz_id, request=request, status_filter=None)
         
         # Should return HTML response
         assert result is not None
 
 
 class TestLoadMoreProfileRowsRoute:
-    """Tests GET /profile/table/more route."""
+    """Tests POST /profile/load_more route."""
 
     def test_load_more_profile_rows_returns_rows(self, progression_test_hafiz):
-        """GET /profile/table/more returns additional rows."""
-        from app.profile_controller import load_more_profile_rows
+        """POST /profile/load_more returns additional rows."""
+        from app.profile_controller import load_more_rows
 
         hafiz_id = progression_test_hafiz["hafiz_id"]
         
         # Call route
-        result = load_more_profile_rows(auth=hafiz_id, status_filter=None, offset=0)
+        result = load_more_rows(auth=hafiz_id, status_filter=None, offset=0)
         
         # Should return rows
         assert result is not None
@@ -257,8 +257,8 @@ class TestProfileRouteProtection:
             assert updated_item.hafiz_id == hafiz_id
 
     def test_show_profile_page_only_shows_authenticated_hafiz_data(self, progression_test_hafiz):
-        """GET /profile/table should only return data for authenticated hafiz."""
-        from app.profile_controller import show_profile_page
+        """GET /profile/ should only return data for authenticated hafiz."""
+        from app.profile_controller import profile_home
         from unittest.mock import Mock
 
         hafiz_id = progression_test_hafiz["hafiz_id"]
@@ -268,19 +268,19 @@ class TestProfileRouteProtection:
         request.headers = {}
         
         # Call route
-        result = show_profile_page(auth=hafiz_id, request=request, status_filter=None)
+        result = profile_home(auth=hafiz_id, request=request, status_filter=None)
         
         # Should return HTML (not raise error or return wrong data)
         assert result is not None
 
     def test_load_more_profile_rows_respects_hafiz_filter(self, progression_test_hafiz):
-        """GET /profile/table/more should only load rows for authenticated hafiz."""
-        from app.profile_controller import load_more_profile_rows
+        """POST /profile/load_more should only load rows for authenticated hafiz."""
+        from app.profile_controller import load_more_rows
 
         hafiz_id = progression_test_hafiz["hafiz_id"]
         
         # Call route
-        result = load_more_profile_rows(auth=hafiz_id, status_filter=None, offset=0)
+        result = load_more_rows(auth=hafiz_id, status_filter=None, offset=0)
         
         # Should return rows
         assert result is not None

@@ -19,6 +19,8 @@ from constants import (
 def JuzHeader(juz_number, colspan=6):
     """
     Render a Juz section header row with checkbox for bulk selection.
+    Checkbox state: checked if all visible pages in Juz selected, 
+    unchecked if none selected, indeterminate if some selected.
     
     Args:
         juz_number: Juz number (1-30)
@@ -34,8 +36,10 @@ def JuzHeader(juz_number, colspan=6):
                 const isChecked = $el.checked;
                 $root.querySelectorAll(`.bulk-select-checkbox[data-juz="${{juzNum}}"]`).forEach(cb => {{
                     cb.checked = isChecked;
+                    const surahId = cb.dataset.surah;
+                    if (surahId) updateSurahCheckboxState(juzNum, surahId);
                 }});
-                count = $root.querySelectorAll('.bulk-select-checkbox:checked').length;
+                updateCount();
             """,
         },
     )
@@ -55,6 +59,8 @@ def JuzHeader(juz_number, colspan=6):
 def SurahHeader(surah_id, juz_number, colspan=6):
     """
     Render a surah section header row with surah name, juz indicator, and checkbox for bulk selection.
+    Checkbox state: checked if all visible pages in Surah selected, 
+    unchecked if none selected, indeterminate if some selected.
     
     Args:
         surah_id: Surah ID
@@ -77,7 +83,8 @@ def SurahHeader(surah_id, juz_number, colspan=6):
                 $root.querySelectorAll(`.bulk-select-checkbox[data-juz="${{juzNum}}"][data-surah="${{surahId}}"]`).forEach(cb => {{
                     cb.checked = isChecked;
                 }});
-                count = $root.querySelectorAll('.bulk-select-checkbox:checked').length;
+                updateCount();
+                updateJuzCheckboxState(juzNum);
             """,
         },
     )

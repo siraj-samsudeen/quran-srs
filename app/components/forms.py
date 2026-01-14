@@ -101,10 +101,11 @@ def ModeSelect(
     )
 
 
-def BulkSelectCheckbox(value, name="item_ids", cls="", checked=False, **kwargs):
+def BulkSelectCheckbox(value, name="hafiz_item_ids", cls="", checked=False, **kwargs):
     """
     Checkbox for bulk selection in table rows.
     Connects to the SelectAllCheckbox via the 'bulk-select-checkbox' class.
+    On change: updates parent Surah and Juz checkbox states.
     """
     return fh.Input(
         type="checkbox",
@@ -112,7 +113,17 @@ def BulkSelectCheckbox(value, name="item_ids", cls="", checked=False, **kwargs):
         value=value,
         checked=checked,
         cls=f"checkbox bulk-select-checkbox {cls}",
-        **{"@change": "count = $root.querySelectorAll('.bulk-select-checkbox:checked').length"},
+        **{
+            "@change": """
+                updateCount();
+                const juzNum = $el.dataset.juz;
+                const surahId = $el.dataset.surah;
+                if (juzNum && surahId) {
+                    updateSurahCheckboxState(juzNum, surahId);
+                    updateJuzCheckboxState(juzNum);
+                }
+            """
+        },
         **kwargs
     )
 
@@ -120,14 +131,24 @@ def BulkSelectCheckbox(value, name="item_ids", cls="", checked=False, **kwargs):
 def SelectAllCheckbox(cls="checkbox", **kwargs):
     """
     Master checkbox for selecting all BulkSelectCheckboxes in the current scope.
+    Handles Select All / Clear All with proper parent checkbox state updates.
     """
     return fh.Input(
         type="checkbox",
         cls=cls,
         **{
             "@change": """
-                $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = $el.checked);
-                count = $el.checked ? $root.querySelectorAll('.bulk-select-checkbox').length : 0
+                const isChecking = $el.checked;
+                $root.querySelectorAll('.bulk-select-checkbox').forEach(cb => {
+                    cb.checked = isChecking;
+                    const juzNum = cb.dataset.juz;
+                    const surahId = cb.dataset.surah;
+                    if (juzNum && surahId) {
+                        updateSurahCheckboxState(juzNum, surahId);
+                        updateJuzCheckboxState(juzNum);
+                    }
+                });
+                updateCount();
             """,
             ":checked": "count > 0 && count === $root.querySelectorAll('.bulk-select-checkbox').length",
         },

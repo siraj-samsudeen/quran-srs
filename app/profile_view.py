@@ -144,7 +144,14 @@ def render_bulk_action_bar(status_filter):
     cancel_button = Button(
         "✕",
         cls="btn btn-ghost btn-sm",
-        **{"@click": "$root.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false); count = 0"},
+        **{
+            "@click": """
+                document.querySelectorAll('.bulk-select-checkbox').forEach(cb => cb.checked = false);
+                document.querySelectorAll('.surah-checkbox').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+                document.querySelectorAll('.juz-checkbox').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+                updateCount();
+            """
+        },
         title="Cancel selection",
     )
 
@@ -250,8 +257,76 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25):
 
     bulk_bar = render_bulk_action_bar(status_filter)
 
+    # Alpine.js helper functions for checkbox state management
+    checkbox_script = Script("""
+    function updateCount() {
+        // Update count in Alpine data
+        const form = document.getElementById('profile-table-container');
+        const checkedCount = document.querySelectorAll('.bulk-select-checkbox:checked').length;
+        
+        // Find all elements with x-text="count" and update them
+        document.querySelectorAll('[x-text="count"]').forEach(el => {
+            el.textContent = checkedCount;
+        });
+        
+        // Update bulk bar visibility
+        const bulkBar = document.getElementById('bulk-action-bar');
+        if (bulkBar) {
+            bulkBar.style.display = checkedCount > 0 ? 'flex' : 'none';
+        }
+        
+        // Also try to update Alpine data if it exists
+        if (form && form.__x) {
+            form.__x.$data.count = checkedCount;
+        }
+    }
+    
+    function updateSurahCheckboxState(juzNum, surahId) {
+        const surahCheckbox = document.querySelector(`.surah-checkbox[data-juz="${juzNum}"][data-surah="${surahId}"]`);
+        if (!surahCheckbox) return;
+        
+        const pages = document.querySelectorAll(`.bulk-select-checkbox[data-juz="${juzNum}"][data-surah="${surahId}"]`);
+        if (pages.length === 0) return;
+        
+        const checkedCount = document.querySelectorAll(`.bulk-select-checkbox[data-juz="${juzNum}"][data-surah="${surahId}"]:checked`).length;
+        
+        if (checkedCount === 0) {
+            surahCheckbox.checked = false;
+            surahCheckbox.indeterminate = false;
+        } else if (checkedCount === pages.length) {
+            surahCheckbox.checked = true;
+            surahCheckbox.indeterminate = false;
+        } else {
+            surahCheckbox.checked = false;
+            surahCheckbox.indeterminate = true;
+        }
+    }
+    
+    function updateJuzCheckboxState(juzNum) {
+        const juzCheckbox = document.querySelector(`.juz-checkbox[data-juz="${juzNum}"]`);
+        if (!juzCheckbox) return;
+        
+        const pages = document.querySelectorAll(`.bulk-select-checkbox[data-juz="${juzNum}"]`);
+        if (pages.length === 0) return;
+        
+        const checkedCount = document.querySelectorAll(`.bulk-select-checkbox[data-juz="${juzNum}"]:checked`).length;
+        
+        if (checkedCount === 0) {
+            juzCheckbox.checked = false;
+            juzCheckbox.indeterminate = false;
+        } else if (checkedCount === pages.length) {
+            juzCheckbox.checked = true;
+            juzCheckbox.indeterminate = false;
+        } else {
+            juzCheckbox.checked = false;
+            juzCheckbox.indeterminate = true;
+        }
+    }
+    """)
+
     # Build content
     content_items = [
+        checkbox_script,
         Div(f"{total_pages} pages", cls="text-sm text-gray-500 mb-2"),
         table,
         bulk_bar,

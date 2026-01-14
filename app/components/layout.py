@@ -33,7 +33,6 @@ def BulkActionBar(
         id=id,
         cls=f"{base_cls} {cls}",
         x_show=show_condition,
-        style="display: none",
         x_transition=True,
         **kwargs
     )
@@ -95,7 +94,7 @@ def MainArea(*args, active=None, auth=None):
                 A("Home", href="/", cls=is_active("Home")),
                 A(
                     "Profile",
-                    href="/profile/table",
+                    href="/profile/",
                     cls=is_active("Memorization Status"),
                 ),
                 A(
@@ -188,7 +187,7 @@ def TabFilter(tab_counts: dict, active_tab: str = "all"):
     def make_tab(tab_key, label, count):
         is_active = active_tab == tab_key
         # Build URL - 'all' clears the filter
-        href = "/profile/table" if tab_key == "all" else f"/profile/table?status_filter={tab_key}"
+        href = "/profile/" if tab_key == "all" else f"/profile/?status_filter={tab_key}"
         
         return A(
             f"{label} ({count})",
