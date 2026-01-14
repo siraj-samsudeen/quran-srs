@@ -329,10 +329,9 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25):
         checkbox_script,
         Div(f"{total_pages} pages", cls="text-sm text-gray-500 mb-2"),
         table,
-        bulk_bar,
     ]
     
-    # Add Load More button if there are more items
+    # Add Load More button if there are more items (BEFORE bulk bar)
     if has_more:
         filter_param = f"&status_filter={status_filter}" if status_filter else ""
         next_offset = offset + items_per_page
@@ -343,12 +342,16 @@ def render_profile_table(auth, status_filter=None, offset=0, items_per_page=25):
                     type="button",
                     cls="btn btn-outline btn-sm",
                     hx_post=f"/profile/load_more?offset={next_offset}{filter_param}",
-                    hx_target="#profile-table-container",
+                    hx_target="#profile-tbody",
                     hx_swap="beforeend",
+                    id="load-more-btn",
                 ),
                 cls="flex justify-center py-4",
+                id="load-more-container",
             )
         )
+    
+    content_items.append(bulk_bar)
 
     # Always add padding at bottom to ensure bulk bar doesn't cover content
     # Wrap table and bulk bar in a Form so checkboxes are submitted with the buttons

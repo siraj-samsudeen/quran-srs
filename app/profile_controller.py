@@ -102,14 +102,13 @@ async def bulk_set_status(req: Request, auth, sess, status: str, status_filter: 
 
 @profile_app.post("/load_more")
 def load_more_rows(auth, status_filter: str = None, offset: int = 0):
-    """Load more rows via Load More button."""
+    """Load more rows via Load More button. Returns rows + updated Load More button."""
     from app.common_model import get_page_count
     from app.profile_model import get_profile_data
     from app.components.tables import JuzHeader, SurahHeader
     from app.profile_view import render_profile_row
     
     rows = get_profile_data(auth, status_filter)
-    item_ids = [row["item_id"] for row in rows]
     total_items = len(rows)
     
     items_per_page = 25
@@ -140,26 +139,38 @@ def load_more_rows(auth, status_filter: str = None, offset: int = 0):
         
         body_rows.append(render_profile_row(row, status_filter, hafiz_id=auth))
     
-    # Add Load More button if there are more items
-    content = body_rows
+    # Build response: table rows + updated Load More button (or none if no more)
+    response_items = list(body_rows)
+    
     if has_more:
         filter_param = f"&status_filter={status_filter}" if status_filter else ""
         next_offset = offset + items_per_page
-        content.append(
+        response_items.append(
             Div(
                 Button(
                     "Load More",
                     type="button",
                     cls="btn btn-outline btn-sm",
                     hx_post=f"/profile/load_more?offset={next_offset}{filter_param}",
-                    hx_target="#profile-table-container",
+                    hx_target="#profile-tbody",
                     hx_swap="beforeend",
+                    id="load-more-btn",
                 ),
                 cls="flex justify-center py-4",
+                id="load-more-container",
+                hx_swap_oob="true",
+            )
+        )
+    else:
+        # Remove button if no more items
+        response_items.append(
+            Div(
+                id="load-more-container",
+                hx_swap_oob="true",
             )
         )
     
-    return tuple(content)
+    return tuple(response_items)
 
 
 @profile_app.get("/configure_reps/{hafiz_item_id}")
